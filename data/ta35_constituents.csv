@@ -1,0 +1,33 @@
+# רשימת מניות מדד ת"א 35 - זרע מאומת מול Yahoo Finance (2026-08-09), אך יש לוודא/לעדכן
+# מול אתר הבורסה (TASE) מדי רבעון כי הרכב המדד משתנה:
+# https://www.tase.co.il/he/market_data/index/142/components
+# עמודה yahoo_ticker היא הטיקר כפי שמופיע ב-Yahoo Finance (סיומת .TA)
+symbol,name,yahoo_ticker
+TEVA,טבע,TEVA.TA
+POLI,בנק הפועלים,POLI.TA
+LUMI,בנק לאומי,LUMI.TA
+ICL,איי סי אל,ICL.TA
+NICE,נייס,NICE.TA
+ESLT,אלביט מערכות,ESLT.TA
+DLEKG,דלק קבוצה,DLEKG.TA
+MZTF,מזור,MZTF.TA
+DSCT,בנק דיסקונט,DSCT.TA
+HARL,הראל השקעות,HARL.TA
+PHOE,הפניקס אחזקות,PHOE.TA
+FIBI,הבינלאומי,FIBI.TA
+ALHE,אלקטרה,ALHE.TA
+BEZQ,בזק,BEZQ.TA
+PTNR,פרטנר,PTNR.TA
+CEL,סלקום,CEL.TA
+ORA,אורמת טכנולוגיות,ORA.TA
+TSEM,טאואר סמיקונדקטור,TSEM.TA
+NVMI,נובה,NVMI.TA
+ILCO,ישראמקו,ILCO.TA
+OPCE,אופיסיטי,OPCE.TA
+MLSR,מיליסרון,MLSR.TA
+AZRM,אלוני חץ,AZRM.TA
+ENLT,אנלייט אנרגיה,ENLT.TA
+ONE,וואן טכנולוגיות,ONE.TA
+IBI,אי בי אי,IBI.TA
+MGDL,מגדל אחזקות,MGDL.TA
+NXTG,נקסטג'ן ביומד,NXTG.TA

@@ -1,0 +1,102 @@
+"""הצעת שער כניסה (לימיט), יעד מכירה ותרחיש יציאה - מבוסס אסטרטגיית "קנייה אחרי
+תיקון, מכירה בריבאונד". אלו חישובים טכניים היוריסטיים בלבד, לא המלצת השקעה אישית -
+יש לבחון כל הצעה בעצמך לפני קבלת החלטה.
+"""
+import dataclasses
+
+
+@dataclasses.dataclass
+class TradeIdea:
+    entry_limit: float
+    entry_note: str
+    support_reference: float | None
+    target_conservative: float   # 38.2% retracement
+    target_base: float           # 50% retracement
+    target_aggressive: float     # 61.8% retracement / כמעט מלא
+    stop_loss: float
+    stop_loss_note: str
+    liquidity_tier: str = "unknown"   # "high" / "medium" / "low" / "unknown"
+    liquidity_note: str = ""
+
+
+ATR_STOP_MULTIPLIER = 1.5  # מרחק הסטופ מהכניסה = פי X מה-ATR (תנודתיות היום-יומית הרגילה)
+MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על יעד המכירה - לעולם לא קטן ממרחק הסטופ (יחס 1:1),
+# גם אם התיקון-Fibonacci בפועל (מגודל הירידה) קטן יותר - אחרת מסתכנים ביותר ממה שמנסים להרוויח
+
+# ספי נזילות (נפח מסחר ממוצע יומי בערך $/₪) לצורך מרווח נוסף בלימיט הכניסה.
+# אין מקור נתונים חינמי ואמין ל-bid/ask spread אמיתי (בטח לא היסטורית), ולכן
+# זהו פרוקסי מבוסס נפח מסחר - לא מדד spread מדויק, אבל נפח נמוך מתאם בפועל
+# עם spread רחב יותר וסיכון החלקה (slippage) גבוה יותר במימוש הזמנה בפועל.
+LIQUIDITY_HIGH_THRESHOLD = 10_000_000
+LIQUIDITY_MEDIUM_THRESHOLD = 2_000_000
+
+
+def _liquidity_adjustment(avg_dollar_volume: float | None) -> tuple[float, str, str]:
+    if avg_dollar_volume is None:
+        return 0.0, "unknown", "אין נתוני נפח מספיקים להערכת נזילות"
+    if avg_dollar_volume >= LIQUIDITY_HIGH_THRESHOLD:
+        return 0.0, "high", "נזילות גבוהה (לפי נפח מסחר $ ממוצע יומי) - לא נדרש מרווח נוסף בלימיט"
+    if avg_dollar_volume >= LIQUIDITY_MEDIUM_THRESHOLD:
+        return 0.003, "medium", "נזילות בינונית - נוסף מרווח קטן ללימיט הכניסה כדי לצמצם סיכון החלקה (slippage)"
+    return 0.007, "low", "נזילות נמוכה - נוסף מרווח משמעותי ללימיט, ייתכן קושי לממש בדיוק במחיר המבוקש"
+
+
+def suggest_strategy(last_close: float, prev_close: float, last_low: float | None,
+                      recent_20d_low: float | None, overreaction_score: int,
+                      atr: float | None = None, avg_dollar_volume: float | None = None) -> TradeIdea:
+    drop_size = prev_close - last_close  # גודל התיקון בערך מוחלט
+
+    # שער כניסה: מעט מתחת למחיר הנוכחי, כדי לתת מרווח לקפיטולציה נוספת.
+    # ככל שסבירות תגובת-היתר גבוהה יותר (ניקוד 0-100), המרווח שנדרש קטן יותר -
+    # מדורג באופן רציף לפי הציון המשוקלל, כך שכל שינוי בציון (לא רק חציית סף)
+    # משפיע בפועל על מרחק הכניסה. בנוסף, מניות דלות-נזילות מקבלות מרווח נוסף
+    # (ראו _liquidity_adjustment) כדי להקטין סיכון החלקה בין הלימיט למימוש בפועל.
+    score_buffer_pct = max(0.005, 0.015 - (overreaction_score / 100) * 0.010)
+    liquidity_buffer_pct, liquidity_tier, liquidity_note = _liquidity_adjustment(avg_dollar_volume)
+    buffer_pct = score_buffer_pct + liquidity_buffer_pct
+    entry_limit = round(last_close * (1 - buffer_pct), 2)
+
+    entry_note = (
+        f"לימיט כ-{buffer_pct*100:.1f}% מתחת למחיר הנוכחי, כדי לתפוס המשך ירידה קלה "
+        f"מבלי לרדוף אחרי המניה"
+    )
+    if liquidity_tier in ("medium", "low"):
+        entry_note += f" (כולל מרווח נוסף בשל נזילות {('בינונית' if liquidity_tier == 'medium' else 'נמוכה')})"
+
+    target_conservative = round(last_close + 0.382 * drop_size, 2)
+    target_base = round(last_close + 0.5 * drop_size, 2)
+    target_aggressive = round(last_close + 0.618 * drop_size, 2)
+
+    stop_ref = last_low if last_low is not None else last_close
+    anchor = min(stop_ref, entry_limit)
+    if atr is not None and atr > 0:
+        # סטופ לפי תנודתיות אמיתית של המניה (ATR) במקום אחוז קבוע לכולן - מניה
+        # תנודתית מקבלת סטופ רחוק יותר, מניה יציבה מקבלת סטופ צמוד יותר.
+        stop_loss = round(anchor - ATR_STOP_MULTIPLIER * atr, 2)
+        stop_pct = (stop_loss / anchor - 1) * 100
+        stop_loss_note = f"כ-{ATR_STOP_MULTIPLIER:g}x ATR מתחת לשפל היום / שער הכניסה (בפועל {abs(stop_pct):.1f}%, לפי תנודתיות המניה)"
+    else:
+        stop_loss = round(anchor * 0.97, 2)
+        stop_loss_note = "כ-3% מתחת לשפל היום / שער הכניסה, לפי הנמוך מביניהם (אין נתוני ATR זמינים)"
+
+    # יעד המכירה לא יורד מתחת לרווח מינימלי של 3% מעל שער הכניסה (הצדקת כניסה
+    # לעסקה אחרי עמלות ומס), וגם לא מתחת ליחס סיכוי/סיכון 1:1 מול מרחק הסטופ -
+    # גם אם התיקון-Fibonacci בפועל קטן מזה. שתי הרצפות מחושבות ב-max() יחד -
+    # כל אחת עשויה להיות המחמירה מביניהן תלוי במניה.
+    min_target_profit = round(entry_limit * 1.03, 2)
+    min_target_reward_risk = round(entry_limit + (entry_limit - stop_loss) * MIN_TARGET_REWARD_RISK_RATIO, 2)
+    target_base = max(target_base, min_target_profit, min_target_reward_risk)
+    target_aggressive = max(target_aggressive, target_base)
+
+    return TradeIdea(
+        entry_limit=entry_limit,
+        entry_note=entry_note,
+        support_reference=recent_20d_low,
+        target_conservative=target_conservative,
+        target_base=target_base,
+        target_aggressive=target_aggressive,
+        stop_loss=stop_loss,
+        stop_loss_note=stop_loss_note,
+        liquidity_tier=liquidity_tier,
+        liquidity_note=liquidity_note,
+    )

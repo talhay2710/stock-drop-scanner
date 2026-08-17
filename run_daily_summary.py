@@ -1,0 +1,96 @@
+"""שולח סיכום יומי אחד בטלגרם על כל ההתראות שנשלחו היום, עם מחיר עדכני מול
+הכניסה/יעד/סטופ שהוצעו. מיועד להרצה פעם אחת ביום אחרי סגירת המסחר האמריקאי
+(ראה setup_task_scheduler.ps1).
+"""
+import logging
+import sys
+import os
+import ctypes
+import datetime as dt
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ה-Task Scheduler מגדיר "להעיר את המחשב כדי להריץ" - אבל זה רק מעיר אותו
+# כדי *להתחיל*, לא מונע ממנו לחזור לישון (Modern Standby) תוך כדי הריצה.
+# נצפה בפועל: המחשב יצא משינה, המשימה התחילה, והמחשב חזר לישון תוך שנייה -
+# הפייתון נהרג עוד לפני שהספיק לכתוב אפילו שורת לוג אחת. ES_SYSTEM_REQUIRED
+# אומר ל-Windows "אל תירדם כל עוד אני רץ" - בלי זה, הנעילה על השעון בלבד לא מספיקה.
+if sys.platform == "win32":
+    ES_CONTINUOUS = 0x80000000
+    ES_SYSTEM_REQUIRED = 0x00000001
+    ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+
+from src.config import load_config, db_path
+from src.store import get_conn, get_bought_holdings
+from src.daily_summary import build_daily_summary
+from src import market_data, notifier, backtest, fees, constituents
+
+
+def _build_holdings_summary(conn, cfg) -> list[dict]:
+    holdings = get_bought_holdings(conn)
+    result = []
+    for h in holdings:
+        current = market_data.fetch_current_price(h["ticker"])
+        entry = h["actual_entry_price"]
+        qty = h["actual_qty"]
+        ccy = constituents.INDEX_CURRENCY.get(h.get("index_name"), "ILS")
+        country_code = constituents.INDEX_COUNTRY_CODE.get(h.get("index_name"), "IL")
+
+        days_held = 1
+        if h.get("bought_at"):
+            try:
+                bought_dt = dt.datetime.fromisoformat(h["bought_at"])
+                days_held = max((dt.datetime.now() - bought_dt).days, 0) + 1
+            except Exception:
+                pass
+
+        net_pnl, net_pct = None, None
+        if current is not None and entry:
+            net = fees.compute_net_result(
+                country_code=country_code, buy_price=entry, sell_price=current,
+                position_size_ccy=entry * qty, holding_days=max(days_held, 1), fees_cfg=cfg["fees"],
+            )
+            net_pnl, net_pct = net.net_pnl, net.net_return_pct
+
+        today_df = market_data.fetch_universe_daily_changes([h["ticker"]])
+        today_pct = float(today_df.iloc[0]["pct_change"]) if not today_df.empty else None
+
+        result.append({
+            "ticker": h["ticker"], "name": h["company_name"] or h["ticker"],
+            "net_pnl": net_pnl, "net_pct": net_pct, "today_pct": today_pct,
+            "ccy_symbol": {"ILS": 'ש"ח', "USD": "$"}.get(ccy, ccy),
+        })
+    return result
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), "scanner.log"), encoding="utf-8"),
+    ],
+)
+
+if __name__ == "__main__":
+    try:
+        cfg = load_config()
+        conn = get_conn(db_path(cfg))
+        try:
+            today = dt.date.today().isoformat()
+            holdings_summary = _build_holdings_summary(conn, cfg)
+            message = build_daily_summary(conn, today, holdings_summary)
+
+            updated = backtest.refresh_pending_outcomes(conn)
+            if updated:
+                print(f"עודכנו {updated} outcome-ים היסטוריים (לטרק-רקורד עתידי).")
+        finally:
+            conn.close()
+
+        if message:
+            notifier.send_telegram(cfg, message)
+            print("סיכום יומי נשלח.")
+        else:
+            print("אין התראות היום - לא נשלח סיכום.")
+    finally:
+        if sys.platform == "win32":
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
