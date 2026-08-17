@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 
 $ProjectDir = $PSScriptRoot
-$KnownPython = "C:\Users\micha\AppData\Local\Programs\Python\Python312\python.exe"
+$KnownPython = "C:\Users\talha\AppData\Local\Programs\Python\Python312\python.exe"
 if (Test-Path $KnownPython) {
     $PythonExe = $KnownPython
 } else {
