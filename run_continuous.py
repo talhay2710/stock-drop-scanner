@@ -11,7 +11,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.config import load_config
-from src.scanner import run_scan
+from src.scanner import run_scan, run_startup_health_check
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +29,7 @@ def main():
     interval = cfg.get("scan_interval_minutes", 5) * 60
     indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
     logger.info("מתחיל סריקה רציפה עבור מדדים %s, כל %d דקות (בשעות מסחר בלבד)", indices, interval / 60)
+    run_startup_health_check(cfg)
 
     while True:
         try:

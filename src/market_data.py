@@ -2,12 +2,14 @@
 import concurrent.futures
 import datetime as dt
 import logging
+import time
+from zoneinfo import ZoneInfo
 import pandas as pd
 import numpy as np
 import yfinance as yf
 
 from .constituents import INDEX_PROXY_TICKER
-from .market_hours import is_market_open
+from .market_hours import is_market_open, MARKET_HOURS
 
 logger = logging.getLogger(__name__)
 
@@ -135,12 +137,18 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
         return
 
     def _fetch_live(row: dict) -> None:
-        try:
+        # עטוף ב-_with_retry (מוגדר בהמשך הקובץ, אבל זמין כבר בזמן ריצה בפועל -
+        # פייתון פותר שמות ברמת מודול רק כשקוראים להם, לא לפי סדר הגדרה) -
+        # כשל חד-פעמי (rate-limit זמני) לא אמור להשאיר שורה בלי תיקון-טריות
+        # רק כי הניסיון היחיד שלה נכשל, בדיוק כמו התיקון שכבר נעשה
+        # ל-fetch_current_price. בלי retry כאן, יום כמו 18.8.2026 (Yahoo
+        # rate-limited) היה משאיר את כל הסריקה על נתונים ישנים בלי סיבה טובה.
+        def _do():
             info = yf.Ticker(row["ticker"]).info
             price, prev = info.get("regularMarketPrice"), info.get("regularMarketPreviousClose")
             ts = info.get("regularMarketTime")
             if price is None or prev is None or not ts or not prev:
-                return
+                return None
             close_date = dt.datetime.fromtimestamp(ts).date()
             # רק אם הציטוט החי ישן יותר ממה שכבר יש מדלגים (לא רוצים לרגרס
             # לאחור). "אותו תאריך" עדיין מוחלף - price+prev מגיעים תמיד יחד
@@ -151,49 +159,91 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             # להסתפק בבדיקת last_close_date בלבד - תמיד מעדיפים את הזוג
             # העקבי מהציטוט החי על פני הרכבה-מחדש שעלולה לצרף תאריכים לא רצופים.
             if row.get("last_close_date") and close_date < row["last_close_date"]:
-                return
-            if _is_israeli_ticker(row["ticker"]):
-                price, prev = price / 100.0, prev / 100.0
-            row["last_close"] = float(price)
-            row["prev_close"] = float(prev)
-            row["pct_change"] = (price - prev) / prev * 100.0
-            row["last_close_date"] = close_date
-        except Exception as e:
-            logger.debug("נכשל ניסיון תיקון-טריות עבור %s: %s", row["ticker"], e)
+                return None
+            return price, prev, close_date
+
+        result = _with_retry(_do, f"תיקון-טריות עבור {row['ticker']}")
+        if result is None:
+            return
+        price, prev, close_date = result
+        if _is_israeli_ticker(row["ticker"]):
+            price, prev = price / 100.0, prev / 100.0
+        row["last_close"] = float(price)
+        row["prev_close"] = float(prev)
+        row["pct_change"] = (price - prev) / prev * 100.0
+        row["last_close_date"] = close_date
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         list(executor.map(_fetch_live, target_rows))
+
+
+_RETRY_ATTEMPTS = 3
+_RETRY_DELAY_SECONDS = 2.0
+
+
+def _with_retry(fn, description: str):
+    """מנסה עד _RETRY_ATTEMPTS פעמים עם המתנה קצרה ביניהן, לפני שנכנעים -
+    כשלים חד-פעמיים (rate-limit זמני, הפרעת רשת) לא אמורים להפוך ל"אין נתון"
+    אם ניסיון חוזר שנייה-שתיים אחר כך היה מצליח. חשוב במיוחד סביב פתיחת
+    המסחר (סיכום בוקר) ובסיכום היומי, שם 'אין מידע'/'לא מדויק' לא מתקבל."""
+    last_err = None
+    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+        try:
+            return fn()
+        except Exception as e:
+            last_err = e
+            if attempt < _RETRY_ATTEMPTS:
+                time.sleep(_RETRY_DELAY_SECONDS)
+    logger.warning("נכשלו כל %d הניסיונות עבור %s: %s", _RETRY_ATTEMPTS, description, last_err)
+    return None
 
 
 def fetch_current_price(ticker: str) -> float | None:
     """מחיר עדכני אמיתי (regularMarketPrice) לטיקר בודד - בניגוד ל-Close היומי
     שמגיע מ-yf.download() בבת אחת עבור הרבה טיקרים, שמתגלה לפעמים כפער/מפגר
     (לא מעודכן לסשן המסחר האחרון בפועל). איטי יותר (קריאת רשת בודדת), ולכן
-    מיועד למספר קטן של טיקרים - כמו האחזקות שלך - לא לסריקת יקום שלם."""
-    try:
+    מיועד למספר קטן של טיקרים - כמו האחזקות שלך - לא לסריקת יקום שלם.
+    כולל ניסיונות חוזרים (_with_retry) - כשל בודד לא אמור להחזיר 'אין נתון'.
+    בנוסף בודק טריות: אם השוק פתוח כרגע אבל regularMarketTime שחזר עדיין
+    מהסשן הקודם (Yahoo לא עדכן עדיין - קורה במיוחד בדקות הראשונות אחרי
+    פתיחה), זה נספר ככישלון ומפעיל ניסיון חוזר, במקום להחזיר בשקט מחיר
+    ישן כאילו הוא עדכני."""
+    is_il = _is_israeli_ticker(ticker)
+    index_hint = "TA35" if is_il else "NASDAQ100"
+
+    def _do():
         info = yf.Ticker(ticker).info
         price = info.get("regularMarketPrice")
         if price is None:
             return None
-        return float(price) / 100.0 if _is_israeli_ticker(ticker) else float(price)
-    except Exception as e:
-        logger.debug("נכשלה שליפת מחיר עדכני עבור %s: %s", ticker, e)
-        return None
+        ts = info.get("regularMarketTime")
+        if ts and is_market_open(index_hint):
+            # is_data_stale בודק "האם זו סגירה תקינה", לא "האם זה ציטוט חי מהיום
+            # הזה ממש" - ב-08:00 בבוקר, אתמול עדיין נחשב סגירה תקינה כי היום
+            # עוד לא נסגר, אז הבדיקה ההיא לא הייתה תופסת את המקרה הזה. כאן
+            # השוק פתוח בפועל, אז ציטוט חי חייב לשאת תאריך של היום ממש
+            # (באזור הזמן של אותו שוק) - לא "סגירה אחרונה תקינה כלשהי".
+            spec = MARKET_HOURS["IL" if is_il else "US"]
+            today_in_market_tz = dt.datetime.now(ZoneInfo(spec["tz"])).date()
+            quote_date = dt.datetime.fromtimestamp(ts, tz=ZoneInfo(spec["tz"])).date()
+            if quote_date < today_in_market_tz:
+                raise RuntimeError(f"מחיר לא טרי (מ-{quote_date}) בזמן שהשוק פתוח היום ({today_in_market_tz})")
+        return float(price) / 100.0 if is_il else float(price)
+    return _with_retry(_do, f"מחיר עדכני של {ticker}")
 
 
 def fetch_index_proxy_change(index: str) -> float | None:
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
         return None
-    try:
+
+    def _do():
         hist = yf.Ticker(proxy).history(period="5d")
         closes = hist["Close"].dropna()
         if len(closes) < 2:
             return None
         return float((closes.iloc[-1] - closes.iloc[-2]) / closes.iloc[-2] * 100.0)
-    except Exception as e:
-        logger.warning("נכשלה שליפת שינוי המדד (%s): %s", proxy, e)
-        return None
+    return _with_retry(_do, f"שינוי המדד ({proxy})")
 
 
 def fetch_index_history(index: str, period: str) -> pd.Series:

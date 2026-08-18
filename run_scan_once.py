@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.config import load_config
-from src.scanner import run_scan
+from src.scanner import run_scan, run_startup_health_check
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,6 +21,7 @@ logging.basicConfig(
 
 if __name__ == "__main__":
     cfg = load_config()
+    run_startup_health_check(cfg)
     results = run_scan(cfg)
     if results:
         print(f"נשלחו {len(results)} התראות:")

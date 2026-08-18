@@ -2,6 +2,7 @@
 ואז רק ההתראות הכי בולטות מכל מדד (לא כל ההתראות של היום) - כדי שיהיה קריא
 ומיקוד על מה שבאמת רלוונטי, במקום רשימה שטוחה של הכל.
 """
+import datetime as dt
 import sqlite3
 
 INDEX_LABELS = {"SP500": "S&P 500", "NASDAQ100": "NASDAQ-100", "TA35": 'ת"א 35', "TA125": 'ת"א 125'}
@@ -12,8 +13,30 @@ def _verdict_emoji(score: int) -> str:
     return "🟢" if score >= 70 else ("🟡" if score >= 45 else "🔴")
 
 
+def _israeli_date(iso_date: str) -> str:
+    """ISO (YYYY-MM-DD) -> פורמט ישראלי (DD/MM/YYYY), לתצוגה בהודעות טלגרם."""
+    try:
+        return dt.date.fromisoformat(iso_date).strftime("%d/%m/%Y")
+    except (ValueError, TypeError):
+        return iso_date
+
+
 def _signed(value: float, decimals: int = 1, suffix: str = "") -> str:
-    return f"‎{value:+,.{decimals}f}{suffix}"
+    """מספר עם סימן (+/-) שנשאר לפני המספר גם בתוך טקסט עברי (RTL) - עטוף ב-
+    LRI/PDI (בידוד כיווניות LTR מפורש), לא רק LRM - LRM בודד התברר כלא אמין
+    מספיק בטלגרם (ראו אותה הערה ב-scanner._signed; שם "נייס" "ברח" שמאלה)."""
+    return f"⁦{value:+,.{decimals}f}{suffix}⁩"
+
+
+def _rtl_line(text: str) -> str:
+    """מוסיף RLM (סימן RTL, לא isolate) בתחילת השורה - ניסיון קודם עטף את כל
+    השורה ב-RLI/PDI (isolate מלא) כדי לתקן שורה בודדת שבה "נייס" התהפכה עם
+    האחוז, וזה אכן תיקן את סדר המילים - אבל שבר את יישור השורה כולה (isolate
+    "מסתיר" את הטקסט העברי מהיוריסטיקה של טלגרם לקביעת כיוון/יישור הפסקה,
+    שסורקת לפי התו החזק הראשון ב-stream הגולמי, לפני שנכנסים ל-isolate).
+    RLM הוא סימן (לא isolate) - לא יוצר scope מבודד, רק מכריז RTL, ולכן לא
+    אמור להסתיר את התוכן מהיוריסטיקה של טלגרם כמו שה-isolate עשה."""
+    return f"‏{text}"
 
 
 def _build_holdings_section(holdings: list[dict]) -> list[str]:
@@ -25,17 +48,24 @@ def _build_holdings_section(holdings: list[dict]) -> list[str]:
 
     total_net = sum(h["net_pnl"] for h in holdings if h["net_pnl"] is not None)
     total_word = "ברווח" if total_net >= 0 else "בהפסד"
-    lines = ["💼 <b>האחזקות שלך</b>", f"היום אתם {total_word} של {abs(total_net):,.0f} ש\"ח בסך הכל", ""]
+    # net_pnl הוא הרווח/הפסד הכולל מאז הכניסה (לא שינוי של היום בלבד) - הניסוח
+    # חייב לשקף את זה, לא לערבב "היום" עם "בסך הכל" באותו משפט.
+    lines = ["💼 <b>האחזקות שלך</b>", f"התיק שלך {total_word} כולל של {abs(total_net):,.0f} ש\"ח", ""]
     for h in sorted(holdings, key=lambda h: h["net_pnl"] if h["net_pnl"] is not None else float("-inf"), reverse=True):
         if h["net_pnl"] is None:
             lines.append(f"⚪ <b>{h['name']}</b> - אין כרגע מחיר עדכני")
             continue
         emoji = "🟢" if h["net_pnl"] >= 0 else "🔴"
+        # "מתחת ל" + " נקודת" (עם רווח) יצר "ל" תלויה עם רווח מיותר לפניה - "ל"
+        # צריכה להידבק ישירות למילה הבאה ("מתחת לנקודת"). הרחבת ה-isolate לכלול
+        # גם מילים עבריות ("היום") לצד המספר גרמה לרגרסיה (הפכה את מיקום +/-) -
+        # isolate תמיד חייב לעטוף רק את המספר/הסימן עצמם, לא טקסט עברי סביבו.
         today_part = f"היום {_signed(h['today_pct'], 1, '%')}" if h["today_pct"] is not None else "אין נתון על היום"
-        since_verb = "מעל" if h["net_pnl"] >= 0 else "מתחת ל"
+        since_phrase = "מעל נקודת הכניסה שלך" if h["net_pnl"] >= 0 else "מתחת לנקודת הכניסה שלך"
+        net_part = f"({_signed(h['net_pnl'], 0)} {h['ccy_symbol']})"
         lines.append(
-            f"{emoji} <b>{h['name']}</b> - {today_part}, {since_verb} נקודת הכניסה שלך "
-            f"ב-{abs(h['net_pct']):.1f}% ({_signed(h['net_pnl'], 0)} {h['ccy_symbol']})"
+            f"{emoji} <b>{h['name']}</b> - {today_part}, {since_phrase} "
+            f"ב-{abs(h['net_pct']):.1f}% {net_part}"
         )
     lines.append("")
     return lines
@@ -74,7 +104,7 @@ def _build_index_section(index_changes: dict[str, float | None]) -> list[str]:
             lines.append(f"⚪ {INDEX_LABELS.get(index_name, index_name)} - אין נתון")
             continue
         emoji = "🟢" if change >= 0 else "🔴"
-        lines.append(f"{emoji} {INDEX_LABELS.get(index_name, index_name)} {_signed(change, 2, '%')}")
+        lines.append(_rtl_line(f"{emoji} {INDEX_LABELS.get(index_name, index_name)} {_signed(change, 2, '%')}"))
     lines.append("")
     return lines
 
@@ -94,9 +124,9 @@ def _build_movers_section(movers_by_index: dict[str, list[dict]], top_n: int = 3
             continue
         lines.append(f"<b>{INDEX_LABELS.get(index_name, index_name)}</b>")
         for r in gainers:
-            lines.append(f"🟢 {r['name']} {_signed(r['pct_change'], 2, '%')}")
+            lines.append(_rtl_line(f"🟢 {r['name']} {_signed(r['pct_change'], 2, '%')}"))
         for r in losers:
-            lines.append(f"🔴 {r['name']} {_signed(r['pct_change'], 2, '%')}")
+            lines.append(_rtl_line(f"🔴 {r['name']} {_signed(r['pct_change'], 2, '%')}"))
         lines.append("")
     if not lines:
         return []
@@ -115,7 +145,7 @@ def build_morning_summary(
     if not index_changes and not holdings and not any(movers_by_index.values()):
         return None
 
-    lines = [f"🌅 <b>תמונת מצב - תחילת יום ({scan_date})</b>", ""]
+    lines = [f"🌅 <b>תמונת מצב - תחילת יום ({_israeli_date(scan_date)})</b>", ""]
     lines.extend(_build_index_section(index_changes))
     lines.extend(_build_holdings_section(holdings or []))
     lines.extend(_build_movers_section(movers_by_index, top_n_movers))
@@ -142,7 +172,7 @@ def build_daily_summary(
 
     owned_tickers = {h["ticker"] for h in (holdings or [])}
 
-    lines = [f"📅 <b>סיכום יומי - {scan_date}</b>", ""]
+    lines = [f"📅 <b>סיכום יומי - {_israeli_date(scan_date)}</b>", ""]
     lines.extend(_build_holdings_section(holdings or []))
 
     if rows:

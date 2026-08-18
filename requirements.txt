@@ -4,7 +4,7 @@ requests>=2.31
 PyYAML>=6.0
 feedparser>=6.0
 streamlit>=1.35
-winotify>=1.1.0
+winotify>=1.1.0; sys_platform == "win32"
 schedule>=1.2
 lxml>=5.0
 Pillow>=10.0

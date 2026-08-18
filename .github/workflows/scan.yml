@@ -1,0 +1,42 @@
+name: Stock Scan
+
+on:
+  schedule:
+    # כל 5 דקות - run_scan מדלג פנימית על מדדים שהשוק שלהם סגור, אז אין
+    # בעיה שזה ירוץ גם מחוץ לשעות המסחר (רק כמה ריצות מבוזבזות, בלי נזק).
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore alerts.db from previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: alerts.db
+          key: alerts-db-${{ github.run_id }}
+          restore-keys: |
+            alerts-db-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scan
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python run_scan_once.py
+
+      - name: Save alerts.db for next run
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: alerts.db
+          key: alerts-db-${{ github.run_id }}

@@ -30,7 +30,15 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
     holdings = get_bought_holdings(conn)
     result = []
     for h in holdings:
+        # today_df עובר כבר את תיקון-הטריות של market_data
+        # (_fix_stale_rows_with_live_quote), ולכן עמיד יותר לכשל זמני מ-
+        # fetch_current_price (קריאת .info בודדת, ללא נפילה חזרה). שולפים אותו
+        # קודם כדי שיהיה לנו fallback אמין אם השליפה הבודדת נכשלת.
+        today_df = market_data.fetch_universe_daily_changes([h["ticker"]])
+        today_pct = float(today_df.iloc[0]["pct_change"]) if not today_df.empty else None
         current = market_data.fetch_current_price(h["ticker"])
+        if current is None and not today_df.empty:
+            current = float(today_df.iloc[0]["last_close"])
         entry = h["actual_entry_price"]
         qty = h["actual_qty"]
         ccy = constituents.INDEX_CURRENCY.get(h.get("index_name"), "ILS")
@@ -51,9 +59,6 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
                 position_size_ccy=entry * qty, holding_days=max(days_held, 1), fees_cfg=cfg["fees"],
             )
             net_pnl, net_pct = net.net_pnl, net.net_return_pct
-
-        today_df = market_data.fetch_universe_daily_changes([h["ticker"]])
-        today_pct = float(today_df.iloc[0]["pct_change"]) if not today_df.empty else None
 
         result.append({
             "ticker": h["ticker"], "name": h["company_name"] or h["ticker"],

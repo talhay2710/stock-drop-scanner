@@ -3,6 +3,7 @@ import logging
 import datetime as dt
 
 import pandas as pd
+import requests
 
 from . import constituents
 from . import market_data
@@ -15,6 +16,40 @@ from .config import db_path
 from .market_hours import is_market_open
 
 logger = logging.getLogger(__name__)
+
+
+def run_startup_health_check(cfg: dict) -> None:
+    """בדיקת בריאות חד-פעמית בהפעלה - yfinance וטלגרם - כדי שבעיה כמו ה-18.8.2026
+    (cache עוגיות שבור של yfinance + DNS לא זמין לטלגרם) תתגלה מיד בלוג בהפעלה,
+    לפני שהיא גורמת לתסמינים מבלבלים (נתונים ישנים, הודעות חסרות) שעות אחר כך
+    בלי שאף אחד ישים לב לסיבה האמיתית. לא נכשלת/לא חוסמת את ההרצה - רק מתריעה."""
+    problems = []
+
+    try:
+        test_price = market_data.fetch_current_price("AAPL")
+        if test_price is None:
+            problems.append("yfinance: לא הצליח לשלוף מחיר לדוגמה (AAPL) אחרי כל הניסיונות")
+    except Exception as e:
+        problems.append(f"yfinance: שגיאה - {e}")
+
+    tg = cfg.get("telegram", {})
+    if tg.get("enabled") and tg.get("bot_token") and "REPLACE_ME" not in tg.get("bot_token", ""):
+        try:
+            # getMe - endpoint קליל שרק מוודא טוקן+חיבור תקינים, בלי לשלוח הודעה
+            resp = requests.get(f"https://api.telegram.org/bot{tg['bot_token']}/getMe", timeout=10)
+            if not resp.ok:
+                problems.append(f"טלגרם: תגובה לא תקינה ({resp.status_code})")
+        except Exception as e:
+            problems.append(f"טלגרם: שגיאת חיבור - {e}")
+
+    if not problems:
+        logger.info("בדיקת בריאות בהפעלה עברה בהצלחה (yfinance + טלגרם תקינים)")
+        return
+
+    logger.warning("בדיקת בריאות בהפעלה נכשלה: %s", " | ".join(problems))
+    # מתריעים דרך הערוץ שכן עובד, אם יש כזה - כדי שהבעיה תגיע גם כשלא בודקים לוגים
+    if not any(p.startswith("טלגרם") for p in problems):
+        notifier.send_telegram(cfg, "⚠️ <b>בדיקת בריאות בהפעלה נכשלה</b>\n" + "\n".join(problems))
 
 
 def run_scan(cfg: dict) -> list[dict]:
