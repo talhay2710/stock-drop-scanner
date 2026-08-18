@@ -83,23 +83,6 @@ from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, 
 
 st.set_page_config(page_title="סורק מניות", layout="wide")
 
-# הגנת סיסמה - רק כשמוגדר DASHBOARD_PASSWORD ב-st.secrets (כלומר בפריסת ענן
-# ציבורית). מקומית אין secrets.toml, אז זה לא עושה כלום ולא משנה את הזרימה הרגילה.
-try:
-    _dashboard_password = st.secrets.get("DASHBOARD_PASSWORD")
-except Exception:
-    _dashboard_password = None
-if _dashboard_password and not st.session_state.get("_authenticated"):
-    st.title("🔒 כניסה")
-    _entered = st.text_input("סיסמה", type="password", key="_login_password")
-    if st.button("כניסה"):
-        if _entered == _dashboard_password:
-            st.session_state["_authenticated"] = True
-            st.rerun()
-        else:
-            st.error("סיסמה שגויה.")
-    st.stop()
-
 components.html(
     """
     <script>
@@ -439,6 +422,14 @@ except Exception:
     pass
 
 cfg = load_config()
+
+
+def _sync_and_warn(reason: str) -> None:
+    """עוטף cloud_sync.sync_to_cloud - מציג אזהרה למשתמש אם הסנכרון נכשל בפועל,
+    כדי שכישלון (למשל push שנתקע) לא יעבור בשקט כמו שקרה פעם אחת בעבר."""
+    result = cloud_sync.sync_to_cloud(reason)
+    if result == "failed":
+        st.toast("סנכרון לענן נכשל - השינוי נשמר מקומית אבל לא הגיע לאתר הציבורי.", icon="⚠️", duration=4)
 
 
 def _check_il_constituents_staleness(max_age_days: int = 90) -> list[str]:
@@ -1240,7 +1231,7 @@ def _autosave_settings():
     cfg["multi_day_enabled"] = st.session_state.get("settings_multi_day_enabled", True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-    cloud_sync.sync_to_cloud("settings")
+    _sync_and_warn("settings")
     st.toast("ההגדרות נשמרו.", icon="💾", duration=2)
 
 
@@ -1254,7 +1245,7 @@ def _autosave_fees():
         cfg["fees"][country]["management_fee_annual_pct"] = st.session_state.get(f"{prefix}mgmt_pct")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-    cloud_sync.sync_to_cloud("fees")
+    _sync_and_warn("fees")
     st.toast("עמלות ומיסים נשמרו.", icon="💾", duration=2)
 
 
@@ -1277,7 +1268,7 @@ def _autosave_position():
     cfg["target_net_profit"] = target_net
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-    cloud_sync.sync_to_cloud("position sizing")
+    _sync_and_warn("position sizing")
     st.toast("הגדרות גודל השקעה נשמרו.", icon="💾", duration=2)
 
 
@@ -1289,7 +1280,7 @@ def _autosave_holdings_alerts():
     cfg["holdings_stop_warn_pct"] = st.session_state.get("settings_stop_warn")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-    cloud_sync.sync_to_cloud("holdings alerts")
+    _sync_and_warn("holdings alerts")
     st.toast("הגדרות התראות אחזקות נשמרו.", icon="💾", duration=2)
 
 
@@ -1298,7 +1289,7 @@ def _autosave_channels():
     cfg.setdefault("desktop_notifications", {})["enabled"] = st.session_state.get("settings_desktop_enabled", True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-    cloud_sync.sync_to_cloud("notification channels")
+    _sync_and_warn("notification channels")
     st.toast("ערוצי התראה נשמרו.", icon="💾", duration=2)
 
 
@@ -2294,7 +2285,7 @@ with _tab_slot_portfolio.container():
                                         is_manual_trade=add_is_manual,
                                     )
                                     add_conn.close()
-                                    cloud_sync.sync_to_cloud("position opened")
+                                    _sync_and_warn("position opened")
                                     for _clear_key in ("portfolio_add_entry", "portfolio_add_qty", "portfolio_add_amount", "portfolio_add_manual"):
                                         st.session_state.pop(_clear_key, None)
                                     load_alerts.clear()
@@ -2487,7 +2478,7 @@ with _tab_slot_portfolio.container():
                                 })
                                 store.unmark_as_bought(close_conn, row["id"])
                                 close_conn.close()
-                                cloud_sync.sync_to_cloud("position closed")
+                                _sync_and_warn("position closed")
                                 st.session_state.pop(sell_key, None)
                                 load_alerts.clear()
                                 st.rerun()

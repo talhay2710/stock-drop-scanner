@@ -28,10 +28,12 @@ def _write_example_config_from_local() -> None:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
 
 
-def sync_to_cloud(reason: str = "") -> bool:
+def sync_to_cloud(reason: str = "") -> str:
     """מעדכן config.example.yaml מתוך config.yaml המקומי (בלי סודות), ודוחף
-    אותו + alerts.db ל-git אם יש שינוי אמיתי. מחזיר True אם בפועל נדחף
-    commit, False אם אין שינוי או שהסנכרון נכשל."""
+    אותו + alerts.db ל-git אם יש שינוי אמיתי. מחזיר "pushed"/"no_change"/"failed" -
+    לא bool, כדי שהקורא יוכל להבדיל "אין מה לסנכרן" מ"ניסה ונכשל" ולהראות
+    למשתמש אזהרה במקרה השני (זה בדיוק מה שקרה בשקט יום קודם - כישלון push
+    שאף אחד לא ראה עד שהמשתמש שם לב שהענן לא התעדכן)."""
     try:
         _write_example_config_from_local()
         _git = ["git", "-C", ROOT_DIR]
@@ -39,7 +41,7 @@ def sync_to_cloud(reason: str = "") -> bool:
                         check=True, capture_output=True, timeout=15)
         diff = subprocess.run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
         if diff.returncode == 0:
-            return False
+            return "no_change"
         # git pull --rebase דורש עץ עבודה נקי - חייב לבצע commit *לפני* ה-pull,
         # לא אחריו (הפוך ממה שהיה כאן וגרם לכשלון "uncommitted changes").
         msg = f"Sync from local: {reason}" if reason else "Sync from local"
@@ -48,8 +50,10 @@ def sync_to_cloud(reason: str = "") -> bool:
         # קוד שנערך במקביל), rebase לא נכשל בגללם - הם מוסטשים אוטומטית
         # ומוחזרים אחרי, ולא רק alerts.db/config.example.yaml שכבר ב-commit.
         subprocess.run(_git + ["pull", "--rebase", "--autostash", "--quiet"], check=True, capture_output=True, timeout=20)
-        subprocess.run(_git + ["push", "--quiet"], check=True, capture_output=True, timeout=30)
-        return True
+        subprocess.run(_git + ["push", "--quiet"], check=True, capture_output=True, timeout=45)
+        return "pushed"
     except Exception as e:
-        logger.warning("סנכרון לענן נכשל (%s): %s", reason, e)
-        return False
+        stderr = getattr(e, "stderr", None)
+        stderr_text = stderr.decode("utf-8", "replace") if isinstance(stderr, bytes) else stderr
+        logger.warning("סנכרון לענן נכשל (%s): %s | stderr: %s", reason, e, stderr_text)
+        return "failed"
