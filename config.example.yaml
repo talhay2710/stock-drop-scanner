@@ -1,6 +1,6 @@
 indices:
 - TA35
-drop_threshold_pct: 4.0
+drop_threshold_pct: 3.5
 scan_interval_minutes: 5
 lookback_rally_days: 10
 rally_threshold_pct: 8.0
@@ -21,11 +21,8 @@ holdings_gain_alert_start_pct: 3.0
 holdings_gain_alert_step_pct: 1.0
 telegram:
   enabled: true
-  # לא ממולא בכוונה - נטען בזמן ריצה ממשתני סביבה (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID)
-  # או מ-st.secrets, ראו src/config.py. זה הקובץ שנכנס ל-git (config.yaml עצמו,
-  # עם הטוקן האמיתי, נשאר מקומי בלבד לפי .gitignore).
-  bot_token: ""
-  chat_id: ""
+  bot_token: ''
+  chat_id: ''
 desktop_notifications:
   enabled: true
 fees:
