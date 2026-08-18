@@ -78,7 +78,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT
 from src.strategy import ATR_STOP_MULTIPLIER
-from src import market_data, constituents, news, backtest, store, analysis, fees
+from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open
 
 st.set_page_config(page_title="סורק מניות", layout="wide")
@@ -1240,6 +1240,7 @@ def _autosave_settings():
     cfg["multi_day_enabled"] = st.session_state.get("settings_multi_day_enabled", True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    cloud_sync.sync_to_cloud("settings")
     st.toast("ההגדרות נשמרו.", icon="💾", duration=2)
 
 
@@ -1253,6 +1254,7 @@ def _autosave_fees():
         cfg["fees"][country]["management_fee_annual_pct"] = st.session_state.get(f"{prefix}mgmt_pct")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    cloud_sync.sync_to_cloud("fees")
     st.toast("עמלות ומיסים נשמרו.", icon="💾", duration=2)
 
 
@@ -1275,6 +1277,7 @@ def _autosave_position():
     cfg["target_net_profit"] = target_net
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    cloud_sync.sync_to_cloud("position sizing")
     st.toast("הגדרות גודל השקעה נשמרו.", icon="💾", duration=2)
 
 
@@ -1286,6 +1289,7 @@ def _autosave_holdings_alerts():
     cfg["holdings_stop_warn_pct"] = st.session_state.get("settings_stop_warn")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    cloud_sync.sync_to_cloud("holdings alerts")
     st.toast("הגדרות התראות אחזקות נשמרו.", icon="💾", duration=2)
 
 
@@ -1294,6 +1298,7 @@ def _autosave_channels():
     cfg.setdefault("desktop_notifications", {})["enabled"] = st.session_state.get("settings_desktop_enabled", True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    cloud_sync.sync_to_cloud("notification channels")
     st.toast("ערוצי התראה נשמרו.", icon="💾", duration=2)
 
 
@@ -2289,6 +2294,7 @@ with _tab_slot_portfolio.container():
                                         is_manual_trade=add_is_manual,
                                     )
                                     add_conn.close()
+                                    cloud_sync.sync_to_cloud("position opened")
                                     for _clear_key in ("portfolio_add_entry", "portfolio_add_qty", "portfolio_add_amount", "portfolio_add_manual"):
                                         st.session_state.pop(_clear_key, None)
                                     load_alerts.clear()
@@ -2481,6 +2487,7 @@ with _tab_slot_portfolio.container():
                                 })
                                 store.unmark_as_bought(close_conn, row["id"])
                                 close_conn.close()
+                                cloud_sync.sync_to_cloud("position closed")
                                 st.session_state.pop(sell_key, None)
                                 load_alerts.clear()
                                 st.rerun()
