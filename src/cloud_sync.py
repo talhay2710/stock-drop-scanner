@@ -40,9 +40,14 @@ def sync_to_cloud(reason: str = "") -> bool:
         diff = subprocess.run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
         if diff.returncode == 0:
             return False
-        subprocess.run(_git + ["pull", "--rebase", "--quiet"], check=True, capture_output=True, timeout=20)
+        # git pull --rebase דורש עץ עבודה נקי - חייב לבצע commit *לפני* ה-pull,
+        # לא אחריו (הפוך ממה שהיה כאן וגרם לכשלון "uncommitted changes").
         msg = f"Sync from local: {reason}" if reason else "Sync from local"
         subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+        # --autostash: אם יש עוד קבצים לא-קשורים ב-working tree שהשתנו (למשל
+        # קוד שנערך במקביל), rebase לא נכשל בגללם - הם מוסטשים אוטומטית
+        # ומוחזרים אחרי, ולא רק alerts.db/config.example.yaml שכבר ב-commit.
+        subprocess.run(_git + ["pull", "--rebase", "--autostash", "--quiet"], check=True, capture_output=True, timeout=20)
         subprocess.run(_git + ["push", "--quiet"], check=True, capture_output=True, timeout=30)
         return True
     except Exception as e:
