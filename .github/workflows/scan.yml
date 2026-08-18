@@ -7,6 +7,12 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
+# מונע שתי ריצות מתנגשות שכותבות ל-alerts.db בו-זמנית (למשל אם ריצה קודמת
+# עוד לא הסתיימה כשהבאה מתחילה).
+concurrency:
+  group: stock-scan
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -17,14 +23,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Restore alerts.db from previous run
-        uses: actions/cache/restore@v4
-        with:
-          path: alerts.db
-          key: alerts-db-${{ github.run_id }}
-          restore-keys: |
-            alerts-db-
-
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -34,9 +32,17 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_scan_once.py
 
-      - name: Save alerts.db for next run
-        uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: alerts.db
-          key: alerts-db-${{ github.run_id }}
+      # alerts.db הוא מקור האמת המשותף עם הדשבורד ב-Streamlit Cloud (שמתעדכן
+      # אוטומטית בכל push). commit רק אם יש שינוי אמיתי - לא בכל ריצה - כדי
+      # שהיסטוריית ה-git לא תתנפח מ-288 commits ריקים ביום.
+      - name: Commit alerts.db if changed
+        run: |
+          git config user.name "Stock Scanner Bot"
+          git config user.email "actions@github.com"
+          if ! git diff --quiet -- alerts.db; then
+            git add alerts.db
+            git commit -m "Update alerts.db [skip ci]"
+            git push
+          else
+            echo "No change in alerts.db, skipping commit."
+          fi
