@@ -33,13 +33,28 @@ def _find_bold_font_path() -> str | None:
 _FONT_PATH = _find_bold_font_path()
 
 
+def _load_bold_font(font_size: int):
+    if not _FONT_PATH:
+        return ImageFont.load_default(font_size)
+    font = ImageFont.truetype(_FONT_PATH, font_size)
+    # assets/font_bold.ttf הוא גופן variable (Noto Sans Hebrew) בלי קובץ Bold
+    # נפרד - צריך לבחור את ה-named instance "Bold" בפירוש, אחרת מתקבל המשקל
+    # הרגיל (Regular) כברירת מחדל. arialbd.ttf המקומי כבר Bold מטבעו, אין לו
+    # variations בכלל - ה-try/except מדלג עליו בשקט.
+    try:
+        font.set_variation_by_name("Bold")
+    except Exception:
+        pass
+    return font
+
+
 def render_text_image(text: str, color_hex: str, font_size: int = 26) -> Image.Image:
     """מצייר טקסט (עם נקודה צבעונית מימין) כתמונה בפועל, כדי לעקוף לחלוטין כל
     בעיית גופן/דפדפן אצל הלקוח - הפיקסלים קבועים מראש ולא תלויים ברינדור טקסט.
     Pillow הבסיסי (בלי raqm) לא מהפך RTL בעצמו - משתמשים ב-python-bidi כדי
     להמיר לסדר התצוגה הנכון (visual order) לפני הציור, אחרת המילה מצטיירת הפוך."""
     text = get_display(text)
-    font = ImageFont.truetype(_FONT_PATH, font_size) if _FONT_PATH else ImageFont.load_default(font_size)
+    font = _load_bold_font(font_size)
     dummy = Image.new("RGBA", (10, 10))
     dd = ImageDraw.Draw(dummy)
     bbox = dd.textbbox((0, 0), text, font=font)
