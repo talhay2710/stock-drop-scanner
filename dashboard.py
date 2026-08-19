@@ -1795,7 +1795,10 @@ with _tab_slot_today.container():
             if df.empty:
                 st.info("אין עדיין התראות שמורות. הרץ סריקה כדי להתחיל.")
             else:
-                todays_alerts = df[df["scan_date"] == df["scan_date"].max()]
+                # תאריך היום בפועל, לא "התאריך המקסימלי שנרשם אי פעם" - אחרת אם
+                # עוד לא נרשמה התראה היום, הכרטיס הזה מציג בשקט את ההתראות של
+                # אתמול תחת הכותרת "היום", מטעה.
+                todays_alerts = df[df["scan_date"] == dt.date.today().isoformat()]
 
                 _REBOUND_TIER_EMOJI = {"A": "🟢", "B": "🟡", "C": "🔴"}
 
