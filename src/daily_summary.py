@@ -7,6 +7,11 @@ import sqlite3
 
 INDEX_LABELS = {"SP500": "S&P 500", "NASDAQ100": "NASDAQ-100", "TA35": 'ת"א 35', "TA125": 'ת"א 125'}
 REASON_UNCLEAR = "לא נמצאה סיבה ברורה"
+# שורת תוכן אמיתית (לא רק \n/RLM סמויים) בסוף ההודעה - זה מה שבפועל תיקן
+# (אומת בבדיקה חיה בטלגרם) את "בריחת" השורה האחרונה שמאלה. rstrip בלבד ו-RLM
+# עוגן סמוי בסוף לא הספיקו - טלגרם צריך שהתוכן "האמיתי" האחרון לא יהיה
+# הבולט/השורה עם ה-isolate שבסופה.
+_FOOTER_LINE = "🤖 סורק מניות"
 
 
 def _verdict_emoji(score: int) -> str:
@@ -26,6 +31,16 @@ def _signed(value: float, decimals: int = 1, suffix: str = "") -> str:
     LRI/PDI (בידוד כיווניות LTR מפורש), לא רק LRM - LRM בודד התברר כלא אמין
     מספיק בטלגרם (ראו אותה הערה ב-scanner._signed; שם "נייס" "ברח" שמאלה)."""
     return f"⁦{value:+,.{decimals}f}{suffix}⁩"
+
+
+def _isolate_rtl(text: str) -> str:
+    """עוטף שם מניה (עברית) ב-RLI/PDI (בידוד כיווניות RTL מפורש) - כדי שיהיה
+    run מבודד משלו, נפרד בבירור מה-LTR isolate הצמוד לו (_signed) לימינו.
+    בלי זה, בשורות מסוימות (למשל "נייס" - שם קצר, 4 תווים) טלגרם מיזג את שני
+    ה-runs הסמוכים בצורה שגרמה להיפוך סדר בין השם לאחוז. ה-RLM שבתחילת השורה
+    (_rtl_line) לא נגע כאן בכוונה, כדי לא לשבור שוב את יישור ההודעה כולה -
+    ה-RLM נשאר התו הראשון שטלגרם רואה כשהוא קובע כיוון/יישור לכל ההודעה."""
+    return f"⁧{text}⁩"
 
 
 def _rtl_line(text: str) -> str:
@@ -104,7 +119,7 @@ def _build_index_section(index_changes: dict[str, float | None]) -> list[str]:
             lines.append(f"⚪ {INDEX_LABELS.get(index_name, index_name)} - אין נתון")
             continue
         emoji = "🟢" if change >= 0 else "🔴"
-        lines.append(_rtl_line(f"{emoji} {INDEX_LABELS.get(index_name, index_name)} {_signed(change, 2, '%')}"))
+        lines.append(_rtl_line(f"{emoji} {_isolate_rtl(INDEX_LABELS.get(index_name, index_name))} {_signed(change, 2, '%')}"))
     lines.append("")
     return lines
 
@@ -124,9 +139,9 @@ def _build_movers_section(movers_by_index: dict[str, list[dict]], top_n: int = 3
             continue
         lines.append(f"<b>{INDEX_LABELS.get(index_name, index_name)}</b>")
         for r in gainers:
-            lines.append(_rtl_line(f"🟢 {r['name']} {_signed(r['pct_change'], 2, '%')}"))
+            lines.append(_rtl_line(f"🟢 {_isolate_rtl(r['name'])} {_signed(r['pct_change'], 2, '%')}"))
         for r in losers:
-            lines.append(_rtl_line(f"🔴 {r['name']} {_signed(r['pct_change'], 2, '%')}"))
+            lines.append(_rtl_line(f"🔴 {_isolate_rtl(r['name'])} {_signed(r['pct_change'], 2, '%')}"))
         lines.append("")
     if not lines:
         return []
@@ -149,7 +164,9 @@ def build_morning_summary(
     lines.extend(_build_index_section(index_changes))
     lines.extend(_build_holdings_section(holdings or []))
     lines.extend(_build_movers_section(movers_by_index, top_n_movers))
-    return "\n".join(lines)
+    lines.append("")
+    lines.append(_FOOTER_LINE)
+    return "\n".join(lines).rstrip()
 
 
 def build_daily_summary(
@@ -197,4 +214,6 @@ def build_daily_summary(
 
         lines.extend(_build_watch_section(rows, shown_tickers))
 
-    return "\n".join(lines)
+    lines.append("")
+    lines.append(_FOOTER_LINE)
+    return "\n".join(lines).rstrip()
