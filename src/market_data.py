@@ -232,6 +232,13 @@ def fetch_current_price(ticker: str) -> float | None:
     return _with_retry(_do, f"מחיר עדכני של {ticker}")
 
 
+# שינוי יומי אמיתי במדד (אפילו קריסה חריגה) לא אמור לחרוג מהטווח הזה. שימוש
+# בקרנות סל כפרוקסי (כמו TCH-F2.TA עבור TA125) לפעמים מחזיר מ-Yahoo נתון
+# פגום/לא עקבי בין שני הימים (למשל ראינו פעם קפיצה של כ-9862%) - עדיף להחזיר
+# "אין נתון" מאשר להציג מספר לא הגיוני למשתמש.
+_MAX_PLAUSIBLE_INDEX_CHANGE_PCT = 20.0
+
+
 def fetch_index_proxy_change(index: str) -> float | None:
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
@@ -242,7 +249,11 @@ def fetch_index_proxy_change(index: str) -> float | None:
         closes = hist["Close"].dropna()
         if len(closes) < 2:
             return None
-        return float((closes.iloc[-1] - closes.iloc[-2]) / closes.iloc[-2] * 100.0)
+        pct = float((closes.iloc[-1] - closes.iloc[-2]) / closes.iloc[-2] * 100.0)
+        if abs(pct) > _MAX_PLAUSIBLE_INDEX_CHANGE_PCT:
+            logger.warning("שינוי מדד לא סביר עבור %s (%.1f%%) - כנראה נתון פגום, מוחזר 'אין נתון'", proxy, pct)
+            return None
+        return pct
     return _with_retry(_do, f"שינוי המדד ({proxy})")
 
 
