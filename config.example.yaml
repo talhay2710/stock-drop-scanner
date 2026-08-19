@@ -1,6 +1,6 @@
 indices:
 - TA35
-drop_threshold_pct: 5.0
+drop_threshold_pct: 4.5
 scan_interval_minutes: 5
 lookback_rally_days: 10
 rally_threshold_pct: 8.0
@@ -22,7 +22,6 @@ holdings_gain_alert_step_pct: 1.0
 telegram:
   enabled: true
   bot_token: ''
-  chat_id: ''
 desktop_notifications:
   enabled: true
 fees:
