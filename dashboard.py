@@ -83,6 +83,21 @@ from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, 
 
 st.set_page_config(page_title="סורק מניות", layout="wide")
 
+try:
+    _dashboard_password = st.secrets.get("DASHBOARD_PASSWORD")
+except Exception:
+    _dashboard_password = None
+if _dashboard_password and not st.session_state.get("_authenticated"):
+    st.title("🔒 כניסה")
+    _entered = st.text_input("סיסמה", type="password", key="_login_password")
+    if st.button("כניסה"):
+        if _entered == _dashboard_password:
+            st.session_state["_authenticated"] = True
+            st.rerun()
+        else:
+            st.error("סיסמה שגויה.")
+    st.stop()
+
 components.html(
     """
     <script>
