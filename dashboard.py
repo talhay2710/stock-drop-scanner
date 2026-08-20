@@ -2421,7 +2421,7 @@ with _tab_slot_portfolio.container():
                       <div style="font-size:0.8rem; opacity:0.75; margin-top:4px; display:flex; gap:12px; flex-wrap:nowrap; align-items:center;">
                         <span>{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
                         <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:6px; height:6px;
-                              border-radius:50%; background:{row.get("sector_color", NEUTRAL_COLOR)}; flex-shrink:0;"></span>{_SECTOR_LABELS_HE.get(row["sector"], row["sector"])}</span>
+                              border-radius:50%; background:{row.get("sector_color", NEUTRAL_COLOR)}; flex-shrink:0; margin-top:-2px;"></span>{_SECTOR_LABELS_HE.get(row["sector"], row["sector"])}</span>
                         {"" if has_warning else f'<span>מוחזק {row["days_held"]} ימים</span>'}
                         <span style="display:inline-flex; gap:12px; flex-wrap:nowrap;">{target_part}{stop_part}</span>
                       </div>
