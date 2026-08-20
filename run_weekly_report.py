@@ -24,12 +24,13 @@ logging.basicConfig(
 
 if __name__ == "__main__":
     # ר' run_daily_summary.py - אותה הגנה מפני שליחה בשעה/פעם לא נכונה, מותאמת
-    # לחלון הזמן של הדוח השבועי (שישי ~15:00 שעון ישראל בלבד).
+    # לחלון הזמן של הדוח השבועי (ראשון ~15:00 שעון ישראל בלבד - הועבר משישי
+    # כי זה עדיין יום מסחר, לא הגיוני לסכם "שבוע" באמצעו).
     cfg = load_config()
     conn = get_conn(db_path(cfg))
     try:
-        if not schedule_guard.in_window(15, 0, 15, 15, weekday=4):
-            print("דילוג - מחוץ לחלון הזמן של הדוח השבועי (שישי ~15:00 שעון ישראל).")
+        if not schedule_guard.in_window(15, 0, 15, 15, weekday=6):
+            print("דילוג - מחוץ לחלון הזמן של הדוח השבועי (ראשון ~15:00 שעון ישראל).")
             sys.exit(0)
         if schedule_guard.already_sent_today(conn, "weekly"):
             print("דילוג - כבר נשלח דוח שבועי היום.")
