@@ -1764,6 +1764,17 @@ with _tab_slot_movers.container():
                 up_df = movers_df[movers_df["שינוי יומי (%)"] >= 0].sort_values("שינוי יומי (%)", ascending=False)
                 down_df = movers_df[movers_df["שינוי יומי (%)"] < 0].sort_values("שינוי יומי (%)")
 
+                # תיוג טריות גלוי מעל הטבלה - כדי שיהיה ברור אם "שינוי יומי" הוא ממש
+                # מסחר נוכחי (השוק פתוח והנתון מהיום) או שהוא נכון לסגירת יום מסחר
+                # קודם (סוף שבוע, לפני הפתיחה, או שהמקור פשוט עוד לא התעדכן).
+                _movers_rep_date = movers_df["last_close_date"].max()
+                if _movers_rep_date == dt.date.today() and is_market_open(movers_index):
+                    st.caption("🟢 מסחר נוכחי")
+                elif pd.notna(_movers_rep_date):
+                    _movers_stale = market_data.is_data_stale(_movers_rep_date, "")
+                    _movers_warn = "⚠️ " if _movers_stale else ""
+                    st.caption(f"{_movers_warn}נכון לסגירת מסחר ב-{_movers_rep_date.strftime('%d/%m/%Y')}")
+
                 def _section_header(color: str, word_dir: str, count: int) -> None:
                     st.image(render_text_image(f"מניות {word_dir} ({count})", color, font_size=17))
 
@@ -2369,23 +2380,22 @@ with _tab_slot_portfolio.container():
 
                 if current is None:
                     target_part, stop_part = "", ""
-                    has_warning = False
                 else:
                     distance_pct = (current - stop_price) / stop_price * 100
                     stop_is_warning = current <= stop_price or distance_pct <= cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
                     if current <= stop_price:
-                        stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">🛑 חצתה סטופ ({stop_price_text})</span>'
+                        stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">🛑 חצתה סטופ</span>'
                     elif stop_is_warning:
-                        stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">⚠️ קרובה לסטופ {distance_pct:.1f}% ({stop_price_text})</span>'
+                        stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">⚠️ קרובה לסטופ {distance_pct:.1f}%</span>'
                     else:
                         stop_part = f'<span style="opacity:0.7;">{_STOPLOSS_LABEL}: {stop_price_text}</span>'
 
                     target_distance_pct = (target_price - current) / target_price * 100
                     target_is_warning = current >= target_price or target_distance_pct <= STOP_WARN_PCT
                     if current >= target_price:
-                        target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 הגיעה ליעד! ({target_price_text})</span>'
+                        target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 הגיעה ליעד!</span>'
                     elif target_is_warning:
-                        target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 קרובה ליעד {target_distance_pct:.1f}% ({target_price_text})</span>'
+                        target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 קרובה ליעד {target_distance_pct:.1f}%</span>'
                     else:
                         target_part = f'<span style="opacity:0.7;">יעד: {target_price_text}</span>'
 
@@ -2396,7 +2406,6 @@ with _tab_slot_portfolio.container():
                         target_part = ""
                     elif target_is_warning and not stop_is_warning:
                         stop_part = ""
-                    has_warning = stop_is_warning or target_is_warning
 
                 card_html = f"""
                     <div style="border-radius:10px; padding:10px 14px; background:{bg}; margin:-14px -14px 8px -14px;
@@ -2422,7 +2431,7 @@ with _tab_slot_portfolio.container():
                         <span>{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
                         <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:6px; height:6px;
                               border-radius:50%; background:{row.get("sector_color", NEUTRAL_COLOR)}; flex-shrink:0; margin-top:-2px;"></span>{_SECTOR_LABELS_HE.get(row["sector"], row["sector"])}</span>
-                        {"" if has_warning else f'<span>מוחזק {row["days_held"]} ימים</span>'}
+                        <span>מוחזק {row['days_held']} ימים</span>
                         <span style="display:inline-flex; gap:12px; flex-wrap:nowrap;">{target_part}{stop_part}</span>
                       </div>
                     </div>
