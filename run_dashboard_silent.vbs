@@ -15,6 +15,10 @@ End If
 On Error Goto 0
 
 If Not isUp Then
+    ' מושך עדכונים לפני שהדשבורד עולה - למשל שינויים שנעשו מהטלפון/בענן מאז
+    ' הפעם האחרונה שהמחשב הזה היה מסונכרן. נכשל בשקט (בלי לעצור את ההפעלה)
+    ' אם אין רשת - עדיף דשבורד עם נתונים מעט ישנים מאשר בלי דשבורד בכלל.
+    WshShell.Run "cmd /c git pull --quiet", 0, True
     WshShell.Run """C:\Users\talha\AppData\Local\Programs\Python\Python312\python.exe"" -m streamlit run dashboard.py --server.port 8501 --server.headless true", 0, False
     ' ממתינים שהשרת יעלה בפועל לפני שפותחים דפדפן, במקום להניח שזה מיידי -
     ' לפעמים לוקח יותר מ-10 שניות (עומס במחשב), אז 30 שניות למקרה כזה
