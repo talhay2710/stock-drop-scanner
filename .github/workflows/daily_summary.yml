@@ -1,0 +1,43 @@
+name: Daily Summary
+
+on:
+  # מופעל אך ורק ע"י cron-job.org (job ייעודי, פעם ביום ~20:00 שעון ישראל) -
+  # בלי schedule: מובנה, כדי שלא יהיו שתי הפעלות קרובות שישלחו הודעה כפולה.
+  # run_daily_summary.py גם מדלג בשקט אם הופעל מחוץ לחלון הזמן הסביר (הגנה
+  # נוספת, למקרה שהטריגר החיצוני יתקלקל/יופעל ידנית בטעות).
+  workflow_dispatch: {}
+
+concurrency:
+  group: stock-scan
+  cancel-in-progress: false
+
+jobs:
+  daily-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily summary
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python run_daily_summary.py
+
+      - name: Commit alerts.db if changed
+        run: |
+          git config user.name "Stock Scanner Bot"
+          git config user.email "actions@github.com"
+          if ! git diff --quiet -- alerts.db; then
+            git add alerts.db
+            git commit -m "Update alerts.db [skip ci]"
+            git push
+          else
+            echo "No change in alerts.db, skipping commit."
+          fi
