@@ -2416,13 +2416,13 @@ with _tab_slot_portfolio.container():
                         <span>נ‌וכחי: {current_price_text}</span>
                         <span>כמות: {row['qty']:,.0f}</span>
                       </div>
-                      <div style="font-size:0.8rem; opacity:0.75; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                      <div style="font-size:0.8rem; opacity:0.75; margin-top:4px; display:flex; gap:12px; flex-wrap:nowrap; align-items:center; overflow:hidden;">
                         <span>{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                        <span style="line-height:17px;"><span style="display:inline-block; width:6px; height:6px;
-                              border-radius:50%; background:{row.get('sector_color', NEUTRAL_COLOR)}; margin-left:4px;
-                              vertical-align:middle;"></span>{_SECTOR_LABELS_HE.get(row['sector'], row['sector'])}</span>
-                        <span>מוחזק {row['days_held']} ימים</span>
-                        <span style="display:inline-flex; gap:12px; flex-wrap:nowrap;">{target_part}{stop_part}</span>
+                        {"" if (target_part or stop_part) else f'''<span style="line-height:17px; white-space:nowrap;"><span style="display:inline-block; width:6px; height:6px;
+                              border-radius:50%; background:{row.get("sector_color", NEUTRAL_COLOR)}; margin-left:4px;
+                              vertical-align:middle;"></span>{_SECTOR_LABELS_HE.get(row["sector"], row["sector"])}</span>
+                        <span style="white-space:nowrap;">מוחזק {row["days_held"]} ימים</span>'''}
+                        <span style="display:inline-flex; gap:12px; flex-wrap:nowrap; white-space:nowrap; margin-right:auto;">{target_part}{stop_part}</span>
                       </div>
                     </div>
                 """
