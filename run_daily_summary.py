@@ -77,7 +77,7 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
-    # מיועד לרוץ ~20:00 שעון ישראל. שני שימושים אפשריים: (א) Task Scheduler
+    # מיועד לרוץ ~18:00 שעון ישראל. שני שימושים אפשריים: (א) Task Scheduler
     # מקומי - אם המחשב היה כבוי בזמן המתוזמן, StartWhenAvailable מריץ את
     # המשימה שהוחמצה מיד כשהמחשב מתעורר, גם אם זה 3 לפנות בוקר. (ב) scan.yml
     # בענן - רץ כל 5 דק' ומזהה לבד מתי הגיע הזמן. חלון הזמן + "כבר נשלח היום"
@@ -86,8 +86,8 @@ if __name__ == "__main__":
         cfg = load_config()
         conn = get_conn(db_path(cfg))
         try:
-            if not schedule_guard.in_window(20, 0, 20, 15):
-                print("דילוג - מחוץ לחלון הזמן של הסיכום היומי (~20:00 שעון ישראל).")
+            if not schedule_guard.in_window(18, 0, 18, 15):
+                print("דילוג - מחוץ לחלון הזמן של הסיכום היומי (~18:00 שעון ישראל).")
                 sys.exit(0)
             if schedule_guard.already_sent_today(conn, "daily"):
                 print("דילוג - כבר נשלח סיכום יומי היום.")
