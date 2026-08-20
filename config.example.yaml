@@ -42,4 +42,4 @@ fees:
 alert_log_db: alerts.db
 dedupe_same_day: true
 multi_day_enabled: false
-holdings_stop_warn_pct: 4.0
+holdings_stop_warn_pct: 3.5
