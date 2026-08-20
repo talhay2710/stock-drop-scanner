@@ -64,28 +64,41 @@ jobs:
       # אוטומטית בכל push). commit רק אם יש שינוי אמיתי - לא בכל ריצה - כדי
       # שהיסטוריית ה-git לא תתנפח מ-288 commits ריקים ביום.
       #
-      # push עם retry+rebase: גילינו בפועל (20.8.2026) ש-push רגיל נכשל
-      # (exit 128) כל פעם שמישהו דוחף commit אחר (למשל מהמחשב המקומי) בדיוק
-      # תוך כדי שהריצה הזו באמצע - וזה קרה הרבה יותר ממה שחשבנו. התוצאה
-      # הייתה חמורה בשקט: הודעת טלגרם כבר נשלחה, אבל הסימון "כבר נשלח היום"
-      # (summary_log) לא הגיע לענן, אז הריצה הבאה לא ידעה שכבר נשלח והתריעה/
-      # שלחה שוב. pull --rebase + ניסיון חוזר סוגר את הפער.
+      # למה לא git pull --rebase: alerts.db הוא קובץ בינארי (SQLite) - git לא
+      # יודע למזג שינויים בינאריים, אז ברגע ששני commits נוגעים בו, rebase
+      # פשוט נתקע ("both modified", לא ניתן לפתרון אוטומטי) והפעולה נכשלת
+      # בשקט. זה מה שקרה בפועל (20.8.2026): ה-retry שהוספנו קודם דיווח "עובד"
+      # אבל בפועל לא הצליח לדחוף אף פעם במשך שעות, וכל ה-state ("כבר התרענו
+      # על זה") אבד בכל ריצה - זו הסיבה שהתראות "מתקרבת לסטופ" חזרו על עצמן
+      # שוב ושוב על אותה מניה. הפתרון: בלי merge/rebase בכלל - בכל כשל push,
+      # מסתנכרנים מחדש עם origin ומחילים את הגרסה שלנו של alerts.db מעליו
+      # מחדש (אנחנו תמיד "מנצחים" בהתנגשות על הקובץ הזה - עדיף לאבד כמה
+      # שניות של שינוי מריצה אחרת מאשר לתקוע את כל הסנכרון).
       - name: Commit alerts.db if changed
         run: |
           git config user.name "Stock Scanner Bot"
           git config user.email "actions@github.com"
           if ! git diff --quiet -- alerts.db; then
+            cp alerts.db /tmp/alerts_ours.db
             git add alerts.db
             git commit -m "Update alerts.db [skip ci]"
+            success=0
             for i in 1 2 3 4 5; do
               if git push; then
-                exit 0
+                success=1
+                break
               fi
-              echo "Push rejected (attempt $i) - pulling and retrying..."
-              git pull --rebase --autostash
+              echo "Push rejected (attempt $i) - resyncing with origin and retrying..."
+              git fetch origin
+              git reset --hard origin/master
+              cp /tmp/alerts_ours.db alerts.db
+              git add alerts.db
+              git commit -m "Update alerts.db [skip ci]"
             done
-            echo "Push still failing after 5 attempts - giving up for this run."
-            exit 1
+            if [ "$success" -ne 1 ]; then
+              echo "Push still failing after 5 attempts - giving up for this run."
+              exit 1
+            fi
           else
             echo "No change in alerts.db, skipping commit."
           fi

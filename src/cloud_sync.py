@@ -3,7 +3,10 @@
 בשקט (רק מתעד אזהרה) אם אין רשת/git לא זמין - לא אמור להקריס פעולת דשבורד
 רגילה כמו שמירת הגדרה או פתיחת פוזיציה."""
 import logging
+import os
+import shutil
 import subprocess
+import tempfile
 
 import yaml
 
@@ -33,25 +36,46 @@ def sync_to_cloud(reason: str = "") -> str:
     אותו + alerts.db ל-git אם יש שינוי אמיתי. מחזיר "pushed"/"no_change"/"failed" -
     לא bool, כדי שהקורא יוכל להבדיל "אין מה לסנכרן" מ"ניסה ונכשל" ולהראות
     למשתמש אזהרה במקרה השני (זה בדיוק מה שקרה בשקט יום קודם - כישלון push
-    שאף אחד לא ראה עד שהמשתמש שם לב שהענן לא התעדכן)."""
+    שאף אחד לא ראה עד שהמשתמש שם לב שהענן לא התעדכן).
+
+    למה לא git pull --rebase: alerts.db הוא קובץ בינארי (SQLite) - git לא
+    יודע למזג שינויים בינאריים, אז ברגע ששני commits נוגעים בו, rebase נתקע
+    ("both modified") והפעולה נכשלת - גילינו בפועל (20.8.2026) שזה קרה שוב
+    ושוב בלי שאף אחד שם לב, וגרם לאובדן state (למשל "כבר התרענו על זה") לאורך
+    שעות. במקום merge/rebase - בכל כישלון push מסתנכרנים מחדש עם origin
+    ומחילים את הגרסה המקומית של alerts.db מעליו (אנחנו תמיד "מנצחים" -
+    עדיף לאבד שינוי קטן מריצה אחרת מאשר לתקוע את הסנכרון כולו)."""
+    _git = ["git", "-C", ROOT_DIR]
+    _alerts_path = os.path.join(ROOT_DIR, "alerts.db")
     try:
         _write_example_config_from_local()
-        _git = ["git", "-C", ROOT_DIR]
         subprocess.run(_git + ["add", "config.example.yaml", "alerts.db"],
                         check=True, capture_output=True, timeout=15)
         diff = subprocess.run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
         if diff.returncode == 0:
             return "no_change"
-        # git pull --rebase דורש עץ עבודה נקי - חייב לבצע commit *לפני* ה-pull,
-        # לא אחריו (הפוך ממה שהיה כאן וגרם לכשלון "uncommitted changes").
-        msg = f"Sync from local: {reason}" if reason else "Sync from local"
-        subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
-        # --autostash: אם יש עוד קבצים לא-קשורים ב-working tree שהשתנו (למשל
-        # קוד שנערך במקביל), rebase לא נכשל בגללם - הם מוסטשים אוטומטית
-        # ומוחזרים אחרי, ולא רק alerts.db/config.example.yaml שכבר ב-commit.
-        subprocess.run(_git + ["pull", "--rebase", "--autostash", "--quiet"], check=True, capture_output=True, timeout=20)
-        subprocess.run(_git + ["push", "--quiet"], check=True, capture_output=True, timeout=45)
-        return "pushed"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ours_backup = os.path.join(tmp_dir, "alerts_ours.db")
+            shutil.copy2(_alerts_path, ours_backup)
+
+            msg = f"Sync from local: {reason}" if reason else "Sync from local"
+            subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+
+            for attempt in range(1, 6):
+                push = subprocess.run(_git + ["push", "--quiet"], capture_output=True, timeout=45)
+                if push.returncode == 0:
+                    return "pushed"
+                logger.warning("push נדחה (ניסיון %d) - מסתנכרן מחדש עם origin", attempt)
+                subprocess.run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+                subprocess.run(_git + ["reset", "--hard", "origin/master"], check=True, capture_output=True, timeout=15)
+                shutil.copy2(ours_backup, _alerts_path)
+                subprocess.run(_git + ["add", "config.example.yaml", "alerts.db"],
+                                check=True, capture_output=True, timeout=15)
+                subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+
+        logger.warning("סנכרון לענן נכשל (%s): push נדחה 5 פעמים ברציפות", reason)
+        return "failed"
     except Exception as e:
         stderr = getattr(e, "stderr", None)
         stderr_text = stderr.decode("utf-8", "replace") if isinstance(stderr, bytes) else stderr

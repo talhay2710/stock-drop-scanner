@@ -28,22 +28,34 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_weekly_report.py
 
+      # ר' scan.yml להסבר המלא - אין merge/rebase על alerts.db (בינארי, לא
+      # ניתן למיזוג), במקום זאת מסתנכרנים מחדש עם origin ומחילים את הגרסה
+      # שלנו מעליו בכל ניסיון.
       - name: Commit alerts.db if changed
         run: |
           git config user.name "Stock Scanner Bot"
           git config user.email "actions@github.com"
           if ! git diff --quiet -- alerts.db; then
+            cp alerts.db /tmp/alerts_ours.db
             git add alerts.db
             git commit -m "Update alerts.db [skip ci]"
+            success=0
             for i in 1 2 3 4 5; do
               if git push; then
-                exit 0
+                success=1
+                break
               fi
-              echo "Push rejected (attempt $i) - pulling and retrying..."
-              git pull --rebase --autostash
+              echo "Push rejected (attempt $i) - resyncing with origin and retrying..."
+              git fetch origin
+              git reset --hard origin/master
+              cp /tmp/alerts_ours.db alerts.db
+              git add alerts.db
+              git commit -m "Update alerts.db [skip ci]"
             done
-            echo "Push still failing after 5 attempts - giving up for this run."
-            exit 1
+            if [ "$success" -ne 1 ]; then
+              echo "Push still failing after 5 attempts - giving up for this run."
+              exit 1
+            fi
           else
             echo "No change in alerts.db, skipping commit."
           fi
