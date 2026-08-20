@@ -13,12 +13,21 @@ from . import store as store_mod
 
 _TZ = ZoneInfo("Asia/Jerusalem")
 
+# ימי מסחר (Python weekday(): 0=שני ... 6=ראשון) - תואם ל-_CLOSED_WEEKDAYS
+# ב-market_data.py ול-MARKET_HOURS ב-market_hours.py (שני-שישי, לא שבת/ראשון).
+TRADING_WEEKDAYS = {0, 1, 2, 3, 4}
 
-def in_window(start_hour: int, start_minute: int, end_hour: int, end_minute: int, weekday: int | None = None) -> bool:
-    """weekday: 0=שני ... 4=שישי ... 6=ראשון (Python weekday()), None = כל יום."""
+
+def in_window(
+    start_hour: int, start_minute: int, end_hour: int, end_minute: int,
+    weekday: int | set[int] | None = None,
+) -> bool:
+    """weekday: יום בודד, אוסף ימים (למשל TRADING_WEEKDAYS), או None = כל יום."""
     now = dt.datetime.now(_TZ)
-    if weekday is not None and now.weekday() != weekday:
-        return False
+    if weekday is not None:
+        allowed = {weekday} if isinstance(weekday, int) else set(weekday)
+        if now.weekday() not in allowed:
+            return False
     start = now.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
     end = now.replace(hour=end_hour, minute=end_minute, second=0, microsecond=0)
     return start <= now <= end

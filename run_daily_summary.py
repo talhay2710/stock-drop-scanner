@@ -86,7 +86,7 @@ if __name__ == "__main__":
         cfg = load_config()
         conn = get_conn(db_path(cfg))
         try:
-            if not schedule_guard.in_window(18, 0, 18, 15):
+            if not schedule_guard.in_window(18, 0, 18, 15, weekday=schedule_guard.TRADING_WEEKDAYS):
                 print("דילוג - מחוץ לחלון הזמן של הסיכום היומי (~18:00 שעון ישראל).")
                 sys.exit(0)
             if schedule_guard.already_sent_today(conn, "daily"):
