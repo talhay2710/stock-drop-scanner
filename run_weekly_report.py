@@ -4,6 +4,7 @@
 import logging
 import sys
 import os
+import datetime as dt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -23,6 +24,13 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
+    # ר' run_daily_summary.py - אותה הגנה מפני הרצת-השלמה של Task Scheduler
+    # בשעה לא סבירה, מותאמת לחלון הזמן של הדוח השבועי (~15:00).
+    _now_hour = dt.datetime.now().hour
+    if not (13 <= _now_hour <= 19):
+        print(f"דילוג - הופעל בשעה לא סבירה לדוח שבועי ({_now_hour}:00), כנראה הרצת השלמה של Task Scheduler.")
+        sys.exit(0)
+
     cfg = load_config()
     conn = get_conn(db_path(cfg))
     try:

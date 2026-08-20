@@ -310,9 +310,18 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
 
         if dedupe:
             prior_pct = store_mod.get_todays_alert_pct(conn, ticker, scan_date)
-            if prior_pct is not None and row["pct_change"] >= prior_pct:
-                logger.info("דילוג על %s - כבר נשלחה היום התראה בירידה דומה/גרועה יותר", ticker)
-                continue
+            if prior_pct is not None:
+                # לא רק "החמיר בכלל" - חייב להחמיר בלפחות step_pct נוסף, אחרת
+                # תנודות זעירות בין סריקות (כל 5 דק') מציפות בהתראות חוזרות על
+                # אותה ירידה בפועל. אותה מוסכמה בדיוק כמו step_pct בהתראות עלייה
+                # של אחזקות (check_holdings_gains).
+                step_pct = abs(cfg.get("drop_alert_step_pct", 2.0)) or 2.0
+                if row["pct_change"] > prior_pct - step_pct:
+                    logger.info(
+                        "דילוג על %s - הירידה לא החמירה ב-%.1f%% נוספים מאז ההתראה הקודמת היום",
+                        ticker, step_pct,
+                    )
+                    continue
 
             # דדופ נוסף לפי תאריך הנתון עצמו (last_close_date), לא רק לפי scan_date -
             # כי מקור הנתונים לפעמים לא מתעדכן יום-יומיים ברציפות. בלי זה, ברגע

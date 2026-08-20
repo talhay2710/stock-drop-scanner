@@ -77,6 +77,15 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
+    # מיועד לרוץ ~20:00. אם המחשב היה כבוי/ישן בזמן המתוזמן, Task Scheduler
+    # (StartWhenAvailable) מריץ את המשימה שהוחמצה מיד כשהמחשב מתעורר - גם אם
+    # זה 3 לפנות בוקר. עדיף לדלג בשקט ולחכות ליום הבא מאשר לשלוח "סיכום יומי"
+    # באמצע הלילה.
+    _now_hour = dt.datetime.now().hour
+    if not (18 <= _now_hour <= 23):
+        print(f"דילוג - הופעל בשעה לא סבירה לסיכום יומי ({_now_hour}:00), כנראה הרצת השלמה של Task Scheduler.")
+        sys.exit(0)
+
     try:
         cfg = load_config()
         conn = get_conn(db_path(cfg))

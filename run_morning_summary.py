@@ -103,6 +103,13 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
+    # ר' run_daily_summary.py - אותה הגנה מפני הרצת-השלמה של Task Scheduler
+    # בשעה לא סבירה, מותאמת לחלון הזמן של דוח הבוקר (~10:10-10:30).
+    _now_hour = dt.datetime.now().hour
+    if not (8 <= _now_hour <= 13):
+        print(f"דילוג - הופעל בשעה לא סבירה לדוח בוקר ({_now_hour}:00), כנראה הרצת השלמה של Task Scheduler.")
+        sys.exit(0)
+
     try:
         cfg = load_config()
         conn = get_conn(db_path(cfg))

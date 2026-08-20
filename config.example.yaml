@@ -1,6 +1,7 @@
 indices:
 - TA35
 drop_threshold_pct: 5.0
+drop_alert_step_pct: 2.0
 scan_interval_minutes: 5
 lookback_rally_days: 10
 rally_threshold_pct: 8.0
