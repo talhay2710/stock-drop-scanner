@@ -149,13 +149,27 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             ts = info.get("regularMarketTime")
             if price is None or prev is None or not ts or not prev:
                 return None
-            close_date = dt.datetime.fromtimestamp(ts).date()
+            is_il = _is_israeli_ticker(row["ticker"])
+            spec = MARKET_HOURS["IL" if is_il else "US"]
+            close_date = dt.datetime.fromtimestamp(ts, tz=ZoneInfo(spec["tz"])).date()
+            # אותה בדיקה בדיוק כמו ב-fetch_current_price: אם השוק פתוח עכשיו
+            # בפועל, "ציטוט חי" שעדיין לא נושא תאריך של היום ממש הוא לא באמת
+            # תיקון-טריות - הוא רק מחליף נתון ישן (יומיים אחורה) בנתון ישן
+            # אחר (יום אחד אחורה) שעדיין נראה "עדכני" כי last_close_date
+            # עצמו התקדם. גילינו את זה בפועל (20.8.2026): Tower הציג "ירידה"
+            # של 7% מהמערכת בזמן שבפועל היא הייתה בעלייה גדולה - הציטוט החי
+            # מ-Yahoo היה תקוע על אתמול, ובלי הבדיקה הזו הוא התקבל כאילו הוא
+            # של היום.
+            if is_market_open("TA35" if is_il else "NASDAQ100"):
+                today_in_market_tz = dt.datetime.now(ZoneInfo(spec["tz"])).date()
+                if close_date < today_in_market_tz:
+                    return None
             # רק אם הציטוט החי ישן יותר ממה שכבר יש מדלגים (לא רוצים לרגרס
             # לאחור). "אותו תאריך" עדיין מוחלף - price+prev מגיעים תמיד יחד
             # מאותו ציטוט, זוג עקבי. לעומת זאת ה-.history() בבת אחת התברר
             # כבעל "חורים" (למשל דילג יום שלם) - כשזה קורה, ה-Close של יומיים
             # אחורה (יומיים!) מזדווג בטעות עם ה-Close של היום כאילו הוא "אתמול",
-            # וממשיך להיראות "לא ישן" כי last_close_date בעצמו עדכני. לכן אין
+            # וממשיך להיראות "לא ישן" כי last_close_date עצמו עדכני. לכן אין
             # להסתפק בבדיקת last_close_date בלבד - תמיד מעדיפים את הזוג
             # העקבי מהציטוט החי על פני הרכבה-מחדש שעלולה לצרף תאריכים לא רצופים.
             if row.get("last_close_date") and close_date < row["last_close_date"]:
