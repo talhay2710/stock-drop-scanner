@@ -23,7 +23,7 @@ if sys.platform == "win32":
 from src.config import load_config, db_path
 from src.store import get_conn, get_bought_holdings
 from src.daily_summary import build_morning_summary
-from src import market_data, notifier, fees, constituents
+from src import market_data, notifier, fees, constituents, schedule_guard
 
 
 def _build_holdings_summary(conn, cfg) -> list[dict]:
@@ -103,32 +103,36 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
-    # ר' run_daily_summary.py - אותה הגנה מפני הרצת-השלמה של Task Scheduler
-    # בשעה לא סבירה, מותאמת לחלון הזמן של דוח הבוקר (~10:10-10:30).
-    _now_hour = dt.datetime.now().hour
-    if not (8 <= _now_hour <= 13):
-        print(f"דילוג - הופעל בשעה לא סבירה לדוח בוקר ({_now_hour}:00), כנראה הרצת השלמה של Task Scheduler.")
-        sys.exit(0)
-
+    # ר' run_daily_summary.py - אותה הגנה מפני שליחה בשעה/פעם לא נכונה (הרצת-
+    # השלמה מקומית של Task Scheduler, או ריצות חוזרות של scan.yml בענן),
+    # מותאמת לחלון הזמן של דוח הבוקר (~10:30 שעון ישראל).
     try:
         cfg = load_config()
         conn = get_conn(db_path(cfg))
         try:
+            if not schedule_guard.in_window(10, 30, 10, 45):
+                print("דילוג - מחוץ לחלון הזמן של דוח הבוקר (~10:30 שעון ישראל).")
+                sys.exit(0)
+            if schedule_guard.already_sent_today(conn, "morning"):
+                print("דילוג - כבר נשלח דוח בוקר היום.")
+                sys.exit(0)
+
             holdings_summary = _build_holdings_summary(conn, cfg)
+
+            index_changes = _build_index_changes(cfg)
+            movers_by_index = _build_movers_by_index(cfg)
+            message = build_morning_summary(
+                dt.date.today().isoformat(), index_changes, holdings_summary, movers_by_index,
+            )
+
+            if message:
+                notifier.send_telegram(cfg, message)
+                schedule_guard.mark_sent_today(conn, "morning")
+                print("תמונת מצב בוקר נשלחה.")
+            else:
+                print("אין נתונים - לא נשלח דוח בוקר.")
         finally:
             conn.close()
-
-        index_changes = _build_index_changes(cfg)
-        movers_by_index = _build_movers_by_index(cfg)
-        message = build_morning_summary(
-            dt.date.today().isoformat(), index_changes, holdings_summary, movers_by_index,
-        )
-
-        if message:
-            notifier.send_telegram(cfg, message)
-            print("תמונת מצב בוקר נשלחה.")
-        else:
-            print("אין נתונים - לא נשלח דוח בוקר.")
     finally:
         if sys.platform == "win32":
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)

@@ -23,7 +23,7 @@ if sys.platform == "win32":
 from src.config import load_config, db_path
 from src.store import get_conn, get_bought_holdings
 from src.daily_summary import build_daily_summary
-from src import market_data, notifier, backtest, fees, constituents
+from src import market_data, notifier, backtest, fees, constituents, schedule_guard
 
 
 def _build_holdings_summary(conn, cfg) -> list[dict]:
@@ -77,19 +77,22 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
-    # מיועד לרוץ ~20:00. אם המחשב היה כבוי/ישן בזמן המתוזמן, Task Scheduler
-    # (StartWhenAvailable) מריץ את המשימה שהוחמצה מיד כשהמחשב מתעורר - גם אם
-    # זה 3 לפנות בוקר. עדיף לדלג בשקט ולחכות ליום הבא מאשר לשלוח "סיכום יומי"
-    # באמצע הלילה.
-    _now_hour = dt.datetime.now().hour
-    if not (18 <= _now_hour <= 23):
-        print(f"דילוג - הופעל בשעה לא סבירה לסיכום יומי ({_now_hour}:00), כנראה הרצת השלמה של Task Scheduler.")
-        sys.exit(0)
-
+    # מיועד לרוץ ~20:00 שעון ישראל. שני שימושים אפשריים: (א) Task Scheduler
+    # מקומי - אם המחשב היה כבוי בזמן המתוזמן, StartWhenAvailable מריץ את
+    # המשימה שהוחמצה מיד כשהמחשב מתעורר, גם אם זה 3 לפנות בוקר. (ב) scan.yml
+    # בענן - רץ כל 5 דק' ומזהה לבד מתי הגיע הזמן. חלון הזמן + "כבר נשלח היום"
+    # מגנים משני התרחישים גם יחד - ר' src/schedule_guard.py.
     try:
         cfg = load_config()
         conn = get_conn(db_path(cfg))
         try:
+            if not schedule_guard.in_window(20, 0, 20, 15):
+                print("דילוג - מחוץ לחלון הזמן של הסיכום היומי (~20:00 שעון ישראל).")
+                sys.exit(0)
+            if schedule_guard.already_sent_today(conn, "daily"):
+                print("דילוג - כבר נשלח סיכום יומי היום.")
+                sys.exit(0)
+
             today = dt.date.today().isoformat()
             holdings_summary = _build_holdings_summary(conn, cfg)
             message = build_daily_summary(conn, today, holdings_summary)
@@ -97,14 +100,15 @@ if __name__ == "__main__":
             updated = backtest.refresh_pending_outcomes(conn)
             if updated:
                 print(f"עודכנו {updated} outcome-ים היסטוריים (לטרק-רקורד עתידי).")
+
+            if message:
+                notifier.send_telegram(cfg, message)
+                schedule_guard.mark_sent_today(conn, "daily")
+                print("סיכום יומי נשלח.")
+            else:
+                print("אין התראות היום - לא נשלח סיכום.")
         finally:
             conn.close()
-
-        if message:
-            notifier.send_telegram(cfg, message)
-            print("סיכום יומי נשלח.")
-        else:
-            print("אין התראות היום - לא נשלח סיכום.")
     finally:
         if sys.platform == "win32":
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)

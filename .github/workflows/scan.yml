@@ -34,6 +34,32 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_scan_once.py
 
+      # שלושת אלה היו רק על Task Scheduler מקומי (תלוי שהמחשב דלוק) - עכשיו
+      # רצים גם כאן, על אותו טריגר האמין שכבר קיים לסורק. כל סקריפט שומר על
+      # עצמו: מדלג בשקט אם לא בחלון הזמן שלו או שכבר נשלח היום (src/schedule_guard.py),
+      # אז אין בעיה שהם "רצים" בכל סריקה - רק אחת מהן בפועל תעשה משהו ביום נתון.
+      # continue-on-error - כשל בסיכום לא אמור להפיל את כל ריצת הסריקה.
+      - name: Run morning summary (if due)
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python run_morning_summary.py
+
+      - name: Run daily summary (if due)
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python run_daily_summary.py
+
+      - name: Run weekly report (if due)
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python run_weekly_report.py
+
       # alerts.db הוא מקור האמת המשותף עם הדשבורד ב-Streamlit Cloud (שמתעדכן
       # אוטומטית בכל push). commit רק אם יש שינוי אמיתי - לא בכל ריצה - כדי
       # שהיסטוריית ה-git לא תתנפח מ-288 commits ריקים ביום.

@@ -4,7 +4,6 @@
 import logging
 import sys
 import os
-import datetime as dt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,7 +11,7 @@ from src.config import load_config, db_path
 from src.store import get_conn
 from src.backtest import refresh_pending_outcomes
 from src.weekly_report import build_weekly_report
-from src import notifier
+from src import notifier, schedule_guard
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,23 +23,26 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
-    # ר' run_daily_summary.py - אותה הגנה מפני הרצת-השלמה של Task Scheduler
-    # בשעה לא סבירה, מותאמת לחלון הזמן של הדוח השבועי (~15:00).
-    _now_hour = dt.datetime.now().hour
-    if not (13 <= _now_hour <= 19):
-        print(f"דילוג - הופעל בשעה לא סבירה לדוח שבועי ({_now_hour}:00), כנראה הרצת השלמה של Task Scheduler.")
-        sys.exit(0)
-
+    # ר' run_daily_summary.py - אותה הגנה מפני שליחה בשעה/פעם לא נכונה, מותאמת
+    # לחלון הזמן של הדוח השבועי (שישי ~15:00 שעון ישראל בלבד).
     cfg = load_config()
     conn = get_conn(db_path(cfg))
     try:
+        if not schedule_guard.in_window(15, 0, 15, 15, weekday=4):
+            print("דילוג - מחוץ לחלון הזמן של הדוח השבועי (שישי ~15:00 שעון ישראל).")
+            sys.exit(0)
+        if schedule_guard.already_sent_today(conn, "weekly"):
+            print("דילוג - כבר נשלח דוח שבועי היום.")
+            sys.exit(0)
+
         refresh_pending_outcomes(conn)
         message = build_weekly_report(conn)
+
+        if message:
+            notifier.send_telegram(cfg, message)
+            schedule_guard.mark_sent_today(conn, "weekly")
+            print("דוח שבועי נשלח.")
+        else:
+            print("אין מספיק התראות עם תוצאה השבוע - לא נשלח דוח.")
     finally:
         conn.close()
-
-    if message:
-        notifier.send_telegram(cfg, message)
-        print("דוח שבועי נשלח.")
-    else:
-        print("אין מספיק התראות עם תוצאה השבוע - לא נשלח דוח.")

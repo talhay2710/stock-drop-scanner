@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS price_alerts (
     triggered_at TEXT,
     active INTEGER DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS summary_log (
+    kind TEXT NOT NULL,
+    sent_date TEXT NOT NULL,
+    PRIMARY KEY (kind, sent_date)
+);
 CREATE TABLE IF NOT EXISTS closed_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alert_id INTEGER,
@@ -85,6 +90,19 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         pass  # העמודה כבר קיימת (מסד נתונים ישן יותר)
     conn.commit()
     return conn
+
+
+def was_summary_sent(conn: sqlite3.Connection, kind: str, sent_date: str) -> bool:
+    """נשלחה כבר הודעת סיכום (יומי/בוקר/שבועי) בתאריך הזה? מונע שליחה כפולה כש-
+    scan.yml בענן מריץ את סקריפט הסיכום בכל סריקה (כל 5 דק') בתוך חלון הזמן שלו -
+    בלי זה, כל הרצה בתוך החלון הייתה שולחת הודעת טלגרם נוספת."""
+    cur = conn.execute("SELECT 1 FROM summary_log WHERE kind = ? AND sent_date = ?", (kind, sent_date))
+    return cur.fetchone() is not None
+
+
+def mark_summary_sent(conn: sqlite3.Connection, kind: str, sent_date: str) -> None:
+    conn.execute("INSERT OR IGNORE INTO summary_log (kind, sent_date) VALUES (?, ?)", (kind, sent_date))
+    conn.commit()
 
 
 def get_todays_alert_pct(conn: sqlite3.Connection, ticker: str, scan_date: str) -> float | None:
