@@ -2369,6 +2369,7 @@ with _tab_slot_portfolio.container():
 
                 if current is None:
                     target_part, stop_part = "", ""
+                    has_warning = False
                 else:
                     distance_pct = (current - stop_price) / stop_price * 100
                     stop_is_warning = current <= stop_price or distance_pct <= cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
@@ -2395,6 +2396,7 @@ with _tab_slot_portfolio.container():
                         target_part = ""
                     elif target_is_warning and not stop_is_warning:
                         stop_part = ""
+                    has_warning = stop_is_warning or target_is_warning
 
                 card_html = f"""
                     <div style="border-radius:10px; padding:10px 14px; background:{bg}; margin:-14px -14px 8px -14px;
@@ -2418,7 +2420,7 @@ with _tab_slot_portfolio.container():
                       </div>
                       <div style="font-size:0.8rem; opacity:0.75; margin-top:4px; display:flex; gap:12px; flex-wrap:nowrap; align-items:center; overflow:hidden;">
                         <span>{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                        {"" if (target_part or stop_part) else f'''<span style="line-height:17px; white-space:nowrap;"><span style="display:inline-block; width:6px; height:6px;
+                        {"" if has_warning else f'''<span style="line-height:17px; white-space:nowrap;"><span style="display:inline-block; width:6px; height:6px;
                               border-radius:50%; background:{row.get("sector_color", NEUTRAL_COLOR)}; margin-left:4px;
                               vertical-align:middle;"></span>{_SECTOR_LABELS_HE.get(row["sector"], row["sector"])}</span>
                         <span style="white-space:nowrap;">מוחזק {row["days_held"]} ימים</span>'''}
