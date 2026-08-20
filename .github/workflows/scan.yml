@@ -63,6 +63,13 @@ jobs:
       # alerts.db הוא מקור האמת המשותף עם הדשבורד ב-Streamlit Cloud (שמתעדכן
       # אוטומטית בכל push). commit רק אם יש שינוי אמיתי - לא בכל ריצה - כדי
       # שהיסטוריית ה-git לא תתנפח מ-288 commits ריקים ביום.
+      #
+      # push עם retry+rebase: גילינו בפועל (20.8.2026) ש-push רגיל נכשל
+      # (exit 128) כל פעם שמישהו דוחף commit אחר (למשל מהמחשב המקומי) בדיוק
+      # תוך כדי שהריצה הזו באמצע - וזה קרה הרבה יותר ממה שחשבנו. התוצאה
+      # הייתה חמורה בשקט: הודעת טלגרם כבר נשלחה, אבל הסימון "כבר נשלח היום"
+      # (summary_log) לא הגיע לענן, אז הריצה הבאה לא ידעה שכבר נשלח והתריעה/
+      # שלחה שוב. pull --rebase + ניסיון חוזר סוגר את הפער.
       - name: Commit alerts.db if changed
         run: |
           git config user.name "Stock Scanner Bot"
@@ -70,7 +77,15 @@ jobs:
           if ! git diff --quiet -- alerts.db; then
             git add alerts.db
             git commit -m "Update alerts.db [skip ci]"
-            git push
+            for i in 1 2 3 4 5; do
+              if git push; then
+                exit 0
+              fi
+              echo "Push rejected (attempt $i) - pulling and retrying..."
+              git pull --rebase --autostash
+            done
+            echo "Push still failing after 5 attempts - giving up for this run."
+            exit 1
           else
             echo "No change in alerts.db, skipping commit."
           fi

@@ -35,7 +35,15 @@ jobs:
           if ! git diff --quiet -- alerts.db; then
             git add alerts.db
             git commit -m "Update alerts.db [skip ci]"
-            git push
+            for i in 1 2 3 4 5; do
+              if git push; then
+                exit 0
+              fi
+              echo "Push rejected (attempt $i) - pulling and retrying..."
+              git pull --rebase --autostash
+            done
+            echo "Push still failing after 5 attempts - giving up for this run."
+            exit 1
           else
             echo "No change in alerts.db, skipping commit."
           fi
