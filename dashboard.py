@@ -1364,14 +1364,12 @@ with st.sidebar:
             key="settings_gain_step", on_change=_autosave_holdings_alerts,
         )
         st.markdown("**מרחק אזהרת סטופ-לוס (%)**")
-        st.caption("0% = התראה רק בחציית הסטופ בפועל, בלי אזהרת התקרבות מוקדמת.")
         st.number_input(
             "מרחק אזהרת סטופ", min_value=0.0, max_value=20.0, step=0.5,
             value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
             key="settings_stop_warn", on_change=_autosave_holdings_alerts,
         )
         st.markdown("**מרחק אזהרת יעד (%)**")
-        st.caption("0% = התראה רק בהגעה בפועל ליעד, בלי אזהרת התקרבות מוקדמת.")
         st.number_input(
             "מרחק אזהרת יעד", min_value=0.0, max_value=20.0, step=0.5,
             value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
