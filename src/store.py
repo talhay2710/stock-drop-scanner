@@ -80,6 +80,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "target_alert_active INTEGER DEFAULT 0",
         "quality_tier TEXT", "quality_score INTEGER", "quality_flags_json TEXT", "rebound_tier TEXT",
         "is_manual_trade INTEGER DEFAULT 0", "last_close_date TEXT",
+        "zscore REAL", "rsi REAL", "volume_ratio REAL", "vix_level REAL",
     ):
         try:
             conn.execute(f"ALTER TABLE alerts ADD COLUMN {column_def}")
@@ -261,7 +262,8 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
                 net_result_json=:net_result_json, sector=:sector,
                 quality_tier=:quality_tier, quality_score=:quality_score,
                 quality_flags_json=:quality_flags_json, rebound_tier=:rebound_tier,
-                last_close_date=:last_close_date
+                last_close_date=:last_close_date,
+                zscore=:zscore, rsi=:rsi, volume_ratio=:volume_ratio, vix_level=:vix_level
                WHERE id = :id""",
             {**record, "id": alert_id},
         )
@@ -273,11 +275,13 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
         (scan_date, scan_ts, ticker, company_name, index_name, pct_change, last_close, prev_close,
          reason_text, reasons_json, headlines_json, overreaction_verdict, overreaction_score,
          entry_limit, target_base, stop_loss, net_result_json, sector,
-         quality_tier, quality_score, quality_flags_json, rebound_tier, last_close_date)
+         quality_tier, quality_score, quality_flags_json, rebound_tier, last_close_date,
+         zscore, rsi, volume_ratio, vix_level)
         VALUES (:scan_date, :scan_ts, :ticker, :company_name, :index_name, :pct_change, :last_close, :prev_close,
                 :reason_text, :reasons_json, :headlines_json, :overreaction_verdict, :overreaction_score,
                 :entry_limit, :target_base, :stop_loss, :net_result_json, :sector,
-                :quality_tier, :quality_score, :quality_flags_json, :rebound_tier, :last_close_date)""",
+                :quality_tier, :quality_score, :quality_flags_json, :rebound_tier, :last_close_date,
+                :zscore, :rsi, :volume_ratio, :vix_level)""",
         record,
     )
     conn.commit()
@@ -386,4 +390,13 @@ def build_record(scan_date: str, ticker: str, company_name: str | None, index_na
         "quality_flags_json": json.dumps(analysis.quality.flags, ensure_ascii=False) if analysis.quality else None,
         "rebound_tier": analysis.rebound_tier,
         "last_close_date": row.get("last_close_date").isoformat() if row.get("last_close_date") else None,
+        # הגורמים הגולמיים שמרכיבים את overreaction_score (ר' analysis._score_overreaction) -
+        # רק הציון הסופי המשוקלל נשמר עד עכשיו, לא הגורמים הבודדים, כך שאי אפשר
+        # היה לבדוק בדיעבד אילו גורמים בפועל מנבאים הצלחה. שומרים את הגולמי (לא
+        # את תת-הציון 0-100) כדי שאם נוסחת תת-הציון תשתנה בעתיד, אפשר יהיה עדיין
+        # לחשב מחדש בעקביות על נתונים היסטוריים.
+        "zscore": analysis.zscore,
+        "rsi": analysis.rsi,
+        "volume_ratio": analysis.volume_ratio,
+        "vix_level": analysis.vix_level,
     }
