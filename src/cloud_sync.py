@@ -4,9 +4,7 @@
 רגילה כמו שמירת הגדרה או פתיחת פוזיציה."""
 import logging
 import os
-import shutil
 import subprocess
-import tempfile
 
 import yaml
 
@@ -42,11 +40,16 @@ def sync_to_cloud(reason: str = "") -> str:
     יודע למזג שינויים בינאריים, אז ברגע ששני commits נוגעים בו, rebase נתקע
     ("both modified") והפעולה נכשלת - גילינו בפועל (20.8.2026) שזה קרה שוב
     ושוב בלי שאף אחד שם לב, וגרם לאובדן state (למשל "כבר התרענו על זה") לאורך
-    שעות. במקום merge/rebase - בכל כישלון push מסתנכרנים מחדש עם origin
-    ומחילים את הגרסה המקומית של alerts.db מעליו (אנחנו תמיד "מנצחים" -
-    עדיף לאבד שינוי קטן מריצה אחרת מאשר לתקוע את הסנכרון כולו)."""
+    שעות.
+
+    למה reset --soft ולא reset --hard: גילינו בפועל (21.8.2026) ש---hard
+    הרס עבודה לא-קשורה שהייתה עדיין בעריכה (קוד שנערך ידנית ב-repo, לא
+    committed) - כי --hard מוחק *את כל* השינויים הלא-שמורים ב-working tree,
+    לא רק את alerts.db. reset --soft מזיז רק את מצביע ה-HEAD, לא נוגע כלל
+    ב-working tree/אינדקס - בטוח לחלוטין מבחינת קבצים אחרים שנמצאים באמצע
+    עריכה, וה-commit שלנו (עם alerts.db העדכני שלנו, כבר staged מהניסיון
+    הקודם) פשוט נוצר מחדש מעל origin/master הטרי."""
     _git = ["git", "-C", ROOT_DIR]
-    _alerts_path = os.path.join(ROOT_DIR, "alerts.db")
     try:
         _write_example_config_from_local()
         subprocess.run(_git + ["add", "config.example.yaml", "alerts.db"],
@@ -55,24 +58,17 @@ def sync_to_cloud(reason: str = "") -> str:
         if diff.returncode == 0:
             return "no_change"
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            ours_backup = os.path.join(tmp_dir, "alerts_ours.db")
-            shutil.copy2(_alerts_path, ours_backup)
+        msg = f"Sync from local: {reason}" if reason else "Sync from local"
+        subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
 
-            msg = f"Sync from local: {reason}" if reason else "Sync from local"
+        for attempt in range(1, 6):
+            push = subprocess.run(_git + ["push", "--quiet"], capture_output=True, timeout=45)
+            if push.returncode == 0:
+                return "pushed"
+            logger.warning("push נדחה (ניסיון %d) - מסתנכרן מחדש עם origin", attempt)
+            subprocess.run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+            subprocess.run(_git + ["reset", "--soft", "origin/master"], check=True, capture_output=True, timeout=15)
             subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
-
-            for attempt in range(1, 6):
-                push = subprocess.run(_git + ["push", "--quiet"], capture_output=True, timeout=45)
-                if push.returncode == 0:
-                    return "pushed"
-                logger.warning("push נדחה (ניסיון %d) - מסתנכרן מחדש עם origin", attempt)
-                subprocess.run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
-                subprocess.run(_git + ["reset", "--hard", "origin/master"], check=True, capture_output=True, timeout=15)
-                shutil.copy2(ours_backup, _alerts_path)
-                subprocess.run(_git + ["add", "config.example.yaml", "alerts.db"],
-                                check=True, capture_output=True, timeout=15)
-                subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
 
         logger.warning("סנכרון לענן נכשל (%s): push נדחה 5 פעמים ברציפות", reason)
         return "failed"
