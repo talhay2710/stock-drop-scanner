@@ -43,4 +43,4 @@ alert_log_db: alerts.db
 dedupe_same_day: true
 multi_day_enabled: false
 holdings_stop_warn_pct: 0.0
-holdings_target_warn_pct: 0.5
+holdings_target_warn_pct: 0.0
