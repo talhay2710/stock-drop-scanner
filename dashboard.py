@@ -76,8 +76,8 @@ def render_text_image(text: str, color_hex: str, font_size: int = 26) -> Image.I
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.config import load_config, db_path, CONFIG_PATH
-from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT
-from src.strategy import ATR_STOP_MULTIPLIER
+from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT
+from src.strategy import ATR_STOP_MULTIPLIER, live_target_price
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open
 
@@ -102,26 +102,6 @@ NEUTRAL_COLOR = "#3B4A5A"
 NEUTRAL_BG = "rgba(120,120,120,0.07)"
 ACCENT_COLOR = "#3B6EA5"
 CURRENCY_SYMBOLS = {"ILS": 'ש"ח', "USD": "$"}
-REWARD_RISK_RATIO = 1.5  # פולבאק בלבד (ר' _target_from_stop) - כשאין שום target_base שמור
-MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על target_base עצמו - היעד לעולם לא קטן ממרחק
-# הסטופ (יחס 1:1 מינימלי), גם אם התיקון-Fibonacci בפועל (מגודל הירידה) קטן יותר.
-# אומת ב-backtest על 64 התראות היסטוריות: כשמלווים את הרצפה בהארכה יחסית של
-# חלון-ההמתנה (ר' backtest.py), שיעור ההצלחה כמעט זהה (94.6% מול 92.9%) -
-# בלי הרצפה יש עסקאות עם יחס סיכוי/סיכון גרוע מ-1:1 (למשל תיקון של רק 2.6%
-# מול סטופ של 8%), שהרצפה מתקנת.
-
-
-def _target_from_stop(entry: float, stop_price: float, ratio: float = REWARD_RISK_RATIO) -> float:
-    return entry + (entry - stop_price) * ratio
-
-
-def _live_target_price(entry: float, stop_price: float, target_base: float | None) -> float:
-    """היעד החי המוצג לאחזקה: target_base (תיקון Fibonacci מגודל הירידה בפועל
-    שכבר חושב ונשמר בזמן ההתראה המקורית) עם רצפה של יחס 1:1 מול הסטופ; אם אין
-    target_base בכלל (אחזקה ידנית לגמרי בלי התראה מקורית) - פולבאק ל-REWARD_RISK_RATIO."""
-    if target_base is not None and pd.notna(target_base):
-        return max(target_base, _target_from_stop(entry, stop_price, MIN_TARGET_REWARD_RISK_RATIO))
-    return _target_from_stop(entry, stop_price)
 
 
 def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
@@ -786,7 +766,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _pnl_pct = (_current / _entry - 1) * 100
             _stop_price = get_or_backfill_stop_price(_r, _entry)
             _stop_pct = (_stop_price / _entry - 1) * 100
-            _target_price = _live_target_price(_entry, _stop_price, _r.get("target_base"))
+            _target_price = live_target_price(_entry, _stop_price, _r.get("target_base"))
             _target_pct = (_target_price / _entry - 1) * 100
             _gap_target = _target_pct - _pnl_pct
             _gap_stop = _pnl_pct - _stop_pct
@@ -1273,11 +1253,12 @@ def _autosave_position():
 
 
 def _autosave_holdings_alerts():
-    """מתי מקבלים התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס' - סיכון אישי,
-    לא רק ניסוח."""
+    """מתי מקבלים התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד' -
+    סיכון אישי, לא רק ניסוח."""
     cfg["holdings_gain_alert_start_pct"] = st.session_state.get("settings_gain_start")
     cfg["holdings_gain_alert_step_pct"] = st.session_state.get("settings_gain_step")
     cfg["holdings_stop_warn_pct"] = st.session_state.get("settings_stop_warn")
+    cfg["holdings_target_warn_pct"] = st.session_state.get("settings_target_warn")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("holdings alerts")
@@ -1369,7 +1350,7 @@ with st.sidebar:
         )
 
     with st.expander("📈 התראת אחזקות"):
-        st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'.")
+        st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'.")
         st.markdown("**סף עלייה ראשוני (%)**")
         st.number_input(
             "סף עלייה ראשוני", min_value=0.5, max_value=50.0, step=0.5,
@@ -1387,6 +1368,12 @@ with st.sidebar:
             "מרחק אזהרת סטופ", min_value=0.5, max_value=20.0, step=0.5,
             value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
             key="settings_stop_warn", on_change=_autosave_holdings_alerts,
+        )
+        st.markdown("**מרחק אזהרת יעד (%)**")
+        st.number_input(
+            "מרחק אזהרת יעד", min_value=0.5, max_value=20.0, step=0.5,
+            value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
+            key="settings_target_warn", on_change=_autosave_holdings_alerts,
         )
 
     with st.expander("💰 עמלות ומיסים"):
@@ -2360,7 +2347,7 @@ with _tab_slot_portfolio.container():
                 _STOPLOSS_LABEL = "ס‌טופ-לוס"
                 stop_price = row.get("holding_stop_price") or (row["entry"] * STOP_LOSS_FACTOR)
                 stop_price_text = f"{stop_price*100:,.0f}" if is_il else f"{stop_price:,.2f}"
-                target_price = _live_target_price(row["entry"], stop_price, row.get("forecast_target"))
+                target_price = live_target_price(row["entry"], stop_price, row.get("forecast_target"))
                 target_price_text = f"{target_price*100:,.0f}" if is_il else f"{target_price:,.2f}"
 
                 if current is None:
@@ -2867,7 +2854,7 @@ with st.container(border=True, key="market_panel"):
                 if current is None:
                     continue
                 stop_price = get_or_backfill_stop_price(r, entry)
-                target_price = _live_target_price(entry, stop_price, r.get("target_base"))
+                target_price = live_target_price(entry, stop_price, r.get("target_base"))
                 _rows.append({
                     "name": r.get("company_name") or r["ticker"],
                     "pnl_pct": (current / entry - 1) * 100,

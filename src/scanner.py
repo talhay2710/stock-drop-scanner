@@ -166,10 +166,12 @@ def check_holdings_gains(cfg: dict, conn) -> None:
             store_mod.update_gain_alert(conn, h["id"], gain_pct)
 
         _check_stop_proximity(cfg, conn, h, display_name, entry, current, ccy)
+        _check_target_proximity(cfg, conn, h, display_name, entry, current, ccy)
 
 
 STOP_LOSS_FACTOR = 0.97  # תואם לחישוב הסטופ באסטרטגיה (strategy.py) - כ-3% מתחת לכניסה
 STOP_WARN_PCT = 2.0      # "מתקרב לסטופ" = במרחק הזה (%) או פחות מעל קו הסטופ
+TARGET_WARN_PCT = 2.0    # "מתקרב ליעד" = במרחק הזה (%) או פחות מתחת ליעד
 
 
 def _check_stop_proximity(cfg: dict, conn, h: dict, display_name: str, entry: float, current: float, ccy: str) -> None:
@@ -203,6 +205,40 @@ def _check_stop_proximity(cfg: dict, conn, h: dict, display_name: str, entry: fl
     ])
     notifier.send_telegram(cfg, message)
     store_mod.update_stop_alert(conn, h["id"], True)
+
+
+def _check_target_proximity(cfg: dict, conn, h: dict, display_name: str, entry: float, current: float, ccy: str) -> None:
+    """אותה לוגיקה בדיוק כמו _check_stop_proximity, בכיוון ההפוך - מתריע פעם
+    אחת כשאחזקה מתקרבת (או כבר הגיעה) ליעד המכירה שלה. היעד מחושב דרך
+    strategy.live_target_price - אותו מקור אמת בדיוק שהדשבורד משתמש בו
+    לתצוגה, כדי ששניהם תמיד יראו את אותו יעד."""
+    warn_pct = abs(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT))
+    stop_price = h.get("holding_stop_price") or (entry * STOP_LOSS_FACTOR)
+    target_price = strategy_mod.live_target_price(entry, stop_price, h.get("target_base"))
+    distance_pct = (target_price - current) / target_price * 100
+    was_active = bool(h.get("target_alert_active"))
+
+    if distance_pct > warn_pct:
+        if was_active and distance_pct > warn_pct * 2:
+            store_mod.update_target_alert(conn, h["id"], False)
+        return
+    if was_active:
+        return
+
+    title = (
+        f"🎯 <b>{display_name} הגיעה ליעד שלך!</b>" if current >= target_price
+        else f"🎯 <b>{display_name} מתקרבת ליעד שלך</b>"
+    )
+    message = "\n".join([
+        title,
+        f"{h['ticker']}",
+        "",
+        f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}",
+        f"<b>היעד שלך: {_format_price(target_price, ccy, with_unit=False)}</b>",
+        f"נכנסת ב-{_format_price(entry, ccy, with_unit=False)}",
+    ])
+    notifier.send_telegram(cfg, message)
+    store_mod.update_target_alert(conn, h["id"], True)
 
 
 def check_price_alerts(cfg: dict, conn) -> None:

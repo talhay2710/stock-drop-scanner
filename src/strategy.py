@@ -23,6 +23,29 @@ ATR_STOP_MULTIPLIER = 1.5  # מרחק הסטופ מהכניסה = פי X מה-AT
 MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על יעד המכירה - לעולם לא קטן ממרחק הסטופ (יחס 1:1),
 # גם אם התיקון-Fibonacci בפועל (מגודל הירידה) קטן יותר - אחרת מסתכנים ביותר ממה שמנסים להרוויח
 
+REWARD_RISK_RATIO = 1.5  # פולבאק בלבד (ר' live_target_price) - כשאין שום target_base שמור (אחזקה ידנית לגמרי)
+# הרצפה (MIN_TARGET_REWARD_RISK_RATIO) אומתה ב-backtest על 64 התראות היסטוריות:
+# כשמלווים אותה בהארכה יחסית של חלון-ההמתנה (ר' backtest.py), שיעור ההצלחה
+# כמעט זהה (94.6% מול 92.9%) - בלי הרצפה יש עסקאות עם יחס סיכוי/סיכון גרוע
+# מ-1:1 (למשל תיקון של רק 2.6% מול סטופ של 8%), שהרצפה מתקנת.
+
+
+def target_from_stop(entry: float, stop_price: float, ratio: float = REWARD_RISK_RATIO) -> float:
+    return entry + (entry - stop_price) * ratio
+
+
+def live_target_price(entry: float, stop_price: float, target_base: float | None) -> float:
+    """היעד החי המוצג/מתריע עבור אחזקה: target_base (תיקון Fibonacci מגודל
+    הירידה בפועל שכבר חושב ונשמר בזמן ההתראה המקורית) עם רצפה של יחס 1:1 מול
+    הסטופ; אם אין target_base בכלל (אחזקה ידנית לגמרי בלי התראה מקורית) -
+    פולבאק ל-REWARD_RISK_RATIO. מקור אמת יחיד - גם לתצוגה בדשבורד וגם
+    להתראת טלגרם, כדי ששניהם תמיד יראו את אותו יעד בדיוק."""
+    # target_base == target_base שוללת NaN (בלי תלות ב-pandas כאן) - זה יכול
+    # להגיע כ-NaN כשהקורא הוא DataFrame (הדשבורד), לא רק None (התראת טלגרם).
+    if target_base is not None and target_base == target_base:
+        return max(target_base, target_from_stop(entry, stop_price, MIN_TARGET_REWARD_RISK_RATIO))
+    return target_from_stop(entry, stop_price)
+
 # ספי נזילות (נפח מסחר ממוצע יומי בערך $/₪) לצורך מרווח נוסף בלימיט הכניסה.
 # אין מקור נתונים חינמי ואמין ל-bid/ask spread אמיתי (בטח לא היסטורית), ולכן
 # זהו פרוקסי מבוסס נפח מסחר - לא מדד spread מדויק, אבל נפח נמוך מתאם בפועל
