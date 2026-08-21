@@ -1364,14 +1364,16 @@ with st.sidebar:
             key="settings_gain_step", on_change=_autosave_holdings_alerts,
         )
         st.markdown("**מרחק אזהרת סטופ-לוס (%)**")
+        st.caption("0% = התראה רק בחציית הסטופ בפועל, בלי אזהרת התקרבות מוקדמת.")
         st.number_input(
-            "מרחק אזהרת סטופ", min_value=0.5, max_value=20.0, step=0.5,
+            "מרחק אזהרת סטופ", min_value=0.0, max_value=20.0, step=0.5,
             value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
             key="settings_stop_warn", on_change=_autosave_holdings_alerts,
         )
         st.markdown("**מרחק אזהרת יעד (%)**")
+        st.caption("0% = התראה רק בהגעה בפועל ליעד, בלי אזהרת התקרבות מוקדמת.")
         st.number_input(
-            "מרחק אזהרת יעד", min_value=0.5, max_value=20.0, step=0.5,
+            "מרחק אזהרת יעד", min_value=0.0, max_value=20.0, step=0.5,
             value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
             key="settings_target_warn", on_change=_autosave_holdings_alerts,
         )
@@ -2363,7 +2365,10 @@ with _tab_slot_portfolio.container():
                         stop_part = f'<span style="opacity:0.7;">{_STOPLOSS_LABEL}: {stop_price_text}</span>'
 
                     target_distance_pct = (target_price - current) / target_price * 100
-                    target_is_warning = current >= target_price or target_distance_pct <= STOP_WARN_PCT
+                    target_is_warning = (
+                        current >= target_price
+                        or target_distance_pct <= cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
+                    )
                     if current >= target_price:
                         target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 הגיעה ליעד!</span>'
                     elif target_is_warning:
