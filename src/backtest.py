@@ -216,6 +216,131 @@ def refresh_pending_outcomes(conn: sqlite3.Connection, window_days: int = 10) ->
     return len(decided)
 
 
+CANDIDATE_TARGET_PCTS = (0.02, 0.03, 0.04, 0.05, 0.06)
+
+
+def _fetch_high_low_window(ticker: str, entry_ts: str, window_days: int, skip_entry_day: bool):
+    """שולף את סדרת High/Low פעם אחת לכל התראה (לא לכל יעד מועמד בנפרד) - כדי
+    שאפשר יהיה להשוות כמה אסטרטגיות יעד שונות על אותו נתון מחיר גולמי, בלי
+    לכפול את מספר קריאות הרשת. מחזיר (highs, lows, still_within_window) או
+    None אם אין מספיק נתונים."""
+    try:
+        scan_date = dt.datetime.fromisoformat(entry_ts).date()
+    except Exception:
+        return None
+    if scan_date >= dt.date.today():
+        return None
+
+    calendar_buffer = int(window_days * 1.6) + 4
+    end = min(scan_date + dt.timedelta(days=calendar_buffer), dt.date.today())
+    try:
+        hist = yf.download(
+            ticker, start=scan_date.isoformat(), end=(end + dt.timedelta(days=1)).isoformat(),
+            interval="1d", progress=False, auto_adjust=False, threads=False,
+        )
+    except Exception as e:
+        logger.debug("נכשלה שליפת היסטוריה עבור %s: %s", ticker, e)
+        return None
+    if hist.empty:
+        return None
+
+    highs, lows = hist["High"], hist["Low"]
+    if hasattr(highs, "columns"):
+        highs, lows = highs.iloc[:, 0], lows.iloc[:, 0]
+    if _is_israeli_ticker(ticker):
+        highs, lows = highs / 100.0, lows / 100.0
+    highs, lows = highs.dropna(), lows.dropna()
+
+    if skip_entry_day:
+        highs, lows = highs.iloc[1:window_days + 1], lows.iloc[1:window_days + 1]
+    else:
+        highs, lows = highs.iloc[:window_days], lows.iloc[:window_days]
+
+    still_within_window = (dt.date.today() - scan_date).days < calendar_buffer
+    return highs.tolist(), lows.tolist(), still_within_window
+
+
+def _outcome_from_series(highs: list, lows: list, target: float, stop_loss: float, still_within_window: bool) -> str:
+    for h, l in zip(highs, lows):
+        if l <= stop_loss:
+            return HIT_STOP
+        if h >= target:
+            return HIT_TARGET
+    return PENDING if still_within_window else NEITHER
+
+
+def compare_target_strategies(conn: sqlite3.Connection, window_days: int = 10) -> pd.DataFrame:
+    """משווה את יעד ה-Fibonacci בפועל (target_base, כפי שנשמר בזמן ההתראה - אחרי
+    רצפת יחס 1:1) מול כמה יעדים קבועים פשוטים (2%-6%) ומול רמות Fibonacci
+    אחרות (38.2%/61.8%, משוחזרות מ-last_close/prev_close) - על אותם התראות
+    היסטוריות בדיוק, אותו סטופ-לוס ואותה נקודת כניסה. עונה על השאלה "האם
+    Fibonacci בפועל טוב יותר מיעד קבוע פשוט, או שזה רק 'נראה מדעי'".
+    מחזיר טבלת סיכום: אסטרטגיה, סה"כ, הגיעו ליעד, שיעור הצלחה (%), תוחלת (%).
+    תוחלת (expectancy) חשובה יותר משיעור הצלחה לבדו - יעד קטן "מצליח" יותר
+    כמעט תמיד (קל יותר להגיע ל-2% מ-50% תיקון), אבל שווה פחות בכל ניצחון.
+    תוחלת = ממוצע התשואה על פני כל ההתראות (רווח על הצלחה, הפסד על סטופ,
+    0% על 'לא הגיע לאף אחד' - הנחה שמרנית, לא יודעים את המחיר בפועל בסוף החלון)."""
+    df = pd.read_sql_query(
+        "SELECT ticker, scan_ts, entry_limit, stop_loss, target_base, last_close, prev_close, "
+        "bought, actual_entry_price, bought_at "
+        "FROM alerts WHERE entry_limit IS NOT NULL AND stop_loss IS NOT NULL",
+        conn,
+    )
+    if df.empty:
+        return pd.DataFrame(columns=["אסטרטגיה", "סה\"כ", "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת (%)"])
+
+    results: dict[str, list[tuple[str, float]]] = {}
+    for _, row in df.iterrows():
+        has_real_entry = bool(row["bought"]) and row["actual_entry_price"] and row["bought_at"]
+        entry_ref = row["actual_entry_price"] if has_real_entry else row["entry_limit"]
+        entry_ts = row["bought_at"] if has_real_entry else row["scan_ts"]
+        stop_loss = row["stop_loss"]
+
+        target_fib50 = _effective_target(entry_ref, row["target_base"], stop_loss)
+        scaled_window = _scaled_window_days(entry_ref, target_fib50, window_days)
+        fetched = _fetch_high_low_window(row["ticker"], entry_ts, scaled_window, skip_entry_day=has_real_entry)
+        if fetched is None:
+            continue
+        highs, lows, still_pending = fetched
+
+        drop_size = (row["prev_close"] - row["last_close"]) if pd.notna(row["prev_close"]) and pd.notna(row["last_close"]) else None
+
+        candidates = {"Fibonacci 50% (בפועל, עם רצפת 1:1)": target_fib50}
+        if drop_size and drop_size > 0:
+            candidates["Fibonacci 38.2%"] = row["last_close"] + 0.382 * drop_size
+            candidates["Fibonacci 61.8%"] = row["last_close"] + 0.618 * drop_size
+        for pct in CANDIDATE_TARGET_PCTS:
+            candidates[f"קבוע +{pct*100:.0f}%"] = entry_ref * (1 + pct)
+
+        for name, target in candidates.items():
+            outcome = _outcome_from_series(highs, lows, target, stop_loss, still_pending)
+            target_pct = (target / entry_ref - 1) * 100
+            stop_pct = (stop_loss / entry_ref - 1) * 100
+            if outcome == HIT_TARGET:
+                trade_return = target_pct
+            elif outcome == HIT_STOP:
+                trade_return = stop_pct
+            elif outcome == NEITHER:
+                trade_return = 0.0  # שמרני - לא יודעים את המחיר בפועל בסוף החלון
+            else:
+                continue  # PENDING - עדיין לא הוכרע, לא נכנס לממוצע
+            results.setdefault(name, []).append((outcome, trade_return))
+
+    rows = []
+    for name, entries in results.items():
+        if not entries:
+            continue
+        outcomes = [o for o, _ in entries]
+        hits = sum(1 for o in outcomes if o == HIT_TARGET)
+        expectancy = sum(r for _, r in entries) / len(entries)
+        rows.append({
+            "אסטרטגיה": name, "סה\"כ": len(entries), "הגיעו ליעד": hits,
+            "שיעור הצלחה (%)": round(hits / len(entries) * 100, 1),
+            "תוחלת (%)": round(expectancy, 2),
+        })
+    return pd.DataFrame(rows).sort_values("תוחלת (%)", ascending=False).reset_index(drop=True)
+
+
 def overall_summary(df: pd.DataFrame) -> dict:
     counts = df["outcome"].value_counts().to_dict()
     decided_total = counts.get(HIT_TARGET, 0) + counts.get(HIT_STOP, 0) + counts.get(NEITHER, 0)
