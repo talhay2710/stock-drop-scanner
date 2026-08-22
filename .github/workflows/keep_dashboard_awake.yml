@@ -1,0 +1,46 @@
+name: Keep Dashboard Awake
+
+on:
+  # כל 20 דקות - תדיר מספיק כדי לתפוס את הדשבורד לפני שהוא נרדם, אבל הרבה
+  # פחות תכוף מהסורק (5 דק') כדי לא לצרוך יותר מדי דקות Actions בחינם.
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keep-dashboard-awake
+  cancel-in-progress: false
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}
+
+      # ר' run_wake_dashboard.py להסבר המלא - ping רגיל (HTTP) לא מספיק, כי
+      # Streamlit Cloud מחזיר את מסך "Zzzz" גם לו בהצלחה (200 OK) בלי להעיר
+      # כלום בפועל. צריך דפדפן אמיתי שלוחץ על הכפתור. מורידים את הדפדפן (115MB)
+      # רק אם אין אותו במטמון - בלי זה, כל ריצה (כל 20 דק') הייתה מורידה אותו
+      # מחדש ומנצלת יותר דקות Actions ממה שהתיקון הזה אמור לחסוך.
+      - name: Install Playwright
+        run: pip install playwright
+      - name: Install Playwright browser (if not cached)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: python -m playwright install --with-deps chromium
+      - name: Install Playwright OS deps (if browser was cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: python -m playwright install-deps chromium
+
+      - name: Visit dashboard and wake if asleep
+        run: python run_wake_dashboard.py
