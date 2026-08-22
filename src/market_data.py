@@ -308,6 +308,40 @@ def fetch_index_history(index: str, period: str) -> pd.Series:
         return pd.Series(dtype=float)
 
 
+MARKET_REGIME_LABELS = {
+    "bull_calm": "🟢 שוק עולה, רגוע",
+    "bull_volatile": "🟡 שוק עולה, תנודתי",
+    "bear_calm": "🟠 שוק יורד, רגוע",
+    "panic": "🔴 שוק יורד, תנודתי (פאניקה)",
+    "unknown": "⚪ לא ידוע",
+}
+_REGIME_VIX_THRESHOLD = 22.0  # תואם לסף "VIX מוגבר" שכבר בשימוש ב-analysis._build_reason_text
+_REGIME_MA_WINDOW = 50
+
+
+def classify_market_regime(index: str, vix_level: float | None) -> tuple[str, str]:
+    """מצב שוק כללי - לא לניתוח מניה בודדת, אלא הקשר רחב לתיוג ההתראה: מדד
+    עולה/יורד (מול ממוצע 50 יום, לא רק שינוי היום - "regime" אמור לשקף מגמה
+    נמשכת, לא תנודה חד-יומית) X VIX גבוה/נמוך. מידע בלבד - לא משפיע על הציון
+    או על אילו התראות נשלחות, לפי בקשה מפורשת."""
+    history = fetch_index_history(index, period="6mo")
+    if len(history) < _REGIME_MA_WINDOW:
+        return "unknown", MARKET_REGIME_LABELS["unknown"]
+    ma = history.tail(_REGIME_MA_WINDOW).mean()
+    is_bull = bool(history.iloc[-1] >= ma)
+    is_volatile = vix_level is not None and vix_level >= _REGIME_VIX_THRESHOLD
+
+    if is_bull and not is_volatile:
+        tag = "bull_calm"
+    elif is_bull and is_volatile:
+        tag = "bull_volatile"
+    elif not is_bull and not is_volatile:
+        tag = "bear_calm"
+    else:
+        tag = "panic"
+    return tag, MARKET_REGIME_LABELS[tag]
+
+
 def compute_volatility_zscore(close_history: pd.Series, today_pct_change: float, window: int = 30) -> float | None:
     """מחשב z-score של שינוי המחיר היום ביחס לתנודתיות היומית הרגילה של המניה
     (סטיית תקן של תשואות יומיות ב-window הימים האחרונים, לא כולל היום)."""

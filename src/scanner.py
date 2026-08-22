@@ -331,6 +331,7 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
         return []
 
     index_change_pct = market_data.fetch_index_proxy_change(index)
+    market_regime_tag, market_regime_label = market_data.classify_market_regime(index, vix_level)
 
     scan_date = dt.date.today().isoformat()
     dedupe = cfg.get("dedupe_same_day", True)
@@ -460,13 +461,14 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
         prior_message_id = store_mod.get_todays_telegram_message_id(conn, ticker, scan_date)
 
         record = store_mod.build_record(scan_date, ticker, company_name, index, row, analysis, trade_idea, net_results)
+        record["market_regime"] = market_regime_tag
         new_id = store_mod.save_alert(conn, record)
         sector_peers = store_mod.count_todays_sector_alerts(conn, analysis.sector, scan_date, exclude_ticker=ticker)
 
         message = _format_message(
             ticker, company_name, index, row, analysis, trade_idea,
             net_profit_scenario, net_loss_scenario, currency, position_size,
-            multi_day_window, sector_peers, is_multi_day_only,
+            multi_day_window, sector_peers, is_multi_day_only, market_regime_label,
         )
 
         edited = prior_message_id and notifier.edit_telegram(cfg, prior_message_id, message)
@@ -532,7 +534,8 @@ def _format_header_price(value: float, currency: str) -> str:
 
 def _format_message(ticker, company_name, index, row, analysis, trade_idea,
                      net_profit, net_loss, currency, position_size,
-                     multi_day_window=3, sector_peers=0, is_multi_day_only=False) -> str:
+                     multi_day_window=3, sector_peers=0, is_multi_day_only=False,
+                     market_regime_label: str | None = None) -> str:
     """הודעה קצרה וממוקדת: מה קרה, למה (בקצרה), האם נראה תגובת יתר, והמלצת
     כניסה/יציאה עם התוצאה נטו - בלי לגלול. פרטים מלאים (חדשות, z-score/RSI
     וכו') זמינים בדשבורד."""
@@ -563,6 +566,9 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
             f"⚠️ ריכוז סקטוריאלי: עוד {sector_peers} מניות מסקטור {analysis.sector} ירדו היום - "
             f"ייתכן אירוע רחב ולא הזדמנות ספציפית"
         )
+
+    if market_regime_label:
+        lines.append(f"מצב שוק כללי: {market_regime_label}")
 
     lines.append(f"📌 {analysis.reason_text.split(' | ')[0]}")
     # האות (A/B/C) + הציון + הצבע כבר אומרים הכל - אין צורך גם לכתוב את התיאור
