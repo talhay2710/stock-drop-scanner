@@ -394,6 +394,7 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
             cfg=cfg,
             volume_ratio=volume_ratio,
             vix_level=vix_level,
+            intraday_recovery_pct=row.get("intraday_recovery_pct"),
         )
 
         if analysis.reasons == ["ex_dividend"]:

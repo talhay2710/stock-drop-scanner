@@ -84,15 +84,34 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             volumes = sub["Volume"].dropna()
             lows = sub["Low"].dropna()
             highs = sub["High"].dropna()
+            opens = sub["Open"].dropna()
             if _is_israeli_ticker(ticker):
                 closes = closes / 100.0
                 lows = lows / 100.0
                 highs = highs / 100.0
+                opens = opens / 100.0
             if len(closes) < 2:
                 continue
             last_close = float(closes.iloc[-1])
             prev_close = float(closes.iloc[-2])
             pct_change = (last_close - prev_close) / prev_close * 100.0
+
+            # "Intraday Recovery" - איפה המניה נסגרה בתוך הטווח היומי (0% = נסגרה
+            # בשפל היום, 100% = נסגרה בשיא היום). ירידה שנפתחת נמוך ומתאוששת
+            # לסגירה קרובה לשיא היום ("מלכודת דובים" שנסגרה) שונה מהותית מירידה
+            # שממשיכה לרדת עד הסגירה - גם אם ה-% הכולל היומי זהה. מחושב כאן, לפני
+            # תיקון-הטריות (_fix_stale_rows_with_live_quote) שממשיך לתקן רק
+            # close/prev_close - כדי שהטווח (open/high/low) והסגירה שבתוכו יגיעו
+            # תמיד מאותו סנאפשוט, ולא ייווצר שילוב לא עקבי בין נתון "היום" (חי)
+            # לנתון "אתמול" (מההורדה בבת אחת).
+            last_high = float(highs.iloc[-1]) if len(highs) else None
+            last_low_today = float(lows.iloc[-1]) if len(lows) else None
+            intraday_range = (last_high - last_low_today) if (last_high is not None and last_low_today is not None) else None
+            if intraday_range and intraday_range > 0:
+                intraday_recovery_pct = (last_close - last_low_today) / intraday_range * 100.0
+            else:
+                intraday_recovery_pct = None
+
             rows.append({
                 "ticker": ticker,
                 "last_close": last_close,
@@ -103,7 +122,10 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
                 # יוכל לבדוק בעצמו, בלי להסתיר את המחיר האחרון הידוע משאר האפליקציה
                 "last_close_date": closes.index[-1].date(),
                 "prev_close_date": closes.index[-2].date(),
-                "last_low": float(lows.iloc[-1]) if len(lows) else None,
+                "last_low": last_low_today,
+                "last_high": last_high,
+                "last_open": float(opens.iloc[-1]) if len(opens) else None,
+                "intraday_recovery_pct": intraday_recovery_pct,
                 "recent_20d_low": float(lows.tail(20).min()) if len(lows) else None,
                 "last_volume": float(volumes.iloc[-1]) if len(volumes) else None,
                 "avg_volume_20d": float(volumes.tail(20).mean()) if len(volumes) else None,

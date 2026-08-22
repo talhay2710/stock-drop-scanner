@@ -31,6 +31,7 @@ class DropAnalysis:
     trailing_rally_pct: float | None
     volume_ratio: float | None = None
     vix_level: float | None = None
+    intraday_recovery_pct: float | None = None
     quality: "quality_mod.QualityAssessment | None" = None
     rebound_tier: str = "C"      # "A" / "B" / "C" - שילוב ציון תגובת-יתר + איכות פונדמנטלית
     rebound_label: str = ""
@@ -63,6 +64,7 @@ def classify_drop(
     cfg: dict,
     volume_ratio: float | None = None,
     vix_level: float | None = None,
+    intraday_recovery_pct: float | None = None,
 ) -> DropAnalysis:
     reasons = []
     deep = market_data.get_stock_deep_info(yahoo_symbol)
@@ -100,6 +102,7 @@ def classify_drop(
             trailing_rally_pct=trailing_rally,
             volume_ratio=volume_ratio,
             vix_level=vix_level,
+            intraday_recovery_pct=intraday_recovery_pct,
             quality=quality,
         )
 
@@ -128,6 +131,7 @@ def classify_drop(
             trailing_rally_pct=trailing_rally,
             volume_ratio=volume_ratio,
             vix_level=vix_level,
+            intraday_recovery_pct=intraday_recovery_pct,
             quality=quality,
         )
 
@@ -165,7 +169,7 @@ def classify_drop(
     )
 
     overreaction_score, overreaction_verdict = _score_overreaction(
-        zscore, rsi, reasons, has_headlines, cfg, volume_ratio, vix_level, headlines
+        zscore, rsi, reasons, has_headlines, cfg, volume_ratio, vix_level, headlines, intraday_recovery_pct
     )
     rebound_tier, rebound_label = _classify_rebound(overreaction_score, quality)
 
@@ -185,6 +189,7 @@ def classify_drop(
         trailing_rally_pct=trailing_rally,
         volume_ratio=volume_ratio,
         vix_level=vix_level,
+        intraday_recovery_pct=intraday_recovery_pct,
         quality=quality,
         rebound_tier=rebound_tier,
         rebound_label=rebound_label,
@@ -233,18 +238,22 @@ def _build_reason_text(reasons, index_change_pct, sector_change, trailing_rally,
 # ציון סופי הוא ממוצע משוקלל של 6 תת-ציונים רציפים (0-100 כל אחד), לא ספירת
 # תגיות בינארית - כדי שהפרש עדין בין שני מקרים (למשל z-score 2.1 מול 3.8, שניהם
 # מעל אותו סף) ישפיע בפועל על הציון הסופי ולא רק על מעבר/אי-מעבר סף.
-# המשקלים: חריגה סטטיסטית (25%) ופחד בשוק/VIX (20%) הם האיתותים הכמותיים
-# החזקים ביותר; בהירות הסיבה (20%) ותגובת דוח (15%) תלויים באיכות המקורות
-# החופשיים; נפח מסחר ו-RSI (10% כל אחד) הם גורמים תומכים משניים.
+# המשקלים: חריגה סטטיסטית (22.5%) ופחד בשוק/VIX (18%) הם האיתותים הכמותיים
+# החזקים ביותר; בהירות הסיבה (18%) ותגובת דוח (13.5%) תלויים באיכות המקורות
+# החופשיים; נפח מסחר ו-RSI (9% כל אחד) הם גורמים תומכים משניים. Intraday
+# Recovery (10%, נוסף 22.8.2026) - איפה המניה נסגרה בתוך הטווח היומי שלה -
+# הוזז לכאן מ-11 מקום פינוי יחסי מכל שאר המשקלים (כל אחד *0.9), כי אין עדיין
+# דאטה מספיק לכייל משקלים אמפירית (ר' backtest, project_scoring_weight_validation).
 MAX_OVERREACTION_SCORE = 100
 
 _SCORE_WEIGHTS = {
-    "zscore": 0.25,
-    "vix": 0.20,
-    "reason": 0.20,
-    "earnings": 0.15,
-    "volume": 0.10,
-    "rsi": 0.10,
+    "zscore": 0.225,
+    "vix": 0.18,
+    "reason": 0.18,
+    "earnings": 0.135,
+    "volume": 0.09,
+    "rsi": 0.09,
+    "intraday_recovery": 0.10,
 }
 
 _EARNINGS_BEAT_KEYWORDS = ("beats", "beat ", "tops estimates", "exceeds", "surpasses", "better-than-expected")
@@ -299,10 +308,22 @@ def _earnings_subscore(reasons, headlines) -> float:
     return 50.0  # לא ניתן לקבוע מהכותרות - נייטרלי
 
 
-def _volume_subscore(volume_ratio) -> float:
+def _volume_subscore(volume_ratio, intraday_recovery_pct=None) -> float:
+    """נפח חריג לבדו הוא איתות מעורב, לא חד-משמעי: יכול להיות קפיטולציה
+    (פאניקת מכירה שנגמרת -> תומך בריבאונד) אבל גם מכירה מוסדית שממשיכה
+    (לא תומך). היכן שהמניה נסגרה בטווח היומי שלה (intraday_recovery_pct)
+    מבדיל בין השניים - נסגרה קרוב לשפל למרות נפח גבוה = דגל אדום (ממשיכים
+    למכור), נסגרה קרוב לשיא עם נפח גבוה = קפיטולציה+התאוששות אמיתית."""
     if volume_ratio is None:
         return 50.0
-    return _clamp((volume_ratio - 0.5) / (3.0 - 0.5) * 100)
+    base = _clamp((volume_ratio - 0.5) / (3.0 - 0.5) * 100)
+    if intraday_recovery_pct is None or volume_ratio < 1.5:
+        return base  # נפח לא באמת חריג, או אין נתון טווח יומי - משאירים כמו שהיה
+    if intraday_recovery_pct <= 30:
+        return base * 0.4
+    if intraday_recovery_pct >= 70:
+        return min(100.0, base * 1.15)
+    return base
 
 
 def _rsi_subscore(rsi) -> float:
@@ -311,16 +332,26 @@ def _rsi_subscore(rsi) -> float:
     return _clamp((50 - rsi) / (50 - 15) * 100)
 
 
+def _intraday_recovery_subscore(intraday_recovery_pct) -> float:
+    """נסגרה קרוב לשיא היום (למרות שהיום כולו היה יום ירידה) = קונים נכנסו
+    לקראת הסגירה, תומך בתגובת יתר/ריבאונד. נסגרה קרוב לשפל = המשיכו למכור
+    עד הסוף, פחות תומך. הסולם כבר 0-100 מטבעו, אין צורך בעוד נרמול."""
+    if intraday_recovery_pct is None:
+        return 50.0
+    return _clamp(intraday_recovery_pct)
+
+
 def _score_overreaction(zscore, rsi, reasons, has_headlines, cfg, volume_ratio=None, vix_level=None,
-                         headlines=None) -> tuple[int, str]:
+                         headlines=None, intraday_recovery_pct=None) -> tuple[int, str]:
     threshold = cfg.get("overreaction_zscore", 2.5)
     subscores = {
         "zscore": _zscore_subscore(zscore, threshold),
         "vix": _vix_subscore(vix_level),
         "reason": _reason_subscore(reasons, has_headlines),
         "earnings": _earnings_subscore(reasons, headlines),
-        "volume": _volume_subscore(volume_ratio),
+        "volume": _volume_subscore(volume_ratio, intraday_recovery_pct),
         "rsi": _rsi_subscore(rsi),
+        "intraday_recovery": _intraday_recovery_subscore(intraday_recovery_pct),
     }
     score = round(sum(subscores[k] * _SCORE_WEIGHTS[k] for k in _SCORE_WEIGHTS))
 
