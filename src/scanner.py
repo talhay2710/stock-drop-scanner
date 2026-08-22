@@ -407,11 +407,6 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
         holding_days = _assumed_holding_days(analysis.overreaction_score, max_holding_days)
 
         is_multi_day_only = bool(row.get("is_multi_day_only"))
-        reference_close = row["prev_close"]
-        if is_multi_day_only:
-            n_days_ago_close = market_data.get_close_n_days_ago(row["history"], multi_day_window)
-            if n_days_ago_close is not None:
-                reference_close = n_days_ago_close
 
         atr = market_data.compute_atr(row.get("highs"), row.get("lows_series"), row["history"])
 
@@ -423,7 +418,6 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
 
         trade_idea = strategy_mod.suggest_strategy(
             last_close=row["last_close"],
-            prev_close=reference_close,
             last_low=row.get("last_low"),
             recent_20d_low=row.get("recent_20d_low"),
             overreaction_score=analysis.overreaction_score,

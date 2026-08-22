@@ -10,9 +10,7 @@ class TradeIdea:
     entry_limit: float
     entry_note: str
     support_reference: float | None
-    target_conservative: float   # 38.2% retracement
-    target_base: float           # 50% retracement
-    target_aggressive: float     # 61.8% retracement / כמעט מלא
+    target_base: float
     stop_loss: float
     stop_loss_note: str
     liquidity_tier: str = "unknown"   # "high" / "medium" / "low" / "unknown"
@@ -20,8 +18,15 @@ class TradeIdea:
 
 
 ATR_STOP_MULTIPLIER = 1.5  # מרחק הסטופ מהכניסה = פי X מה-ATR (תנודתיות היום-יומית הרגילה)
-MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על יעד המכירה - לעולם לא קטן ממרחק הסטופ (יחס 1:1),
-# גם אם התיקון-Fibonacci בפועל (מגודל הירידה) קטן יותר - אחרת מסתכנים ביותר ממה שמנסים להרוויח
+MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על יעד המכירה - לעולם לא קטן ממרחק הסטופ (יחס 1:1)
+
+# יעד קבוע (לא Fibonacci) - הוחלף ב-21.8.2026 אחרי בדיקה על ההיסטוריה בפועל
+# (backtest.compare_target_strategies): יעד Fibonacci 50% (הקודם) נתן תוחלת
+# (רווח ממוצע אמיתי, לא רק שיעור הצלחה) של 3.66%, בעוד יעד קבוע 5% נתן 4.02%
+# ו-6% נתן 4.59% - יעד קבוע גדול יותר "מצליח" פחות (קשה יותר להגיע אליו) אבל
+# משתלם יותר בממוצע כי כל הצלחה שווה יותר. נבחר 5% (לא 6%, השיא בבדיקה) כי
+# המדגם קטן (56-76 עסקאות לאסטרטגיה) ו-5% שמרני יותר מ-6% שעלול להיות רעש.
+FIXED_TARGET_PCT = 0.05
 
 REWARD_RISK_RATIO = 1.5  # פולבאק בלבד (ר' live_target_price) - כשאין שום target_base שמור (אחזקה ידנית לגמרי)
 # הרצפה (MIN_TARGET_REWARD_RISK_RATIO) אומתה ב-backtest על 64 התראות היסטוריות:
@@ -64,11 +69,9 @@ def _liquidity_adjustment(avg_dollar_volume: float | None) -> tuple[float, str, 
     return 0.007, "low", "נזילות נמוכה - נוסף מרווח משמעותי ללימיט, ייתכן קושי לממש בדיוק במחיר המבוקש"
 
 
-def suggest_strategy(last_close: float, prev_close: float, last_low: float | None,
+def suggest_strategy(last_close: float, last_low: float | None,
                       recent_20d_low: float | None, overreaction_score: int,
                       atr: float | None = None, avg_dollar_volume: float | None = None) -> TradeIdea:
-    drop_size = prev_close - last_close  # גודל התיקון בערך מוחלט
-
     # שער כניסה: מעט מתחת למחיר הנוכחי, כדי לתת מרווח לקפיטולציה נוספת.
     # ככל שסבירות תגובת-היתר גבוהה יותר (ניקוד 0-100), המרווח שנדרש קטן יותר -
     # מדורג באופן רציף לפי הציון המשוקלל, כך שכל שינוי בציון (לא רק חציית סף)
@@ -86,9 +89,7 @@ def suggest_strategy(last_close: float, prev_close: float, last_low: float | Non
     if liquidity_tier in ("medium", "low"):
         entry_note += f" (כולל מרווח נוסף בשל נזילות {('בינונית' if liquidity_tier == 'medium' else 'נמוכה')})"
 
-    target_conservative = round(last_close + 0.382 * drop_size, 2)
-    target_base = round(last_close + 0.5 * drop_size, 2)
-    target_aggressive = round(last_close + 0.618 * drop_size, 2)
+    target_base = round(last_close * (1 + FIXED_TARGET_PCT), 2)
 
     stop_ref = last_low if last_low is not None else last_close
     anchor = min(stop_ref, entry_limit)
@@ -104,20 +105,18 @@ def suggest_strategy(last_close: float, prev_close: float, last_low: float | Non
 
     # יעד המכירה לא יורד מתחת לרווח מינימלי של 3% מעל שער הכניסה (הצדקת כניסה
     # לעסקה אחרי עמלות ומס), וגם לא מתחת ליחס סיכוי/סיכון 1:1 מול מרחק הסטופ -
-    # גם אם התיקון-Fibonacci בפועל קטן מזה. שתי הרצפות מחושבות ב-max() יחד -
-    # כל אחת עשויה להיות המחמירה מביניהן תלוי במניה.
+    # גם אם היעד הקבוע (FIXED_TARGET_PCT) קטן מזה בפועל (יכול לקרות כשהסטופ
+    # רחוק, למשל תנודתיות ATR גבוהה). שתי הרצפות מחושבות ב-max() יחד - כל אחת
+    # עשויה להיות המחמירה מביניהן תלוי במניה.
     min_target_profit = round(entry_limit * 1.03, 2)
     min_target_reward_risk = round(entry_limit + (entry_limit - stop_loss) * MIN_TARGET_REWARD_RISK_RATIO, 2)
     target_base = max(target_base, min_target_profit, min_target_reward_risk)
-    target_aggressive = max(target_aggressive, target_base)
 
     return TradeIdea(
         entry_limit=entry_limit,
         entry_note=entry_note,
         support_reference=recent_20d_low,
-        target_conservative=target_conservative,
         target_base=target_base,
-        target_aggressive=target_aggressive,
         stop_loss=stop_loss,
         stop_loss_note=stop_loss_note,
         liquidity_tier=liquidity_tier,
