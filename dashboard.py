@@ -1230,8 +1230,9 @@ def _autosave_fees():
 
 
 def _autosave_position():
-    """גודל ההשקעה המוצע ויעד הרווח נטו - קובעים את גודל הפוזיציה ואת חישוב
-    הרווח/הפסד נטו שמוצג בכל התראה (לא רק בדשבורד, גם בהודעת הטלגרם)."""
+    """גודל ההשקעה המוצע וגודל התיק/סיכון לעסקה - קובעים את גודל הפוזיציה
+    (מבוסס-סיכון אם התיק הכולל מוגדר) ואת חישוב הרווח/הפסד נטו שמוצג בכל
+    התראה (לא רק בדשבורד, גם בהודעת הטלגרם)."""
     cfg["position_size"] = {
         "ILS": st.session_state.get("settings_position_ils"),
         "USD": st.session_state.get("settings_position_usd"),
@@ -1240,12 +1241,13 @@ def _autosave_position():
         "ILS": st.session_state.get("settings_max_position_ils"),
         "USD": st.session_state.get("settings_max_position_usd"),
     }
-    target_net = {}
-    if st.session_state.get("settings_target_net_ils"):
-        target_net["ILS"] = st.session_state.get("settings_target_net_ils")
-    if st.session_state.get("settings_target_net_usd"):
-        target_net["USD"] = st.session_state.get("settings_target_net_usd")
-    cfg["target_net_profit"] = target_net
+    account_size = {}
+    if st.session_state.get("settings_account_size_ils"):
+        account_size["ILS"] = st.session_state.get("settings_account_size_ils")
+    if st.session_state.get("settings_account_size_usd"):
+        account_size["USD"] = st.session_state.get("settings_account_size_usd")
+    cfg["account_size"] = account_size
+    cfg["risk_pct_per_trade"] = st.session_state.get("settings_risk_pct")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("position sizing")
@@ -1333,20 +1335,27 @@ with st.sidebar:
             key="settings_max_position_usd", on_change=_autosave_position,
         )
         st.markdown(
-            "**יעד רווח נטו (אופציונלי)**",
-            help="אם מוגדר, גודל ההשקעה יחושב דינמית כדי לכוון לרווח נטו הזה ביעד "
-                 "(במקום גודל ההשקעה הרגיל הקבוע למעלה). 0 = כבוי.",
+            "**גודל התיק הכולל (אופציונלי)**",
+            help="אם מוגדר, גודל ההשקעה בכל הצעה יחושב לפי כמה מוכן להפסיד "
+                 "בעסקה בודדת (אחוז מהתיק הכולל, חלקי מרחק הסטופ) - במקום גודל "
+                 "ההשקעה הרגיל הקבוע למעלה. 0 = כבוי.",
         )
-        tn1, tn2 = st.columns(2)
-        tn1.number_input(
-            'ש"ח', min_value=0.0, step=50.0,
-            value=float(cfg.get("target_net_profit", {}).get("ILS", 0.0)),
-            key="settings_target_net_ils", on_change=_autosave_position,
+        as1, as2 = st.columns(2)
+        as1.number_input(
+            'ש"ח', min_value=0.0, step=1000.0,
+            value=float(cfg.get("account_size", {}).get("ILS", 0.0)),
+            key="settings_account_size_ils", on_change=_autosave_position,
         )
-        tn2.number_input(
-            "$", min_value=0.0, step=50.0,
-            value=float(cfg.get("target_net_profit", {}).get("USD", 0.0)),
-            key="settings_target_net_usd", on_change=_autosave_position,
+        as2.number_input(
+            "$", min_value=0.0, step=1000.0,
+            value=float(cfg.get("account_size", {}).get("USD", 0.0)),
+            key="settings_account_size_usd", on_change=_autosave_position,
+        )
+        st.markdown("**סיכון לעסקה (% מהתיק)**")
+        st.number_input(
+            "סיכון לעסקה", min_value=0.1, max_value=10.0, step=0.05,
+            value=float(cfg.get("risk_pct_per_trade", 0.75)), label_visibility="collapsed",
+            key="settings_risk_pct", on_change=_autosave_position,
         )
 
     with st.expander("📈 התראת אחזקות"):

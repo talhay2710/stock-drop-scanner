@@ -337,7 +337,8 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
 
     reference_position_size = cfg["position_size"].get(currency, 10000)
     max_position_size = cfg.get("max_position_size", {}).get(currency, reference_position_size * 3)
-    target_net_profit = cfg.get("target_net_profit", {}).get(currency)
+    account_size = cfg.get("account_size", {}).get(currency)
+    risk_pct_per_trade = cfg.get("risk_pct_per_trade", 0.75)
     max_holding_days = cfg.get("assumed_holding_days", 5)
 
     results = []
@@ -430,16 +431,14 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
             avg_dollar_volume=avg_dollar_volume,
         )
 
-        if target_net_profit:
-            position_size = fees_mod.compute_dynamic_position_size(
-                country_code=country_code,
-                buy_price=trade_idea.entry_limit,
-                sell_price=trade_idea.target_base,
-                target_net_profit=target_net_profit,
+        if account_size:
+            risk_amount = account_size * risk_pct_per_trade / 100.0
+            position_size = fees_mod.compute_risk_based_position_size(
+                entry_price=trade_idea.entry_limit,
+                stop_price=trade_idea.stop_loss,
+                risk_amount=risk_amount,
                 reference_size=reference_position_size,
                 max_size=max_position_size,
-                holding_days=holding_days,
-                fees_cfg=cfg["fees"],
             )
         else:
             position_size = reference_position_size

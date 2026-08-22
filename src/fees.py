@@ -27,24 +27,26 @@ class NetResult:
     holding_days: int
 
 
-def compute_dynamic_position_size(
-    country_code: str,
-    buy_price: float,
-    sell_price: float,
-    target_net_profit: float,
+def compute_risk_based_position_size(
+    entry_price: float,
+    stop_price: float,
+    risk_amount: float,
     reference_size: float,
     max_size: float,
-    holding_days: int,
-    fees_cfg: dict,
 ) -> float:
-    """גודל השקעה שיניב בקירוב target_net_profit נטו ביעד, במקום גודל קבוע -
-    כשה-% הצפוי לרווח קטן צריך להשקיע יותר כדי להגיע לאותו סכום נטו, ולהפך.
-    מוגבל תמיד ל-max_size (תקרת סיכון) ולא יורד מתחת ל-20% מ-reference_size."""
-    reference_result = compute_net_result(country_code, buy_price, sell_price, reference_size, holding_days, fees_cfg)
-    if reference_result.net_return_pct <= 0:
-        return reference_size  # אין רווח צפוי לפי ה-% הזה - אין טעם להגדיל סיכון כדי "לרדוף" יעד
-    required_size = target_net_profit / (reference_result.net_return_pct / 100.0)
-    return min(max(required_size, reference_size * 0.2), max_size)
+    """גודל השקעה לפי כמה מוכן להפסיד, לא לפי כמה רוצה להרוויח - הפוך מהגישה
+    הקודמת (compute_dynamic_position_size, שהוסרה): זו הייתה מגדילה את הגודל
+    כשהתשואה הצפויה קטנה כדי "לרדוף" רווח נטו קבוע, כלומר מסתכנת ביותר כסף
+    דווקא כשהביטחון בעסקה נמוך יותר - הפוך מניהול סיכונים תקין. כאן: קובעים
+    כמה מוכן להפסיד בעסקה בודדת (risk_amount), ומחלקים במרחק הסטופ באחוזים -
+    סטופ קרוב (עסקה "בטוחה" יותר) מאפשר פוזיציה גדולה יותר לאותו סיכון קבוע,
+    סטופ רחוק דורש פוזיציה קטנה יותר. עדיין מוגבל ל-max_size, ולא יורד מתחת
+    ל-20% מ-reference_size (כדי לא "להיעלם" לגמרי בעסקאות עם סטופ רחוק מאוד)."""
+    stop_distance_pct = (entry_price - stop_price) / entry_price
+    if stop_distance_pct <= 0:
+        return reference_size  # לא אמור לקרות (סטופ תמיד מתחת לכניסה) - נפילה בטוחה לגודל הבסיס
+    size = risk_amount / stop_distance_pct
+    return min(max(size, reference_size * 0.2), max_size)
 
 
 def compute_net_result(
