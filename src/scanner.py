@@ -612,7 +612,7 @@ def _format_price(value: float, currency: str, with_unit: bool = True) -> str:
 def _format_header_price(value: float, currency: str) -> str:
     """מחיר לכותרת בסוגריים: אגורות בלבד (לישראל), או $ רגיל (לארה"ב)."""
     if currency == "ILS":
-        return f"({_format_price(value, currency)})"
+        return f"({_format_price(value, currency, with_unit=False)})"
     return f"(${value:,.2f})"
 
 
