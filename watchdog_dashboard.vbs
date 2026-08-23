@@ -3,6 +3,13 @@
 ' ידנית על קיצור הדרך), זה לא פותח שום דבר - רץ ברקע כל כמה דקות דרך
 ' Task Scheduler (ר' setup_task_scheduler_dashboard_watchdog.ps1) כדי
 ' שהדשבורד "יחזור לחיים" לבד אחרי קריסה, בלי שתצטרך לשים לב ולהפעיל ידנית.
+'
+' חשוב: לא מפעיל את streamlit ישירות כאן (WshShell.Run עם waitOnReturn=False) -
+' נבדק בפועל (23.8.2026) שתהליך-נכד שמופעל ככה מת יחד עם ה-task הזה ברגע
+' שהוא מסתיים (Windows Task Scheduler מריץ כל task בתוך Job Object שהורג את
+' כל מה שהוא הפעיל כשהתהליך הראשי יוצא) - גם כש-LastTaskResult=0 (הצלחה),
+' streamlit פשוט לא שרד בפועל. הפתרון: מפעילים task נפרד (StockDashboardLauncher,
+' ללא טריגר עצמאי משלו) שה-Job שלו בלתי-תלוי בזה של ה-watchdog.
 Dim WshShell, Http, isUp
 
 Set WshShell = CreateObject("WScript.Shell")
@@ -21,5 +28,5 @@ On Error Goto 0
 
 If Not isUp Then
     WshShell.Run "cmd /c git pull --quiet", 0, True
-    WshShell.Run """C:\Users\talha\AppData\Local\Programs\Python\Python312\python.exe"" -m streamlit run dashboard.py --server.port 8501 --server.headless true", 0, False
+    WshShell.Run "schtasks /run /tn ""StockDashboardLauncher""", 0, True
 End If
