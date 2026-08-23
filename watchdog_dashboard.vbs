@@ -21,8 +21,16 @@ Set Http = CreateObject("WinHttp.WinHttpRequest.5.1")
 Http.Open "GET", "http://localhost:8501/_stcore/health", False
 Http.SetTimeouts 2000, 2000, 2000, 2000
 Http.Send
-If Err.Number = 0 And Http.Status = 200 Then
-    isUp = True
+' VBScript לא מקצר-מעגל את And - "Err.Number = 0 And Http.Status = 200" תמיד
+' מנסה לקרוא גם את Http.Status, גם כש-Send כבר נכשל (השרת לא זמין). קריאת
+' Status אחרי Send כושל זורקת שגיאה נוספת משלה ("הנתונים עוד לא זמינים"),
+' ונבדק בפועל (23.8.2026) שזה גורם ל-isUp להיקבע True בטעות - כלומר הבדיקה
+' "חשבה" שהדשבורד למעלה בדיוק כשהוא היה למטה, ומעולם לא הגיעה לענף ההפעלה
+' מחדש. If מקונן נמנע מהגישה ל-Status כשה-Send כבר נכשל.
+If Err.Number = 0 Then
+    If Http.Status = 200 Then
+        isUp = True
+    End If
 End If
 On Error Goto 0
 
