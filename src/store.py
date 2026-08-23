@@ -50,6 +50,32 @@ CREATE TABLE IF NOT EXISTS drop_candidates (
     best_pct_change REAL,
     PRIMARY KEY (ticker, index_name, watch_date)
 );
+CREATE TABLE IF NOT EXISTS signal_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_date TEXT NOT NULL,
+    scan_ts TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    company_name TEXT,
+    index_name TEXT,
+    pct_change REAL,
+    last_close REAL,
+    was_alerted INTEGER DEFAULT 0,
+    zscore REAL,
+    rsi REAL,
+    volume_ratio REAL,
+    vix_level REAL,
+    intraday_recovery_pct REAL,
+    residual_drop_pct REAL,
+    dist_from_ma50_pct REAL,
+    market_regime TEXT,
+    overreaction_score INTEGER,
+    quality_score REAL,
+    quality_tier TEXT,
+    rebound_tier TEXT,
+    outcome_resolved INTEGER DEFAULT 0,
+    outcome_json TEXT,
+    UNIQUE(scan_date, ticker)
+);
 CREATE TABLE IF NOT EXISTS closed_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alert_id INTEGER,
@@ -91,6 +117,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "market_regime TEXT",
         "reversal_low_price REAL", "reversal_alert_sent INTEGER DEFAULT 0",
         "residual_drop_pct REAL", "dist_from_ma50_pct REAL",
+        "reversal_expired INTEGER DEFAULT 0",
     ):
         try:
             conn.execute(f"ALTER TABLE alerts ADD COLUMN {column_def}")
@@ -264,7 +291,7 @@ def get_pending_reversal_watches(conn: sqlite3.Connection, scan_date: str) -> li
     cur = conn.execute(
         "SELECT id, ticker, company_name, index_name, pct_change, scan_ts, "
         "entry_limit, target_base, stop_loss, intraday_recovery_pct, reversal_low_price "
-        "FROM alerts WHERE scan_date = ? AND reversal_alert_sent = 0",
+        "FROM alerts WHERE scan_date = ? AND reversal_alert_sent = 0 AND reversal_expired = 0",
         (scan_date,),
     )
     columns = [c[0] for c in cur.description]
@@ -278,6 +305,61 @@ def update_reversal_low(conn: sqlite3.Connection, alert_id: int, low_price: floa
 
 def mark_reversal_alert_sent(conn: sqlite3.Connection, alert_id: int) -> None:
     conn.execute("UPDATE alerts SET reversal_alert_sent = 1 WHERE id = ?", (alert_id,))
+    conn.commit()
+
+
+def mark_reversal_expired(conn: sqlite3.Connection, alert_id: int) -> None:
+    """מפסיק לעקוב אחרי היפוך בלי לשלוח התראה - כשעבר יותר מדי זמן מההתראה
+    המקורית (ר' reversal_max_age_hours). קפיצה מאוחרת מדי כבר לא אומרת הרבה
+    על ההתראה המקורית עצמה, ר' הביקורת של GPT על 'Time Decay'."""
+    conn.execute("UPDATE alerts SET reversal_expired = 1 WHERE id = ?", (alert_id,))
+    conn.commit()
+
+
+def signal_already_logged(conn: sqlite3.Connection, ticker: str, scan_date: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM signal_log WHERE ticker = ? AND scan_date = ?", (ticker, scan_date)
+    ).fetchone()
+    return row is not None
+
+
+def log_signal(conn: sqlite3.Connection, record: dict) -> None:
+    """שומר פרופיל מלא (כל הגורמים הגולמיים + הניקוד) של כל מניה שמראה ירידה
+    משמעותית - גם אם לא נשלחה עליה התראה בפועל. INSERT OR IGNORE כי הדדופ
+    האמיתי (פעם ביום לכל טיקר) כבר נבדק לפני קריאה לפונקציה הזו
+    (store.signal_already_logged) - ה-IGNORE כאן רק הגנה נוספת מפני race
+    בין שני מדדים שסורקים את אותו טיקר (למשל אם טיקר מופיע בטעות בשני קבצי
+    הרכיבים)."""
+    conn.execute(
+        """INSERT OR IGNORE INTO signal_log
+        (scan_date, scan_ts, ticker, company_name, index_name, pct_change, last_close, was_alerted,
+         zscore, rsi, volume_ratio, vix_level, intraday_recovery_pct, residual_drop_pct, dist_from_ma50_pct,
+         market_regime, overreaction_score, quality_score, quality_tier, rebound_tier)
+        VALUES (:scan_date, :scan_ts, :ticker, :company_name, :index_name, :pct_change, :last_close, :was_alerted,
+                :zscore, :rsi, :volume_ratio, :vix_level, :intraday_recovery_pct, :residual_drop_pct, :dist_from_ma50_pct,
+                :market_regime, :overreaction_score, :quality_score, :quality_tier, :rebound_tier)""",
+        record,
+    )
+    conn.commit()
+
+
+def get_unresolved_signals(conn: sqlite3.Connection, older_than_days: int = 10) -> list[dict]:
+    """אותות שעברו לפחות older_than_days ימים מאז שנרשמו ועדיין לא חושבה
+    התוצאה שלהם (המחיר בהמשך הגיע ליעד/לסטופ/לא הוכרע) - ר' resolve_signal_outcomes.py."""
+    cutoff = (dt.date.today() - dt.timedelta(days=older_than_days)).isoformat()
+    cur = conn.execute(
+        "SELECT * FROM signal_log WHERE outcome_resolved = 0 AND scan_date <= ?",
+        (cutoff,),
+    )
+    columns = [c[0] for c in cur.description]
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def mark_signal_resolved(conn: sqlite3.Connection, signal_id: int, outcome_json: str) -> None:
+    conn.execute(
+        "UPDATE signal_log SET outcome_resolved = 1, outcome_json = ? WHERE id = ?",
+        (outcome_json, signal_id),
+    )
     conn.commit()
 
 

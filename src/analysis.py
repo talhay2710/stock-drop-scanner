@@ -267,6 +267,12 @@ def _build_reason_text(reasons, index_change_pct, sector_change, trailing_rally,
 # דאטה מספיק לכייל משקלים אמפירית (ר' backtest, project_scoring_weight_validation).
 MAX_OVERREACTION_SCORE = 100
 
+# 🔒 מוקפא (v1.0, 2026-08-23) - אחרי ביקורת GPT שנייה על האסטרטגיה, הוחלט
+# להפסיק לכייל את המשקלים/הספים האלה עד שיצטבר מספיק דאטה (ר' signal_log,
+# scanner._log_shadow_signals) לבדיקה אמיתית מחוץ-למדגם (walk-forward) - כל
+# עוד בודקים-ומשנים-בודקים-ומשנים על אותו דאטה, יש סיכון אמיתי ל-overfitting
+# להיסטוריה. פרטים מלאים ב-project_strategy_gpt_feedback_overhaul (זיכרון).
+# לפני שינוי כאן: לוודא שיש סיבה אמיתית שאינה "בדיקה נוספת על אותה היסטוריה".
 _SCORE_WEIGHTS = {
     "zscore": 0.225,
     "vix": 0.18,

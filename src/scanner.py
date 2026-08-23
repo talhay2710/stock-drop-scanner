@@ -293,8 +293,22 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
         return
 
     reversal_pct = abs(cfg.get("reversal_confirm_pct", 3.0))
+    max_age_hours = abs(cfg.get("reversal_max_age_hours", 4.0))
 
     for p in pending:
+        # קפיצה שמגיעה מאוחר מדי אחרי ההתראה המקורית כבר לא אומרת הרבה עליה -
+        # יכול להיות תנודה סתמית של סוף היום, לא המשך ישיר לירידה שהתריעה
+        # (ר' ביקורת "Time Decay" ב-project_strategy_gpt_feedback_overhaul).
+        # מפסיקים לעקוב בלי לשלוח שום התראה, לא רק מדלגים על הסבב הזה.
+        try:
+            alerted_at = dt.datetime.fromisoformat(p["scan_ts"])
+            age_hours = (dt.datetime.now() - alerted_at).total_seconds() / 3600
+        except Exception:
+            age_hours = 0.0
+        if age_hours > max_age_hours:
+            store_mod.mark_reversal_expired(conn, p["id"])
+            continue
+
         current = market_data.fetch_current_price(p["ticker"])
         if current is None or current <= 0:
             continue
@@ -323,6 +337,9 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
         ]
         if p.get("intraday_recovery_pct") is not None:
             lines.append(f"התאוששות תוך-יומית: {p['intraday_recovery_pct']:.0f}%")
+        # חשוב: זה רק סימן שהמחיר התחיל לזוז בחזרה, לא אישור שכדאי לקנות -
+        # התנאים שהצדיקו את ההתראה המקורית (איכות, סיווג) לא נבדקים כאן מחדש.
+        lines.append("💡 זה רק סימן שהמחיר התחיל לזוז בחזרה - לא המלצת קנייה חדשה")
         if p.get("entry_limit") and p.get("stop_loss") and p.get("target_base"):
             lines.append("")
             lines.append(
@@ -334,6 +351,68 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
         notifier.send_telegram(cfg, "\n".join(lines))
         store_mod.mark_reversal_alert_sent(conn, p["id"])
         logger.info("התראת היפוך נשלחה: %s (%.1f%% מהשפל)", p["ticker"], bounce_pct)
+
+
+def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israeli: bool,
+                         name_map: dict, scan_date: str, index_change_pct: float | None,
+                         vix_level: float | None, market_regime_tag: str) -> None:
+    """שומר את הפרופיל המלא (כל הגורמים הגולמיים + הניקוד) של כל מניה שמראה
+    ירידה משמעותית - גם אם היא לא עברה את סף ההתראה בפועל ולא נשלחה עליה שום
+    הודעה. לא משפיע על זרימת ההתראות בשום צורה - המטרה היחידה היא שמאגר
+    הנתונים לבדיקת האסטרטגיה יגדל הרבה יותר מהר מקצב ההתראות עצמן (ר' ביקורת
+    GPT ב-project_strategy_gpt_feedback_overhaul: 60-75 התראות זה מעט מדי).
+    סף נמוך יותר מסף ההתראה עצמו (signal_log_threshold_pct), אבל לא כל ירידה
+    כלשהי - כדי לא להכביד יתר על המידה על yfinance החינמי."""
+    log_threshold = abs(cfg.get("signal_log_threshold_pct", 3.5))
+    alert_threshold = abs(cfg["drop_threshold_pct"])
+    candidates = df[df["pct_change"] <= -log_threshold]
+
+    for _, row in candidates.iterrows():
+        ticker = row["ticker"]
+        if store_mod.signal_already_logged(conn, ticker, scan_date):
+            continue
+
+        company_name = name_map.get(ticker)
+        if not company_name and is_israeli:
+            company_name = "מניה ישראלית (שם לא זוהה)"
+
+        volume_ratio = None
+        if row.get("last_volume") and row.get("avg_volume_20d"):
+            volume_ratio = row["last_volume"] / row["avg_volume_20d"]
+
+        try:
+            analysis = analysis_mod.classify_drop(
+                ticker=ticker, yahoo_symbol=ticker, company_name=company_name,
+                is_israeli=is_israeli, pct_change=row["pct_change"], close_history=row["history"],
+                index_change_pct=index_change_pct, cfg=cfg, volume_ratio=volume_ratio,
+                vix_level=vix_level, intraday_recovery_pct=row.get("intraday_recovery_pct"),
+            )
+        except Exception:
+            logger.exception("נכשל תיעוד אות-צל עבור %s", ticker)
+            continue
+
+        store_mod.log_signal(conn, {
+            "scan_date": scan_date,
+            "scan_ts": dt.datetime.now().isoformat(timespec="seconds"),
+            "ticker": ticker,
+            "company_name": company_name,
+            "index_name": index,
+            "pct_change": row["pct_change"],
+            "last_close": row["last_close"],
+            "was_alerted": 1 if row["pct_change"] <= -alert_threshold else 0,
+            "zscore": analysis.zscore,
+            "rsi": analysis.rsi,
+            "volume_ratio": analysis.volume_ratio,
+            "vix_level": analysis.vix_level,
+            "intraday_recovery_pct": analysis.intraday_recovery_pct,
+            "residual_drop_pct": analysis.residual_drop_pct,
+            "dist_from_ma50_pct": analysis.dist_from_ma50_pct,
+            "market_regime": market_regime_tag,
+            "overreaction_score": analysis.overreaction_score,
+            "quality_score": analysis.quality.score if analysis.quality else None,
+            "quality_tier": analysis.quality.tier if analysis.quality else None,
+            "rebound_tier": analysis.rebound_tier,
+        })
 
 
 def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None) -> list[dict]:
@@ -406,11 +485,19 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
     flagged["severity"] = flagged[["pct_change", "n_day_change"]].min(axis=1)
 
     logger.info("%d מניות חצו את סף הירידה (יומי/מצטבר) (%s)", len(flagged), index)
-    if flagged.empty:
-        return []
 
     index_change_pct = market_data.fetch_index_proxy_change(index)
     market_regime_tag, market_regime_label = market_data.classify_market_regime(index, vix_level)
+
+    # תיעוד "אות-צל": שומר את הפרופיל המלא של כל מניה שמראה ירידה משמעותית,
+    # גם אם לא עברה את סף ההתראה בפועל - כדי שמאגר הנתונים לבדיקת האסטרטגיה
+    # יגדל הרבה יותר מהר מקצב ההתראות עצמן (ר' project_strategy_gpt_feedback_overhaul).
+    # רץ תמיד, גם כשאין התראה אמיתית הפעם - לכן זה *לפני* ה-return המוקדם.
+    _log_shadow_signals(cfg, conn, df, index, is_israeli, name_map, scan_date,
+                         index_change_pct, vix_level, market_regime_tag)
+
+    if flagged.empty:
+        return []
 
     dedupe = cfg.get("dedupe_same_day", True)
 
