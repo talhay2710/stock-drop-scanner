@@ -337,9 +337,6 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
         ]
         if p.get("intraday_recovery_pct") is not None:
             lines.append(f"התאוששות תוך-יומית: {p['intraday_recovery_pct']:.0f}%")
-        # חשוב: זה רק סימן שהמחיר התחיל לזוז בחזרה, לא אישור שכדאי לקנות -
-        # התנאים שהצדיקו את ההתראה המקורית (איכות, סיווג) לא נבדקים כאן מחדש.
-        lines.append("💡 זה רק סימן שהמחיר התחיל לזוז בחזרה - לא המלצת קנייה חדשה")
         if p.get("entry_limit") and p.get("stop_loss") and p.get("target_base"):
             lines.append("")
             lines.append(
