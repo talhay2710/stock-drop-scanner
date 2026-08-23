@@ -457,6 +457,12 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
                     continue
 
         company_name = name_map.get(ticker)
+        if not company_name and is_israeli:
+            # קובץ הרכיבים לא צריך להיות חסר טיקר ישראלי פעיל - אם קרה, זה סימן
+            # שהקובץ מיושן (ר' constituents.get_il_name_map). בכל מקרה, לא רוצים
+            # שהטיקר הלטיני יחליק כ"שם חברה" בהודעה - עדיף placeholder בעברית.
+            logger.warning("אין שם עברי לטיקר %s ברשימת הרכיבים - קובץ הרכיבים כנראה מיושן", ticker)
+            company_name = "מניה ישראלית (שם לא זוהה)"
 
         volume_ratio = None
         if row.get("last_volume") and row.get("avg_volume_20d"):
