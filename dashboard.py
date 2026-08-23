@@ -2032,6 +2032,27 @@ def get_footer_news(top_names_tickers: list, is_israeli: bool) -> dict:
     return {"general": general, "stock_news": stock_news}
 
 
+@st.cache_data(ttl=60)
+def get_signal_log_summary() -> dict:
+    """כמה 'אותות-צל' (scanner._log_shadow_signals) כבר נאספו ברקע - כולל
+    כאלה שלא הפכו להתראה בפועל - וכמה מהם כבר נפתרו (יש להם תוצאה ידועה,
+    ר' backtest.resolve_signal_outcomes). המטרה: שקיפות על קצב הצטברות
+    הדאטה שצריך למסקנות רציניות (walk-forward), בלי לשאול אותי כל פעם."""
+    conn = store.get_conn(db_path(cfg))
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM signal_log").fetchone()[0]
+        resolved = conn.execute("SELECT COUNT(*) FROM signal_log WHERE outcome_resolved = 1").fetchone()[0]
+        no_data = conn.execute(
+            "SELECT COUNT(*) FROM signal_log WHERE outcome_resolved = 1 AND outcome_json LIKE '%no_data%'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return {
+        "total": total, "resolved_with_data": resolved - no_data,
+        "pending": total - resolved, "no_data": no_data,
+    }
+
+
 @st.cache_data(ttl=3600)
 def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFrame:
     result = backtest.run_backtest(alerts_df, window_days)
@@ -2060,6 +2081,27 @@ _tab_slot_backtest = st.empty()  # placeholder עם מיקום קבוע, נוצ�
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
 with _tab_slot_backtest.container():
     if st.session_state.active_tab == "backtest":
+        with st.container(border=True):
+            st.markdown("**📡 איסוף נתונים לבדיקה עתידית (walk-forward)**")
+            _sig = get_signal_log_summary()
+            _sig_cards = "".join([
+                _stat_card("📥 אותות שנאספו", str(_sig["total"]), NEUTRAL_COLOR, NEUTRAL_BG),
+                _stat_card("✅ נפתרו עם תוצאה", str(_sig["resolved_with_data"]), POS_COLOR, POS_BG),
+                _stat_card("⏳ ממתינים לתוצאה", str(_sig["pending"]), NEUTRAL_COLOR, NEUTRAL_BG),
+            ])
+            st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{_sig_cards}</div>', unsafe_allow_html=True)
+            _WALK_FORWARD_ROUGH_TARGET = 300  # תחושת בטן, לא סף מדעי - רק סימן "יש כבר משהו לבדוק ברצינות"
+            _sig_frac = min(1.0, _sig["resolved_with_data"] / _WALK_FORWARD_ROUGH_TARGET) if _WALK_FORWARD_ROUGH_TARGET else 0.0
+            st.progress(
+                _sig_frac,
+                text=f"{_sig['resolved_with_data']}/{_WALK_FORWARD_ROUGH_TARGET} אותות עם תוצאה ידועה "
+                     "(יעד גס, לא סף מדעי - רק אינדיקציה גסה לכיוון 'יש מספיק לבדוק ברצינות')",
+            )
+            st.caption(
+                "כולל גם מניות שירדו מספיק כדי להירשם אבל לא עברו את סף ההתראה בפועל - "
+                "כדי שהדאטה יצטבר מהר יותר מקצב ההתראות עצמן."
+            )
+
         if df.empty:
             st.caption(_BACKTEST_CAPTION)
             st.info("אין עדיין התראות להערכה. הרץ סריקה כדי להתחיל לצבור נתונים.")
