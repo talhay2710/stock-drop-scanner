@@ -649,10 +649,10 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         lines.append(f"מצב שוק כללי: {market_regime_label}")
 
     if analysis.residual_drop_pct is not None:
-        lines.append(f"ירידה עודפת (מעבר למדד/סקטור): {_signed(analysis.residual_drop_pct, 1, '%')}")
+        lines.append(f"📌 ירידה עודפת (מעבר למדד/סקטור): {_signed(analysis.residual_drop_pct, 1, '%')}")
 
     if analysis.dist_from_ma50_pct is not None:
-        lines.append(f"מרחק מהממוצע הנע 50 יום: {_signed(analysis.dist_from_ma50_pct, 1, '%')}")
+        lines.append(f"📌 מרחק מהממוצע הנע 50 יום: {_signed(analysis.dist_from_ma50_pct, 1, '%')}")
 
     lines.append(f"📌 {analysis.reason_text.split(' | ')[0]}")
 
