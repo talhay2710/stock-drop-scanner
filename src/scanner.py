@@ -80,6 +80,10 @@ def run_scan(cfg: dict) -> list[dict]:
             check_price_alerts(cfg, conn)
         except Exception:
             logger.exception("שגיאה בבדיקת התראות מחיר ידניות")
+        try:
+            check_reversal_confirmations(cfg, conn)
+        except Exception:
+            logger.exception("שגיאה בבדיקת אישור היפוך")
     finally:
         conn.close()
     return all_results
@@ -277,6 +281,61 @@ def check_price_alerts(cfg: dict, conn) -> None:
         logger.info("התראת מחיר הופעלה: %s %s %s", a["ticker"], direction_word, target)
 
 
+def check_reversal_confirmations(cfg: dict, conn) -> None:
+    """עוקב אחרי התראות ירידה שנשלחו היום ומחפש סימן היפוך אמיתי - התאוששות של
+    reversal_confirm_pct מהשפל שנרשם מאז ההתראה. לא מחליף את התראת הירידה
+    המקורית (שממשיכה לצאת מיד, בלי שום עיכוב) - זו התראה נוספת ונפרדת, רק אם
+    וכשיש התאוששות בפועל. מפסיק לעקוב ברגע שנשלחה (reversal_alert_sent),
+    ומתאפס ממילא מחר (scan_date חדש)."""
+    scan_date = dt.date.today().isoformat()
+    pending = store_mod.get_pending_reversal_watches(conn, scan_date)
+    if not pending:
+        return
+
+    reversal_pct = abs(cfg.get("reversal_confirm_pct", 3.0))
+
+    for p in pending:
+        current = market_data.fetch_current_price(p["ticker"])
+        if current is None or current <= 0:
+            continue
+
+        prior_low = p.get("reversal_low_price")
+        low = min(prior_low, current) if prior_low else current
+        if low < (prior_low or low):
+            store_mod.update_reversal_low(conn, p["id"], low)
+
+        bounce_pct = (current - low) / low * 100
+        if bounce_pct < reversal_pct:
+            continue
+
+        ccy = constituents.INDEX_CURRENCY.get(p.get("index_name"), "ILS")
+        display_name = p.get("company_name") or p["ticker"]
+        alert_time = p["scan_ts"][11:16] if p.get("scan_ts") and len(p["scan_ts"]) >= 16 else ""
+
+        lines = [
+            f"🔄 <b>{display_name} מראה סימני התאוששות</b>",
+            f"{p['ticker']}",
+            "",
+            f"הירידה המקורית: {_signed(p['pct_change'], 1, '%')}"
+            + (f" (התראה נשלחה ב-{alert_time})" if alert_time else ""),
+            f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)} "
+            f"(עלתה {_signed(bounce_pct, 1, '%')} מהשפל של היום)",
+        ]
+        if p.get("intraday_recovery_pct") is not None:
+            lines.append(f"התאוששות תוך-יומית: {p['intraday_recovery_pct']:.0f}%")
+        if p.get("entry_limit") and p.get("stop_loss") and p.get("target_base"):
+            lines.append("")
+            lines.append(
+                f"כניסה מוצעת: {_format_price(p['entry_limit'], ccy, with_unit=False)} | "
+                f"סטופ: {_format_price(p['stop_loss'], ccy, with_unit=False)} | "
+                f"יעד: {_format_price(p['target_base'], ccy, with_unit=False)}"
+            )
+
+        notifier.send_telegram(cfg, "\n".join(lines))
+        store_mod.mark_reversal_alert_sent(conn, p["id"])
+        logger.info("התראת היפוך נשלחה: %s (%.1f%% מהשפל)", p["ticker"], bounce_pct)
+
+
 def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None) -> list[dict]:
     threshold = abs(cfg["drop_threshold_pct"])
     country_code = constituents.INDEX_COUNTRY_CODE[index]
@@ -317,7 +376,27 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
         lambda h: market_data.compute_n_day_change_pct(h, multi_day_window)
     )
 
-    single_day_flag = df["pct_change"] <= -threshold
+    scan_date = dt.date.today().isoformat()
+
+    # אימות ירידה: מניה שחוצה את הסף בבת אחת, בלי שנראתה קודם אפילו קרוב אליו,
+    # עלולה להיות תקלת ציטוט רגעית (טעות בקריאה בודדת, לא נתון מפגר - זה כבר
+    # מטופל למעלה) ולא ירידה אמיתית. לכן ברגע שמניה נכנסת ל"אזור אזהרה"
+    # (watch_buffer% לפני הסף), רושמים אותה כמועמדת; רק אם היא נראתה שם *גם*
+    # בסריקה קודמת (כלומר נמשכת לפחות סבב סריקה אחד, כ-5 דקות) מתריעים בפועל
+    # כשהיא מגיעה לסף עצמו. לא מוסיף עיכוב מעבר לסף שהגדרת - רק דורש שהוא לא
+    # ייעלם כבר בסריקה הבאה.
+    watch_buffer = abs(cfg.get("drop_confirm_watch_pct", 1.0))
+    watch_threshold = max(threshold - watch_buffer, 0.0)
+    confirmed = pd.Series(False, index=df.index)
+    in_watch_zone = df["pct_change"] <= -watch_threshold
+    for idx in df[in_watch_zone].index:
+        cand_ticker = df.loc[idx, "ticker"]
+        cand_pct = float(df.loc[idx, "pct_change"])
+        if store_mod.get_watch_candidate(conn, cand_ticker, index, scan_date):
+            confirmed.loc[idx] = True
+        store_mod.upsert_watch_candidate(conn, cand_ticker, index, scan_date, cand_pct)
+
+    single_day_flag = (df["pct_change"] <= -threshold) & confirmed
     if multi_day_enabled:
         multi_day_flag = df["n_day_change"] <= -multi_day_threshold
     else:
@@ -333,7 +412,6 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
     index_change_pct = market_data.fetch_index_proxy_change(index)
     market_regime_tag, market_regime_label = market_data.classify_market_regime(index, vix_level)
 
-    scan_date = dt.date.today().isoformat()
     dedupe = cfg.get("dedupe_same_day", True)
 
     reference_position_size = cfg["position_size"].get(currency, 10000)

@@ -43,6 +43,13 @@ CREATE TABLE IF NOT EXISTS summary_log (
     sent_date TEXT NOT NULL,
     PRIMARY KEY (kind, sent_date)
 );
+CREATE TABLE IF NOT EXISTS drop_candidates (
+    ticker TEXT NOT NULL,
+    index_name TEXT NOT NULL,
+    watch_date TEXT NOT NULL,
+    best_pct_change REAL,
+    PRIMARY KEY (ticker, index_name, watch_date)
+);
 CREATE TABLE IF NOT EXISTS closed_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alert_id INTEGER,
@@ -82,6 +89,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "is_manual_trade INTEGER DEFAULT 0", "last_close_date TEXT",
         "zscore REAL", "rsi REAL", "volume_ratio REAL", "vix_level REAL", "intraday_recovery_pct REAL",
         "market_regime TEXT",
+        "reversal_low_price REAL", "reversal_alert_sent INTEGER DEFAULT 0",
     ):
         try:
             conn.execute(f"ALTER TABLE alerts ADD COLUMN {column_def}")
@@ -227,6 +235,51 @@ def update_target_alert(conn: sqlite3.Connection, alert_id: int, active: bool) -
     conn.commit()
 
 
+def get_watch_candidate(conn: sqlite3.Connection, ticker: str, index_name: str, watch_date: str) -> bool:
+    """האם הטיקר כבר נראה באזור האזהרה (קרוב לסף הירידה) בסריקה קודמת היום -
+    משמש לאימות ירידה: לא מתריעים על חציית סף בסריקה הראשונה שבה היא נראית,
+    רק אם היא נמשכת גם בסריקה שאחריה (ר' _scan_one_index)."""
+    row = conn.execute(
+        "SELECT 1 FROM drop_candidates WHERE ticker = ? AND index_name = ? AND watch_date = ?",
+        (ticker, index_name, watch_date),
+    ).fetchone()
+    return row is not None
+
+
+def upsert_watch_candidate(conn: sqlite3.Connection, ticker: str, index_name: str, watch_date: str, pct_change: float) -> None:
+    conn.execute(
+        """INSERT INTO drop_candidates (ticker, index_name, watch_date, best_pct_change)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(ticker, index_name, watch_date)
+           DO UPDATE SET best_pct_change = MIN(best_pct_change, excluded.best_pct_change)""",
+        (ticker, index_name, watch_date, pct_change),
+    )
+    conn.commit()
+
+
+def get_pending_reversal_watches(conn: sqlite3.Connection, scan_date: str) -> list[dict]:
+    """כל התראות הירידה שנשלחו היום ועדיין לא הופקה עבורן התראת היפוך - נבדקות
+    כל סבב סריקה אם המחיר התאושש מספיק מהשפל שנרשם מאז ההתראה."""
+    cur = conn.execute(
+        "SELECT id, ticker, company_name, index_name, pct_change, scan_ts, "
+        "entry_limit, target_base, stop_loss, intraday_recovery_pct, reversal_low_price "
+        "FROM alerts WHERE scan_date = ? AND reversal_alert_sent = 0",
+        (scan_date,),
+    )
+    columns = [c[0] for c in cur.description]
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def update_reversal_low(conn: sqlite3.Connection, alert_id: int, low_price: float) -> None:
+    conn.execute("UPDATE alerts SET reversal_low_price = ? WHERE id = ?", (low_price, alert_id))
+    conn.commit()
+
+
+def mark_reversal_alert_sent(conn: sqlite3.Connection, alert_id: int) -> None:
+    conn.execute("UPDATE alerts SET reversal_alert_sent = 1 WHERE id = ?", (alert_id,))
+    conn.commit()
+
+
 def get_alert_pct_for_close_date(conn: sqlite3.Connection, ticker: str, last_close_date: str) -> float | None:
     """שינוי האחוז של ההתראה האחרונה שכבר נשלחה עבור טיקר זה על בסיס אותו
     last_close_date בדיוק - בלי קשר ל-scan_date (יום הסריקה בפועל). קיים כי
@@ -265,7 +318,8 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
                 quality_flags_json=:quality_flags_json, rebound_tier=:rebound_tier,
                 last_close_date=:last_close_date,
                 zscore=:zscore, rsi=:rsi, volume_ratio=:volume_ratio, vix_level=:vix_level,
-                intraday_recovery_pct=:intraday_recovery_pct, market_regime=:market_regime
+                intraday_recovery_pct=:intraday_recovery_pct, market_regime=:market_regime,
+                reversal_low_price=:reversal_low_price, reversal_alert_sent=:reversal_alert_sent
                WHERE id = :id""",
             {**record, "id": alert_id},
         )
@@ -278,12 +332,14 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
          reason_text, reasons_json, headlines_json, overreaction_verdict, overreaction_score,
          entry_limit, target_base, stop_loss, net_result_json, sector,
          quality_tier, quality_score, quality_flags_json, rebound_tier, last_close_date,
-         zscore, rsi, volume_ratio, vix_level, intraday_recovery_pct, market_regime)
+         zscore, rsi, volume_ratio, vix_level, intraday_recovery_pct, market_regime,
+         reversal_low_price, reversal_alert_sent)
         VALUES (:scan_date, :scan_ts, :ticker, :company_name, :index_name, :pct_change, :last_close, :prev_close,
                 :reason_text, :reasons_json, :headlines_json, :overreaction_verdict, :overreaction_score,
                 :entry_limit, :target_base, :stop_loss, :net_result_json, :sector,
                 :quality_tier, :quality_score, :quality_flags_json, :rebound_tier, :last_close_date,
-                :zscore, :rsi, :volume_ratio, :vix_level, :intraday_recovery_pct, :market_regime)""",
+                :zscore, :rsi, :volume_ratio, :vix_level, :intraday_recovery_pct, :market_regime,
+                :reversal_low_price, :reversal_alert_sent)""",
         record,
     )
     conn.commit()
@@ -402,4 +458,11 @@ def build_record(scan_date: str, ticker: str, company_name: str | None, index_na
         "volume_ratio": analysis.volume_ratio,
         "vix_level": analysis.vix_level,
         "intraday_recovery_pct": analysis.intraday_recovery_pct,
+        # שפל ההתייחסות למעקב אחר היפוך (ר' scanner.check_reversal_confirmations) -
+        # מתחיל מהמחיר הנמוך ביותר שכבר ראינו היום (סגירה או שפל תוך-יומי, הנמוך
+        # מביניהם), ומתעדכן כלפי מטה בכל סריקה עד שמזוהה קפיצה חזרה למעלה.
+        "reversal_low_price": min(
+            v for v in (row.get("last_close"), row.get("last_low")) if v is not None
+        ) if (row.get("last_close") is not None or row.get("last_low") is not None) else None,
+        "reversal_alert_sent": 0,
     }
