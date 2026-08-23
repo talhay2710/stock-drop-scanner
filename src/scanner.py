@@ -52,6 +52,39 @@ def run_startup_health_check(cfg: dict) -> None:
         notifier.send_telegram(cfg, "⚠️ <b>בדיקת בריאות בהפעלה נכשלה</b>\n" + "\n".join(problems))
 
 
+def _check_scan_heartbeat(cfg: dict, conn) -> None:
+    """רושם heartbeat (הוכחה שהסריקה בפועל רצה ברגע הזה) ובודק כמה זמן עבר
+    מאז ה-heartbeat הקודם. הטריגר האמיתי של הסריקה הוא שירות חיצוני
+    (cron-job.org) שקורא ל-workflow_dispatch כל 5 דק' - אם *הוא* מפסיק לעבוד
+    בשקט (תקלת חשבון, שינוי ב-API וכו'), שום דבר בתוך הסריקה עצמה לא יכול
+    להתריע על כך, כי הסריקה פשוט לא רצה. הפתרון: להסתמך על הגיבוי האיטי
+    שכבר קיים - ה-schedule המובנה של GitHub (לא אמין, פערים של שעה-שעתיים,
+    ר' scan.yml) - שבזמן שהוא כן מפעיל את הסריקה, יכול לזהות בדיעבד שהיה
+    פער חריג מאז הריצה הקודמת ולהתריע. לא בודק 'האם עצרנו עכשיו' (בלתי
+    אפשרי מבפנים) - רק 'האם היינו שקטים יותר מדי בפרק הזמן שכבר עבר', ומתריע
+    פעם אחת בלבד לכל פער (כי כל ריצה מאפסת את נקודת הייחוס להשוואה הבאה)."""
+    prev_ts = store_mod.get_last_heartbeat(conn)
+    now = dt.datetime.now()
+    store_mod.record_heartbeat(conn, now.isoformat(timespec="seconds"))
+
+    if prev_ts is None:
+        return
+    try:
+        prev_dt = dt.datetime.fromisoformat(prev_ts)
+    except Exception:
+        return
+
+    gap_minutes = (now - prev_dt).total_seconds() / 60
+    threshold = abs(cfg.get("scan_heartbeat_gap_alert_minutes", 20))
+    if gap_minutes > threshold:
+        notifier.send_telegram(cfg, (
+            f"🔴 <b>הסריקה האוטומטית הייתה שקטה כ-{gap_minutes:.0f} דקות</b>\n"
+            "יכול להיות שהטריגר החיצוני (cron-job.org) הפסיק לעבוד באותה תקופה, "
+            "או תקלה ב-GitHub Actions. כדאי לבדוק."
+        ))
+        logger.warning("פער heartbeat חריג: %.1f דקות מאז הסריקה הקודמת", gap_minutes)
+
+
 def run_scan(cfg: dict) -> list[dict]:
     """מריץ סבב סריקה עבור כל המדדים שהוגדרו ב-cfg['indices'], כל אחד בבדיקת
     שעות המסחר שלו בנפרד (למשל אפשר לסרוק TA35 בזמן שהשוק האמריקאי סגור)."""
@@ -60,6 +93,10 @@ def run_scan(cfg: dict) -> list[dict]:
         raise ValueError("לא הוגדר אף מדד ב-config.yaml (indices)")
 
     conn = store_mod.get_conn(db_path(cfg))
+    try:
+        _check_scan_heartbeat(cfg, conn)
+    except Exception:
+        logger.exception("שגיאה בבדיקת heartbeat הסריקה")
     vix_level, _ = market_data.fetch_vix_level()
     all_results = []
     try:

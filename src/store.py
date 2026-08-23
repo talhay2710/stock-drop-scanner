@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS drop_candidates (
     best_pct_change REAL,
     PRIMARY KEY (ticker, index_name, watch_date)
 );
+CREATE TABLE IF NOT EXISTS scan_heartbeat (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_scan_ts TEXT
+);
 CREATE TABLE IF NOT EXISTS signal_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_date TEXT NOT NULL,
@@ -313,6 +317,20 @@ def mark_reversal_expired(conn: sqlite3.Connection, alert_id: int) -> None:
     המקורית (ר' reversal_max_age_hours). קפיצה מאוחרת מדי כבר לא אומרת הרבה
     על ההתראה המקורית עצמה, ר' הביקורת של GPT על 'Time Decay'."""
     conn.execute("UPDATE alerts SET reversal_expired = 1 WHERE id = ?", (alert_id,))
+    conn.commit()
+
+
+def get_last_heartbeat(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute("SELECT last_scan_ts FROM scan_heartbeat WHERE id = 1").fetchone()
+    return row[0] if row else None
+
+
+def record_heartbeat(conn: sqlite3.Connection, ts: str) -> None:
+    conn.execute(
+        "INSERT INTO scan_heartbeat (id, last_scan_ts) VALUES (1, ?) "
+        "ON CONFLICT(id) DO UPDATE SET last_scan_ts = excluded.last_scan_ts",
+        (ts,),
+    )
     conn.commit()
 
 
