@@ -2081,27 +2081,6 @@ _tab_slot_backtest = st.empty()  # placeholder עם מיקום קבוע, נוצ�
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
 with _tab_slot_backtest.container():
     if st.session_state.active_tab == "backtest":
-        with st.container(border=True):
-            st.markdown("**📡 איסוף נתונים לבדיקה עתידית (walk-forward)**")
-            _sig = get_signal_log_summary()
-            _sig_cards = "".join([
-                _stat_card("📥 אותות שנאספו", str(_sig["total"]), NEUTRAL_COLOR, NEUTRAL_BG),
-                _stat_card("✅ נפתרו עם תוצאה", str(_sig["resolved_with_data"]), POS_COLOR, POS_BG),
-                _stat_card("⏳ ממתינים לתוצאה", str(_sig["pending"]), NEUTRAL_COLOR, NEUTRAL_BG),
-            ])
-            st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{_sig_cards}</div>', unsafe_allow_html=True)
-            _WALK_FORWARD_ROUGH_TARGET = 300  # תחושת בטן, לא סף מדעי - רק סימן "יש כבר משהו לבדוק ברצינות"
-            _sig_frac = min(1.0, _sig["resolved_with_data"] / _WALK_FORWARD_ROUGH_TARGET) if _WALK_FORWARD_ROUGH_TARGET else 0.0
-            st.progress(
-                _sig_frac,
-                text=f"{_sig['resolved_with_data']}/{_WALK_FORWARD_ROUGH_TARGET} אותות עם תוצאה ידועה "
-                     "(יעד גס, לא סף מדעי - רק אינדיקציה גסה לכיוון 'יש מספיק לבדוק ברצינות')",
-            )
-            st.caption(
-                "כולל גם מניות שירדו מספיק כדי להירשם אבל לא עברו את סף ההתראה בפועל - "
-                "כדי שהדאטה יצטבר מהר יותר מקצב ההתראות עצמן."
-            )
-
         if df.empty:
             st.caption(_BACKTEST_CAPTION)
             st.info("אין עדיין התראות להערכה. הרץ סריקה כדי להתחיל לצבור נתונים.")
@@ -2256,6 +2235,12 @@ with _tab_slot_backtest.container():
                     ),
                     unsafe_allow_html=True,
                 )
+
+        _sig = get_signal_log_summary()
+        st.caption(
+            f"📡 איסוף נתונים לבדיקה עתידית: {_sig['total']} אותות נאספו, "
+            f"{_sig['resolved_with_data']} עם תוצאה ידועה, {_sig['pending']} ממתינים."
+        )
 
 _tab_slot_portfolio = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
