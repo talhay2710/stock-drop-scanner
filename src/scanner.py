@@ -663,12 +663,15 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
     # אייקון רמזור (🟢/🟡/🔴) לכל אחד משלושת הציונים - אותם ספי 70/45 שכבר
     # קובעים את ה-verdict המילולי ב-_score_overreaction, רק כצבע במקום מילים.
     if analysis.overreaction_score >= 70:
-        _score1_light = "🟢"
+        _score1_light, _score1_word = "🟢", "גבוה"
     elif analysis.overreaction_score >= 45:
-        _score1_light = "🟡"
+        _score1_light, _score1_word = "🟡", "בינוני"
     else:
-        _score1_light = "🔴"
-    lines.append(f"1️⃣ {_score1_light} ציון תגובת יתר: {analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE}")
+        _score1_light, _score1_word = "🔴", "נמוך"
+    lines.append(
+        f"1️⃣ {_score1_light} סיכוי שזו ירידה מוגזמת (לא מוצדקת): {_score1_word} "
+        f"({analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE})"
+    )
 
     _quality_light = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(
         analysis.quality.tier if analysis.quality else None, "⚪"
@@ -680,8 +683,10 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
     else:
         lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
 
-    _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]  # כבר 🟢/🟡/🔴 לפי A/B/C, ר' _classify_rebound
-    lines.append(f"3️⃣ {_rebound_emoji} המלצת מסחר: סיווג {analysis.rebound_tier}")
+    # rebound_label כבר טקסט מלא ומוסבר ("🟢 סיכוי גבוה לריבאונד - איתות טכני
+    # חזק..."), לא רק אות (A/B/C) - כדי שההודעה תהיה ברורה בלי צורך להכיר את
+    # מפתח האותיות. האות עדיין מצוינת בסוגריים בשביל מי שעוקב לאורך זמן.
+    lines.append(f"3️⃣ {analysis.rebound_label} (סיווג {analysis.rebound_tier})")
 
     _liquidity_emoji = {"high": "💧", "medium": "🌊", "low": "🏜️", "unknown": "⚪"}
     if trade_idea.liquidity_tier in ("medium", "low"):
