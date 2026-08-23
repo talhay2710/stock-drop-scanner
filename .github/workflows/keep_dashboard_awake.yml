@@ -34,7 +34,7 @@ jobs:
       # רק אם אין אותו במטמון - בלי זה, כל ריצה (כל 20 דק') הייתה מורידה אותו
       # מחדש ומנצלת יותר דקות Actions ממה שהתיקון הזה אמור לחסוך.
       - name: Install Playwright
-        run: pip install playwright
+        run: pip install playwright requests
       - name: Install Playwright browser (if not cached)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: python -m playwright install --with-deps chromium
@@ -43,4 +43,7 @@ jobs:
         run: python -m playwright install-deps chromium
 
       - name: Visit dashboard and wake if asleep
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_wake_dashboard.py
