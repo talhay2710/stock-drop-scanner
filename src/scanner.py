@@ -660,16 +660,27 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
     # (1) האם זו בכלל תגובת יתר טכנית, (2) האם החברה מאחורי הירידה בריאה
     # פונדמנטלית, (3) ההמלצה הסופית - שילוב של שניהם (מחושבת ב-_classify_rebound,
     # לא כאן - כאן רק מציגים את שלושתם בנפרד במקום שורה אחת ממוזגת).
-    lines.append(f"1️⃣ ציון תגובת יתר: {analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE}")
+    # אייקון רמזור (🟢/🟡/🔴) לכל אחד משלושת הציונים - אותם ספי 70/45 שכבר
+    # קובעים את ה-verdict המילולי ב-_score_overreaction, רק כצבע במקום מילים.
+    if analysis.overreaction_score >= 70:
+        _score1_light = "🟢"
+    elif analysis.overreaction_score >= 45:
+        _score1_light = "🟡"
+    else:
+        _score1_light = "🔴"
+    lines.append(f"1️⃣ {_score1_light} ציון תגובת יתר: {analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE}")
 
+    _quality_light = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(
+        analysis.quality.tier if analysis.quality else None, "⚪"
+    )
     if analysis.quality and analysis.quality.tier != "unknown":
         q = analysis.quality
         flags_part = f" - {q.flags[0]}" if q.flags else ""
-        lines.append(f"2️⃣ {q.tier_emoji} איכות פונדמנטלית: {q.tier_label} ({q.score}/100){flags_part}")
+        lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: {q.tier_label} ({q.score}/100){flags_part}")
     else:
-        lines.append("2️⃣ ⚪ איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
+        lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
 
-    _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]
+    _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]  # כבר 🟢/🟡/🔴 לפי A/B/C, ר' _classify_rebound
     lines.append(f"3️⃣ {_rebound_emoji} המלצת מסחר: סיווג {analysis.rebound_tier}")
 
     _liquidity_emoji = {"high": "💧", "medium": "🌊", "low": "🏜️", "unknown": "⚪"}
