@@ -1,61 +1,101 @@
-# רשימת מניות מדד ת"א 125 - זרע מאומת מול Yahoo Finance (2026-08-09), אך יש לוודא/לעדכן
-# מול אתר הבורסה מדי רבעון כי הרכב המדד משתנה:
-# https://www.tase.co.il/he/market_data/index/166/components
+# רשימת מניות מדד ת"א 125 - מאומת מול אתר הבורסה (TASE, 21/08/2026) + Yahoo Finance
+# (חיפוש לפי ISIN מדויק, לא לפי שם) - יש לוודא/לעדכן מדי רבעון כי הרכב המדד משתנה:
+# https://market.tase.co.il/he/market_data/index/166/components
+# עמודה yahoo_ticker היא הטיקר כפי שמופיע ב-Yahoo Finance (סיומת .TA)
 symbol,name,yahoo_ticker
-TEVA,טבע,TEVA.TA
-POLI,בנק הפועלים,POLI.TA
-LUMI,בנק לאומי,LUMI.TA
-ICL,איי סי אל,ICL.TA
-NICE,נייס,NICE.TA
-ESLT,אלביט מערכות,ESLT.TA
-DLEKG,דלק קבוצה,DLEKG.TA
-DSCT,בנק דיסקונט,DSCT.TA
-HARL,הראל השקעות,HARL.TA
-PHOE,הפניקס אחזקות,PHOE.TA
-FIBI,הבינלאומי,FIBI.TA
-ALHE,אלקטרה,ALHE.TA
-BEZQ,בזק,BEZQ.TA
-PTNR,פרטנר,PTNR.TA
-CEL,סלקום,CEL.TA
-ORA,אורמת טכנולוגיות,ORA.TA
-TSEM,טאואר סמיקונדקטור,TSEM.TA
-NVMI,נובה,NVMI.TA
-ILCO,ישראמקו,ILCO.TA
-OPCE,אופיסיטי,OPCE.TA
-MLSR,מיליסרון,MLSR.TA
-AZRM,אלוני חץ,AZRM.TA
-ENLT,אנלייט אנרגיה,ENLT.TA
-ONE,וואן טכנולוגיות,ONE.TA
-IBI,אי בי אי,IBI.TA
-MGDL,מגדל אחזקות,MGDL.TA
-AFHL,אפריקה ישראל מגורים,AFHL.TA
-ARPT,רשות שדות התעופה,ARPT.TA
-AURA,אורה השקעות,AURA.TA
-AZRG,עזריאלי קבוצה,AZRG.TA
-BIG,ביג מרכזי קניות,BIG.TA
-BLSR,בלסר,BLSR.TA
-BVC,בי וי אר,BVC.TA
-CAST,קסטרו,CAST.TA
-CLIS,קלירסיין,CLIS.TA
-DANE,דן אנרגיה,DANE.TA
-DELG,דלתא גליל,DELG.TA
-ELTR,אלקטרה מוצרי צריכה,ELTR.TA
-EQTL,אקוויטל,EQTL.TA
-FTAL,פתאל החזקות,FTAL.TA
-GLRS,גלובל רמקו,GLRS.TA
-ISCD,ישראל קנדה,ISCD.TA
-KEN,קניון,KEN.TA
-KMDA,קמדה,KMDA.TA
-LAPD,לפידות,LAPD.TA
-MISH,משאב,MISH.TA
+AYAL,איילון,AYAL.TA
 MTRX,מטריקס,MTRX.TA
-NFTA,נפטא,NFTA.TA
-OPK,אופקו הבריאות,OPK.TA
-PRTC,פרוטליקס,PRTC.TA
+DLEKG,דלק קבוצה,DLEKG.TA
+PAZ,פז אנרגיה,PAZ.TA
+ILDC,הכשרת הישוב,ILDC.TA
+HARL,הראל השקעות,HARL.TA
+NWMD,ניו-מד אנרג יהש,NWMD.TA
+ICL,איי.סי.אל,ICL.TA
+DSCT,דיסקונט א,DSCT.TA
+HIPR,הייפר גלובל,HIPR.TA
+TLSY,טלסיס,TLSY.TA
+AMOT,אמות,AMOT.TA
+POLP,פולירם,POLP.TA
+LUMI,לאומי,LUMI.TA
+FIBIH,פיבי,FIBIH.TA
+ENOG,אנרג'יאן,ENOG.TA
+POLI,פועלים,POLI.TA
+ORL,בזן,ORL.TA
+IDIN,איידיאיי ביטוח,IDIN.TA
+BEZQ,בזק,BEZQ.TA
+PHOE,הפניקס,PHOE.TA
+PTBL,נכסים ובנין,PTBL.TA
+DIFI,מימון ישיר,DIFI.TA
+DELG,דלתא גליל,DELG.TA
+MZTF,מזרחי טפחות,MZTF.TA
+TMRP,תמר פטרוליום,TMRP.TA
+MMHD,מנורה מב החז,MMHD.TA
 RIT1,ריט 1,RIT1.TA
-SAE,שיכון ובינוי,SAE.TA
-SKBN,הבנק הבינלאומי,SKBN.TA
-TLSY,תעשייה לישראל,TLSY.TA
-UNIT,יוניט קרדיט,UNIT.TA
-VTNA,ויתניה,VTNA.TA
-YHNF,יעד הנפט,YHNF.TA
+HLMS,הולמס פלייס,HLMS.TA
+ALTF,אלטשולר שחם פנ,ALTF.TA
+ONE,וואן טכנולוגיות,ONE.TA
+STRS,שטראוס,STRS.TA
+NVLG,נובולוג,NVLG.TA
+ISCD,ישראכרט,ISCD.TA
+ISRA,ישראמקו יהש,ISRA.TA
+RATI,רציו יהש,RATI.TA
+FIBI,בינלאומי,FIBI.TA
+AFRE,אפריקה מגורים,AFRE.TA
+RMLI,רמי לוי,RMLI.TA
+GVYM,גב ים,GVYM.TA
+ISTA,איסתא,ISTA.TA
+BLSR,רבוע נדלן,BLSR.TA
+MAXO,מקס סטוק,MAXO.TA
+YHNF,יוחננוף,YHNF.TA
+ALHE,אלוני חץ,ALHE.TA
+AUDC,אודיוקודס,AUDC.TA
+SLARL,סלע נדלן,SLARL.TA
+DIPL,דיפלומט אחזקות,DIPL.TA
+INRM,אינרום,INRM.TA
+PCBT,פיסיבי טכנ,PCBT.TA
+DIMRI,דמרי,DIMRI.TA
+MLSR,מליסרון,MLSR.TA
+KEN,קנון,KEN.TA
+PLSN,פלסאון תעשיות,PLSN.TA
+FOX,פוקס,FOX.TA
+TTAM,טיב טעם,TTAM.TA
+PLRM,פלרם,PLRM.TA
+SAE,שופרסל,SAE.TA
+NAWI,נאוי,NAWI.TA
+MNRT,מניבים ריט,MNRT.TA
+ISRS,ישרס,ISRS.TA
+DANE,דנאל,DANE.TA
+MNIF,מניף,MNIF.TA
+DLTI,דלתא מותגים,DLTI.TA
+DRAL,דור אלון,DRAL.TA
+WILC,ויליפוד אינטרנש,WILC.TA
+AZRG,עזריאלי קבוצה,AZRG.TA
+ARD,ארד,ARD.TA
+ACKR,קבוצת אקרשטיין,ACKR.TA
+CDEV,כהן פיתוח,CDEV.TA
+ATRY,אטראו שוקי הון,ATRY.TA
+SHVA,שירותי בנק אוטו,SHVA.TA
+ENRG,אנרג'יקס,ENRG.TA
+CRSM,קרסו מוטורס,CRSM.TA
+LAHAV,להב,LAHAV.TA
+MDTR,מגדלי תיכון,MDTR.TA
+NTML,נטו מלינדה,NTML.TA
+IBI,איביאי בית השק,IBI.TA
+MRIN,מור השקעות,MRIN.TA
+DLEA,דלק רכב,DLEA.TA
+KSTN,קיסטון אינפרא,KSTN.TA
+MTAV,מיטב השקעות,MTAV.TA
+MISH,מבטח שמיר,MISH.TA
+FBRT,פמס,FBRT.TA
+ASHO,עשות,ASHO.TA
+GCT,ג'י סיטי,GCT.TA
+ORON,אורון קבוצה,ORON.TA
+LUZN,לוזון קבוצה,LUZN.TA
+DNYA,דניה סיבוס,DNYA.TA
+MGOR,מגה אור,MGOR.TA
+KARE,קרדן נדלן,KARE.TA
+RMON,רימון,RMON.TA
+QLTU,קווליטאו,QLTU.TA
+ROTS,רוטשטיין,ROTS.TA
+RTLS,ריטיילורס,RTLS.TA
+ARYT,ארית תעשיות,ARYT.TA
