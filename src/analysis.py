@@ -35,6 +35,8 @@ class DropAnalysis:
     quality: "quality_mod.QualityAssessment | None" = None
     rebound_tier: str = "C"      # "A" / "B" / "C" - שילוב ציון תגובת-יתר + איכות פונדמנטלית
     rebound_label: str = ""
+    residual_drop_pct: float | None = None   # הירידה שלא מוסברת ע"י המדד/הסקטור (ר' חישוב ב-classify_drop)
+    dist_from_ma50_pct: float | None = None  # מרחק המחיר מהממוצע הנע 50 יום, אחוזים (חיובי=מעל)
 
 
 _SPLIT_RATIOS = (0.5, 1 / 3, 2 / 3, 0.25, 0.75, 0.2, 0.4, 0.6, 0.8, 0.1, 0.05)
@@ -159,6 +161,23 @@ def classify_drop(
     if trailing_rally is not None and trailing_rally >= rally_threshold:
         reasons.append("profit_taking")
 
+    # ירידה עודפת (Relative Strength / residual drop): כמה מהירידה לא מוסברת
+    # ע"י המדד או הסקטור - חיסור פשוט, לא רגרסיה, אבל מספיק כדי להראות אם
+    # מניה ספציפית חלשה יותר מהסביבה שלה. None אם אין שום נתון השוואה זמין
+    # (למשל מניית ת"א בלי sector_etf_change_pct).
+    residual_drop_pct = None
+    if index_change_pct is not None or sector_change is not None:
+        residual_drop_pct = pct_change - (index_change_pct or 0.0) - (sector_change or 0.0)
+
+    # מרחק מהממוצע הנע 50 יום - "כמה רחוק מהמגמה" נפלה המניה. מוגבל ל-50 יום
+    # (לא 200) כי חלון הנתונים הרגיל (3 חודשים) לא מכיל מספיק היסטוריה ל-200
+    # יום, ולהרחיב אותו לכל מניה נסרקת יקר מדי מול המגבלה של yfinance החינמי.
+    dist_from_ma50_pct = None
+    if close_history is not None and len(close_history) >= 50:
+        ma50 = float(close_history.tail(50).mean())
+        if ma50:
+            dist_from_ma50_pct = (float(close_history.iloc[-1]) - ma50) / ma50 * 100
+
     headlines = news_mod.get_recent_headlines(yahoo_symbol, is_israeli, company_name)
     has_headlines = len(headlines) > 0
     if not reasons:
@@ -193,6 +212,8 @@ def classify_drop(
         quality=quality,
         rebound_tier=rebound_tier,
         rebound_label=rebound_label,
+        residual_drop_pct=residual_drop_pct,
+        dist_from_ma50_pct=dist_from_ma50_pct,
     )
 
 

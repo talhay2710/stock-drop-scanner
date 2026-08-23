@@ -90,6 +90,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "zscore REAL", "rsi REAL", "volume_ratio REAL", "vix_level REAL", "intraday_recovery_pct REAL",
         "market_regime TEXT",
         "reversal_low_price REAL", "reversal_alert_sent INTEGER DEFAULT 0",
+        "residual_drop_pct REAL", "dist_from_ma50_pct REAL",
     ):
         try:
             conn.execute(f"ALTER TABLE alerts ADD COLUMN {column_def}")
@@ -319,7 +320,8 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
                 last_close_date=:last_close_date,
                 zscore=:zscore, rsi=:rsi, volume_ratio=:volume_ratio, vix_level=:vix_level,
                 intraday_recovery_pct=:intraday_recovery_pct, market_regime=:market_regime,
-                reversal_low_price=:reversal_low_price, reversal_alert_sent=:reversal_alert_sent
+                reversal_low_price=:reversal_low_price, reversal_alert_sent=:reversal_alert_sent,
+                residual_drop_pct=:residual_drop_pct, dist_from_ma50_pct=:dist_from_ma50_pct
                WHERE id = :id""",
             {**record, "id": alert_id},
         )
@@ -333,13 +335,13 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
          entry_limit, target_base, stop_loss, net_result_json, sector,
          quality_tier, quality_score, quality_flags_json, rebound_tier, last_close_date,
          zscore, rsi, volume_ratio, vix_level, intraday_recovery_pct, market_regime,
-         reversal_low_price, reversal_alert_sent)
+         reversal_low_price, reversal_alert_sent, residual_drop_pct, dist_from_ma50_pct)
         VALUES (:scan_date, :scan_ts, :ticker, :company_name, :index_name, :pct_change, :last_close, :prev_close,
                 :reason_text, :reasons_json, :headlines_json, :overreaction_verdict, :overreaction_score,
                 :entry_limit, :target_base, :stop_loss, :net_result_json, :sector,
                 :quality_tier, :quality_score, :quality_flags_json, :rebound_tier, :last_close_date,
                 :zscore, :rsi, :volume_ratio, :vix_level, :intraday_recovery_pct, :market_regime,
-                :reversal_low_price, :reversal_alert_sent)""",
+                :reversal_low_price, :reversal_alert_sent, :residual_drop_pct, :dist_from_ma50_pct)""",
         record,
     )
     conn.commit()
@@ -458,6 +460,8 @@ def build_record(scan_date: str, ticker: str, company_name: str | None, index_na
         "volume_ratio": analysis.volume_ratio,
         "vix_level": analysis.vix_level,
         "intraday_recovery_pct": analysis.intraday_recovery_pct,
+        "residual_drop_pct": analysis.residual_drop_pct,
+        "dist_from_ma50_pct": analysis.dist_from_ma50_pct,
         # שפל ההתייחסות למעקב אחר היפוך (ר' scanner.check_reversal_confirmations) -
         # מתחיל מהמחיר הנמוך ביותר שכבר ראינו היום (סגירה או שפל תוך-יומי, הנמוך
         # מביניהם), ומתעדכן כלפי מטה בכל סריקה עד שמזוהה קפיצה חזרה למעלה.
