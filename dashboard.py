@@ -2032,27 +2032,6 @@ def get_footer_news(top_names_tickers: list, is_israeli: bool) -> dict:
     return {"general": general, "stock_news": stock_news}
 
 
-@st.cache_data(ttl=60)
-def get_signal_log_summary() -> dict:
-    """כמה 'אותות-צל' (scanner._log_shadow_signals) כבר נאספו ברקע - כולל
-    כאלה שלא הפכו להתראה בפועל - וכמה מהם כבר נפתרו (יש להם תוצאה ידועה,
-    ר' backtest.resolve_signal_outcomes). המטרה: שקיפות על קצב הצטברות
-    הדאטה שצריך למסקנות רציניות (walk-forward), בלי לשאול אותי כל פעם."""
-    conn = store.get_conn(db_path(cfg))
-    try:
-        total = conn.execute("SELECT COUNT(*) FROM signal_log").fetchone()[0]
-        resolved = conn.execute("SELECT COUNT(*) FROM signal_log WHERE outcome_resolved = 1").fetchone()[0]
-        no_data = conn.execute(
-            "SELECT COUNT(*) FROM signal_log WHERE outcome_resolved = 1 AND outcome_json LIKE '%no_data%'"
-        ).fetchone()[0]
-    finally:
-        conn.close()
-    return {
-        "total": total, "resolved_with_data": resolved - no_data,
-        "pending": total - resolved, "no_data": no_data,
-    }
-
-
 @st.cache_data(ttl=3600)
 def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFrame:
     result = backtest.run_backtest(alerts_df, window_days)
@@ -2235,12 +2214,6 @@ with _tab_slot_backtest.container():
                     ),
                     unsafe_allow_html=True,
                 )
-
-        _sig = get_signal_log_summary()
-        st.caption(
-            f"📡 איסוף נתונים לבדיקה עתידית: {_sig['total']} אותות נאספו, "
-            f"{_sig['resolved_with_data']} עם תוצאה ידועה, {_sig['pending']} ממתינים."
-        )
 
 _tab_slot_portfolio = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
