@@ -655,21 +655,22 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         lines.append(f"מרחק מהממוצע הנע 50 יום: {_signed(analysis.dist_from_ma50_pct, 1, '%')}")
 
     lines.append(f"📌 {analysis.reason_text.split(' | ')[0]}")
-    # האות (A/B/C) + הציון + הצבע כבר אומרים הכל - אין צורך גם לכתוב את התיאור
-    # המילולי ("סיכוי נמוך" וכו') בנוסף, זה כפול.
-    _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]
-    lines.append(
-        f"{_rebound_emoji} סיווג ריבאונד {analysis.rebound_tier} "
-        f"(ניקוד {analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE})"
-    )
 
-    if analysis.quality:
+    # שלושה ציונים נפרדים, כל אחד עונה על שאלה אחרת - לא ציון אחד מעורבב:
+    # (1) האם זו בכלל תגובת יתר טכנית, (2) האם החברה מאחורי הירידה בריאה
+    # פונדמנטלית, (3) ההמלצה הסופית - שילוב של שניהם (מחושבת ב-_classify_rebound,
+    # לא כאן - כאן רק מציגים את שלושתם בנפרד במקום שורה אחת ממוזגת).
+    lines.append(f"1️⃣ ציון תגובת יתר: {analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE}")
+
+    if analysis.quality and analysis.quality.tier != "unknown":
         q = analysis.quality
-        if q.tier == "unknown":
-            lines.append(f"{q.tier_emoji} איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
-        else:
-            flags_part = f" - {q.flags[0]}" if q.flags else ""
-            lines.append(f"{q.tier_emoji} איכות פונדמנטלית: {q.tier_label} ({q.score}/100){flags_part}")
+        flags_part = f" - {q.flags[0]}" if q.flags else ""
+        lines.append(f"2️⃣ {q.tier_emoji} איכות פונדמנטלית: {q.tier_label} ({q.score}/100){flags_part}")
+    else:
+        lines.append("2️⃣ ⚪ איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
+
+    _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]
+    lines.append(f"3️⃣ {_rebound_emoji} המלצת מסחר: סיווג {analysis.rebound_tier}")
 
     _liquidity_emoji = {"high": "💧", "medium": "🌊", "low": "🏜️", "unknown": "⚪"}
     if trade_idea.liquidity_tier in ("medium", "low"):
