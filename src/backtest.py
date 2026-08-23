@@ -341,6 +341,57 @@ def compare_target_strategies(conn: sqlite3.Connection, window_days: int = 10) -
     return pd.DataFrame(rows).sort_values("תוחלת (%)", ascending=False).reset_index(drop=True)
 
 
+def resolve_signal_outcomes(conn: sqlite3.Connection, older_than_days: int = 10, window_days: int = 10) -> int:
+    """ממלא outcome_json עבור אותות-צל (signal_log, ר' scanner._log_shadow_signals)
+    שנרשמו לפחות older_than_days ימים ועדיין לא הוכרעו. שולף את סדרת ה-High/Low
+    האמיתית מאז רגע האות ומחשב MFE/MAE (התנועה הכי טובה/גרועה שהייתה זמינה)
+    וכמה ימים לקח להגיע לכל אחת מהרמות +1%/+2%/+3%/+5% - בלי להניח יעד/סטופ
+    ספציפיים, כדי שניתוח עתידי יוכל לבדוק כל שילוב שירצה על הדאטה הגולמי
+    (בדיוק הרעיון של compare_target_strategies, רק על מדגם הרבה יותר רחב
+    ממה שבאמת הפך להתראה). מחזיר כמה אותות עודכנו."""
+    pending = store.get_unresolved_signals(conn, older_than_days=older_than_days)
+    resolved_count = 0
+    for sig in pending:
+        entry = sig.get("last_close")
+        if not entry:
+            store.mark_signal_resolved(conn, sig["id"], json.dumps({"status": "no_data"}))
+            resolved_count += 1
+            continue
+
+        fetched = _fetch_high_low_window(sig["ticker"], sig["scan_ts"], window_days, skip_entry_day=False)
+        if fetched is None:
+            store.mark_signal_resolved(conn, sig["id"], json.dumps({"status": "no_data"}))
+            resolved_count += 1
+            continue
+
+        highs, lows, still_within_window = fetched
+        if not highs or not lows:
+            store.mark_signal_resolved(conn, sig["id"], json.dumps({"status": "no_data"}))
+            resolved_count += 1
+            continue
+        if still_within_window:
+            continue  # עוד מוקדם לסגור סופית - ייבדק שוב בהרצה הבאה
+
+        mfe_pct = (max(highs) / entry - 1) * 100
+        mae_pct = (min(lows) / entry - 1) * 100
+        outcome = {
+            "status": "resolved",
+            "window_days": window_days,
+            "mfe_pct": round(mfe_pct, 2),
+            "mae_pct": round(mae_pct, 2),
+            "days_to_mfe": highs.index(max(highs)) + 1,
+            "days_to_mae": lows.index(min(lows)) + 1,
+        }
+        for pct in (1, 2, 3, 5):
+            level = entry * (1 + pct / 100)
+            day_idx = next((i for i, h in enumerate(highs) if h >= level), None)
+            outcome[f"days_to_plus{pct}"] = (day_idx + 1) if day_idx is not None else None
+
+        store.mark_signal_resolved(conn, sig["id"], json.dumps(outcome))
+        resolved_count += 1
+    return resolved_count
+
+
 def overall_summary(df: pd.DataFrame) -> dict:
     counts = df["outcome"].value_counts().to_dict()
     decided_total = counts.get(HIT_TARGET, 0) + counts.get(HIT_STOP, 0) + counts.get(NEITHER, 0)

@@ -101,6 +101,10 @@ if __name__ == "__main__":
             if updated:
                 print(f"עודכנו {updated} outcome-ים היסטוריים (לטרק-רקורד עתידי).")
 
+            signals_resolved = backtest.resolve_signal_outcomes(conn)
+            if signals_resolved:
+                print(f"נפתרו {signals_resolved} אותות-צל (signal_log).")
+
             if message:
                 notifier.send_telegram(cfg, message)
                 schedule_guard.mark_sent_today(conn, "daily")
