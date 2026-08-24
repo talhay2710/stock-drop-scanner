@@ -391,15 +391,30 @@ def _score_overreaction(zscore, rsi, reasons, has_headlines, cfg, volume_ratio=N
     return score, verdict
 
 
+REBOUND_OVERREACTION_WEIGHT = 0.6  # שונה מ-24.8.2026 - ר' הערה מתחת
+
+
+def classify_rebound_from_scores(overreaction_score: int, quality_score: float | None) -> tuple[str, str]:
+    """הליבה הטהורה של _classify_rebound - מקבלת ציונים גולמיים (לא אובייקט
+    quality) כדי שאפשר יהיה להשתמש בה גם רטרואקטיבית על שורות ישנות ב-DB
+    (שכבר יש להן quality_score שמור) בלי לשכפל את הלוגיקה."""
+    weighted = (
+        overreaction_score if quality_score is None
+        else REBOUND_OVERREACTION_WEIGHT * overreaction_score + (1 - REBOUND_OVERREACTION_WEIGHT) * quality_score
+    )
+    if weighted >= 70:
+        return "A", "🟢 סיכוי גבוה לריבאונד - ציון משוקלל (תגובת יתר + איכות פונדמנטלית) חזק"
+    if weighted >= 45:
+        return "B", "🟡 סיכוי אפשרי לריבאונד - ציון משוקלל בינוני, מומלץ לבדוק ידנית לפני החלטה"
+    return "C", "🔴 סיכוי ריבאונד נמוך - ציון משוקלל (תגובת יתר + איכות פונדמנטלית) חלש"
+
+
 def _classify_rebound(overreaction_score: int, quality) -> tuple[str, str]:
-    """מסווג "סיכוי ריבאונד" (A/B/C) - לא רק מהציון הטכני, אלא בשילוב עם איכות
-    פונדמנטלית: איכות נמוכה (חברה בעייתית עסקית) מורידה ל-C גם אם האיתות הטכני
-    חזק, כי איתות טכני חיובי לא מפצה על חברה שנופלת מסיבה עסקית אמיתית."""
-    quality_low = quality is not None and quality.tier == "low"
-    if quality_low:
-        return "C", "🔴 סיכוי ריבאונד נמוך - איכות פונדמנטלית חלשה מטילה ספק גם באיתות טכני חיובי"
-    if overreaction_score >= 70:
-        return "A", "🟢 סיכוי גבוה לריבאונד - איתות טכני חזק, ללא דגל איכות פונדמנטלי משמעותי"
-    if overreaction_score >= 45:
-        return "B", "🟡 סיכוי אפשרי לריבאונד - איתות מעורב, מומלץ לבדוק ידנית לפני החלטה"
-    return "C", "🔴 סיכוי ריבאונד נמוך - הירידה עשויה להיות מוצדקת ולא רק תגובת יתר"
+    """מסווג "סיכוי ריבאונד" (A/B/C) לפי ציון משוקלל: 60% תגובת יתר + 40% איכות
+    פונדמנטלית (0-100 כל אחד). שונה מ-24.8.2026 מהגרסה הקודמת שבה איכות הייתה
+    שער בינארי (רק "נמוכה" פוסלת ל-C, "גבוהה" לא הוסיפה כלום) - עכשיו איכות
+    גבוהה יכולה לקדם מניה לסיווג גבוה יותר גם כשהאיתות הטכני בינוני-חלש, לא
+    רק למנוע פסילה. כשאין ציון איכות מספרי (unknown/לא מספיק נתונים) - נופל
+    חזרה על תגובת יתר בלבד, כמו קודם."""
+    quality_score = quality.score if quality is not None else None
+    return classify_rebound_from_scores(overreaction_score, quality_score)

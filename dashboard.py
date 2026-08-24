@@ -1903,6 +1903,11 @@ with _tab_slot_today.container():
                 alerts_display = alerts_display[["שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
                                                   "תגובת יתר", "איכות פונדמנטלית",
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
+                _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
+                _rebound_header_label = (
+                    f'סיווג ריבאונד <span title="שילוב משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
+                    'style="cursor:help; opacity:0.55;">ⓘ</span>'
+                )
                 with st.container(border=True):
                     st.image(render_text_image(f"התראות היום ({len(todays_alerts)})", POS_COLOR, font_size=17))
                     st.markdown(
@@ -1911,7 +1916,7 @@ with _tab_slot_today.container():
                             [("שם", "שם"), ("טיקר", "טיקר"),
                              ("שינוי בזמן התראה", "שינוי בזמן התראה"), ("שינוי נוכחי", "שינוי נוכחי"),
                              ("תגובת יתר", "תגובת יתר"), ("איכות פונדמנטלית", "איכות פונדמנטלית"),
-                             ("סיווג ריבאונד", "סיווג ריבאונד"),
+                             ("סיווג ריבאונד", _rebound_header_label),
                              ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
                             formatters={
                                 "שינוי בזמן התראה": lambda v: _signed_num(v, 2, "%"),
