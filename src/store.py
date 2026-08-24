@@ -5,6 +5,8 @@ import json
 
 import pandas as pd
 
+from .market_hours import israel_now
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -528,7 +530,7 @@ def build_record(scan_date: str, ticker: str, company_name: str | None, index_na
                   row: dict, analysis, trade_idea, net_results: dict) -> dict:
     return {
         "scan_date": scan_date,
-        "scan_ts": dt.datetime.now().isoformat(timespec="seconds"),
+        "scan_ts": israel_now().isoformat(timespec="seconds"),
         "ticker": ticker,
         "company_name": company_name or "",
         "index_name": index_name,

@@ -23,12 +23,20 @@ MARKET_HOURS = {
 }
 
 
+def israel_now() -> dt.datetime:
+    """זמן נוכחי לפי שעון ישראל, לא לפי שעון המערכת שמריץ את הקוד - הסריקה
+    בענן (GitHub Actions) רצה על UTC, אז scan_ts שנשמר עם dt.datetime.now()
+    רגיל היה מוצג בדשבורד באיחור של 2-3 שעות (בהתאם לשעון קיץ/חורף) לעומת
+    השעה האמיתית בישראל (24.8.2026)."""
+    return dt.datetime.now(ZoneInfo("Asia/Jerusalem"))
+
+
 def israel_today() -> dt.date:
     """תאריך 'היום' לפי שעון ישראל, לא לפי שעון המערכת שמריץ את הקוד - כדי
     שהדשבורד המקומי (שעון ישראל) והציבורי/הסריקה (UTC ב-GitHub Actions
     ו-Streamlit Cloud) יתחלפו ל'יום חדש' באותו רגע בדיוק, במקום בפער של
     כמה שעות בלילה (24.8.2026)."""
-    return dt.datetime.now(ZoneInfo("Asia/Jerusalem")).date()
+    return israel_now().date()
 
 
 def _close_for_weekday(spec: dict, weekday: int) -> tuple[int, int]:

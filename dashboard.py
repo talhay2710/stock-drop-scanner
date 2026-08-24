@@ -1858,17 +1858,6 @@ with _tab_slot_today.container():
                         return "🟡 "
                     return "🔴 "
 
-                def _score_color(val) -> str:
-                    if pd.isna(val):
-                        return NEUTRAL_COLOR
-                    if val >= 70:
-                        return POS_COLOR
-                    if val >= 45:
-                        return ACCENT_COLOR
-                    return NEG_COLOR
-
-                _TIER_COLOR = {"A": POS_COLOR, "B": ACCENT_COLOR, "C": NEG_COLOR}
-
                 def _rebound_cell_text(v) -> str:
                     # v הוא "B (45)" - רוצים ויזואלית (קריאה מימין לשמאל): עיגול
                     # בימין, אות באמצע, ציון בשמאל. <bdi> מזהה LTR (כי יש אות
@@ -1962,10 +1951,6 @@ with _tab_slot_today.container():
                             },
                             wrap_headers=False,
                             color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
-                            color_fns={
-                                "תגובת יתר": _score_color, "איכות פונדמנטלית": _score_color,
-                                "סיווג ריבאונד": lambda v: _TIER_COLOR.get(v.split(' ')[0], NEUTRAL_COLOR),
-                            },
                             max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
                         ),
                         unsafe_allow_html=True,

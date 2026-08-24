@@ -13,7 +13,7 @@ from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
 from .config import db_path
-from .market_hours import is_market_open, israel_today
+from .market_hours import is_market_open, israel_today, israel_now
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +339,8 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
         # מפסיקים לעקוב בלי לשלוח שום התראה, לא רק מדלגים על הסבב הזה.
         try:
             alerted_at = dt.datetime.fromisoformat(p["scan_ts"])
-            age_hours = (dt.datetime.now() - alerted_at).total_seconds() / 3600
+            now_ref = israel_now() if alerted_at.tzinfo else dt.datetime.now()
+            age_hours = (now_ref - alerted_at).total_seconds() / 3600
         except Exception:
             age_hours = 0.0
         if age_hours > max_age_hours:
@@ -427,7 +428,7 @@ def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israel
 
         store_mod.log_signal(conn, {
             "scan_date": scan_date,
-            "scan_ts": dt.datetime.now().isoformat(timespec="seconds"),
+            "scan_ts": israel_now().isoformat(timespec="seconds"),
             "ticker": ticker,
             "company_name": company_name,
             "index_name": index,
