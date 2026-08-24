@@ -1,5 +1,5 @@
 indices:
-- TA35
+- NASDAQ100
 drop_threshold_pct: 3.5
 drop_alert_step_pct: 2.0
 drop_confirm_watch_pct: 1.0
