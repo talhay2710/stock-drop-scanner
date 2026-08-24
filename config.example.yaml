@@ -29,7 +29,7 @@ telegram:
   bot_token: ''
   chat_id: ''
 desktop_notifications:
-  enabled: false
+  enabled: true
 fees:
   IL:
     commission_pct: 0.3
