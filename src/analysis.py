@@ -8,10 +8,26 @@
 במקום/בנוסף לכללים הקשיחים כאן.
 """
 import dataclasses
+import re
 
 from . import market_data
 from . import news as news_mod
 from . import quality as quality_mod
+
+_BIDI_NUM_RE = re.compile(r"[⁦⁩]|-?\d+(?:\.\d+)?%?")
+
+
+def wrap_bidi_numbers(text: str) -> str:
+    """עוטף כל מספר (כולל סימן שלילי ו/או % אופציונלי) ב-LRI/PDI (בידוד כיווניות),
+    כדי שיוצג נכון בתוך טקסט עברי (RTL) - בלי זה המינוס "קופץ" למקום הלא נכון.
+    קודם מנקה עטיפות קודמות (אידמפוטנטי - בטוח להריץ שוב על טקסט שכבר תוקן, כמו
+    ברטרואקטיב על טקסטים שמורים ב-DB)."""
+    def _sub(m: re.Match) -> str:
+        tok = m.group(0)
+        if tok in ("⁦", "⁩"):
+            return ""
+        return f"⁦{tok}⁩"
+    return _BIDI_NUM_RE.sub(_sub, text)
 
 
 @dataclasses.dataclass
@@ -84,7 +100,7 @@ def classify_drop(
     split_ratio = _looks_like_split(prev_close, float(close_history.iloc[-1]) if close_history is not None and len(close_history) else None)
     if split_ratio is not None:
         reason_text = (
-            f"{REASON_LABELS['stock_split']} (המחיר ירד ביחס של כ-‎{split_ratio:.2f} מהמחיר הקודם - "
+            f"{REASON_LABELS['stock_split']} (המחיר ירד ביחס של ~{split_ratio:.2f} מהמחיר הקודם - "
             f"תואם פיצול מניה נפוץ, לא ירידה אמיתית)"
         )
         headlines = news_mod.get_recent_headlines(yahoo_symbol, is_israeli, company_name)
@@ -113,7 +129,7 @@ def classify_drop(
     ex_div_pct = (ex_div_amount / prev_close * 100.0) if (ex_div_amount and prev_close) else None
     if ex_div_pct is not None and ex_div_pct >= abs(pct_change) * 0.5:
         reason_text = (
-            f"{REASON_LABELS['ex_dividend']} (חלוקה של כ-‎{ex_div_pct:.1f}% מהמחיר - "
+            f"{REASON_LABELS['ex_dividend']} (חלוקה של ~{ex_div_pct:.1f}% מהמחיר - "
             f"מסבירה את רוב הירידה הנצפית)"
         )
         headlines = news_mod.get_recent_headlines(yahoo_symbol, is_israeli, company_name)
@@ -235,12 +251,15 @@ def _build_reason_text(reasons, index_change_pct, sector_change, trailing_rally,
     for r in reasons:
         label = REASON_LABELS[r]
         if r == "market_wide" and index_change_pct is not None:
-            label += f" (המדד ירד ‎{index_change_pct:.1f}% היום)"
+            # abs() בכוונה, לא רק תיקון bidi - "ירד" כבר אומר שלילי, ומינוס
+            # בתוך טקסט עברי לא היה מתיישר נכון ויזואלית (נוסה עם LRM/LRI/PDI,
+            # לא עבד באמינות) - הפתרון האמין: לא לכתוב מינוס בכלל.
+            label += f" (המדד ירד {abs(index_change_pct):.1f}% היום)"
         if r == "sector_pressure" and sector_change is not None:
             etf = deep.get("sector_etf_ticker", "")
-            label += f" (סקטור {deep.get('sector', '')} / {etf} ירד ‎{sector_change:.1f}%)"
+            label += f" (סקטור {deep.get('sector', '')} / {etf} ירד {abs(sector_change):.1f}%)"
         if r == "profit_taking" and trailing_rally is not None:
-            label += f" (עלתה כ-‎{trailing_rally:.1f}% בימים שקדמו לירידה)"
+            label += f" (עלתה ~{trailing_rally:.1f}% בימים שקדמו לירידה)"
         parts.append(label)
 
     if volume_ratio is not None and volume_ratio >= 2.0:

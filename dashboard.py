@@ -1507,7 +1507,8 @@ def _color_pct(val):
 
 def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: dict | None = None,
                  color_columns: set | None = None, color_fns: dict | None = None,
-                 max_height: int | None = None, truncate_columns: dict | None = None) -> str:
+                 max_height: int | None = None, truncate_columns: dict | None = None,
+                 wrap_headers: bool = True) -> str:
     """טבלת HTML פשוטה, בסדר עמודות טבעי (מימין לשמאל, כמו שכתוב כאן) - תחליף ל-
     st.dataframe בטבלאות שמציגות טיקרים/טקסט עברי. st.dataframe מצייר הכל על
     canvas תמיד משמאל לימין ומתעלם לגמרי מ-CSS, מה שגורם לחיתוך טקסט ולעמודות
@@ -1520,10 +1521,15 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     def _header_cell(col: str, label: str) -> str:
         style = "padding:6px 10px; text-align:right; font-weight:600; border-bottom:1px solid rgba(128,128,128,0.3);"
         if col in truncate_columns:
-            # בניגוד לתאי הנתונים (nowrap+ellipsis, כי הערך תמיד קצר) - כותרת
-            # יכולה להיות ארוכה יותר מהעמודה הצרה שהיא כותרת עליה, אז עדיף
-            # שתעטוף לשתי שורות מאשר שתיחתך עם "..." ותאבד את המשמעות.
-            style += f" max-width:{truncate_columns[col]}px; white-space:normal; word-break:break-word;"
+            if wrap_headers:
+                # בניגוד לתאי הנתונים (nowrap+ellipsis, כי הערך תמיד קצר) - כותרת
+                # יכולה להיות ארוכה יותר מהעמודה הצרה שהיא כותרת עליה, אז עדיף
+                # שתעטוף לשתי שורות מאשר שתיחתך עם "..." ותאבד את המשמעות.
+                style += f" max-width:{truncate_columns[col]}px; white-space:normal; word-break:break-word;"
+            else:
+                # wrap_headers=False - העמודות רחבות מספיק שהכותרת נכנסת בשורה
+                # אחת (נקבע ע"י הקורא), אז נשארים על nowrap כמו תאי הנתונים.
+                style += f" max-width:{truncate_columns[col]}px; white-space:nowrap;"
         else:
             style += " white-space:nowrap;"
         return f'<th style="{style}">{label}</th>'
@@ -1863,6 +1869,17 @@ with _tab_slot_today.container():
 
                 _TIER_COLOR = {"A": POS_COLOR, "B": ACCENT_COLOR, "C": NEG_COLOR}
 
+                def _rebound_cell_text(v) -> str:
+                    # v הוא "B (45)" - רוצים ויזואלית (קריאה מימין לשמאל): עיגול
+                    # בימין, אות באמצע, ציון בשמאל. <bdi> מזהה LTR (כי יש אות
+                    # לטינית) ומיישר לימין - אז כדי שהעיגול יצא הכי ימני צריך
+                    # לכתוב אותו אחרון בתוך ה-bdi (סדר הפוך מהקריאה הרצויה).
+                    if pd.isna(v):
+                        return "—"
+                    tier, _, score_part = v.partition(" ")
+                    emoji = _REBOUND_TIER_EMOJI.get(tier, "")
+                    return f"<bdi>{score_part} {tier} {emoji}</bdi>"
+
                 # מטבע לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני), בדיוק כמו
                 # שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py).
                 def _price_text(value, index_name) -> str:
@@ -1918,8 +1935,8 @@ with _tab_slot_today.container():
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
                 _rebound_header_label = (
-                    f'סיווג ריבאונד <span title="שילוב משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
-                    'style="cursor:help; opacity:0.55;">ⓘ</span>'
+                    f'סיווג ריבאונד <span title="ציון משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
+                    'style="cursor:help;">ℹ️</span>'
                 )
                 with st.container(border=True):
                     st.image(render_text_image(f"התראות היום ({len(todays_alerts)})", POS_COLOR, font_size=17))
@@ -1936,13 +1953,14 @@ with _tab_slot_today.container():
                                 "שינוי נוכחי": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
                                 "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
                                 "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
-                                "סיווג ריבאונד": lambda v: f"{_REBOUND_TIER_EMOJI.get(v.split(' ')[0], '')} {v}" if pd.notna(v) else "—",
+                                "סיווג ריבאונד": _rebound_cell_text,
                             },
                             truncate_columns={
-                                "שם": 130, "טיקר": 55, "שינוי בזמן התראה": 55, "שינוי נוכחי": 55,
-                                "תגובת יתר": 55, "איכות פונדמנטלית": 55,
-                                "סיווג ריבאונד": 65, "לימיט כניסה": 55, "יעד מכירה": 55, "סטופ-לוס": 55,
+                                "שם": 140, "טיקר": 115, "שינוי בזמן התראה": 115, "שינוי נוכחי": 115,
+                                "תגובת יתר": 115, "איכות פונדמנטלית": 115,
+                                "סיווג ריבאונד": 115, "לימיט כניסה": 115, "יעד מכירה": 115, "סטופ-לוס": 115,
                             },
+                            wrap_headers=False,
                             color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
                             color_fns={
                                 "תגובת יתר": _score_color, "איכות פונדמנטלית": _score_color,
@@ -1957,24 +1975,18 @@ with _tab_slot_today.container():
                     _expander_name = r.get("company_name") or r["ticker"]
                     try:
                         _scan_dt = dt.datetime.fromisoformat(r["scan_ts"])
-                        _scan_ts_text = _scan_dt.strftime("%d.%m %H:%M")
+                        _scan_ts_text = _scan_dt.strftime("%H:%M")
                     except Exception:
                         _scan_ts_text = r["scan_ts"]
                     _badge_tier = r.get("rebound_tier")
-                    _badge_score = (
-                        analysis.weighted_rebound_score(
-                            r.get("overreaction_score"),
-                            r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
-                        )
-                        if pd.notna(r.get("overreaction_score")) else None
-                    )
-                    _badge = (
-                        f"{_REBOUND_TIER_EMOJI.get(_badge_tier, '⚪')} {_badge_tier} ({int(round(_badge_score))})"
-                        if pd.notna(_badge_tier) and _badge_score is not None else ""
-                    )
-                    _title = f"{_expander_name} ({r['ticker']}) · {_signed_num(r['pct_change'], 1, '%')} · {_scan_ts_text}"
+                    _badge = _REBOUND_TIER_EMOJI.get(_badge_tier, "⚪") if pd.notna(_badge_tier) else ""
+                    # עיגול, שם, טיקר, שעה, אחוז - בדיוק בסדר הזה. האחוז עטוף
+                    # ב-LRI/PDI לבדו (לא כל השורה) כדי שלא יתמזג ל-run אחד עם
+                    # השעה שאחריו ויתחלף איתה ב-bidi (זה מה שקרה בניסיון קודם).
+                    _pct_isolated = f"⁦{_signed_num(r['pct_change'], 1, '%')}⁩"
+                    _title = f"{_expander_name} ({r['ticker']}) · {_scan_ts_text} · {_pct_isolated}"
                     if _badge:
-                        _title += f" · {_badge}"
+                        _title = f"{_badge} {_title}"
                     with st.expander(_title):
                         sc1, sc2 = st.columns([3, 1])
                         with sc1:
@@ -1997,9 +2009,9 @@ with _tab_slot_today.container():
                         _rebound_labels = {"A": "🟢 A - סיכוי גבוה לריבאונד", "B": "🟡 B - סיכוי אפשרי", "C": "🔴 C - סיכוי נמוך"}
                         _rebound_text = _rebound_labels.get(r.get("rebound_tier"), "⚪ לא זמין (נסרק לפני העדכון)")
                         _quality_tier = r.get("quality_tier")
-                        _quality_labels = {"high": "🏛️ גבוהה", "medium": "🏚️ בינונית", "low": "🚩 נמוכה"}
+                        _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
                         _quality_text = (
-                            f"{_quality_labels.get(_quality_tier, '')} ({r.get('quality_score')}/100)"
+                            f"{_quality_labels.get(_quality_tier, '')} ({int(r.get('quality_score'))}/100)"
                             if _quality_tier and _quality_tier != "unknown" and pd.notna(r.get("quality_score"))
                             else "⚪ לא ידוע (נתונים חסרים)"
                         )
