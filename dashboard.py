@@ -404,12 +404,12 @@ except Exception:
 cfg = load_config()
 
 
-def _sync_and_warn(reason: str) -> None:
-    """עוטף cloud_sync.sync_to_cloud - מציג אזהרה למשתמש אם הסנכרון נכשל בפועל,
-    כדי שכישלון (למשל push שנתקע) לא יעבור בשקט כמו שקרה פעם אחת בעבר."""
-    result = cloud_sync.sync_to_cloud(reason)
-    if result == "failed":
-        st.toast("סנכרון לענן נכשל - השינוי נשמר מקומית אבל לא הגיע לאתר הציבורי.", icon="⚠️", duration=4)
+def _sync_and_warn(reason: str, include_db: bool = False) -> None:
+    """עוטף cloud_sync.sync_to_cloud. בלי הודעה למשתמש על כישלון - ברוב המקרים
+    זה סתם התנגשות חולפת עם דחיפת הבוט שמתאזנת לבד בניסיון החוזר הפנימי, וגם
+    כשלא, השינוי המקומי לא הולך לאיבוד (ידחף עם הסנכרון הבא). כישלון אמיתי
+    עדיין מתועד ב-log לצורך אבחון (ר' cloud_sync.sync_to_cloud)."""
+    cloud_sync.sync_to_cloud(reason, include_db=include_db)
 
 
 def _check_il_constituents_staleness(max_age_days: int = 90) -> list[str]:
@@ -2359,7 +2359,7 @@ with _tab_slot_portfolio.container():
                                         is_manual_trade=add_is_manual,
                                     )
                                     add_conn.close()
-                                    _sync_and_warn("position opened")
+                                    _sync_and_warn("position opened", include_db=True)
                                     for _clear_key in ("portfolio_add_entry", "portfolio_add_qty", "portfolio_add_amount", "portfolio_add_manual"):
                                         st.session_state.pop(_clear_key, None)
                                     load_alerts.clear()
@@ -2560,7 +2560,7 @@ with _tab_slot_portfolio.container():
                                 })
                                 store.unmark_as_bought(close_conn, row["id"])
                                 close_conn.close()
-                                _sync_and_warn("position closed")
+                                _sync_and_warn("position closed", include_db=True)
                                 st.session_state.pop(sell_key, None)
                                 load_alerts.clear()
                                 st.rerun()
