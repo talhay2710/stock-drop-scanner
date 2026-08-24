@@ -1,6 +1,6 @@
 indices:
 - TA35
-drop_threshold_pct: 5.0
+drop_threshold_pct: 4.0
 drop_alert_step_pct: 2.0
 drop_confirm_watch_pct: 1.0
 reversal_confirm_pct: 3.0
