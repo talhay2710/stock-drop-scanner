@@ -84,7 +84,7 @@ def classify_drop(
     split_ratio = _looks_like_split(prev_close, float(close_history.iloc[-1]) if close_history is not None and len(close_history) else None)
     if split_ratio is not None:
         reason_text = (
-            f"{REASON_LABELS['stock_split']} (המחיר ירד ביחס של כ-{split_ratio:.2f} מהמחיר הקודם - "
+            f"{REASON_LABELS['stock_split']} (המחיר ירד ביחס של כ-‎{split_ratio:.2f} מהמחיר הקודם - "
             f"תואם פיצול מניה נפוץ, לא ירידה אמיתית)"
         )
         headlines = news_mod.get_recent_headlines(yahoo_symbol, is_israeli, company_name)
@@ -113,7 +113,7 @@ def classify_drop(
     ex_div_pct = (ex_div_amount / prev_close * 100.0) if (ex_div_amount and prev_close) else None
     if ex_div_pct is not None and ex_div_pct >= abs(pct_change) * 0.5:
         reason_text = (
-            f"{REASON_LABELS['ex_dividend']} (חלוקה של כ-{ex_div_pct:.1f}% מהמחיר - "
+            f"{REASON_LABELS['ex_dividend']} (חלוקה של כ-‎{ex_div_pct:.1f}% מהמחיר - "
             f"מסבירה את רוב הירידה הנצפית)"
         )
         headlines = news_mod.get_recent_headlines(yahoo_symbol, is_israeli, company_name)
@@ -235,12 +235,12 @@ def _build_reason_text(reasons, index_change_pct, sector_change, trailing_rally,
     for r in reasons:
         label = REASON_LABELS[r]
         if r == "market_wide" and index_change_pct is not None:
-            label += f" (המדד ירד {index_change_pct:.1f}% היום)"
+            label += f" (המדד ירד ‎{index_change_pct:.1f}% היום)"
         if r == "sector_pressure" and sector_change is not None:
             etf = deep.get("sector_etf_ticker", "")
-            label += f" (סקטור {deep.get('sector', '')} / {etf} ירד {sector_change:.1f}%)"
+            label += f" (סקטור {deep.get('sector', '')} / {etf} ירד ‎{sector_change:.1f}%)"
         if r == "profit_taking" and trailing_rally is not None:
-            label += f" (עלתה כ-{trailing_rally:.1f}% בימים שקדמו לירידה)"
+            label += f" (עלתה כ-‎{trailing_rally:.1f}% בימים שקדמו לירידה)"
         parts.append(label)
 
     if volume_ratio is not None and volume_ratio >= 2.0:
@@ -394,14 +394,20 @@ def _score_overreaction(zscore, rsi, reasons, has_headlines, cfg, volume_ratio=N
 REBOUND_OVERREACTION_WEIGHT = 0.6  # שונה מ-24.8.2026 - ר' הערה מתחת
 
 
+def weighted_rebound_score(overreaction_score: int, quality_score: float | None) -> float:
+    """הציון המשוקלל הגולמי (0-100) - לב הלוגיקה, בשימוש גם ב-classify_rebound_from_scores
+    וגם בדשבורד (להצגת המספר עצמו לצד סיווג ה-A/B/C), כדי שלא יהיו שני מקומות
+    עם אותו נוסחה שעלולים לסטות זה מזה."""
+    if quality_score is None:
+        return float(overreaction_score)
+    return REBOUND_OVERREACTION_WEIGHT * overreaction_score + (1 - REBOUND_OVERREACTION_WEIGHT) * quality_score
+
+
 def classify_rebound_from_scores(overreaction_score: int, quality_score: float | None) -> tuple[str, str]:
     """הליבה הטהורה של _classify_rebound - מקבלת ציונים גולמיים (לא אובייקט
     quality) כדי שאפשר יהיה להשתמש בה גם רטרואקטיבית על שורות ישנות ב-DB
     (שכבר יש להן quality_score שמור) בלי לשכפל את הלוגיקה."""
-    weighted = (
-        overreaction_score if quality_score is None
-        else REBOUND_OVERREACTION_WEIGHT * overreaction_score + (1 - REBOUND_OVERREACTION_WEIGHT) * quality_score
-    )
+    weighted = weighted_rebound_score(overreaction_score, quality_score)
     if weighted >= 70:
         return "A", "🟢 סיכוי גבוה לריבאונד - ציון משוקלל (תגובת יתר + איכות פונדמנטלית) חזק"
     if weighted >= 45:

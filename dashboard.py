@@ -1889,6 +1889,19 @@ with _tab_slot_today.container():
                 )
                 todays_display_src["current_pct_change"] = todays_display_src["ticker"].map(_current_changes_map)
 
+                # מוסיפים את הציון המשוקלל ליד האות (למשל "B (52)") - אותה נוסחה
+                # בדיוק ששימשה לחישוב הסיווג עצמו (analysis.classify_rebound_from_scores).
+                todays_display_src["weighted_score"] = todays_display_src.apply(
+                    lambda r: round(analysis.weighted_rebound_score(
+                        r["overreaction_score"], r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
+                    )) if pd.notna(r["rebound_tier"]) else None,
+                    axis=1,
+                )
+                todays_display_src["rebound_tier"] = todays_display_src.apply(
+                    lambda r: f"{r['rebound_tier']} ({int(r['weighted_score'])})" if pd.notna(r["rebound_tier"]) else r["rebound_tier"],
+                    axis=1,
+                )
+
                 alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
                     "current_pct_change": "שינוי נוכחי",
@@ -1923,17 +1936,17 @@ with _tab_slot_today.container():
                                 "שינוי נוכחי": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
                                 "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
                                 "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
-                                "סיווג ריבאונד": lambda v: f"{_REBOUND_TIER_EMOJI.get(v, '')} {v}" if pd.notna(v) else "—",
+                                "סיווג ריבאונד": lambda v: f"{_REBOUND_TIER_EMOJI.get(v.split(' ')[0], '')} {v}" if pd.notna(v) else "—",
                             },
                             truncate_columns={
                                 "שם": 130, "טיקר": 55, "שינוי בזמן התראה": 55, "שינוי נוכחי": 55,
                                 "תגובת יתר": 55, "איכות פונדמנטלית": 55,
-                                "סיווג ריבאונד": 55, "לימיט כניסה": 55, "יעד מכירה": 55, "סטופ-לוס": 55,
+                                "סיווג ריבאונד": 65, "לימיט כניסה": 55, "יעד מכירה": 55, "סטופ-לוס": 55,
                             },
                             color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
                             color_fns={
                                 "תגובת יתר": _score_color, "איכות פונדמנטלית": _score_color,
-                                "סיווג ריבאונד": lambda v: _TIER_COLOR.get(v, NEUTRAL_COLOR),
+                                "סיווג ריבאונד": lambda v: _TIER_COLOR.get(v.split(' ')[0], NEUTRAL_COLOR),
                             },
                             max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
                         ),
@@ -1947,10 +1960,17 @@ with _tab_slot_today.container():
                         _scan_ts_text = _scan_dt.strftime("%d.%m %H:%M")
                     except Exception:
                         _scan_ts_text = r["scan_ts"]
-                    _badge_tier, _badge_score = r.get("rebound_tier"), r.get("overreaction_score")
+                    _badge_tier = r.get("rebound_tier")
+                    _badge_score = (
+                        analysis.weighted_rebound_score(
+                            r.get("overreaction_score"),
+                            r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
+                        )
+                        if pd.notna(r.get("overreaction_score")) else None
+                    )
                     _badge = (
-                        f"{_REBOUND_TIER_EMOJI.get(_badge_tier, '⚪')} {_badge_tier} ({int(_badge_score)})"
-                        if pd.notna(_badge_tier) and pd.notna(_badge_score) else ""
+                        f"{_REBOUND_TIER_EMOJI.get(_badge_tier, '⚪')} {_badge_tier} ({int(round(_badge_score))})"
+                        if pd.notna(_badge_tier) and _badge_score is not None else ""
                     )
                     _title = f"{_expander_name} ({r['ticker']}) · {_signed_num(r['pct_change'], 1, '%')} · {_scan_ts_text}"
                     if _badge:
@@ -2010,9 +2030,9 @@ with _tab_slot_today.container():
 
                         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
                         entry_target_stop_html = "".join([
-                            _stat_card("לימיט כניסה", f"{r['entry_limit']:.2f}", NEUTRAL_COLOR, NEUTRAL_BG),
-                            _stat_card("יעד מכירה", f"{r['target_base']:.2f}", POS_COLOR, POS_BG),
-                            _stat_card("סטופ-לוס", f"{r['stop_loss']:.2f}", NEG_COLOR, NEG_BG),
+                            _stat_card("לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")), NEUTRAL_COLOR, NEUTRAL_BG),
+                            _stat_card("יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG),
+                            _stat_card("סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG),
                         ])
                         st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{entry_target_stop_html}</div>', unsafe_allow_html=True)
 

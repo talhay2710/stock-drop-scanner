@@ -52,7 +52,7 @@ def assess_quality(deep_info: dict) -> QualityAssessment:
         # debtToEquity מ-yfinance מגיע בדרך כלל כאחוזים (150 = חוב פי 1.5 מההון)
         subscores.append(max(0.0, 1.0 - min(dte, 300) / 300) * 100)
         if dte > 200:
-            flags.append(f"מינוף גבוה (יחס חוב/הון כ-{dte:.0f}%)")
+            flags.append(f"מינוף גבוה (יחס חוב/הון כ-‎{dte:.0f}%)")
 
     revenue_growth = deep_info.get("revenue_growth")
     if revenue_growth is not None:
