@@ -75,7 +75,7 @@ def _check_scan_heartbeat(cfg: dict, conn) -> None:
         return
 
     gap_minutes = (now - prev_dt).total_seconds() / 60
-    threshold = abs(cfg.get("scan_heartbeat_gap_alert_minutes", 20))
+    threshold = abs(cfg.get("scan_heartbeat_gap_alert_minutes", 30))
     if gap_minutes > threshold:
         notifier.send_telegram(cfg, (
             f"🔴 <b>הסריקה האוטומטית הייתה שקטה כ-{gap_minutes:.0f} דקות</b>\n"

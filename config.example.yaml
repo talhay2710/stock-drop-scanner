@@ -6,7 +6,7 @@ drop_confirm_watch_pct: 1.0
 reversal_confirm_pct: 3.0
 reversal_max_age_hours: 4.0
 signal_log_threshold_pct: 3.5
-scan_heartbeat_gap_alert_minutes: 20
+scan_heartbeat_gap_alert_minutes: 30
 scan_interval_minutes: 5
 lookback_rally_days: 10
 rally_threshold_pct: 8.0
