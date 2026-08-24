@@ -2429,7 +2429,10 @@ with _tab_slot_portfolio.container():
                     distance_pct = (current - stop_price) / stop_price * 100
                     stop_is_warning = current <= stop_price or distance_pct <= cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
                     if current <= stop_price:
-                        stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">🛑 חצתה סטופ</span>'
+                        stop_part = (
+                            f'<span style="font-weight:700; color:{NEG_COLOR};">'
+                            f'🛑 חצתה סטופ-לוס ב-{abs(distance_pct):.1f}%</span>'
+                        )
                     elif stop_is_warning:
                         stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">⚠️ קרובה לסטופ {distance_pct:.1f}%</span>'
                     else:
@@ -2441,7 +2444,10 @@ with _tab_slot_portfolio.container():
                         or target_distance_pct <= cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
                     )
                     if current >= target_price:
-                        target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 הגיעה ליעד!</span>'
+                        target_part = (
+                            f'<span style="font-weight:700; color:{POS_COLOR};">'
+                            f'🎯 עברה את היעד ב-{abs(target_distance_pct):.1f}%</span>'
+                        )
                     elif target_is_warning:
                         target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 קרובה ליעד {target_distance_pct:.1f}%</span>'
                     else:
