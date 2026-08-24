@@ -13,7 +13,7 @@ from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
 from .config import db_path
-from .market_hours import is_market_open
+from .market_hours import is_market_open, israel_today
 
 logger = logging.getLogger(__name__)
 
@@ -324,7 +324,7 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
     המקורית (שממשיכה לצאת מיד, בלי שום עיכוב) - זו התראה נוספת ונפרדת, רק אם
     וכשיש התאוששות בפועל. מפסיק לעקוב ברגע שנשלחה (reversal_alert_sent),
     ומתאפס ממילא מחר (scan_date חדש)."""
-    scan_date = dt.date.today().isoformat()
+    scan_date = israel_today().isoformat()
     pending = store_mod.get_pending_reversal_watches(conn, scan_date)
     if not pending:
         return
@@ -489,7 +489,7 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
         lambda h: market_data.compute_n_day_change_pct(h, multi_day_window)
     )
 
-    scan_date = dt.date.today().isoformat()
+    scan_date = israel_today().isoformat()
 
     # אימות ירידה: מניה שחוצה את הסף בבת אחת, בלי שנראתה קודם אפילו קרוב אליו,
     # עלולה להיות תקלת ציטוט רגעית (טעות בקריאה בודדת, לא נתון מפגר - זה כבר

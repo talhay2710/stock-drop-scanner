@@ -79,7 +79,7 @@ from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync
-from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open
+from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today
 
 st.set_page_config(page_title="סורק מניות", layout="wide")
 
@@ -1839,7 +1839,7 @@ with _tab_slot_today.container():
                 # תאריך היום בפועל, לא "התאריך המקסימלי שנרשם אי פעם" - אחרת אם
                 # עוד לא נרשמה התראה היום, הכרטיס הזה מציג בשקט את ההתראות של
                 # אתמול תחת הכותרת "היום", מטעה.
-                todays_alerts = df[df["scan_date"] == dt.date.today().isoformat()]
+                todays_alerts = df[df["scan_date"] == israel_today().isoformat()]
 
                 _REBOUND_TIER_EMOJI = {"A": "🟢", "B": "🟡", "C": "🔴"}
 

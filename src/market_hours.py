@@ -23,6 +23,14 @@ MARKET_HOURS = {
 }
 
 
+def israel_today() -> dt.date:
+    """תאריך 'היום' לפי שעון ישראל, לא לפי שעון המערכת שמריץ את הקוד - כדי
+    שהדשבורד המקומי (שעון ישראל) והציבורי/הסריקה (UTC ב-GitHub Actions
+    ו-Streamlit Cloud) יתחלפו ל'יום חדש' באותו רגע בדיוק, במקום בפער של
+    כמה שעות בלילה (24.8.2026)."""
+    return dt.datetime.now(ZoneInfo("Asia/Jerusalem")).date()
+
+
 def _close_for_weekday(spec: dict, weekday: int) -> tuple[int, int]:
     return spec.get("close_overrides", {}).get(weekday, spec["close"])
 
