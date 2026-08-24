@@ -564,7 +564,15 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
     color = POS_COLOR if is_target else NEG_COLOR
     bg = POS_BG if is_target else NEG_BG
     icon = "🎯" if is_target else "🛑"
-    label = f"{icon} קרוב ל{'יעד' if is_target else 'סטופ'}"
+    # gap_pct שלילי אומר שהמחיר כבר עבר את הרף (יעד או סטופ) - "0.0% נותרו" היה
+    # מטעה כאן (משתמע שהיא בדיוק על הרף, לא כבר מעבר לו). מציגים "חצתה ב-X%"
+    # במקום, עם ה-X בפועל (לא מקוצץ ל-0), כדי שהכרטיס יישאר מדויק גם במצב הזה.
+    if gap_pct < 0:
+        label = f"{icon} {'עברה את היעד' if is_target else 'חצתה את הסטופ-לוס'}"
+        gap_line = f"חצתה ב-{abs(gap_pct):.1f}%"
+    else:
+        label = f"{icon} קרוב ל{'יעד' if is_target else 'סטופ'}"
+        gap_line = f"{gap_pct:.1f}% נותרו"
     st.markdown(
         f"""
         <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
@@ -573,7 +581,7 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
           <div style="font-size:1.25rem; font-weight:700; color:{color}; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{name}</div>
           <div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
-            {max(gap_pct, 0):.1f}% נותרו
+            {gap_line}
           </div>
         </div>
         """,
@@ -944,12 +952,25 @@ def _build_pnl_bar_chart(rows: list[dict]) -> alt.Chart:
         tooltip=[alt.Tooltip("name:N", title="מניה"), alt.Tooltip("סוג:N", title="סוג"),
                  alt.Tooltip("x_text:N", title="ערך (%)")],
     )
+    # כשהפס האדום (pnl_pct) גדל מעבר לנקודת הסטופ, הוא מכסה אותה - שתיהן אדומות
+    # ואין הבדל ויזואלי ביניהן. קו שחור דק נפרד, בדיוק על מיקום הסטופ, ורק
+    # כשהוא באמת נחצה - שכבה אחרונה (מצוירת מעל הכל) כדי שלעולם לא תיעלם.
+    crossed_df = df[df["pnl_pct"] <= df["stop_pct"]].copy()
+    crossed_df["x_text"] = crossed_df["stop_pct"].apply(lambda v: _signed_num(v, 2))
+    stop_crossed = alt.Chart(crossed_df).mark_tick(
+        color="black", thickness=2, size=20, opacity=1.0,
+    ).encode(
+        y=y_enc,
+        x=alt.X("stop_pct:Q", scale=x_scale),
+        tooltip=[alt.Tooltip("name:N", title="מניה"), alt.Tooltip("x_text:N", title="חצתה סטופ ב-")],
+    )
+
     # גובה קבוע (160) דחס את השורות זו לתוך זו כשמספר האחזקות גדל - Vega-Lite אז
     # מוריד תוויות/סימונים חופפים בשקט, מה שנראה כמו נקודות "כפולות" באותה שורה.
     # לכן הגובה גדל לפי מספר האחזקות במקום קבוע.
     chart_height = max(160, 46 * len(rows))
     return (
-        (range_bg + progress + zero_rule + points)
+        (range_bg + progress + zero_rule + points + stop_crossed)
         .properties(height=chart_height, padding={"left": 8, "right": 12, "top": 8, "bottom": 8})
         .resolve_scale(color="independent")
         .configure_view(strokeWidth=0)
@@ -1487,11 +1508,14 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     color_fns = color_fns or {}
     truncate_columns = truncate_columns or {}
     def _header_cell(col: str, label: str) -> str:
-        style = ("padding:6px 10px; text-align:right; font-weight:600; white-space:nowrap; "
-                 "border-bottom:1px solid rgba(128,128,128,0.3);")
+        style = "padding:6px 10px; text-align:right; font-weight:600; border-bottom:1px solid rgba(128,128,128,0.3);"
         if col in truncate_columns:
-            style += (f" max-width:{truncate_columns[col]}px; overflow:hidden; "
-                      "text-overflow:ellipsis;")
+            # בניגוד לתאי הנתונים (nowrap+ellipsis, כי הערך תמיד קצר) - כותרת
+            # יכולה להיות ארוכה יותר מהעמודה הצרה שהיא כותרת עליה, אז עדיף
+            # שתעטוף לשתי שורות מאשר שתיחתך עם "..." ותאבד את המשמעות.
+            style += f" max-width:{truncate_columns[col]}px; white-space:normal; word-break:break-word;"
+        else:
+            style += " white-space:nowrap;"
         return f'<th style="{style}">{label}</th>'
 
     header_cells = "".join(_header_cell(col, label) for col, label in columns)
@@ -1809,42 +1833,78 @@ with _tab_slot_today.container():
 
                 _REBOUND_TIER_EMOJI = {"A": "🟢", "B": "🟡", "C": "🔴"}
 
-                def _rebound_badge(tier, score) -> str:
-                    if pd.isna(tier) or pd.isna(score):
+                def _score_light(val) -> str:
+                    if pd.isna(val):
                         return ""
-                    return f"{_REBOUND_TIER_EMOJI.get(tier, '⚪')} {tier} ({int(score)})"
+                    if val >= 70:
+                        return "🟢 "
+                    if val >= 45:
+                        return "🟡 "
+                    return "🔴 "
 
-                alerts_display = todays_alerts.rename(columns={
+                def _score_color(val) -> str:
+                    if pd.isna(val):
+                        return NEUTRAL_COLOR
+                    if val >= 70:
+                        return POS_COLOR
+                    if val >= 45:
+                        return ACCENT_COLOR
+                    return NEG_COLOR
+
+                _TIER_COLOR = {"A": POS_COLOR, "B": ACCENT_COLOR, "C": NEG_COLOR}
+
+                # מטבע לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני), בדיוק כמו
+                # שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py).
+                def _price_text(value, index_name) -> str:
+                    if pd.isna(value):
+                        return "—"
+                    ccy = constituents.INDEX_CURRENCY.get(index_name, "ILS")
+                    if ccy == "ILS":
+                        return f"{value*100:,.0f}"
+                    return f"${value:,.2f}"
+
+                todays_display_src = todays_alerts.copy()
+                for _price_col in ("entry_limit", "target_base", "stop_loss"):
+                    todays_display_src[_price_col] = todays_display_src.apply(
+                        lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
+                    )
+
+                alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי (%)",
                     "entry_limit": "לימיט כניסה", "target_base": "יעד מכירה", "stop_loss": "סטופ-לוס",
+                    "overreaction_score": "תגובת יתר", "quality_score": "איכות פונדמנטלית",
+                    "rebound_tier": "סיווג ריבאונד",
                 })
                 if "שם" not in alerts_display.columns:
                     alerts_display["שם"] = ""
-                alerts_display["שם"] = alerts_display["שם"].fillna("")
-                # ציון תגובת-יתר וסיווג ריבאונד ליד שם המניה - כדי שהמידע הכי חשוב יהיה
-                # גלוי מיד בטבלה המצומצמת, בלי צורך לפתוח את ההרחבה למטה.
-                alerts_display["שם"] = alerts_display.apply(
-                    lambda r: f"{r['שם']}  {_rebound_badge(r.get('rebound_tier'), r.get('overreaction_score'))}".strip(),
-                    axis=1,
-                )
+                alerts_display["שם"] = alerts_display["שם"].fillna(alerts_display["טיקר"])
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
-                # מספר עמודות מצומצם בכוונה (השאר זמין בהרחבה מתחת) כדי שהכל ייכנס בלי חיתוך
-                alerts_display = alerts_display[["שם", "טיקר", "שינוי (%)",
-                                                  "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
+                alerts_display = alerts_display[["שם", "טיקר", "שינוי (%)", "תגובת יתר", "איכות פונדמנטלית",
+                                                  "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 with st.container(border=True):
                     st.image(render_text_image(f"התראות היום ({len(todays_alerts)})", POS_COLOR, font_size=17))
                     st.markdown(
                         _html_table(
                             alerts_display,
                             [("שם", "שם"), ("טיקר", "טיקר"), ("שינוי (%)", "שינוי (%)"),
+                             ("תגובת יתר", "תגובת יתר"), ("איכות פונדמנטלית", "איכות פונדמנטלית"),
+                             ("סיווג ריבאונד", "סיווג ריבאונד"),
                              ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
                             formatters={
                                 "שינוי (%)": lambda v: _signed_num(v, 2, "%"),
-                                "לימיט כניסה": lambda v: f"{v:.2f}",
-                                "יעד מכירה": lambda v: f"{v:.2f}",
-                                "סטופ-לוס": lambda v: f"{v:.2f}",
+                                "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
+                                "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
+                                "סיווג ריבאונד": lambda v: f"{_REBOUND_TIER_EMOJI.get(v, '')} {v}" if pd.notna(v) else "—",
+                            },
+                            truncate_columns={
+                                "שם": 130, "טיקר": 70, "שינוי (%)": 70, "תגובת יתר": 70, "איכות פונדמנטלית": 70,
+                                "סיווג ריבאונד": 70, "לימיט כניסה": 70, "יעד מכירה": 70, "סטופ-לוס": 70,
                             },
                             color_columns={"שינוי (%)"},
+                            color_fns={
+                                "תגובת יתר": _score_color, "איכות פונדמנטלית": _score_color,
+                                "סיווג ריבאונד": lambda v: _TIER_COLOR.get(v, NEUTRAL_COLOR),
+                            },
                             max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
                         ),
                         unsafe_allow_html=True,
@@ -1857,7 +1917,11 @@ with _tab_slot_today.container():
                         _scan_ts_text = _scan_dt.strftime("%d.%m %H:%M")
                     except Exception:
                         _scan_ts_text = r["scan_ts"]
-                    _badge = _rebound_badge(r.get("rebound_tier"), r.get("overreaction_score"))
+                    _badge_tier, _badge_score = r.get("rebound_tier"), r.get("overreaction_score")
+                    _badge = (
+                        f"{_REBOUND_TIER_EMOJI.get(_badge_tier, '⚪')} {_badge_tier} ({int(_badge_score)})"
+                        if pd.notna(_badge_tier) and pd.notna(_badge_score) else ""
+                    )
                     _title = f"{_expander_name} ({r['ticker']}) · {_signed_num(r['pct_change'], 1, '%')} · {_scan_ts_text}"
                     if _badge:
                         _title += f" · {_badge}"
