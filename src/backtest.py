@@ -11,6 +11,8 @@ import pandas as pd
 import yfinance as yf
 
 from . import store
+from . import market_data
+from . import strategy as strategy_mod
 from .market_data import _is_israeli_ticker
 
 logger = logging.getLogger(__name__)
@@ -42,17 +44,17 @@ OUTCOME_LABELS_HE = {
 
 BASELINE_TARGET_PCT = 5.0  # יעד "טיפוסי" שסביבו כוילה חלון-ההמתנה הבסיסי (window_days)
 MAX_WINDOW_DAYS = 30  # תקרה - לא לתת חודשים של המתנה על תיקון קיצוני
-MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על target_base - היעד לעולם לא קטן ממרחק הסטופ (יחס 1:1)
+# הרצפה (יחס 1:1 מול מרחק הסטופ) הוסרה ב-23.8.2026 יחד עם הרחבת הסטופ
+# (ATR_STOP_MULTIPLIER ל-2.5x, ר' strategy.py) - לבקשת המשתמש, היעד לא זז
+# לעולם בגלל מרחק הסטופ יותר. נשאר כאן כפולבאק היסטורי בלבד, לא רצפה פעילה.
+MIN_TARGET_REWARD_RISK_RATIO = 1.0
 
 
 def _effective_target(entry_limit: float | None, target_base: float, stop_loss: float) -> float:
-    """target_base (תיקון-Fibonacci מגודל הירידה בפועל) עם רצפה של יחס 1:1 מול
-    הסטופ - זהה בדיוק ל-_live_target_price בדשבורד, כדי שהבקטסט יבדוק את אותו
-    יעד שבאמת מוצג/משמש באחזקה החיה."""
-    if not entry_limit:
-        return target_base
-    floor_price = entry_limit + (entry_limit - stop_loss) * MIN_TARGET_REWARD_RISK_RATIO
-    return max(target_base, floor_price)
+    """target_base כפי שנשמר - זהה בדיוק ל-strategy.live_target_price, כדי
+    שהבקטסט יבדוק את אותו יעד שבאמת מוצג/משמש באחזקה החיה. entry_limit/stop_loss
+    לא בשימוש כאן יותר (נשארו בחתימה כדי לא לשבור קריאות קיימות)."""
+    return target_base
 
 
 def _scaled_window_days(entry_limit: float | None, target: float | None, base_window_days: int) -> int:
@@ -390,6 +392,164 @@ def resolve_signal_outcomes(conn: sqlite3.Connection, older_than_days: int = 10,
         store.mark_signal_resolved(conn, sig["id"], json.dumps(outcome))
         resolved_count += 1
     return resolved_count
+
+
+STOP_ATR_MULTIPLIERS = (1.0, 1.5, 2.0, 2.5)
+_ATR_PERIOD = 14
+
+
+def _fetch_atr_and_post_window(ticker: str, entry_ts: str, window_days: int, skip_entry_day: bool):
+    """שולף חלון מחיר אחד רחב (לפני ואחרי תאריך ההתראה) לכל אלט - ATR מחושב
+    מ-14 הימים שלפני ההתראה (אותו חישוב בדיוק כמו market_data.compute_atr
+    בזמן אמת), וה-High/Low שאחרי משמשים לבדיקת התוצאה, בלי שתי קריאות רשת
+    נפרדות. מחזיר (atr, highs_post, lows_post, still_within_window) או None."""
+    try:
+        scan_date = dt.datetime.fromisoformat(entry_ts).date()
+    except Exception:
+        return None
+    if scan_date >= dt.date.today():
+        return None
+
+    calendar_buffer = int(window_days * 1.6) + 4
+    start = scan_date - dt.timedelta(days=45)  # מרווח ליותר מ-14 ימי מסחר + סופי שבוע/חגים
+    end = min(scan_date + dt.timedelta(days=calendar_buffer), dt.date.today())
+    try:
+        hist = yf.download(
+            ticker, start=start.isoformat(), end=(end + dt.timedelta(days=1)).isoformat(),
+            interval="1d", progress=False, auto_adjust=False, threads=False,
+        )
+    except Exception as e:
+        logger.debug("נכשלה שליפת היסטוריה עבור %s: %s", ticker, e)
+        return None
+    if hist.empty:
+        return None
+
+    highs, lows, closes = hist["High"], hist["Low"], hist["Close"]
+    if hasattr(highs, "columns"):
+        highs, lows, closes = highs.iloc[:, 0], lows.iloc[:, 0], closes.iloc[:, 0]
+    if _is_israeli_ticker(ticker):
+        highs, lows, closes = highs / 100.0, lows / 100.0, closes / 100.0
+
+    hist_dates = [d.date() if hasattr(d, "date") else d for d in hist.index]
+    idx_candidates = [i for i, d in enumerate(hist_dates) if d <= scan_date]
+    if not idx_candidates:
+        return None
+    alert_idx = idx_candidates[-1]
+    if alert_idx < _ATR_PERIOD:
+        return None  # לא מספיק היסטוריה לפני ההתראה כדי לחשב ATR אמין
+
+    atr = market_data.compute_atr(
+        highs.iloc[:alert_idx + 1], lows.iloc[:alert_idx + 1], closes.iloc[:alert_idx + 1], period=_ATR_PERIOD
+    )
+    if atr is None or atr <= 0:
+        return None
+
+    post_start = alert_idx + 1 if skip_entry_day else alert_idx
+    post_highs = highs.iloc[post_start:post_start + window_days].dropna().tolist()
+    post_lows = lows.iloc[post_start:post_start + window_days].dropna().tolist()
+    still_within_window = (dt.date.today() - scan_date).days < calendar_buffer
+    return atr, post_highs, post_lows, still_within_window
+
+
+def compare_stop_multipliers(conn: sqlite3.Connection, window_days: int = 10) -> pd.DataFrame:
+    """משווה כמה מכפילי ATR שונים לסטופ-לוס (1.0-2.5) על אותן התראות היסטוריות
+    בדיוק, עם אותו יעד קבוע (target_base כפי שנשמר בזמן ההתראה - לא משתנה כאן,
+    רק מרחק הסטופ) - כדי לבודד את ההשפעה של הרחבת/צמצום הסטופ בלבד, בלי
+    שהיעד יזוז יחד איתו. מגבלה חשובה: anchor (הבסיס לחישוב הסטופ) מקורב
+    ל-entry_limit/מחיר כניסה בפועל - last_low ההיסטורי לא נשמר בטבלה, אז אי
+    אפשר לשחזר אותו במדויק בדיעבד. זה מכניס סטייה קטנה מול איך שהסטופ באמת
+    חושב בזמן אמת, אבל לא משנה את המסקנה ההשוואתית בין המכפילים עצמם.
+    מחזיר טבלת סיכום כמו compare_target_strategies: מכפיל, סה"כ, הגיעו ליעד,
+    שיעור הצלחה (%), תוחלת (%)."""
+    df = pd.read_sql_query(
+        "SELECT ticker, scan_ts, entry_limit, target_base, bought, actual_entry_price, bought_at "
+        "FROM alerts WHERE entry_limit IS NOT NULL AND target_base IS NOT NULL",
+        conn,
+    )
+    if df.empty:
+        return pd.DataFrame(columns=["מכפיל ATR", "סה\"כ", "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת (%)"])
+
+    results: dict[float, list[tuple[str, float]]] = {}
+    for _, row in df.iterrows():
+        has_real_entry = bool(row["bought"]) and row["actual_entry_price"] and row["bought_at"]
+        entry_ref = row["actual_entry_price"] if has_real_entry else row["entry_limit"]
+        entry_ts = row["bought_at"] if has_real_entry else row["scan_ts"]
+        target = row["target_base"]
+
+        fetched = _fetch_atr_and_post_window(row["ticker"], entry_ts, window_days, skip_entry_day=has_real_entry)
+        if fetched is None:
+            continue
+        atr, post_highs, post_lows, still_pending = fetched
+        if not post_highs or not post_lows:
+            continue
+
+        for mult in STOP_ATR_MULTIPLIERS:
+            stop = entry_ref - mult * atr
+            if stop <= 0:
+                continue
+            outcome = _outcome_from_series(post_highs, post_lows, target, stop, still_pending)
+            target_pct = (target / entry_ref - 1) * 100
+            stop_pct = (stop / entry_ref - 1) * 100
+            if outcome == HIT_TARGET:
+                trade_return = target_pct
+            elif outcome == HIT_STOP:
+                trade_return = stop_pct
+            elif outcome == NEITHER:
+                trade_return = 0.0
+            else:
+                continue  # PENDING
+            results.setdefault(mult, []).append((outcome, trade_return))
+
+    rows = []
+    for mult, entries in results.items():
+        if not entries:
+            continue
+        outcomes = [o for o, _ in entries]
+        hits = sum(1 for o in outcomes if o == HIT_TARGET)
+        expectancy = sum(r for _, r in entries) / len(entries)
+        rows.append({
+            "מכפיל ATR": f"{mult:g}x", "סה\"כ": len(entries), "הגיעו ליעד": hits,
+            "שיעור הצלחה (%)": round(hits / len(entries) * 100, 1),
+            "תוחלת (%)": round(expectancy, 2),
+        })
+    return pd.DataFrame(rows).sort_values("תוחלת (%)", ascending=False).reset_index(drop=True)
+
+
+def retrofit_historical_stops(conn: sqlite3.Connection, multiplier: float | None = None) -> int:
+    """מעדכן stop_loss בפועל (UPDATE ב-DB) עבור כל ההתראות ההיסטוריות הקיימות,
+    לפי מכפיל ATR חדש (ר' strategy.ATR_STOP_MULTIPLIER) - כדי ש'ביצועי
+    האסטרטגיה' ישקפו את אותו מכפיל גם על התראות ישנות, לא רק חדשות. היעד
+    (target_base) לא נוגעים בו בכלל - לבקשת המשתמש (23.8.2026), הסטופ מתרחב
+    בלי שהיעד זז יחד איתו.
+    מגבלה מתועדת: anchor (הבסיס לחישוב הסטופ) מקורב ל-entry_limit/מחיר כניסה
+    בפועל - last_low ההיסטורי לא נשמר בטבלה, אז אי אפשר לשחזר אותו במדויק
+    (אותה מגבלה כמו compare_stop_multipliers). מחזיר כמה שורות עודכנו בפועל."""
+    mult = multiplier if multiplier is not None else strategy_mod.ATR_STOP_MULTIPLIER
+    rows = conn.execute(
+        "SELECT id, ticker, scan_ts, entry_limit, bought, actual_entry_price, bought_at "
+        "FROM alerts WHERE entry_limit IS NOT NULL"
+    ).fetchall()
+    columns = ["id", "ticker", "scan_ts", "entry_limit", "bought", "actual_entry_price", "bought_at"]
+
+    updated = 0
+    for raw in rows:
+        r = dict(zip(columns, raw))
+        has_real_entry = bool(r["bought"]) and r["actual_entry_price"] and r["bought_at"]
+        entry_ref = r["actual_entry_price"] if has_real_entry else r["entry_limit"]
+        entry_ts = r["bought_at"] if has_real_entry else r["scan_ts"]
+
+        fetched = _fetch_atr_and_post_window(r["ticker"], entry_ts, window_days=1, skip_entry_day=has_real_entry)
+        if fetched is None:
+            continue
+        atr, _post_highs, _post_lows, _still_pending = fetched
+        new_stop = round(entry_ref - mult * atr, 2)
+        if new_stop <= 0:
+            continue
+
+        conn.execute("UPDATE alerts SET stop_loss = ? WHERE id = ?", (new_stop, r["id"]))
+        updated += 1
+    conn.commit()
+    return updated
 
 
 def overall_summary(df: pd.DataFrame) -> dict:

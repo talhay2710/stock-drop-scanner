@@ -17,8 +17,14 @@ class TradeIdea:
     liquidity_note: str = ""
 
 
-ATR_STOP_MULTIPLIER = 1.5  # מרחק הסטופ מהכניסה = פי X מה-ATR (תנודתיות היום-יומית הרגילה)
-MIN_TARGET_REWARD_RISK_RATIO = 1.0  # רצפה על יעד המכירה - לעולם לא קטן ממרחק הסטופ (יחס 1:1)
+# הוגדל מ-1.5 ל-2.5 ב-23.8.2026, אחרי בדיקה על ~60-68 התראות היסטוריות
+# (backtest.compare_stop_multipliers): מכפיל רחב יותר נתן תוחלת גבוהה יותר
+# בעקביות (1.0x=3.26%, 1.5x=3.33%, 2.0x=3.84%, 2.5x=4.57%) - סטופ רחב מדי
+# פוגע פחות ב"רעש" רגיל של המניה לפני שהיא ממשיכה לכיוון שצפוי. המגמה עוד
+# עולה ב-2.5x (לא נמצא שיא), אבל נבחר כפשרה שמרנית - מדגם קטן ורחב מדי מקטין
+# את מספר העסקאות שמוכרעות בתוך חלון הבדיקה (הטיה אפשרית כלפי מעלה).
+ATR_STOP_MULTIPLIER = 2.5  # מרחק הסטופ מהכניסה = פי X מה-ATR (תנודתיות היום-יומית הרגילה)
+MIN_TARGET_REWARD_RISK_RATIO = 1.0  # פולבאק בלבד עכשיו (ר' live_target_price) - לא רצפה פעילה על target_base יותר
 
 # יעד קבוע (לא Fibonacci) - הוחלף ב-21.8.2026 אחרי בדיקה על ההיסטוריה בפועל
 # (backtest.compare_target_strategies): יעד Fibonacci 50% (הקודם) נתן תוחלת
@@ -40,15 +46,15 @@ def target_from_stop(entry: float, stop_price: float, ratio: float = REWARD_RISK
 
 
 def live_target_price(entry: float, stop_price: float, target_base: float | None) -> float:
-    """היעד החי המוצג/מתריע עבור אחזקה: target_base (תיקון Fibonacci מגודל
-    הירידה בפועל שכבר חושב ונשמר בזמן ההתראה המקורית) עם רצפה של יחס 1:1 מול
-    הסטופ; אם אין target_base בכלל (אחזקה ידנית לגמרי בלי התראה מקורית) -
-    פולבאק ל-REWARD_RISK_RATIO. מקור אמת יחיד - גם לתצוגה בדשבורד וגם
-    להתראת טלגרם, כדי ששניהם תמיד יראו את אותו יעד בדיוק."""
+    """היעד החי המוצג/מתריע עבור אחזקה: target_base (כפי שחושב ונשמר בזמן
+    ההתראה המקורית, קבוע ולא זז לעולם בגלל מרחק הסטופ - ר' ATR_STOP_MULTIPLIER);
+    אם אין target_base בכלל (אחזקה ידנית לגמרי בלי התראה מקורית) - פולבאק
+    ל-REWARD_RISK_RATIO. מקור אמת יחיד - גם לתצוגה בדשבורד וגם להתראת טלגרם,
+    כדי ששניהם תמיד יראו את אותו יעד בדיוק."""
     # target_base == target_base שוללת NaN (בלי תלות ב-pandas כאן) - זה יכול
     # להגיע כ-NaN כשהקורא הוא DataFrame (הדשבורד), לא רק None (התראת טלגרם).
     if target_base is not None and target_base == target_base:
-        return max(target_base, target_from_stop(entry, stop_price, MIN_TARGET_REWARD_RISK_RATIO))
+        return target_base
     return target_from_stop(entry, stop_price)
 
 # ספי נזילות (נפח מסחר ממוצע יומי בערך $/₪) לצורך מרווח נוסף בלימיט הכניסה.
@@ -104,13 +110,12 @@ def suggest_strategy(last_close: float, last_low: float | None,
         stop_loss_note = "כ-3% מתחת לשפל היום / שער הכניסה, לפי הנמוך מביניהם (אין נתוני ATR זמינים)"
 
     # יעד המכירה לא יורד מתחת לרווח מינימלי של 3% מעל שער הכניסה (הצדקת כניסה
-    # לעסקה אחרי עמלות ומס), וגם לא מתחת ליחס סיכוי/סיכון 1:1 מול מרחק הסטופ -
-    # גם אם היעד הקבוע (FIXED_TARGET_PCT) קטן מזה בפועל (יכול לקרות כשהסטופ
-    # רחוק, למשל תנודתיות ATR גבוהה). שתי הרצפות מחושבות ב-max() יחד - כל אחת
-    # עשויה להיות המחמירה מביניהן תלוי במניה.
+    # לעסקה אחרי עמלות ומס). בעבר הייתה כאן גם רצפת יחס סיכוי/סיכון 1:1 מול
+    # מרחק הסטופ - הוסרה בכוונה ב-23.8.2026 יחד עם הרחבת הסטופ (ATR_STOP_MULTIPLIER
+    # ל-2.5x): המשתמש ביקש במפורש שהיעד לא יזוז לעולם בגלל מרחק הסטופ, וקיבל
+    # את הפשרה - יחס סיכוי/סיכון עלול להיות גרוע מ-1:1 במניות תנודתיות, בלי הגנה.
     min_target_profit = round(entry_limit * 1.03, 2)
-    min_target_reward_risk = round(entry_limit + (entry_limit - stop_loss) * MIN_TARGET_REWARD_RISK_RATIO, 2)
-    target_base = max(target_base, min_target_profit, min_target_reward_risk)
+    target_base = max(target_base, min_target_profit)
 
     return TradeIdea(
         entry_limit=entry_limit,
