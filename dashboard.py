@@ -168,6 +168,16 @@ def get_current_price(ticker: str) -> float | None:
     return market_data.fetch_current_price(ticker)
 
 
+@st.cache_data(ttl=60)
+def get_current_changes_for(tickers: tuple[str, ...]) -> pd.DataFrame:
+    """שינוי יומי נוכחי (סגירה אחרונה מול קודמת) לרשימת טיקרים ספציפית - לעמודת
+    'שינוי נוכחי' בטבלת ההתראות, כדי שתתעדכן בכל סריקה (ttl=60 תואם ל-run_every
+    של הפרגמנט) בלי תלות במדד שלם כמו get_all_changes."""
+    if not tickers:
+        return pd.DataFrame(columns=["ticker", "pct_change"])
+    return market_data.fetch_universe_daily_changes(list(tickers))
+
+
 @st.cache_data(ttl=300)
 def get_holding_stop_price(ticker: str, entry_price: float) -> float:
     """קו סטופ-לוס לפי ATR (תנודתיות אמיתית של המניה) - נקרא פעם אחת בזמן
@@ -1869,8 +1879,19 @@ with _tab_slot_today.container():
                         lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
                     )
 
+                # שינוי נוכחי - נשלף בכל ריצה של הפרגמנט (run_every="60s") לרשימת
+                # הטיקרים של היום בלבד, בנפרד מ"שינוי בזמן התראה" השמור שלא זז.
+                _current_tickers = tuple(sorted(todays_alerts["ticker"].unique()))
+                _current_changes_df = get_current_changes_for(_current_tickers)
+                _current_changes_map = (
+                    dict(zip(_current_changes_df["ticker"], _current_changes_df["pct_change"]))
+                    if not _current_changes_df.empty else {}
+                )
+                todays_display_src["current_pct_change"] = todays_display_src["ticker"].map(_current_changes_map)
+
                 alerts_display = todays_display_src.rename(columns={
-                    "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי (%)",
+                    "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
+                    "current_pct_change": "שינוי נוכחי",
                     "entry_limit": "לימיט כניסה", "target_base": "יעד מכירה", "stop_loss": "סטופ-לוס",
                     "overreaction_score": "תגובת יתר", "quality_score": "איכות פונדמנטלית",
                     "rebound_tier": "סיווג ריבאונד",
@@ -1879,28 +1900,32 @@ with _tab_slot_today.container():
                     alerts_display["שם"] = ""
                 alerts_display["שם"] = alerts_display["שם"].fillna(alerts_display["טיקר"])
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
-                alerts_display = alerts_display[["שם", "טיקר", "שינוי (%)", "תגובת יתר", "איכות פונדמנטלית",
+                alerts_display = alerts_display[["שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
+                                                  "תגובת יתר", "איכות פונדמנטלית",
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 with st.container(border=True):
                     st.image(render_text_image(f"התראות היום ({len(todays_alerts)})", POS_COLOR, font_size=17))
                     st.markdown(
                         _html_table(
                             alerts_display,
-                            [("שם", "שם"), ("טיקר", "טיקר"), ("שינוי (%)", "שינוי (%)"),
+                            [("שם", "שם"), ("טיקר", "טיקר"),
+                             ("שינוי בזמן התראה", "שינוי בזמן התראה"), ("שינוי נוכחי", "שינוי נוכחי"),
                              ("תגובת יתר", "תגובת יתר"), ("איכות פונדמנטלית", "איכות פונדמנטלית"),
                              ("סיווג ריבאונד", "סיווג ריבאונד"),
                              ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
                             formatters={
-                                "שינוי (%)": lambda v: _signed_num(v, 2, "%"),
+                                "שינוי בזמן התראה": lambda v: _signed_num(v, 2, "%"),
+                                "שינוי נוכחי": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
                                 "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
                                 "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
                                 "סיווג ריבאונד": lambda v: f"{_REBOUND_TIER_EMOJI.get(v, '')} {v}" if pd.notna(v) else "—",
                             },
                             truncate_columns={
-                                "שם": 130, "טיקר": 70, "שינוי (%)": 70, "תגובת יתר": 70, "איכות פונדמנטלית": 70,
-                                "סיווג ריבאונד": 70, "לימיט כניסה": 70, "יעד מכירה": 70, "סטופ-לוס": 70,
+                                "שם": 130, "טיקר": 55, "שינוי בזמן התראה": 55, "שינוי נוכחי": 55,
+                                "תגובת יתר": 55, "איכות פונדמנטלית": 55,
+                                "סיווג ריבאונד": 55, "לימיט כניסה": 55, "יעד מכירה": 55, "סטופ-לוס": 55,
                             },
-                            color_columns={"שינוי (%)"},
+                            color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
                             color_fns={
                                 "תגובת יתר": _score_color, "איכות פונדמנטלית": _score_color,
                                 "סיווג ריבאונד": lambda v: _TIER_COLOR.get(v, NEUTRAL_COLOR),
