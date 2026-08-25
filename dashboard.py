@@ -1760,7 +1760,7 @@ with _tab_slot_movers.container():
                 )
                 _MOVERS_COLUMNS = [
                     ("שם_וטיקר", "מניה"), ("שינוי יומי (%)", _daily_label),
-                    ("שינוי 3 ימי מסחר (%)", _movers_cumulative_label), ("שער", "שער"),
+                    ("שינוי 3 ימי מסחר (%)", _movers_cumulative_label), ("שער", "שער נוכחי"),
                 ]
 
                 def _render(sub_df: pd.DataFrame) -> None:
