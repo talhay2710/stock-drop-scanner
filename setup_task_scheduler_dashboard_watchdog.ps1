@@ -23,7 +23,13 @@
 $ErrorActionPreference = "Stop"
 
 $ProjectDir = $PSScriptRoot
-$PythonExe = "C:\Users\talha\AppData\Local\Programs\Python\Python312\python.exe"
+# pythonw.exe (not python.exe): on Windows 11, Task Scheduler's -Hidden setting only
+# suppresses a classic conhost window - it does NOT stop Windows Terminal (the OS's
+# default console host) from popping up a new visible window to host any console
+# process, -Hidden or not. python.exe allocates a console; pythonw.exe doesn't, so
+# no console session is created and no Terminal window appears. Confirmed live
+# (2026-08-25): -Hidden alone still let a WindowsTerminal.exe -Embedding window open.
+$PythonExe = "C:\Users\talha\AppData\Local\Programs\Python\Python312\pythonw.exe"
 $LauncherTaskName = "StockDashboardLauncher"
 $WatchdogTaskName = "StockDashboardWatchdog"
 $WatchdogScriptPath = Join-Path $ProjectDir "watchdog_dashboard.vbs"
