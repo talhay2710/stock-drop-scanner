@@ -12,7 +12,7 @@ lookback_rally_days: 10
 rally_threshold_pct: 8.0
 overreaction_zscore: 2.0
 multi_day_window_days: 3
-multi_day_threshold_pct: 13.0
+multi_day_threshold_pct: 13.5
 position_size:
   ILS: 5000.0
   USD: 2500.0
