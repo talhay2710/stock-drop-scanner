@@ -29,7 +29,7 @@ $WatchdogTaskName = "StockDashboardWatchdog"
 $WatchdogScriptPath = Join-Path $ProjectDir "watchdog_dashboard.vbs"
 
 $LauncherAction = New-ScheduledTaskAction -Execute $PythonExe -Argument "-m streamlit run dashboard.py --server.port 8501 --server.headless true" -WorkingDirectory $ProjectDir
-$LauncherSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Days 0)
+$LauncherSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Days 0) -Hidden
 Register-ScheduledTask -TaskName $LauncherTaskName -Action $LauncherAction -Settings $LauncherSettings -Description "Launches the dashboard directly - only ever triggered on-demand by StockDashboardWatchdog, never on its own schedule" -Force
 
 $WatchdogAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$WatchdogScriptPath`"" -WorkingDirectory $ProjectDir
