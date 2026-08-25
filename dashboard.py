@@ -1868,15 +1868,15 @@ with _tab_slot_today.container():
                     return "🔴 "
 
                 def _rebound_cell_text(v) -> str:
-                    # v הוא "B (45)" - רוצים ויזואלית (קריאה מימין לשמאל): עיגול
-                    # בימין, אות באמצע, ציון בשמאל. <bdi> מזהה LTR (כי יש אות
-                    # לטינית) ומיישר לימין - אז כדי שהעיגול יצא הכי ימני צריך
-                    # לכתוב אותו אחרון בתוך ה-bdi (סדר הפוך מהקריאה הרצויה).
+                    # v הוא האות בלבד ("B") - הציון המשוקלל עבר לכרטיס ההתראה,
+                    # לא מוצג בטבלה יותר (25.8.2026, לסריקה נקייה יותר). רוצים
+                    # ויזואלית (קריאה מימין לשמאל): עיגול בימין, אות משמאלו.
+                    # <bdi> מזהה LTR (יש אות לטינית) ומיישר לימין - אז כדי
+                    # שהעיגול יצא הכי ימני צריך לכתוב אותו אחרון בתוך ה-bdi.
                     if pd.isna(v):
                         return "—"
-                    tier, _, score_part = v.partition(" ")
-                    emoji = _REBOUND_TIER_EMOJI.get(tier, "")
-                    return f"<bdi>{score_part} {tier} {emoji}</bdi>"
+                    emoji = _REBOUND_TIER_EMOJI.get(v, "")
+                    return f"<bdi>{v} {emoji}</bdi>"
 
                 # מטבע לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני), בדיוק כמו
                 # שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py).
@@ -1903,19 +1903,6 @@ with _tab_slot_today.container():
                     if not _current_changes_df.empty else {}
                 )
                 todays_display_src["current_pct_change"] = todays_display_src["ticker"].map(_current_changes_map)
-
-                # מוסיפים את הציון המשוקלל ליד האות (למשל "B (52)") - אותה נוסחה
-                # בדיוק ששימשה לחישוב הסיווג עצמו (analysis.classify_rebound_from_scores).
-                todays_display_src["weighted_score"] = todays_display_src.apply(
-                    lambda r: round(analysis.weighted_rebound_score(
-                        r["overreaction_score"], r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
-                    )) if pd.notna(r["rebound_tier"]) else None,
-                    axis=1,
-                )
-                todays_display_src["rebound_tier"] = todays_display_src.apply(
-                    lambda r: f"{r['rebound_tier']} ({int(r['weighted_score'])})" if pd.notna(r["rebound_tier"]) else r["rebound_tier"],
-                    axis=1,
-                )
 
                 alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
@@ -2011,6 +1998,11 @@ with _tab_slot_today.container():
 
                         _rebound_labels = {"A": "🟢 A - סיכוי גבוה לריבאונד", "B": "🟡 B - סיכוי אפשרי", "C": "🔴 C - סיכוי נמוך"}
                         _rebound_text = _rebound_labels.get(r.get("rebound_tier"), "⚪ לא זמין (נסרק לפני העדכון)")
+                        if pd.notna(r.get("rebound_tier")):
+                            _rb_score = analysis.weighted_rebound_score(
+                                r["overreaction_score"], r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
+                            )
+                            _rebound_text += f" (ציון משוקלל: {round(_rb_score)}/100)"
                         _quality_tier = r.get("quality_tier")
                         _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
                         _quality_text = (
