@@ -1924,7 +1924,7 @@ with _tab_slot_today.container():
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
                 _rebound_header_label = (
-                    f'סיווג ריבאונד <span title="ציון משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
+                    f'סיווג ריבאונד <span title="משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
                     'style="cursor:help;">ℹ️</span>'
                 )
                 if _is_fallback_day:
