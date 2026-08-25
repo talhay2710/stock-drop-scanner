@@ -79,7 +79,7 @@ from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync
-from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today
+from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now
 
 st.set_page_config(page_title="סורק מניות", layout="wide")
 
@@ -1842,10 +1842,19 @@ with _tab_slot_today.container():
             if df.empty:
                 st.info("אין עדיין התראות שמורות. הרץ סריקה כדי להתחיל.")
             else:
-                # תאריך היום בפועל, לא "התאריך המקסימלי שנרשם אי פעם" - אחרת אם
-                # עוד לא נרשמה התראה היום, הכרטיס הזה מציג בשקט את ההתראות של
-                # אתמול תחת הכותרת "היום", מטעה.
-                todays_alerts = df[df["scan_date"] == israel_today().isoformat()]
+                # תאריך היום בפועל, לא "התאריך המקסימלי שנרשם אי פעם". אם עוד
+                # לא נרשמה התראה היום (למשל לפני פתיחת המסחר, או בסופ"ש) -
+                # נופלים חזרה בגלוי ליום המסחר האחרון שכן יש בו נתונים, עם
+                # תיוג ברור של התאריך (25.8.2026, בהחלטה משותפת עם המשתמש).
+                # אבל רק עד 9:58 - שתי דקות לפני פתיחת המסחר בת"א (9:59/10:00) -
+                # כי מהרגע הזה זה כבר "יום מסחר חדש שמתחיל", ולא הגיוני להמשיך
+                # להציג את היום הקודם כאילו הוא עדיין רלוונטי.
+                _today_iso = israel_today().isoformat()
+                todays_alerts = df[df["scan_date"] == _today_iso]
+                _is_fallback_day = todays_alerts.empty and israel_now().time() < dt.time(9, 58)
+                if _is_fallback_day:
+                    _last_scan_date = df["scan_date"].max()
+                    todays_alerts = df[df["scan_date"] == _last_scan_date]
 
                 _REBOUND_TIER_EMOJI = {"A": "🟢", "B": "🟡", "C": "🔴"}
 
@@ -1927,34 +1936,43 @@ with _tab_slot_today.container():
                     f'סיווג ריבאונד <span title="ציון משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
                     'style="cursor:help;">ℹ️</span>'
                 )
+                if _is_fallback_day:
+                    _fallback_date_text = dt.date.fromisoformat(_last_scan_date).strftime("%d.%m")
+                    _today_header_text = f"{len(todays_alerts)} התראות מיום המסחר האחרון ({_fallback_date_text})"
+                else:
+                    _today_header_text = f"התראות היום ({len(todays_alerts)})"
+                _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 with st.container(border=True):
-                    st.image(render_text_image(f"התראות היום ({len(todays_alerts)})", POS_COLOR, font_size=17))
-                    st.markdown(
-                        _html_table(
-                            alerts_display,
-                            [("שם", "שם"), ("טיקר", "טיקר"),
-                             ("שינוי בזמן התראה", "שינוי בזמן התראה"), ("שינוי נוכחי", "שינוי נוכחי"),
-                             ("תגובת יתר", "תגובת יתר"), ("איכות פונדמנטלית", "איכות פונדמנטלית"),
-                             ("סיווג ריבאונד", _rebound_header_label),
-                             ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
-                            formatters={
-                                "שינוי בזמן התראה": lambda v: _signed_num(v, 2, "%"),
-                                "שינוי נוכחי": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
-                                "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
-                                "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
-                                "סיווג ריבאונד": _rebound_cell_text,
-                            },
-                            truncate_columns={
-                                "שם": 140, "טיקר": 115, "שינוי בזמן התראה": 115, "שינוי נוכחי": 115,
-                                "תגובת יתר": 115, "איכות פונדמנטלית": 115,
-                                "סיווג ריבאונד": 115, "לימיט כניסה": 115, "יעד מכירה": 115, "סטופ-לוס": 115,
-                            },
-                            wrap_headers=False,
-                            color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
-                            max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
-                        ),
-                        unsafe_allow_html=True,
-                    )
+                    st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
+                    if _no_new_alerts_yet:
+                        st.info("אין התראות חדשות במסחר הנוכחי.")
+                    else:
+                        st.markdown(
+                            _html_table(
+                                alerts_display,
+                                [("שם", "שם"), ("טיקר", "טיקר"),
+                                 ("שינוי בזמן התראה", "שינוי בזמן התראה"), ("שינוי נוכחי", "שינוי נוכחי"),
+                                 ("תגובת יתר", "תגובת יתר"), ("איכות פונדמנטלית", "איכות פונדמנטלית"),
+                                 ("סיווג ריבאונד", _rebound_header_label),
+                                 ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
+                                formatters={
+                                    "שינוי בזמן התראה": lambda v: _signed_num(v, 2, "%"),
+                                    "שינוי נוכחי": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                                    "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
+                                    "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
+                                    "סיווג ריבאונד": _rebound_cell_text,
+                                },
+                                truncate_columns={
+                                    "שם": 140, "טיקר": 115, "שינוי בזמן התראה": 115, "שינוי נוכחי": 115,
+                                    "תגובת יתר": 115, "איכות פונדמנטלית": 115,
+                                    "סיווג ריבאונד": 115, "לימיט כניסה": 115, "יעד מכירה": 115, "סטופ-לוס": 115,
+                                },
+                                wrap_headers=False,
+                                color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
+                                max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
+                            ),
+                            unsafe_allow_html=True,
+                        )
 
                 for _, r in todays_alerts.iterrows():
                     _expander_name = r.get("company_name") or r["ticker"]
