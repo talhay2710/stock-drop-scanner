@@ -31,6 +31,16 @@ def _write_example_config_from_local() -> None:
 
 _MAX_PUSH_ATTEMPTS = 10
 
+# בלי creationflags=CREATE_NO_WINDOW, כל קריאה ל-git.exe מהדשבורד המקומי
+# (שרץ תחת pythonw.exe - ללא קונסולה משלו, ר' setup_task_scheduler_dashboard_watchdog.ps1)
+# פותחת חלון קונסולה נפרד משלה - עד 4 חלונות שחורים על כל שמירת הגדרה אחת.
+# לא רלוונטי בענן (Linux) - creationflags הוא פרמטר ספציפי ל-Windows בלבד.
+_NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+
+
+def _git_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
+    return subprocess.run(args, **kwargs, **_NO_WINDOW)
+
 
 def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     """מעדכן config.example.yaml מתוך config.yaml המקומי (בלי סודות), ודוחף
@@ -63,25 +73,25 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     paths = ["config.example.yaml", "alerts.db"] if include_db else ["config.example.yaml"]
     try:
         _write_example_config_from_local()
-        subprocess.run(_git + ["add"] + paths, check=True, capture_output=True, timeout=15)
-        diff = subprocess.run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
+        _git_run(_git + ["add"] + paths, check=True, capture_output=True, timeout=15)
+        diff = _git_run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
         if diff.returncode == 0:
             return "no_change"
 
         msg = f"Sync from local: {reason}" if reason else "Sync from local"
-        subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+        _git_run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
 
         for attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
-            push = subprocess.run(_git + ["push", "--quiet"], capture_output=True, timeout=45)
+            push = _git_run(_git + ["push", "--quiet"], capture_output=True, timeout=45)
             if push.returncode == 0:
                 return "pushed"
             logger.warning(
                 "push נדחה (ניסיון %d/%d) - מסתנכרן מחדש עם origin: %s",
                 attempt, _MAX_PUSH_ATTEMPTS, push.stderr.decode("utf-8", "replace").strip(),
             )
-            subprocess.run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
-            subprocess.run(_git + ["reset", "--soft", "origin/master"], check=True, capture_output=True, timeout=15)
-            subprocess.run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+            _git_run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+            _git_run(_git + ["reset", "--soft", "origin/master"], check=True, capture_output=True, timeout=15)
+            _git_run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
 
         logger.warning("סנכרון לענן נכשל (%s): push נדחה %d פעמים ברציפות", reason, _MAX_PUSH_ATTEMPTS)
         return "failed"
