@@ -1282,7 +1282,10 @@ def _autosave_position():
         "ILS": st.session_state.get("settings_position_ils"),
         "USD": st.session_state.get("settings_position_usd"),
     }
-    cfg.pop("max_position_size", None)
+    cfg["max_position_size"] = {
+        "ILS": st.session_state.get("settings_max_position_ils"),
+        "USD": st.session_state.get("settings_max_position_usd"),
+    }
     cfg["risk_pct_per_trade"] = st.session_state.get("settings_risk_pct")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
@@ -1354,11 +1357,7 @@ with st.sidebar:
 
     with st.expander("💵 השקעה ויעד רווח"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה.")
-
-        # שני מקטעים ברורים: מה שאתה קובע, ואז מה שיוצא מזה בפועל - במקום לערבב
-        # שדות לעריכה עם שדות תצוגה זה לצד זה (בקשת המשתמש 26.8.2026, אחרי
-        # שהגרסה הקודמת הרגישה "מסורבל"/"בלאגן").
-        st.markdown("**סכום השקעה**")
+        st.markdown("**סכום השקעה מינימלי**")
         ps1, ps2 = st.columns(2)
         ps1.number_input(
             'ש"ח', min_value=0.0, step=500.0,
@@ -1370,6 +1369,36 @@ with st.sidebar:
             value=float(cfg.get("position_size", {}).get("USD", 10000)),
             key="settings_position_usd", on_change=_autosave_position,
         )
+        st.markdown("**תקרת השקעה מקסימלית**")
+        mx1, mx2 = st.columns(2)
+        mx1.number_input(
+            'ש"ח', min_value=0.0, step=500.0,
+            value=float(cfg.get("max_position_size", {}).get("ILS", 30000)),
+            key="settings_max_position_ils", on_change=_autosave_position,
+        )
+        mx2.number_input(
+            "$", min_value=0.0, step=500.0,
+            value=float(cfg.get("max_position_size", {}).get("USD", 30000)),
+            key="settings_max_position_usd", on_change=_autosave_position,
+        )
+        st.markdown(
+            "**שווי התיק הכולל**",
+            help="שווי נוכחי של אחזקות פתוחות. קובע את גודל ההשקעה מבוסס-הסיכון.",
+        )
+        _account_size_conn = store.get_conn(db_path(cfg))
+        try:
+            _account_size_by_ccy = compute_holdings_value_by_currency(
+                _account_size_conn, price_fetcher=get_current_price,
+            )
+        finally:
+            _account_size_conn.close()
+        as1, as2 = st.columns(2)
+        as1.number_input(
+            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True,
+        )
+        as2.number_input(
+            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True,
+        )
         st.markdown(
             "**סיכון לעסקה (% מהתיק)**",
             help="קובע את גודל הפוזיציה בהתאם לסטופ-לוס.",
@@ -1378,48 +1407,6 @@ with st.sidebar:
             "סיכון לעסקה", min_value=0.1, max_value=10.0, step=0.05,
             value=float(cfg.get("risk_pct_per_trade", 0.75)), label_visibility="collapsed",
             key="settings_risk_pct", on_change=_autosave_position,
-        )
-
-        st.divider()
-
-        _account_size_conn = store.get_conn(db_path(cfg))
-        try:
-            _account_size_by_ccy = compute_holdings_value_by_currency(
-                _account_size_conn, price_fetcher=get_current_price,
-            )
-        finally:
-            _account_size_conn.close()
-        st.markdown(
-            "**שווי התיק הכולל**",
-            help="שווי נוכחי של אחזקות פתוחות. קובע את גודל ההשקעה מבוסס-הסיכון.",
-        )
-        as1, as2 = st.columns(2)
-        as1.number_input(
-            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, key="preview_account_ils",
-        )
-        as2.number_input(
-            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, key="preview_account_usd",
-        )
-
-        # "סכום השקעה" למעלה כבר *הוא* גודל ההשקעה בפועל (בטווח צר של 70%-130%
-        # ממנו כשיש אחזקות פתוחות - ר' fees.compute_risk_based_position_size) -
-        # לא מציגים כאן עוד מינימום/מקסימום נפרדים, זה כפילות מבלבלת (בקשת
-        # המשתמש 26.8.2026: "או שכותבים סכום השקעה או מינימום ומקסימום - אי
-        # אפשר את שניהם"). המספר החדש היחיד שבאמת שווה להראות הוא סכום הסיכון
-        # בשקלים - זה המידע שלא ניתן לגזור בעין ממה שכבר מוזן למעלה.
-        _prev_risk_pct = st.session_state.get("settings_risk_pct", 0.75)
-        st.markdown(
-            "**סכום סיכון לעסקה**",
-            help="כמה כסף אתה מפסיד בעסקה אחת, אם המחיר יגיע לסטופ-לוס.",
-        )
-        rc1, rc2 = st.columns(2)
-        rc1.number_input(
-            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0) * _prev_risk_pct / 100.0), disabled=True,
-            key="preview_risk_amount_ils",
-        )
-        rc2.number_input(
-            "$", value=float(_account_size_by_ccy.get("USD", 0.0) * _prev_risk_pct / 100.0), disabled=True,
-            key="preview_risk_amount_usd",
         )
 
     with st.expander("📈 התראת אחזקות"):

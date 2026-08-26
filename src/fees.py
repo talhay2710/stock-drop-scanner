@@ -32,6 +32,7 @@ def compute_risk_based_position_size(
     stop_price: float,
     risk_amount: float,
     reference_size: float,
+    max_size: float,
 ) -> float:
     """גודל השקעה לפי כמה מוכן להפסיד, לא לפי כמה רוצה להרוויח - הפוך מהגישה
     הקודמת (compute_dynamic_position_size, שהוסרה): זו הייתה מגדילה את הגודל
@@ -39,15 +40,13 @@ def compute_risk_based_position_size(
     דווקא כשהביטחון בעסקה נמוך יותר - הפוך מניהול סיכונים תקין. כאן: קובעים
     כמה מוכן להפסיד בעסקה בודדת (risk_amount), ומחלקים במרחק הסטופ באחוזים -
     סטופ קרוב (עסקה "בטוחה" יותר) מאפשר פוזיציה גדולה יותר לאותו סיכון קבוע,
-    סטופ רחוק דורש פוזיציה קטנה יותר. הטווח מוגבל ל-70%-130% מ-reference_size
-    (היה max_size/0.2 מוגדרים בנפרד עד 26.8.2026) - בקשת המשתמש: הטווח הישן
-    (20%-300%) הרגיש "לא בשליטה" גם אם היה מבוסס-סיכון נכון; זה שומר על העיקרון
-    (סיכון קבוע בשקלים) אבל עם תנודתיות הרבה יותר צפויה סביב מה שהוגדר בפועל."""
+    סטופ רחוק דורש פוזיציה קטנה יותר. עדיין מוגבל ל-max_size, ולא יורד מתחת
+    ל-20% מ-reference_size (כדי לא "להיעלם" לגמרי בעסקאות עם סטופ רחוק מאוד)."""
     stop_distance_pct = (entry_price - stop_price) / entry_price
     if stop_distance_pct <= 0:
         return reference_size  # לא אמור לקרות (סטופ תמיד מתחת לכניסה) - נפילה בטוחה לגודל הבסיס
     size = risk_amount / stop_distance_pct
-    return min(max(size, reference_size * 0.7), reference_size * 1.3)
+    return min(max(size, reference_size * 0.2), max_size)
 
 
 def compute_net_result(
