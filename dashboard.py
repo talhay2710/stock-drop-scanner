@@ -1604,6 +1604,34 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     return table_html
 
 
+def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מצטבר") -> None:
+    """טבלת HTML קומפקטית בסגנון 'מניות מובילות' (מניה/שינוי יומי/מצטבר/שער
+    נוכחי) - משותפת בין הטאב ההוא לבין 'קרוב לסף התראה' בטאב ההתראות, ששניהם
+    מציגים בדיוק אותה צורת נתונים (פלט של get_all_changes)."""
+    sub_df = sub_df.copy()
+    sub_df["שם_וטיקר"] = sub_df.apply(
+        lambda r: f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"], axis=1
+    )
+    # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
+    # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
+    sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
+    st.markdown(
+        _html_table(
+            sub_df,
+            [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
+             ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")],
+            formatters={
+                "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%"),
+                "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+            },
+            color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
+            truncate_columns={"שם_וטיקר": 169, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58},
+            max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
+        ),
+        unsafe_allow_html=True,
+    )
+
+
 def _outcome_color_hex(label: str) -> str:
     if label == backtest.OUTCOME_LABELS_HE.get(backtest.HIT_TARGET):
         return POS_COLOR
@@ -1640,18 +1668,9 @@ with _tab_slot_movers.container():
             if movers_df.empty:
                 st.warning("לא התקבלו נתונים - אין חיבור למקור הנתונים.")
             else:
-                def _table_height(n_rows: int) -> int:
-                    return min(35 * (n_rows + 1) + 3, 2000)
-
-                _daily_label = "שינוי יומי"
-                _daily_col_width = 58
-
-                # שם וטיקר מאוחדים לעמודה אחת ("שם (טיקר)") - כמו בכרטיסי האחזקות/התראות -
-                # כדי לחסוך את הרוחב שהיה נדרש לשתי עמודות נפרדות בטבלה הצפופה הזו (שתי
-                # טבלאות זו לצד זו), ועדיין להציג את השם כמזהה ראשי (לא רק הטיקר).
                 # "(3 ימים)" בכותרת המצטבר עלה יקר מדי ברוחב (96px טבעי) - הועבר לאייקון
-                # ℹ️ עם טולטיפ בהובר (כמו בעמודת "סיווג ריבאונד" בטבלת ההתראות), במקום
-                # להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
+                # ▾ עם טולטיפ בהובר/לחיצה (כמו בעמודת "סיווג ריבאונד" בטבלת ההתראות),
+                # במקום להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
                 # title=... לבד (הובר בלבד) לא עובד במגע (טאבלט/מובייל) - אין hover.
                 # onclick עם alert עובד בלחיצה/הקשה בכל מכשיר, בלי תלות ב-hover.
@@ -1661,35 +1680,9 @@ with _tab_slot_movers.container():
                     f'onclick="alert(\'{_movers_tip_text}\')" '
                     f'style="cursor:pointer; color:#888;">▾</span>'
                 )
-                _MOVERS_COLUMNS = [
-                    ("שם_וטיקר", "מניה"), ("שינוי יומי (%)", _daily_label),
-                    ("שינוי מצטבר (%)", _movers_cumulative_label), ("שער", "שער נוכחי"),
-                ]
 
                 def _render(sub_df: pd.DataFrame) -> None:
-                    sub_df = sub_df.copy()
-                    sub_df["שם_וטיקר"] = sub_df.apply(
-                        lambda r: f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"], axis=1
-                    )
-                    # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת
-                    # ולא כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
-                    sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
-                    st.markdown(
-                        _html_table(
-                            sub_df, _MOVERS_COLUMNS,
-                            formatters={
-                                "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%"),
-                                "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
-                            },
-                            color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
-                            truncate_columns={
-                                "שם_וטיקר": 169, "שינוי יומי (%)": _daily_col_width,
-                                "שינוי מצטבר (%)": 58, "שער": 58,
-                            },
-                            max_height=_table_height(len(sub_df)),
-                        ),
-                        unsafe_allow_html=True,
-                    )
+                    _render_movers_style_table(sub_df, cumulative_label=_movers_cumulative_label)
 
                 up_df = movers_df[movers_df["שינוי יומי (%)"] >= 0].sort_values("שינוי יומי (%)", ascending=False)
                 down_df = movers_df[movers_df["שינוי יומי (%)"] < 0].sort_values("שינוי יומי (%)")
@@ -1749,24 +1742,6 @@ with _tab_slot_movers.container():
                     with st.container(border=True):
                         _section_header(POS_COLOR, "בעלייה", len(up_df))
                         _render(up_df)
-
-            scanning_threshold = abs(cfg.get("drop_threshold_pct", 3.0))
-            near_miss_frames = []
-            for scanned_idx in (cfg.get("indices") or []):
-                idx_df = get_all_changes(scanned_idx)
-                if idx_df.empty:
-                    continue
-                near_miss_frames.append(idx_df[
-                    (idx_df["שינוי יומי (%)"] < -scanning_threshold * 0.8) &
-                    (idx_df["שינוי יומי (%)"] >= -scanning_threshold)
-                ])
-            near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
-
-            with st.container(border=True):
-                st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
-                st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב.")
-                if not near_miss_df.empty:
-                    _render(near_miss_df)
 
             _wl_conn = store.get_conn(db_path(cfg))
             _wl_items = store.get_watchlist(_wl_conn)
@@ -2285,6 +2260,26 @@ with _tab_slot_today.container():
                                         f"תישלח התראה כש{r.get('company_name') or r['ticker']} "
                                         f"מגיעה לשינוי יומי של {_ra_pct:+.1f}%."
                                     )
+
+            # "קרוב לסף התראה" - הועבר לכאן מטאב "מניות מובילות" (26.8.2026): קונספטואלית
+            # זה צפי להתראה עתידית (מבוסס על סף ההתראה), לא עיון במניות כמו שאר הטאב ההוא.
+            scanning_threshold = abs(cfg.get("drop_threshold_pct", 3.0))
+            near_miss_frames = []
+            for scanned_idx in (cfg.get("indices") or []):
+                idx_df = get_all_changes(scanned_idx)
+                if idx_df.empty:
+                    continue
+                near_miss_frames.append(idx_df[
+                    (idx_df["שינוי יומי (%)"] < -scanning_threshold * 0.8) &
+                    (idx_df["שינוי יומי (%)"] >= -scanning_threshold)
+                ])
+            near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
+
+            with st.container(border=True):
+                st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
+                st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב.")
+                if not near_miss_df.empty:
+                    _render_movers_style_table(near_miss_df)
 
         _render_today_tab()
 
