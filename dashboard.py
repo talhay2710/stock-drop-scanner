@@ -1379,10 +1379,10 @@ with st.sidebar:
             _account_size_conn.close()
         as1, as2 = st.columns(2)
         as1.number_input(
-            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True,
+            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, key="preview_account_ils",
         )
         as2.number_input(
-            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True,
+            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, key="preview_account_usd",
         )
         st.markdown(
             "**סיכון לעסקה (% מהתיק)**",
@@ -1410,20 +1410,22 @@ with st.sidebar:
         rc1, rc2 = st.columns(2)
         rc1.number_input(
             'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0) * _prev_risk_pct / 100.0), disabled=True,
+            key="preview_risk_amount_ils",
         )
         rc2.number_input(
             "$", value=float(_account_size_by_ccy.get("USD", 0.0) * _prev_risk_pct / 100.0), disabled=True,
+            key="preview_risk_amount_usd",
         )
 
         st.markdown("**גודל השקעה מינימלי בפועל**")
         mn1, mn2 = st.columns(2)
-        mn1.number_input('ש"ח', value=float(_prev_position_ils * 0.7), disabled=True)
-        mn2.number_input("$", value=float(_prev_position_usd * 0.7), disabled=True)
+        mn1.number_input('ש"ח', value=float(_prev_position_ils * 0.7), disabled=True, key="preview_min_ils")
+        mn2.number_input("$", value=float(_prev_position_usd * 0.7), disabled=True, key="preview_min_usd")
 
         st.markdown("**גודל השקעה מקסימלי בפועל**")
         mx1, mx2 = st.columns(2)
-        mx1.number_input('ש"ח', value=float(_prev_position_ils * 1.3), disabled=True)
-        mx2.number_input("$", value=float(_prev_position_usd * 1.3), disabled=True)
+        mx1.number_input('ש"ח', value=float(_prev_position_ils * 1.3), disabled=True, key="preview_max_ils")
+        mx2.number_input("$", value=float(_prev_position_usd * 1.3), disabled=True, key="preview_max_usd")
 
         if _account_size_by_ccy.get("ILS", 0.0) <= 0 and _account_size_by_ccy.get("USD", 0.0) <= 0:
             st.caption("אין אחזקות פתוחות - הטווח לא בתוקף כרגע, גודל ההשקעה הקבוע (\"סכום השקעה\" למעלה) חל במקומו.")
