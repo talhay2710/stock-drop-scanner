@@ -11,7 +11,7 @@ scan_interval_minutes: 5
 lookback_rally_days: 10
 rally_threshold_pct: 8.0
 overreaction_zscore: 2.0
-multi_day_window_days: 3
+multi_day_window_days: 4
 multi_day_threshold_pct: 20.0
 position_size:
   ILS: 5000.0
