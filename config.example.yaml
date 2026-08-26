@@ -46,4 +46,4 @@ holdings_stop_warn_pct: 1.0
 holdings_target_warn_pct: 0.5
 max_position_size:
   ILS: 30000.0
-  USD: 30000.0
+  USD: 5000.0
