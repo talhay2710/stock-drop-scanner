@@ -1238,6 +1238,7 @@ def _autosave_settings():
     cfg["indices"] = new_indices
     cfg.pop("index", None)
     cfg["drop_threshold_pct"] = st.session_state.get("settings_threshold")
+    cfg["multi_day_window_days"] = st.session_state.get("settings_multi_day_days")
     cfg["multi_day_threshold_pct"] = st.session_state.get("settings_multi_day_threshold")
     cfg["multi_day_enabled"] = st.session_state.get("settings_multi_day_enabled", True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -1319,7 +1320,15 @@ with st.sidebar:
         )
         tc2.markdown("<div style='padding-top:10px;'>%</div>", unsafe_allow_html=True)
 
-        st.markdown(f"**📉 ירידה מצטברת ({cfg.get('multi_day_window_days', 3)} ימים)**")
+        st.markdown("**📉 ירידה מצטברת**")
+        dc1, dc2 = st.columns([5, 1])
+        dc1.number_input(
+            "מספר ימים לירידה מצטברת", min_value=2, max_value=10, step=1,
+            value=int(cfg.get("multi_day_window_days", 3)), label_visibility="collapsed",
+            key="settings_multi_day_days", on_change=_autosave_settings,
+            disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
+        )
+        dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
         mc1, mc2 = st.columns([5, 1])
         mc1.number_input(
             "אחוז ירידה מצטברת שמפעיל התראה", min_value=0.5, max_value=50.0,
