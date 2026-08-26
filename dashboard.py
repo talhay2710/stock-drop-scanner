@@ -1773,7 +1773,7 @@ with _tab_slot_movers.container():
             _wl_conn.close()
 
             with st.container(border=True):
-                st.image(render_text_image(f"⭐ מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
+                st.image(render_text_image(f"מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
                 st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה.")
 
                 if not _wl_items:
