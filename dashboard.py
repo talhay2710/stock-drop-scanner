@@ -1840,7 +1840,7 @@ with _tab_slot_today.container():
                     )
                 with _pa_pct_col:
                     st.number_input(
-                        "שינוי מהמחיר הנוכחי (%)", step=0.5, format="%.2f",
+                        "שינוי מהמחיר החי (%)", step=0.5, format="%.2f",
                         key="price_alert_target_pct", on_change=_pa_sync_price_from_pct,
                         disabled=_pa_current is None,
                     )
@@ -1850,7 +1850,7 @@ with _tab_slot_today.container():
                 if _pa_current is not None and _pa_target > 0:
                     _pa_current_text = f"{_pa_current*100:,.0f} אג'" if _pa_is_il else f"${_pa_current:,.2f}"
                     _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_current else "יורדת מתחת ל"
-                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (מחיר נוכחי: {_pa_current_text}).")
+                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (מחיר חי: {_pa_current_text}).")
                 if st.button("✅ הוסף התראה", key="price_alert_add_btn"):
                     if _pa_target <= 0:
                         st.warning("יש למלא מחיר יעד לפני ההוספה.")
