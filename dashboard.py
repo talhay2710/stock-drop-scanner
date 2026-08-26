@@ -1479,7 +1479,7 @@ with st.sidebar:
 
 
 @st.cache_data(ttl=60)
-def get_all_changes(index_name: str) -> pd.DataFrame:
+def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
     tickers = constituents.get_constituents(index_name)
     df = market_data.fetch_universe_daily_changes(tickers)
     if df.empty:
@@ -1489,18 +1489,20 @@ def get_all_changes(index_name: str) -> pd.DataFrame:
     # בטאב "מניות מובילות", שמעדכן את כותרת העמודה בהתאם במקום להראות "יומי"
     # על נתון בן כמה ימים.
     df["is_stale"] = df.apply(lambda r: market_data.is_data_stale(r["last_close_date"], r["ticker"]), axis=1)
-    df["change_3d"] = df["history"].apply(market_data.compute_n_day_change_pct)
+    # שם העמודה לא כולל את מספר הימים (בניגוד למקור) - n_days ניתן לשינוי מהמשתמש
+    # בטאב עצמו, אז שם קבוע (לא "...3 ימי...") נמנע מפיצול מטמון סמוי לפי הכותרת.
+    df["change_nd"] = df["history"].apply(lambda h: market_data.compute_n_day_change_pct(h, n_days))
     df = df.sort_values("pct_change", ascending=False)
     df = df.rename(columns={
         "ticker": "טיקר", "last_close": "שער",
-        "pct_change": "שינוי יומי (%)", "change_3d": "שינוי 3 ימי מסחר (%)",
+        "pct_change": "שינוי יומי (%)", "change_nd": "שינוי מצטבר (%)",
     })
     if index_name.upper() in ("TA35", "TA125"):
         name_map = constituents.get_il_name_map(index_name)
     else:
         name_map = constituents.get_us_name_map(index_name)
     df["company_name"] = df["טיקר"].map(name_map).fillna("")
-    column_order = ["שער", "שינוי 3 ימי מסחר (%)", "שינוי יומי (%)", "טיקר", "company_name",
+    column_order = ["שער", "שינוי מצטבר (%)", "שינוי יומי (%)", "טיקר", "company_name",
                      "last_close_date", "is_stale"]
     return df[column_order]
 
@@ -1610,8 +1612,15 @@ with _tab_slot_movers.container():
             ערכים טריים בפועל."""
             scanning_indices = cfg.get("indices") or ALL_INDICES
             _default_idx = ALL_INDICES.index(scanning_indices[0]) if scanning_indices[0] in ALL_INDICES else 0
-            movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
-                                         index=_default_idx, format_func=lambda i: INDEX_LABELS[i])
+            _idx_col, _days_col = st.columns([3, 1])
+            with _idx_col:
+                movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
+                                             index=_default_idx, format_func=lambda i: INDEX_LABELS[i])
+            with _days_col:
+                movers_days = st.number_input(
+                    "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
+                    value=3, key="movers_cumulative_days",
+                )
             if movers_index not in scanning_indices:
                 st.caption(f"⚠ שים לב: {INDEX_LABELS[movers_index]} לא נמצא כרגע ברשימת המדדים שנסרקים להתראות (בסיידבר) - זו צפייה בלבד.")
 
@@ -1745,7 +1754,7 @@ with _tab_slot_movers.container():
                 _pa_conn.close()
 
             with st.spinner("טוען נתוני שוק..."):
-                movers_df = get_all_changes(movers_index)
+                movers_df = get_all_changes(movers_index, movers_days)
             if movers_df.empty:
                 st.warning("לא התקבלו נתונים - אין חיבור למקור הנתונים.")
             else:
@@ -1763,11 +1772,11 @@ with _tab_slot_movers.container():
                 # להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
                 _movers_cumulative_label = (
-                    'מצטבר <span title="שינוי מצטבר ב-3 ימי המסחר האחרונים&#10;כולל השינוי היומי" style="cursor:help;">ℹ️</span>'
+                    f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" style="cursor:help;">ℹ️</span>'
                 )
                 _MOVERS_COLUMNS = [
                     ("שם_וטיקר", "מניה"), ("שינוי יומי (%)", _daily_label),
-                    ("שינוי 3 ימי מסחר (%)", _movers_cumulative_label), ("שער", "שער נוכחי"),
+                    ("שינוי מצטבר (%)", _movers_cumulative_label), ("שער", "שער נוכחי"),
                 ]
 
                 def _render(sub_df: pd.DataFrame) -> None:
@@ -1781,12 +1790,12 @@ with _tab_slot_movers.container():
                             formatters={
                                 "שער": lambda v: f"{v:,.2f}",
                                 "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%"),
-                                "שינוי 3 ימי מסחר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                                "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
                             },
-                            color_columns={"שינוי יומי (%)", "שינוי 3 ימי מסחר (%)"},
+                            color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
                             truncate_columns={
                                 "שם_וטיקר": 169, "שינוי יומי (%)": _daily_col_width,
-                                "שינוי 3 ימי מסחר (%)": 58, "שער": 58,
+                                "שינוי מצטבר (%)": 58, "שער": 58,
                             },
                             max_height=_table_height(len(sub_df)),
                         ),
@@ -2953,8 +2962,9 @@ with st.container(border=True, key="market_panel"):
         # לחסום כמה שניות. זה חשוב כי בדיוק באותו חלון חסימה איטי הבחנו
         # שסטרימליט עלול להציג לרגע תוכן ישן מהטאב הקודם באזור הזה (למטה,
         # אחרי כל הטאבים) - לפני שהנתונים החדשים מגיעים ודוחקים אותו למקומו.
+        _warm_days = st.session_state.get("movers_cumulative_days", 3)
         for _warm_idx in (cfg.get("indices") or ALL_INDICES):
-            get_all_changes(_warm_idx)
+            get_all_changes(_warm_idx, _warm_days)
 
     _render_market_panel()
 
