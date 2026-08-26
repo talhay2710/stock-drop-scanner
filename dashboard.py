@@ -76,7 +76,7 @@ def render_text_image(text: str, color_hex: str, font_size: int = 26) -> Image.I
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.config import load_config, db_path, CONFIG_PATH
-from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT
+from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now
@@ -1286,12 +1286,6 @@ def _autosave_position():
         "ILS": st.session_state.get("settings_max_position_ils"),
         "USD": st.session_state.get("settings_max_position_usd"),
     }
-    account_size = {}
-    if st.session_state.get("settings_account_size_ils"):
-        account_size["ILS"] = st.session_state.get("settings_account_size_ils")
-    if st.session_state.get("settings_account_size_usd"):
-        account_size["USD"] = st.session_state.get("settings_account_size_usd")
-    cfg["account_size"] = account_size
     cfg["risk_pct_per_trade"] = st.session_state.get("settings_risk_pct")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
@@ -1388,21 +1382,22 @@ with st.sidebar:
             key="settings_max_position_usd", on_change=_autosave_position,
         )
         st.markdown(
-            "**גודל התיק הכולל (אופציונלי)**",
-            help="אם מוגדר, גודל ההשקעה בכל הצעה יחושב לפי כמה מוכן להפסיד "
-                 "בעסקה בודדת (אחוז מהתיק הכולל, חלקי מרחק הסטופ) - במקום גודל "
-                 "ההשקעה הרגיל הקבוע למעלה. 0 = כבוי.",
+            "**שווי התיק הכולל**",
+            help="שווי נוכחי של אחזקות פתוחות. קובע את גודל ההשקעה מבוסס-הסיכון.",
         )
+        _account_size_conn = store.get_conn(db_path(cfg))
+        try:
+            _account_size_by_ccy = compute_holdings_value_by_currency(
+                _account_size_conn, price_fetcher=get_current_price,
+            )
+        finally:
+            _account_size_conn.close()
         as1, as2 = st.columns(2)
         as1.number_input(
-            'ש"ח', min_value=0.0, step=1000.0,
-            value=float(cfg.get("account_size", {}).get("ILS", 0.0)),
-            key="settings_account_size_ils", on_change=_autosave_position,
+            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, key="preview_account_ils",
         )
         as2.number_input(
-            "$", min_value=0.0, step=1000.0,
-            value=float(cfg.get("account_size", {}).get("USD", 0.0)),
-            key="settings_account_size_usd", on_change=_autosave_position,
+            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, key="preview_account_usd",
         )
         st.markdown("**סיכון לעסקה (% מהתיק)**")
         st.number_input(
