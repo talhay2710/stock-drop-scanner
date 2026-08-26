@@ -1825,11 +1825,18 @@ with _tab_slot_movers.container():
                     st.markdown(
                         """
                         <style>
+                        div[class*="st-key-movers_days_row"] {
+                            margin-top: -14px;
+                        }
                         div[class*="st-key-movers_days_row"] div[data-testid="stHorizontalBlock"] {
                             gap: 6px !important; align-items: center !important;
                         }
-                        div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:first-child {
+                        div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:first-child,
+                        div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
                             width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
+                        }
+                        div[class*="st-key-movers_days_row"] div[data-testid="stNumberInput"] {
+                            width: 90px !important;
                         }
                         </style>
                         """,
