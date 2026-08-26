@@ -1790,23 +1790,25 @@ with _tab_slot_movers.container():
                         _wl_current = get_current_price(it["ticker"])
                         if _wl_current is None:
                             _wl_current = _r["last_close"]
+                        _wl_days_held = (dt.datetime.now() - dt.datetime.fromisoformat(it["added_at"])).days
                         _wl_rows.append({
                             "id": it["id"],
                             "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
                             "שער קנייה": _price_text(it["entry_price"], it["index_name"]),
                             "שינוי יומי (%)": _r["pct_change"],
                             "תשואה (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
+                            "ימי אחזקה": _wl_days_held,
                         })
-                    _wl_col_ratios = [3, 1.3, 1.3, 1.3, 0.6]
+                    _wl_col_ratios = [3, 1.3, 1.3, 1.3, 1.1, 0.6]
                     _wl_header_cols = st.columns(_wl_col_ratios)
                     for _wl_h_col, _wl_h_text in zip(
-                        _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", ""],
+                        _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", "ימי אחזקה", ""],
                     ):
                         with _wl_h_col:
                             st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
 
                     for _wl_row in _wl_rows:
-                        _wl_name_col, _wl_entry_col, _wl_daily_col, _wl_yield_col, _wl_del_col = (
+                        _wl_name_col, _wl_entry_col, _wl_daily_col, _wl_yield_col, _wl_days_col, _wl_del_col = (
                             st.columns(_wl_col_ratios)
                         )
                         with _wl_name_col:
@@ -1827,6 +1829,8 @@ with _tab_slot_movers.container():
                                         f'{_signed_num(_wl_val, 2, "%")}</span>',
                                         unsafe_allow_html=True,
                                     )
+                        with _wl_days_col:
+                            st.write(_wl_row["ימי אחזקה"])
                         with _wl_del_col:
                             if st.button("🗑️", key=f"watchlist_remove_{_wl_row['id']}"):
                                 _wl_remove_conn = store.get_conn(db_path(cfg))
