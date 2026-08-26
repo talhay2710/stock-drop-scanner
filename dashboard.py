@@ -1378,7 +1378,11 @@ with st.sidebar:
         as2.number_input(
             "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True,
         )
-        st.markdown("**סיכון לעסקה (% מהתיק)**")
+        st.markdown(
+            "**סיכון לעסקה (% מהתיק)**",
+            help="כמה מוכן להפסיד בעסקה בודדת אם הסטופ-לוס ייפגע. קובע כמה "
+                 "מניות לקנות - לא את מיקום הסטופ עצמו.",
+        )
         st.number_input(
             "סיכון לעסקה", min_value=0.1, max_value=10.0, step=0.05,
             value=float(cfg.get("risk_pct_per_trade", 0.75)), label_visibility="collapsed",
