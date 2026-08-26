@@ -1394,15 +1394,13 @@ with st.sidebar:
             key="settings_risk_pct", on_change=_autosave_position,
         )
 
-        # תצוגה חיה של המשמעות בפועל של ההגדרות למעלה - נגזרת מדויקת מאותה נוסחה
-        # בדיוק כמו ב-scanner.py (fees.compute_risk_based_position_size): גודל
-        # ההשקעה בפועל נשאר בטווח 70%-130% מ"סכום השקעה" (ר' שם) כשיש אחזקות
-        # פתוחות, כדי שההתראות בפועל יהיו מדויקות בדיוק לפי מה שמוגדר כאן.
-        st.markdown("**המשמעות בפועל**")
+        # "סכום השקעה" למעלה כבר *הוא* גודל ההשקעה בפועל (בטווח צר של 70%-130%
+        # ממנו כשיש אחזקות פתוחות - ר' fees.compute_risk_based_position_size) -
+        # לא מציגים כאן עוד מינימום/מקסימום נפרדים, זה כפילות מבלבלת (בקשת
+        # המשתמש 26.8.2026: "או שכותבים סכום השקעה או מינימום ומקסימום - אי
+        # אפשר את שניהם"). המספר החדש היחיד שבאמת שווה להראות הוא סכום הסיכון
+        # בשקלים - זה המידע שלא ניתן לגזור בעין ממה שכבר מוזן למעלה.
         _prev_risk_pct = st.session_state.get("settings_risk_pct", 0.75)
-        _prev_position_ils = st.session_state.get("settings_position_ils", 0.0)
-        _prev_position_usd = st.session_state.get("settings_position_usd", 0.0)
-
         st.markdown(
             "**סכום סיכון לעסקה**",
             help="כמה כסף אתה מפסיד בעסקה אחת, אם המחיר יגיע לסטופ-לוס.",
@@ -1416,19 +1414,6 @@ with st.sidebar:
             "$", value=float(_account_size_by_ccy.get("USD", 0.0) * _prev_risk_pct / 100.0), disabled=True,
             key="preview_risk_amount_usd",
         )
-
-        st.markdown("**גודל השקעה מינימלי בפועל**")
-        mn1, mn2 = st.columns(2)
-        mn1.number_input('ש"ח', value=float(_prev_position_ils * 0.7), disabled=True, key="preview_min_ils")
-        mn2.number_input("$", value=float(_prev_position_usd * 0.7), disabled=True, key="preview_min_usd")
-
-        st.markdown("**גודל השקעה מקסימלי בפועל**")
-        mx1, mx2 = st.columns(2)
-        mx1.number_input('ש"ח', value=float(_prev_position_ils * 1.3), disabled=True, key="preview_max_ils")
-        mx2.number_input("$", value=float(_prev_position_usd * 1.3), disabled=True, key="preview_max_usd")
-
-        if _account_size_by_ccy.get("ILS", 0.0) <= 0 and _account_size_by_ccy.get("USD", 0.0) <= 0:
-            st.caption("אין אחזקות פתוחות - הטווח לא בתוקף כרגע, גודל ההשקעה הקבוע (\"סכום השקעה\" למעלה) חל במקומו.")
 
     with st.expander("📈 התראת אחזקות"):
         st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'.")
