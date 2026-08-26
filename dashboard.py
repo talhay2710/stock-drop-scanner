@@ -1721,131 +1721,8 @@ with _tab_slot_movers.container():
                             value=3, key="movers_cumulative_days", label_visibility="collapsed",
                         )
 
-                _pa_count_conn = store.get_conn(db_path(cfg))
-                _pa_active_count = len(store.get_active_price_alerts(_pa_count_conn))
-                _pa_count_conn.close()
-
-                _btn_col, _ = st.columns(2, gap="medium")
-                with _btn_col:
-                    with st.container(key="movers_action_buttons"):
-                        st.markdown(
-                            """
-                            <style>
-                            div[class*="st-key-movers_action_buttons"] div[data-testid="stHorizontalBlock"] {
-                                gap: 4px !important;
-                            }
-                            div[class*="st-key-movers_action_buttons"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
-                                width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
-                            }
-                            </style>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        _refresh_col, _pa_toggle_col, _ = st.columns([1, 1, 1])
-                        with _refresh_col:
-                            if st.button("🔄 רענן נתוני שוק"):
-                                get_all_changes.clear()
-                        with _pa_toggle_col:
-                            _pa_label = f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית"
-                            if st.button(_pa_label):
-                                st.session_state["show_price_alerts"] = not st.session_state.get("show_price_alerts", False)
-
-                if st.session_state.get("show_price_alerts"):
-                    st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת.")
-                    _pa_conn = store.get_conn(db_path(cfg))
-                    _active_price_alerts = store.get_active_price_alerts(_pa_conn)
-
-                    if _active_price_alerts:
-                        for _a in _active_price_alerts:
-                            _a_name = _a.get("company_name") or _a["ticker"]
-                            _a_is_il = market_data._is_israeli_ticker(_a["ticker"])
-                            _a_target_text = f"{_a['target_price']*100:,.0f} אג'" if _a_is_il else f"${_a['target_price']:,.2f}"
-                            _a_dir = "מעל" if _a["direction"] == "above" else "מתחת ל"
-                            _a_col1, _a_col2 = st.columns([4, 1])
-                            with _a_col1:
-                                st.write(f"{_a_name} ({_a['ticker']}) - {_a_dir} {_a_target_text}")
-                            with _a_col2:
-                                if st.button("❌", key=f"cancel_price_alert_{_a['id']}"):
-                                    store.deactivate_price_alert(_pa_conn, _a["id"])
-                                    st.rerun()
-                        st.divider()
-
-                    _pa_index = st.selectbox(
-                        "מדד", ALL_INDICES,
-                        index=ALL_INDICES.index(movers_index) if movers_index in ALL_INDICES else 0,
-                        format_func=lambda i: INDEX_LABELS[i], key="price_alert_index",
-                    )
-                    _pa_tickers = constituents.get_constituents(_pa_index)
-                    _pa_name_map = (
-                        constituents.get_il_name_map(_pa_index) if _pa_index.upper() in ("TA35", "TA125")
-                        else constituents.get_us_name_map(_pa_index)
-                    )
-                    _pa_options = sorted(_pa_tickers, key=lambda t: _pa_name_map.get(t, t))
-                    _pa_labels = {t: f"{_pa_name_map.get(t, t)} ({t})" for t in _pa_options}
-                    _pa_chosen = st.selectbox(
-                        "מניה", _pa_options, format_func=lambda t: _pa_labels[t], key="price_alert_ticker",
-                    )
-                    _pa_is_il = market_data._is_israeli_ticker(_pa_chosen)
-                    _pa_current = get_current_price(_pa_chosen)
-                    _pa_unit_scale = 100.0 if _pa_is_il else 1.0
-
-                    # אם המניה הנבחרת השתנתה, מאפסים את שני השדות - אחרת ה-% הישן
-                    # (שחושב מול מחיר נוכחי של המניה הקודמת) יישאר מוצג בלי קשר
-                    # למחיר היעד שגם הוא כבר לא רלוונטי למניה החדשה.
-                    if st.session_state.get("_pa_last_ticker") != _pa_chosen:
-                        st.session_state["_pa_last_ticker"] = _pa_chosen
-                        st.session_state["price_alert_target"] = 0.0
-                        st.session_state["price_alert_target_pct"] = 0.0
-
-                    def _pa_sync_pct_from_price() -> None:
-                        if not _pa_current:
-                            return
-                        price_actual = st.session_state.get("price_alert_target", 0.0) / _pa_unit_scale
-                        if price_actual > 0:
-                            st.session_state["price_alert_target_pct"] = round((price_actual / _pa_current - 1) * 100.0, 2)
-
-                    def _pa_sync_price_from_pct() -> None:
-                        if not _pa_current:
-                            return
-                        pct = st.session_state.get("price_alert_target_pct", 0.0)
-                        price_actual = _pa_current * (1 + pct / 100.0)
-                        st.session_state["price_alert_target"] = round(price_actual * _pa_unit_scale, 0 if _pa_is_il else 2)
-
-                    _pa_price_col, _pa_pct_col = st.columns(2)
-                    with _pa_price_col:
-                        _pa_target_raw = st.number_input(
-                            "מחיר יעד" + (" (אג')" if _pa_is_il else " ($)"), min_value=0.0,
-                            format="%.2f", key="price_alert_target",
-                            on_change=_pa_sync_pct_from_price,
-                        )
-                    with _pa_pct_col:
-                        st.number_input(
-                            "שינוי מהמחיר הנוכחי (%)", step=0.5, format="%.2f",
-                            key="price_alert_target_pct", on_change=_pa_sync_price_from_pct,
-                            disabled=_pa_current is None,
-                        )
-                    _pa_target = (_pa_target_raw / 100.0) if _pa_is_il else _pa_target_raw
-                    # אין צורך לשאול "כיוון" - הוא נגזר אוטומטית מהשוואת היעד למחיר הנוכחי:
-                    # יעד מעל המחיר של עכשיו = מחכים שתעלה אליו, מתחת = מחכים שתרד אליו.
-                    if _pa_current is not None and _pa_target > 0:
-                        _pa_current_text = f"{_pa_current*100:,.0f} אג'" if _pa_is_il else f"${_pa_current:,.2f}"
-                        _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_current else "יורדת מתחת ל"
-                        st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (מחיר נוכחי: {_pa_current_text}).")
-                    if st.button("✅ הוסף התראה", key="price_alert_add_btn"):
-                        if _pa_target <= 0:
-                            st.warning("יש למלא מחיר יעד לפני ההוספה.")
-                        elif _pa_current is None:
-                            st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
-                        else:
-                            _pa_direction = "above" if _pa_target >= _pa_current else "below"
-                            store.add_price_alert(
-                                _pa_conn, _pa_chosen, _pa_name_map.get(_pa_chosen), _pa_index,
-                                _pa_target, _pa_direction,
-                            )
-                            st.session_state.pop("price_alert_target", None)
-                            st.session_state.pop("price_alert_target_pct", None)
-                            st.rerun()
-                    _pa_conn.close()
+                if st.button("🔄 רענן נתוני שוק"):
+                    get_all_changes.clear()
 
                 mc1, mc2 = st.columns(2, gap="medium")
                 with mc1:
@@ -1887,6 +1764,112 @@ with _tab_slot_today.container():
             שנטען פעם אחת בטעינת העמוד) כדי שהתראה חדשה שנוספה ברקע תופיע כאן
             לבד תוך דקה, בלי ריענון ידני של כל הדף."""
             df = load_alerts(db_path(cfg))
+
+            _pa_count_conn = store.get_conn(db_path(cfg))
+            _pa_active_count = len(store.get_active_price_alerts(_pa_count_conn))
+            _pa_count_conn.close()
+            _pa_label = f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית"
+            if st.button(_pa_label):
+                st.session_state["show_price_alerts"] = not st.session_state.get("show_price_alerts", False)
+
+            if st.session_state.get("show_price_alerts"):
+                st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת.")
+                _pa_conn = store.get_conn(db_path(cfg))
+                _active_price_alerts = store.get_active_price_alerts(_pa_conn)
+
+                if _active_price_alerts:
+                    for _a in _active_price_alerts:
+                        _a_name = _a.get("company_name") or _a["ticker"]
+                        _a_is_il = market_data._is_israeli_ticker(_a["ticker"])
+                        _a_target_text = f"{_a['target_price']*100:,.0f} אג'" if _a_is_il else f"${_a['target_price']:,.2f}"
+                        _a_dir = "מעל" if _a["direction"] == "above" else "מתחת ל"
+                        _a_col1, _a_col2 = st.columns([4, 1])
+                        with _a_col1:
+                            st.write(f"{_a_name} ({_a['ticker']}) - {_a_dir} {_a_target_text}")
+                        with _a_col2:
+                            if st.button("❌", key=f"cancel_price_alert_{_a['id']}"):
+                                store.deactivate_price_alert(_pa_conn, _a["id"])
+                                st.rerun()
+                    st.divider()
+
+                _pa_default_index = (cfg.get("indices") or ALL_INDICES)[0]
+                _pa_index = st.selectbox(
+                    "מדד", ALL_INDICES,
+                    index=ALL_INDICES.index(_pa_default_index) if _pa_default_index in ALL_INDICES else 0,
+                    format_func=lambda i: INDEX_LABELS[i], key="price_alert_index",
+                )
+                _pa_tickers = constituents.get_constituents(_pa_index)
+                _pa_name_map = (
+                    constituents.get_il_name_map(_pa_index) if _pa_index.upper() in ("TA35", "TA125")
+                    else constituents.get_us_name_map(_pa_index)
+                )
+                _pa_options = sorted(_pa_tickers, key=lambda t: _pa_name_map.get(t, t))
+                _pa_labels = {t: f"{_pa_name_map.get(t, t)} ({t})" for t in _pa_options}
+                _pa_chosen = st.selectbox(
+                    "מניה", _pa_options, format_func=lambda t: _pa_labels[t], key="price_alert_ticker",
+                )
+                _pa_is_il = market_data._is_israeli_ticker(_pa_chosen)
+                _pa_current = get_current_price(_pa_chosen)
+                _pa_unit_scale = 100.0 if _pa_is_il else 1.0
+
+                # אם המניה הנבחרת השתנתה, מאפסים את שני השדות - אחרת ה-% הישן
+                # (שחושב מול מחיר נוכחי של המניה הקודמת) יישאר מוצג בלי קשר
+                # למחיר היעד שגם הוא כבר לא רלוונטי למניה החדשה.
+                if st.session_state.get("_pa_last_ticker") != _pa_chosen:
+                    st.session_state["_pa_last_ticker"] = _pa_chosen
+                    st.session_state["price_alert_target"] = 0.0
+                    st.session_state["price_alert_target_pct"] = 0.0
+
+                def _pa_sync_pct_from_price() -> None:
+                    if not _pa_current:
+                        return
+                    price_actual = st.session_state.get("price_alert_target", 0.0) / _pa_unit_scale
+                    if price_actual > 0:
+                        st.session_state["price_alert_target_pct"] = round((price_actual / _pa_current - 1) * 100.0, 2)
+
+                def _pa_sync_price_from_pct() -> None:
+                    if not _pa_current:
+                        return
+                    pct = st.session_state.get("price_alert_target_pct", 0.0)
+                    price_actual = _pa_current * (1 + pct / 100.0)
+                    st.session_state["price_alert_target"] = round(price_actual * _pa_unit_scale, 0 if _pa_is_il else 2)
+
+                _pa_price_col, _pa_pct_col = st.columns(2)
+                with _pa_price_col:
+                    _pa_target_raw = st.number_input(
+                        "מחיר יעד" + (" (אג')" if _pa_is_il else " ($)"), min_value=0.0,
+                        format="%.2f", key="price_alert_target",
+                        on_change=_pa_sync_pct_from_price,
+                    )
+                with _pa_pct_col:
+                    st.number_input(
+                        "שינוי מהמחיר הנוכחי (%)", step=0.5, format="%.2f",
+                        key="price_alert_target_pct", on_change=_pa_sync_price_from_pct,
+                        disabled=_pa_current is None,
+                    )
+                _pa_target = (_pa_target_raw / 100.0) if _pa_is_il else _pa_target_raw
+                # אין צורך לשאול "כיוון" - הוא נגזר אוטומטית מהשוואת היעד למחיר הנוכחי:
+                # יעד מעל המחיר של עכשיו = מחכים שתעלה אליו, מתחת = מחכים שתרד אליו.
+                if _pa_current is not None and _pa_target > 0:
+                    _pa_current_text = f"{_pa_current*100:,.0f} אג'" if _pa_is_il else f"${_pa_current:,.2f}"
+                    _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_current else "יורדת מתחת ל"
+                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (מחיר נוכחי: {_pa_current_text}).")
+                if st.button("✅ הוסף התראה", key="price_alert_add_btn"):
+                    if _pa_target <= 0:
+                        st.warning("יש למלא מחיר יעד לפני ההוספה.")
+                    elif _pa_current is None:
+                        st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
+                    else:
+                        _pa_direction = "above" if _pa_target >= _pa_current else "below"
+                        store.add_price_alert(
+                            _pa_conn, _pa_chosen, _pa_name_map.get(_pa_chosen), _pa_index,
+                            _pa_target, _pa_direction,
+                        )
+                        st.session_state.pop("price_alert_target", None)
+                        st.session_state.pop("price_alert_target_pct", None)
+                        st.rerun()
+                _pa_conn.close()
+
             if df.empty:
                 st.info("אין עדיין התראות שמורות. הרץ סריקה כדי להתחיל.")
             else:
