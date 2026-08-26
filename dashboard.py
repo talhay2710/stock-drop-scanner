@@ -1769,10 +1769,7 @@ with _tab_slot_today.container():
             _pa_active_count = len(store.get_active_price_alerts(_pa_count_conn))
             _pa_count_conn.close()
             _pa_label = f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית"
-            if st.button(_pa_label):
-                st.session_state["show_price_alerts"] = not st.session_state.get("show_price_alerts", False)
-
-            if st.session_state.get("show_price_alerts"):
+            with st.expander(_pa_label):
                 st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת.")
                 _pa_conn = store.get_conn(db_path(cfg))
                 _active_price_alerts = store.get_active_price_alerts(_pa_conn)
