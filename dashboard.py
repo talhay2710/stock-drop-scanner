@@ -1830,7 +1830,7 @@ with _tab_slot_movers.container():
                                         unsafe_allow_html=True,
                                     )
                         with _wl_days_col:
-                            st.write(str(_wl_row["ימי אחזקה"]))
+                            st.write(f"{_wl_row['ימי אחזקה']:02d}")
                         with _wl_del_col:
                             if st.button("🗑️", key=f"watchlist_remove_{_wl_row['id']}"):
                                 _wl_remove_conn = store.get_conn(db_path(cfg))
