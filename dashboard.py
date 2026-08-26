@@ -1360,7 +1360,7 @@ with st.sidebar:
             key="settings_max_position_usd", on_change=_autosave_position,
         )
         st.markdown(
-            "**גודל התיק הכולל**",
+            "**שווי התיק הכולל**",
             help="שווי האחזקות הפתוחות שלך כרגע - מחושב אוטומטית. קובע את "
                  "גודל ההשקעה מבוסס-הסיכון.",
         )
