@@ -1835,29 +1835,6 @@ with _tab_slot_today.container():
                     price_actual = _pa_reference_price * (1 + pct / 100.0)
                     st.session_state["price_alert_target"] = round(price_actual * _pa_unit_scale, 0 if _pa_is_il else 2)
 
-                _pa_live_price = get_current_price(_pa_chosen)
-                _pa_prev_close = _pa_daily_df.iloc[0]["prev_close"] if not _pa_daily_df.empty else None
-                _pa_live_change_pct = (
-                    (_pa_live_price / _pa_prev_close - 1) * 100.0
-                    if (_pa_live_price is not None and _pa_prev_close) else None
-                )
-                _pa_current_price_col, _pa_current_pct_col = st.columns(2)
-                with _pa_current_price_col:
-                    st.number_input(
-                        "מחיר נוכחי" + (" (אג')" if _pa_is_il else " ($)"),
-                        value=(
-                            float(_pa_live_price * 100 if _pa_is_il else _pa_live_price)
-                            if _pa_live_price is not None else 0.0
-                        ),
-                        format="%.2f", disabled=True, key="price_alert_live_price_display",
-                    )
-                with _pa_current_pct_col:
-                    st.number_input(
-                        "אחוז נוכחי (%)",
-                        value=float(_pa_live_change_pct) if _pa_live_change_pct is not None else 0.0,
-                        format="%.2f", disabled=True, key="price_alert_live_pct_display",
-                    )
-
                 _pa_price_col, _pa_pct_col = st.columns(2)
                 with _pa_price_col:
                     _pa_target_raw = st.number_input(
@@ -1871,6 +1848,26 @@ with _tab_slot_today.container():
                         key="price_alert_target_pct", on_change=_pa_sync_price_from_pct,
                         disabled=_pa_reference_price is None,
                     )
+
+                _pa_live_price = get_current_price(_pa_chosen)
+                _pa_prev_close = _pa_daily_df.iloc[0]["prev_close"] if not _pa_daily_df.empty else None
+                _pa_live_change_pct = (
+                    (_pa_live_price / _pa_prev_close - 1) * 100.0
+                    if (_pa_live_price is not None and _pa_prev_close) else None
+                )
+                _pa_live_price_text = (
+                    (f"{_pa_live_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_live_price:,.2f}")
+                    if _pa_live_price is not None else "—"
+                )
+                _pa_live_change_text = (
+                    _signed_num(_pa_live_change_pct, 1, "%") if _pa_live_change_pct is not None else "—"
+                )
+                _pa_current_info_col1, _pa_current_info_col2 = st.columns(2)
+                with _pa_current_info_col1:
+                    st.caption(f"שער נוכחי: {_pa_live_price_text}")
+                with _pa_current_info_col2:
+                    st.caption(f"שינוי נוכחי: {_pa_live_change_text}")
+
                 _pa_target = (_pa_target_raw / 100.0) if _pa_is_il else _pa_target_raw
                 # אין צורך לשאול "כיוון" - הוא נגזר אוטומטית מהשוואת היעד לשער הנעילה:
                 # יעד מעל שער הנעילה = מחכים שתעלה אליו, מתחת = מחכים שתרד אליו.
