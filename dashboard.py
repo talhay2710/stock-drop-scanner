@@ -1396,25 +1396,37 @@ with st.sidebar:
 
         # תצוגה חיה של המשמעות בפועל של ההגדרות למעלה - נגזרת מדויקת מאותה נוסחה
         # בדיוק כמו ב-scanner.py (fees.compute_risk_based_position_size): גודל
-        # ההשקעה נשאר לפחות 20% מ"סכום השקעה" ולכל היותר פי 3 ממנו (ר' שם), כדי
-        # שההתראות בפועל יהיו מדויקות בדיוק לפי מה שמוגדר כאן - לא רק קירוב.
+        # ההשקעה בפועל נשאר בטווח 70%-130% מ"סכום השקעה" (ר' שם) כשיש אחזקות
+        # פתוחות, כדי שההתראות בפועל יהיו מדויקות בדיוק לפי מה שמוגדר כאן.
         st.markdown("**המשמעות בפועל**")
         _prev_risk_pct = st.session_state.get("settings_risk_pct", 0.75)
-        for _prev_ccy_symbol, _prev_position_key, _prev_ccy_key in (
-            ('ש"ח', "settings_position_ils", "ILS"), ("$", "settings_position_usd", "USD"),
-        ):
-            _prev_position = st.session_state.get(_prev_position_key, 0.0)
-            _prev_account = _account_size_by_ccy.get(_prev_ccy_key, 0.0)
-            if _prev_account > 0:
-                _prev_risk_amount = _prev_account * _prev_risk_pct / 100.0
-                _prev_floor = _prev_position * 0.2
-                _prev_cap = _prev_position * 3
-                st.caption(
-                    f"{_prev_ccy_symbol}: סיכון לעסקה = {_prev_risk_amount:,.0f} {_prev_ccy_symbol} | "
-                    f"גודל השקעה בפועל ינוע בין {_prev_floor:,.0f} ל-{_prev_cap:,.0f} {_prev_ccy_symbol}"
-                )
-            else:
-                st.caption(f"{_prev_ccy_symbol}: אין אחזקות פתוחות - גודל ההשקעה הקבוע ({_prev_position:,.0f} {_prev_ccy_symbol}) בתוקף")
+        _prev_position_ils = st.session_state.get("settings_position_ils", 0.0)
+        _prev_position_usd = st.session_state.get("settings_position_usd", 0.0)
+
+        st.markdown(
+            "**סכום סיכון לעסקה**",
+            help="כמה כסף אתה מפסיד בעסקה אחת, אם המחיר יגיע לסטופ-לוס.",
+        )
+        rc1, rc2 = st.columns(2)
+        rc1.number_input(
+            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0) * _prev_risk_pct / 100.0), disabled=True,
+        )
+        rc2.number_input(
+            "$", value=float(_account_size_by_ccy.get("USD", 0.0) * _prev_risk_pct / 100.0), disabled=True,
+        )
+
+        st.markdown("**גודל השקעה מינימלי בפועל**")
+        mn1, mn2 = st.columns(2)
+        mn1.number_input('ש"ח', value=float(_prev_position_ils * 0.7), disabled=True)
+        mn2.number_input("$", value=float(_prev_position_usd * 0.7), disabled=True)
+
+        st.markdown("**גודל השקעה מקסימלי בפועל**")
+        mx1, mx2 = st.columns(2)
+        mx1.number_input('ש"ח', value=float(_prev_position_ils * 1.3), disabled=True)
+        mx2.number_input("$", value=float(_prev_position_usd * 1.3), disabled=True)
+
+        if _account_size_by_ccy.get("ILS", 0.0) <= 0 and _account_size_by_ccy.get("USD", 0.0) <= 0:
+            st.caption("אין אחזקות פתוחות - הטווח לא בתוקף כרגע, גודל ההשקעה הקבוע (\"סכום השקעה\" למעלה) חל במקומו.")
 
     with st.expander("📈 התראת אחזקות"):
         st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'.")

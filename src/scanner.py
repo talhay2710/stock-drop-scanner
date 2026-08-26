@@ -571,7 +571,6 @@ def _scan_one_index(
     dedupe = cfg.get("dedupe_same_day", True)
 
     reference_position_size = cfg["position_size"].get(currency, 10000)
-    max_position_size = cfg.get("max_position_size", {}).get(currency, reference_position_size * 3)
     account_size = (holdings_value_by_ccy or {}).get(currency)
     risk_pct_per_trade = cfg.get("risk_pct_per_trade", 0.75)
     max_holding_days = cfg.get("assumed_holding_days", 5)
@@ -674,7 +673,6 @@ def _scan_one_index(
                 stop_price=trade_idea.stop_loss,
                 risk_amount=risk_amount,
                 reference_size=reference_position_size,
-                max_size=max_position_size,
             )
         else:
             position_size = reference_position_size
