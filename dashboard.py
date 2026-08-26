@@ -1612,15 +1612,8 @@ with _tab_slot_movers.container():
             ערכים טריים בפועל."""
             scanning_indices = cfg.get("indices") or ALL_INDICES
             _default_idx = ALL_INDICES.index(scanning_indices[0]) if scanning_indices[0] in ALL_INDICES else 0
-            _idx_col, _days_col = st.columns([3, 1])
-            with _idx_col:
-                movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
-                                             index=_default_idx, format_func=lambda i: INDEX_LABELS[i])
-            with _days_col:
-                movers_days = st.number_input(
-                    "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
-                    value=3, key="movers_cumulative_days",
-                )
+            movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
+                                         index=_default_idx, format_func=lambda i: INDEX_LABELS[i])
             if movers_index not in scanning_indices:
                 st.caption(f"⚠ שים לב: {INDEX_LABELS[movers_index]} לא נמצא כרגע ברשימת המדדים שנסרקים להתראות (בסיידבר) - זו צפייה בלבד.")
 
@@ -1753,6 +1746,10 @@ with _tab_slot_movers.container():
                         st.rerun()
                 _pa_conn.close()
 
+            # movers_days נקרא כאן לפי הערך שנשמר ב-session_state, כי ה-widget עצמו
+            # מוצג רק בהמשך הפונקציה (צמוד לעמודת "מצטבר" בטבלה, למטה) - הערך שממנו
+            # נטען כבר מסונכרן מהריצה הקודמת (או ברירת המחדל 3 בריצה הראשונה).
+            movers_days = st.session_state.get("movers_cumulative_days", 3)
             with st.spinner("טוען נתוני שוק..."):
                 movers_df = get_all_changes(movers_index, movers_days)
             if movers_df.empty:
@@ -1771,8 +1768,12 @@ with _tab_slot_movers.container():
                 # ℹ️ עם טולטיפ בהובר (כמו בעמודת "סיווג ריבאונד" בטבלת ההתראות), במקום
                 # להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
+                # title=... לבד (הובר בלבד) לא עובד במגע (טאבלט/מובייל) - אין hover.
+                # onclick עם alert עובד בלחיצה/הקשה בכל מכשיר, בלי תלות ב-hover.
+                _movers_tip_text = f"שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים\\nכולל השינוי היומי"
                 _movers_cumulative_label = (
                     f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
+                    f'onclick="alert(\'{_movers_tip_text}\')" '
                     f'style="cursor:pointer; color:#888;">▾</span>'
                 )
                 _MOVERS_COLUMNS = [
@@ -1819,6 +1820,15 @@ with _tab_slot_movers.container():
 
                 def _section_header(color: str, word_dir: str, count: int) -> None:
                     st.image(render_text_image(f"מניות {word_dir} ({count})", color, font_size=17))
+
+                _days_label_col, _days_input_col = st.columns([4, 1])
+                with _days_label_col:
+                    st.caption("📉 מספר ימים לעמודת \"מצטבר\" בטבלה")
+                with _days_input_col:
+                    movers_days = st.number_input(
+                        "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
+                        value=3, key="movers_cumulative_days", label_visibility="collapsed",
+                    )
 
                 mc1, mc2 = st.columns(2, gap="medium")
                 with mc1:
