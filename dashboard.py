@@ -1806,11 +1806,15 @@ with _tab_slot_today.container():
                     "מניה", _pa_options, format_func=lambda t: _pa_labels[t], key="price_alert_ticker",
                 )
                 _pa_is_il = market_data._is_israeli_ticker(_pa_chosen)
-                _pa_current = get_current_price(_pa_chosen)
+                _pa_daily_df = get_current_changes_for((_pa_chosen,))
+                # "מחיר נוכחי" בטופס הזה = שער נעילה (מחיר הסגירה האחרון), לא מחיר
+                # חי - החלטה מפורשת של המשתמש (26.8.2026): גם אם check_price_alerts
+                # בפועל בודק מול מחיר חי, ה-% שמוזן כאן מתייחס לשער נעילה כבסיס.
+                _pa_reference_price = _pa_daily_df.iloc[0]["last_close"] if not _pa_daily_df.empty else None
                 _pa_unit_scale = 100.0 if _pa_is_il else 1.0
 
                 # אם המניה הנבחרת השתנתה, מאפסים את שני השדות - אחרת ה-% הישן
-                # (שחושב מול מחיר נוכחי של המניה הקודמת) יישאר מוצג בלי קשר
+                # (שחושב מול שער הנעילה של המניה הקודמת) יישאר מוצג בלי קשר
                 # למחיר היעד שגם הוא כבר לא רלוונטי למניה החדשה.
                 if st.session_state.get("_pa_last_ticker") != _pa_chosen:
                     st.session_state["_pa_last_ticker"] = _pa_chosen
@@ -1818,39 +1822,24 @@ with _tab_slot_today.container():
                     st.session_state["price_alert_target_pct"] = 0.0
 
                 def _pa_sync_pct_from_price() -> None:
-                    if not _pa_current:
+                    if not _pa_reference_price:
                         return
                     price_actual = st.session_state.get("price_alert_target", 0.0) / _pa_unit_scale
                     if price_actual > 0:
-                        st.session_state["price_alert_target_pct"] = round((price_actual / _pa_current - 1) * 100.0, 2)
+                        st.session_state["price_alert_target_pct"] = round((price_actual / _pa_reference_price - 1) * 100.0, 2)
 
                 def _pa_sync_price_from_pct() -> None:
-                    if not _pa_current:
+                    if not _pa_reference_price:
                         return
                     pct = st.session_state.get("price_alert_target_pct", 0.0)
-                    price_actual = _pa_current * (1 + pct / 100.0)
+                    price_actual = _pa_reference_price * (1 + pct / 100.0)
                     st.session_state["price_alert_target"] = round(price_actual * _pa_unit_scale, 0 if _pa_is_il else 2)
 
-                _pa_current_change_df = get_current_changes_for((_pa_chosen,))
-                _pa_prev_close = (
-                    _pa_current_change_df.iloc[0]["prev_close"] if not _pa_current_change_df.empty else None
+                _pa_reference_price_text = (
+                    (f"{_pa_reference_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_reference_price:,.2f}")
+                    if _pa_reference_price is not None else "—"
                 )
-                _pa_live_change_pct = (
-                    (_pa_current / _pa_prev_close - 1) * 100.0
-                    if (_pa_current is not None and _pa_prev_close) else None
-                )
-                _pa_current_price_text = (
-                    (f"{_pa_current*100:,.0f} אג'" if _pa_is_il else f"${_pa_current:,.2f}")
-                    if _pa_current is not None else "—"
-                )
-                _pa_live_change_text = (
-                    _signed_num(_pa_live_change_pct, 1, "%") if _pa_live_change_pct is not None else "—"
-                )
-                _pa_current_info_col1, _pa_current_info_col2 = st.columns(2)
-                with _pa_current_info_col1:
-                    st.caption(f"מחיר נוכחי: {_pa_current_price_text}")
-                with _pa_current_info_col2:
-                    st.caption(f"שינוי נוכחי: {_pa_live_change_text}")
+                st.caption(f"שער נעילה: {_pa_reference_price_text}")
 
                 _pa_price_col, _pa_pct_col = st.columns(2)
                 with _pa_price_col:
@@ -1861,24 +1850,23 @@ with _tab_slot_today.container():
                     )
                 with _pa_pct_col:
                     st.number_input(
-                        "שינוי מהמחיר החי (%)", step=0.5, format="%.2f",
+                        "שינוי (%)", step=0.5, format="%.2f",
                         key="price_alert_target_pct", on_change=_pa_sync_price_from_pct,
-                        disabled=_pa_current is None,
+                        disabled=_pa_reference_price is None,
                     )
                 _pa_target = (_pa_target_raw / 100.0) if _pa_is_il else _pa_target_raw
-                # אין צורך לשאול "כיוון" - הוא נגזר אוטומטית מהשוואת היעד למחיר הנוכחי:
-                # יעד מעל המחיר של עכשיו = מחכים שתעלה אליו, מתחת = מחכים שתרד אליו.
-                if _pa_current is not None and _pa_target > 0:
-                    _pa_current_text = f"{_pa_current*100:,.0f} אג'" if _pa_is_il else f"${_pa_current:,.2f}"
-                    _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_current else "יורדת מתחת ל"
-                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (מחיר חי: {_pa_current_text}).")
+                # אין צורך לשאול "כיוון" - הוא נגזר אוטומטית מהשוואת היעד לשער הנעילה:
+                # יעד מעל שער הנעילה = מחכים שתעלה אליו, מתחת = מחכים שתרד אליו.
+                if _pa_reference_price is not None and _pa_target > 0:
+                    _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_reference_price else "יורדת מתחת ל"
+                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (שער נעילה: {_pa_reference_price_text}).")
                 if st.button("✅ הוסף התראה", key="price_alert_add_btn"):
                     if _pa_target <= 0:
                         st.warning("יש למלא מחיר יעד לפני ההוספה.")
-                    elif _pa_current is None:
-                        st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
+                    elif _pa_reference_price is None:
+                        st.warning("לא הצלחתי לשלוף שער נעילה כרגע - נסה שוב בעוד רגע.")
                     else:
-                        _pa_direction = "above" if _pa_target >= _pa_current else "below"
+                        _pa_direction = "above" if _pa_target >= _pa_reference_price else "below"
                         store.add_price_alert(
                             _pa_conn, _pa_chosen, _pa_name_map.get(_pa_chosen), _pa_index,
                             _pa_target, _pa_direction,
