@@ -1282,10 +1282,7 @@ def _autosave_position():
         "ILS": st.session_state.get("settings_position_ils"),
         "USD": st.session_state.get("settings_position_usd"),
     }
-    cfg["max_position_size"] = {
-        "ILS": st.session_state.get("settings_max_position_ils"),
-        "USD": st.session_state.get("settings_max_position_usd"),
-    }
+    cfg.pop("max_position_size", None)
     cfg["risk_pct_per_trade"] = st.session_state.get("settings_risk_pct")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
@@ -1357,7 +1354,7 @@ with st.sidebar:
 
     with st.expander("💵 השקעה ויעד רווח"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה.")
-        st.markdown("**סכום השקעה מינימלי**")
+        st.markdown("**סכום השקעה**")
         ps1, ps2 = st.columns(2)
         ps1.number_input(
             'ש"ח', min_value=0.0, step=500.0,
@@ -1368,18 +1365,6 @@ with st.sidebar:
             "$", min_value=0.0, step=500.0,
             value=float(cfg.get("position_size", {}).get("USD", 10000)),
             key="settings_position_usd", on_change=_autosave_position,
-        )
-        st.markdown("**תקרת השקעה מקסימלית**")
-        mx1, mx2 = st.columns(2)
-        mx1.number_input(
-            'ש"ח', min_value=0.0, step=500.0,
-            value=float(cfg.get("max_position_size", {}).get("ILS", 30000)),
-            key="settings_max_position_ils", on_change=_autosave_position,
-        )
-        mx2.number_input(
-            "$", min_value=0.0, step=500.0,
-            value=float(cfg.get("max_position_size", {}).get("USD", 30000)),
-            key="settings_max_position_usd", on_change=_autosave_position,
         )
         st.markdown(
             "**שווי התיק הכולל**",
@@ -1408,6 +1393,28 @@ with st.sidebar:
             value=float(cfg.get("risk_pct_per_trade", 0.75)), label_visibility="collapsed",
             key="settings_risk_pct", on_change=_autosave_position,
         )
+
+        # תצוגה חיה של המשמעות בפועל של ההגדרות למעלה - נגזרת מדויקת מאותה נוסחה
+        # בדיוק כמו ב-scanner.py (fees.compute_risk_based_position_size): גודל
+        # ההשקעה נשאר לפחות 20% מ"סכום השקעה" ולכל היותר פי 3 ממנו (ר' שם), כדי
+        # שההתראות בפועל יהיו מדויקות בדיוק לפי מה שמוגדר כאן - לא רק קירוב.
+        st.markdown("**המשמעות בפועל**")
+        _prev_risk_pct = st.session_state.get("settings_risk_pct", 0.75)
+        for _prev_ccy_symbol, _prev_position_key, _prev_ccy_key in (
+            ('ש"ח', "settings_position_ils", "ILS"), ("$", "settings_position_usd", "USD"),
+        ):
+            _prev_position = st.session_state.get(_prev_position_key, 0.0)
+            _prev_account = _account_size_by_ccy.get(_prev_ccy_key, 0.0)
+            if _prev_account > 0:
+                _prev_risk_amount = _prev_account * _prev_risk_pct / 100.0
+                _prev_floor = _prev_position * 0.2
+                _prev_cap = _prev_position * 3
+                st.caption(
+                    f"{_prev_ccy_symbol}: סיכון לעסקה = {_prev_risk_amount:,.0f} {_prev_ccy_symbol} | "
+                    f"גודל השקעה בפועל ינוע בין {_prev_floor:,.0f} ל-{_prev_cap:,.0f} {_prev_ccy_symbol}"
+                )
+            else:
+                st.caption(f"{_prev_ccy_symbol}: אין אחזקות פתוחות - גודל ההשקעה הקבוע ({_prev_position:,.0f} {_prev_ccy_symbol}) בתוקף")
 
     with st.expander("📈 התראת אחזקות"):
         st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'.")
