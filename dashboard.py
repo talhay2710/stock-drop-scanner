@@ -1839,7 +1839,26 @@ with _tab_slot_today.container():
                     (f"{_pa_reference_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_reference_price:,.2f}")
                     if _pa_reference_price is not None else "—"
                 )
-                st.caption(f"שער נעילה: {_pa_reference_price_text}")
+                _pa_live_price = get_current_price(_pa_chosen)
+                _pa_prev_close = _pa_daily_df.iloc[0]["prev_close"] if not _pa_daily_df.empty else None
+                _pa_live_change_pct = (
+                    (_pa_live_price / _pa_prev_close - 1) * 100.0
+                    if (_pa_live_price is not None and _pa_prev_close) else None
+                )
+                _pa_live_price_text = (
+                    (f"{_pa_live_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_live_price:,.2f}")
+                    if _pa_live_price is not None else "—"
+                )
+                _pa_live_change_text = (
+                    _signed_num(_pa_live_change_pct, 1, "%") if _pa_live_change_pct is not None else "—"
+                )
+                _pa_info_col1, _pa_info_col2, _pa_info_col3 = st.columns(3)
+                with _pa_info_col1:
+                    st.caption(f"שער נעילה: {_pa_reference_price_text}")
+                with _pa_info_col2:
+                    st.caption(f"שער נוכחי: {_pa_live_price_text}")
+                with _pa_info_col3:
+                    st.caption(f"שינוי נוכחי: {_pa_live_change_text}")
 
                 _pa_price_col, _pa_pct_col = st.columns(2)
                 with _pa_price_col:
