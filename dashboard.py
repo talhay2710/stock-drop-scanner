@@ -1801,51 +1801,50 @@ with _tab_slot_movers.container():
                         if _wl_current is None:
                             _wl_current = _r["last_close"]
                         _wl_rows.append({
+                            "id": it["id"],
                             "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
                             "שער": _wl_current,
                             "שינוי יומי (%)": _r["pct_change"],
                             "שינוי מצטבר (%)": market_data.compute_n_day_change_pct(_r["history"], movers_days),
                             "שינוי מאז נוסף (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
                         })
-                    _wl_df = pd.DataFrame(_wl_rows)
-                    if not _wl_df.empty:
-                        st.markdown(
-                            _html_table(
-                                _wl_df,
-                                [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
-                                 ("שינוי מצטבר (%)", "מצטבר"), ("שינוי מאז נוסף (%)", "מאז נוסף"),
-                                 ("שער", "שער נוכחי")],
-                                formatters={
-                                    "שער": lambda v: f"{v:,.2f}",
-                                    "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
-                                    "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
-                                    "שינוי מאז נוסף (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
-                                },
-                                color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)", "שינוי מאז נוסף (%)"},
-                                truncate_columns={
-                                    "שם_וטיקר": 169, "שינוי יומי (%)": 58,
-                                    "שינוי מצטבר (%)": 58, "שינוי מאז נוסף (%)": 58, "שער": 58,
-                                },
-                                max_height=min(35 * (len(_wl_df) + 1) + 3, 2000),
-                            ),
-                            unsafe_allow_html=True,
-                        )
+                    _wl_col_ratios = [3, 1.3, 1.3, 1.3, 1.3, 0.6]
+                    _wl_header_cols = st.columns(_wl_col_ratios)
+                    for _wl_h_col, _wl_h_text in zip(
+                        _wl_header_cols, ["מניה", "שינוי יומי", "מצטבר", "מאז נוסף", "שער נוכחי", ""],
+                    ):
+                        with _wl_h_col:
+                            st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
 
-                    _wl_remove_labels = {
-                        it["id"]: f"{it['company_name'] or it['ticker']} ({it['ticker']})" for it in _wl_items
-                    }
-                    _wl_remove_col1, _wl_remove_col2 = st.columns([4, 1])
-                    with _wl_remove_col1:
-                        _wl_remove_chosen = st.selectbox(
-                            "הסר ממעקב", list(_wl_remove_labels), format_func=lambda i: _wl_remove_labels[i],
-                            key="watchlist_remove_id", label_visibility="collapsed",
+                    for _wl_row in _wl_rows:
+                        _wl_name_col, _wl_daily_col, _wl_cum_col, _wl_since_col, _wl_price_col, _wl_del_col = (
+                            st.columns(_wl_col_ratios)
                         )
-                    with _wl_remove_col2:
-                        if st.button("🗑️ הסר"):
-                            _wl_remove_conn = store.get_conn(db_path(cfg))
-                            store.remove_watchlist_item(_wl_remove_conn, _wl_remove_chosen)
-                            _wl_remove_conn.close()
-                            st.rerun()
+                        with _wl_name_col:
+                            st.write(_wl_row["שם_וטיקר"])
+                        for _wl_val_col, _wl_val in (
+                            (_wl_daily_col, _wl_row["שינוי יומי (%)"]),
+                            (_wl_cum_col, _wl_row["שינוי מצטבר (%)"]),
+                            (_wl_since_col, _wl_row["שינוי מאז נוסף (%)"]),
+                        ):
+                            with _wl_val_col:
+                                if pd.isna(_wl_val):
+                                    st.write("—")
+                                else:
+                                    _wl_color = POS_COLOR if _wl_val >= 0 else NEG_COLOR
+                                    st.markdown(
+                                        f'<span style="color:{_wl_color}; font-weight:600;">'
+                                        f'{_signed_num(_wl_val, 2, "%")}</span>',
+                                        unsafe_allow_html=True,
+                                    )
+                        with _wl_price_col:
+                            st.write(f"{_wl_row['שער']:,.2f}")
+                        with _wl_del_col:
+                            if st.button("🗑️", key=f"watchlist_remove_{_wl_row['id']}"):
+                                _wl_remove_conn = store.get_conn(db_path(cfg))
+                                store.remove_watchlist_item(_wl_remove_conn, _wl_row["id"])
+                                _wl_remove_conn.close()
+                                st.rerun()
 
         _render_movers_tab()
 
