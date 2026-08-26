@@ -1821,14 +1821,28 @@ with _tab_slot_movers.container():
                 def _section_header(color: str, word_dir: str, count: int) -> None:
                     st.image(render_text_image(f"מניות {word_dir} ({count})", color, font_size=17))
 
-                _days_label_col, _days_input_col = st.columns([4, 1])
-                with _days_label_col:
-                    st.caption("📉 מספר ימים לעמודת \"מצטבר\" בטבלה")
-                with _days_input_col:
-                    movers_days = st.number_input(
-                        "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
-                        value=3, key="movers_cumulative_days", label_visibility="collapsed",
+                with st.container(key="movers_days_row"):
+                    st.markdown(
+                        """
+                        <style>
+                        div[class*="st-key-movers_days_row"] div[data-testid="stHorizontalBlock"] {
+                            gap: 6px !important; align-items: center !important;
+                        }
+                        div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:first-child {
+                            width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
                     )
+                    _days_label_col, _days_input_col, _ = st.columns([3, 1, 6])
+                    with _days_label_col:
+                        st.caption("📉 מספר ימים לעמודת \"מצטבר\" בטבלה")
+                    with _days_input_col:
+                        movers_days = st.number_input(
+                            "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
+                            value=3, key="movers_cumulative_days", label_visibility="collapsed",
+                        )
 
                 mc1, mc2 = st.columns(2, gap="medium")
                 with mc1:
