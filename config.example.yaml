@@ -19,7 +19,7 @@ position_size:
 max_position_size:
   ILS: 10000.0
   USD: 5000.0
-risk_pct_per_trade: 0.75
+risk_pct_per_trade: 0.9
 assumed_holding_days: 5
 holdings_gain_alert_start_pct: 3.0
 holdings_gain_alert_step_pct: 1.0
