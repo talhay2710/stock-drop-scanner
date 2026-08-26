@@ -1835,30 +1835,28 @@ with _tab_slot_today.container():
                     price_actual = _pa_reference_price * (1 + pct / 100.0)
                     st.session_state["price_alert_target"] = round(price_actual * _pa_unit_scale, 0 if _pa_is_il else 2)
 
-                _pa_reference_price_text = (
-                    (f"{_pa_reference_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_reference_price:,.2f}")
-                    if _pa_reference_price is not None else "—"
-                )
                 _pa_live_price = get_current_price(_pa_chosen)
                 _pa_prev_close = _pa_daily_df.iloc[0]["prev_close"] if not _pa_daily_df.empty else None
                 _pa_live_change_pct = (
                     (_pa_live_price / _pa_prev_close - 1) * 100.0
                     if (_pa_live_price is not None and _pa_prev_close) else None
                 )
-                _pa_live_price_text = (
-                    (f"{_pa_live_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_live_price:,.2f}")
-                    if _pa_live_price is not None else "—"
-                )
-                _pa_live_change_text = (
-                    _signed_num(_pa_live_change_pct, 1, "%") if _pa_live_change_pct is not None else "—"
-                )
-                _pa_info_col1, _pa_info_col2, _pa_info_col3 = st.columns(3)
-                with _pa_info_col1:
-                    st.caption(f"שער נעילה: {_pa_reference_price_text}")
-                with _pa_info_col2:
-                    st.caption(f"שער נוכחי: {_pa_live_price_text}")
-                with _pa_info_col3:
-                    st.caption(f"שינוי נוכחי: {_pa_live_change_text}")
+                _pa_current_price_col, _pa_current_pct_col = st.columns(2)
+                with _pa_current_price_col:
+                    st.number_input(
+                        "מחיר נוכחי" + (" (אג')" if _pa_is_il else " ($)"),
+                        value=(
+                            float(_pa_live_price * 100 if _pa_is_il else _pa_live_price)
+                            if _pa_live_price is not None else 0.0
+                        ),
+                        format="%.2f", disabled=True, key="price_alert_live_price_display",
+                    )
+                with _pa_current_pct_col:
+                    st.number_input(
+                        "אחוז נוכחי (%)",
+                        value=float(_pa_live_change_pct) if _pa_live_change_pct is not None else 0.0,
+                        format="%.2f", disabled=True, key="price_alert_live_pct_display",
+                    )
 
                 _pa_price_col, _pa_pct_col = st.columns(2)
                 with _pa_price_col:
@@ -1878,7 +1876,7 @@ with _tab_slot_today.container():
                 # יעד מעל שער הנעילה = מחכים שתעלה אליו, מתחת = מחכים שתרד אליו.
                 if _pa_reference_price is not None and _pa_target > 0:
                     _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_reference_price else "יורדת מתחת ל"
-                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה (שער נעילה: {_pa_reference_price_text}).")
+                    st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה.")
                 if st.button("✅ הוסף התראה", key="price_alert_add_btn"):
                     if _pa_target <= 0:
                         st.warning("יש למלא מחיר יעד לפני ההוספה.")
