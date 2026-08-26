@@ -16,7 +16,7 @@ multi_day_threshold_pct: 20.0
 position_size:
   ILS: 7500.0
   USD: 2500.0
-risk_pct_per_trade: 2.0
+risk_pct_per_trade: 2.05
 assumed_holding_days: 5
 holdings_gain_alert_start_pct: 3.0
 holdings_gain_alert_step_pct: 1.0
