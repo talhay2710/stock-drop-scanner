@@ -110,6 +110,19 @@ def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
     return f"‎{value:+,.{decimals}f}{suffix}"
 
 
+def _price_text(value, index_name) -> str:
+    """שער (לא סכום כסף כולל) לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני),
+    בדיוק כמו שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py, וכרטיס
+    האחזקה בטאב "אחזקות") - כדי שאפשר יהיה להשוות ישירות למסך הברוקר. משותף בין
+    כל מקום בדשבורד שמציג שער בודד של מניה, כדי לא לשכפל את הבדיקה שוב ושוב."""
+    if pd.isna(value):
+        return "—"
+    ccy = constituents.INDEX_CURRENCY.get(index_name, "ILS")
+    if ccy == "ILS":
+        return f"{value*100:,.0f}"
+    return f"${value:,.2f}"
+
+
 def _stat_card(label: str, value: str, color: str, bg: str) -> str:
     return (
         f'<div style="flex:1; min-width:120px; border:1px solid {color}33; border-radius:12px; '
@@ -1502,8 +1515,9 @@ def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
     else:
         name_map = constituents.get_us_name_map(index_name)
     df["company_name"] = df["טיקר"].map(name_map).fillna("")
+    df["index_name"] = index_name
     column_order = ["שער", "שינוי מצטבר (%)", "שינוי יומי (%)", "טיקר", "company_name",
-                     "last_close_date", "is_stale"]
+                     "last_close_date", "is_stale", "index_name"]
     return df[column_order]
 
 
@@ -1657,11 +1671,13 @@ with _tab_slot_movers.container():
                     sub_df["שם_וטיקר"] = sub_df.apply(
                         lambda r: f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"], axis=1
                     )
+                    # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת
+                    # ולא כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
+                    sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
                     st.markdown(
                         _html_table(
                             sub_df, _MOVERS_COLUMNS,
                             formatters={
-                                "שער": lambda v: f"{v:,.2f}",
                                 "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%"),
                                 "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
                             },
@@ -1777,7 +1793,7 @@ with _tab_slot_movers.container():
                         _wl_rows.append({
                             "id": it["id"],
                             "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
-                            "שער קנייה": it["entry_price"],
+                            "שער קנייה": _price_text(it["entry_price"], it["index_name"]),
                             "שינוי יומי (%)": _r["pct_change"],
                             "תשואה (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
                         })
@@ -1796,7 +1812,7 @@ with _tab_slot_movers.container():
                         with _wl_name_col:
                             st.write(_wl_row["שם_וטיקר"])
                         with _wl_entry_col:
-                            st.write(f"{_wl_row['שער קנייה']:,.2f}")
+                            st.write(_wl_row["שער קנייה"])
                         for _wl_val_col, _wl_val in (
                             (_wl_daily_col, _wl_row["שינוי יומי (%)"]),
                             (_wl_yield_col, _wl_row["תשואה (%)"]),
@@ -2021,16 +2037,6 @@ with _tab_slot_today.container():
                         return "—"
                     emoji = _REBOUND_TIER_EMOJI.get(v, "")
                     return f"<bdi>{v} {emoji}</bdi>"
-
-                # מטבע לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני), בדיוק כמו
-                # שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py).
-                def _price_text(value, index_name) -> str:
-                    if pd.isna(value):
-                        return "—"
-                    ccy = constituents.INDEX_CURRENCY.get(index_name, "ILS")
-                    if ccy == "ILS":
-                        return f"{value*100:,.0f}"
-                    return f"${value:,.2f}"
 
                 todays_display_src = todays_alerts.copy()
                 for _price_col in ("entry_limit", "target_base", "stop_loss"):
