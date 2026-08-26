@@ -1760,32 +1760,6 @@ with _tab_slot_movers.container():
                 st.image(render_text_image(f"⭐ מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
                 st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה.")
 
-                _wl_add_index = st.selectbox(
-                    "מדד", ALL_INDICES, format_func=lambda i: INDEX_LABELS[i], key="watchlist_add_index",
-                )
-                _wl_add_tickers = constituents.get_constituents(_wl_add_index)
-                _wl_add_name_map = (
-                    constituents.get_il_name_map(_wl_add_index) if _wl_add_index.upper() in ("TA35", "TA125")
-                    else constituents.get_us_name_map(_wl_add_index)
-                )
-                _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
-                _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
-                _wl_add_chosen = st.selectbox(
-                    "מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker",
-                )
-                if st.button("➕ הוסף למעקב"):
-                    _wl_entry_price = get_current_price(_wl_add_chosen)
-                    if _wl_entry_price is None:
-                        st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
-                    else:
-                        _wl_add_conn = store.get_conn(db_path(cfg))
-                        store.add_watchlist_item(
-                            _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen),
-                            _wl_add_index, _wl_entry_price,
-                        )
-                        _wl_add_conn.close()
-                        st.rerun()
-
                 if not _wl_items:
                     st.info("אין מניות במעקב עדיין.")
                 else:
@@ -1803,29 +1777,29 @@ with _tab_slot_movers.container():
                         _wl_rows.append({
                             "id": it["id"],
                             "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
-                            "שער": _wl_current,
+                            "שער קנייה": it["entry_price"],
                             "שינוי יומי (%)": _r["pct_change"],
-                            "שינוי מצטבר (%)": market_data.compute_n_day_change_pct(_r["history"], movers_days),
-                            "שינוי מאז נוסף (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
+                            "תשואה (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
                         })
-                    _wl_col_ratios = [3, 1.3, 1.3, 1.3, 1.3, 0.6]
+                    _wl_col_ratios = [3, 1.3, 1.3, 1.3, 0.6]
                     _wl_header_cols = st.columns(_wl_col_ratios)
                     for _wl_h_col, _wl_h_text in zip(
-                        _wl_header_cols, ["מניה", "שינוי יומי", "מצטבר", "מאז נוסף", "שער נוכחי", ""],
+                        _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", ""],
                     ):
                         with _wl_h_col:
                             st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
 
                     for _wl_row in _wl_rows:
-                        _wl_name_col, _wl_daily_col, _wl_cum_col, _wl_since_col, _wl_price_col, _wl_del_col = (
+                        _wl_name_col, _wl_entry_col, _wl_daily_col, _wl_yield_col, _wl_del_col = (
                             st.columns(_wl_col_ratios)
                         )
                         with _wl_name_col:
                             st.write(_wl_row["שם_וטיקר"])
+                        with _wl_entry_col:
+                            st.write(f"{_wl_row['שער קנייה']:,.2f}")
                         for _wl_val_col, _wl_val in (
                             (_wl_daily_col, _wl_row["שינוי יומי (%)"]),
-                            (_wl_cum_col, _wl_row["שינוי מצטבר (%)"]),
-                            (_wl_since_col, _wl_row["שינוי מאז נוסף (%)"]),
+                            (_wl_yield_col, _wl_row["תשואה (%)"]),
                         ):
                             with _wl_val_col:
                                 if pd.isna(_wl_val):
@@ -1837,14 +1811,39 @@ with _tab_slot_movers.container():
                                         f'{_signed_num(_wl_val, 2, "%")}</span>',
                                         unsafe_allow_html=True,
                                     )
-                        with _wl_price_col:
-                            st.write(f"{_wl_row['שער']:,.2f}")
                         with _wl_del_col:
                             if st.button("🗑️", key=f"watchlist_remove_{_wl_row['id']}"):
                                 _wl_remove_conn = store.get_conn(db_path(cfg))
                                 store.remove_watchlist_item(_wl_remove_conn, _wl_row["id"])
                                 _wl_remove_conn.close()
                                 st.rerun()
+
+                with st.expander("➕ הוספת מניה למעקב"):
+                    _wl_add_index = st.selectbox(
+                        "מדד", ALL_INDICES, format_func=lambda i: INDEX_LABELS[i], key="watchlist_add_index",
+                    )
+                    _wl_add_tickers = constituents.get_constituents(_wl_add_index)
+                    _wl_add_name_map = (
+                        constituents.get_il_name_map(_wl_add_index) if _wl_add_index.upper() in ("TA35", "TA125")
+                        else constituents.get_us_name_map(_wl_add_index)
+                    )
+                    _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
+                    _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
+                    _wl_add_chosen = st.selectbox(
+                        "מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker",
+                    )
+                    if st.button("➕ הוסף למעקב"):
+                        _wl_entry_price = get_current_price(_wl_add_chosen)
+                        if _wl_entry_price is None:
+                            st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
+                        else:
+                            _wl_add_conn = store.get_conn(db_path(cfg))
+                            store.add_watchlist_item(
+                                _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen),
+                                _wl_add_index, _wl_entry_price,
+                            )
+                            _wl_add_conn.close()
+                            st.rerun()
 
         _render_movers_tab()
 
