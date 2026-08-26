@@ -1831,6 +1831,27 @@ with _tab_slot_today.container():
                     price_actual = _pa_current * (1 + pct / 100.0)
                     st.session_state["price_alert_target"] = round(price_actual * _pa_unit_scale, 0 if _pa_is_il else 2)
 
+                _pa_current_change_df = get_current_changes_for((_pa_chosen,))
+                _pa_prev_close = (
+                    _pa_current_change_df.iloc[0]["prev_close"] if not _pa_current_change_df.empty else None
+                )
+                _pa_live_change_pct = (
+                    (_pa_current / _pa_prev_close - 1) * 100.0
+                    if (_pa_current is not None and _pa_prev_close) else None
+                )
+                _pa_current_price_text = (
+                    (f"{_pa_current*100:,.0f} אג'" if _pa_is_il else f"${_pa_current:,.2f}")
+                    if _pa_current is not None else "—"
+                )
+                _pa_live_change_text = (
+                    _signed_num(_pa_live_change_pct, 1, "%") if _pa_live_change_pct is not None else "—"
+                )
+                _pa_current_info_col1, _pa_current_info_col2 = st.columns(2)
+                with _pa_current_info_col1:
+                    st.caption(f"מחיר נוכחי: {_pa_current_price_text}")
+                with _pa_current_info_col2:
+                    st.caption(f"שינוי נוכחי: {_pa_live_change_text}")
+
                 _pa_price_col, _pa_pct_col = st.columns(2)
                 with _pa_price_col:
                     _pa_target_raw = st.number_input(
