@@ -1354,6 +1354,10 @@ with st.sidebar:
 
     with st.expander("💵 השקעה ויעד רווח"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה.")
+
+        # שני מקטעים ברורים: מה שאתה קובע, ואז מה שיוצא מזה בפועל - במקום לערבב
+        # שדות לעריכה עם שדות תצוגה זה לצד זה (בקשת המשתמש 26.8.2026, אחרי
+        # שהגרסה הקודמת הרגישה "מסורבל"/"בלאגן").
         st.markdown("**סכום השקעה**")
         ps1, ps2 = st.columns(2)
         ps1.number_input(
@@ -1367,24 +1371,6 @@ with st.sidebar:
             key="settings_position_usd", on_change=_autosave_position,
         )
         st.markdown(
-            "**שווי התיק הכולל**",
-            help="שווי נוכחי של אחזקות פתוחות. קובע את גודל ההשקעה מבוסס-הסיכון.",
-        )
-        _account_size_conn = store.get_conn(db_path(cfg))
-        try:
-            _account_size_by_ccy = compute_holdings_value_by_currency(
-                _account_size_conn, price_fetcher=get_current_price,
-            )
-        finally:
-            _account_size_conn.close()
-        as1, as2 = st.columns(2)
-        as1.number_input(
-            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, key="preview_account_ils",
-        )
-        as2.number_input(
-            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, key="preview_account_usd",
-        )
-        st.markdown(
             "**סיכון לעסקה (% מהתיק)**",
             help="קובע את גודל הפוזיציה בהתאם לסטופ-לוס.",
         )
@@ -1392,6 +1378,27 @@ with st.sidebar:
             "סיכון לעסקה", min_value=0.1, max_value=10.0, step=0.05,
             value=float(cfg.get("risk_pct_per_trade", 0.75)), label_visibility="collapsed",
             key="settings_risk_pct", on_change=_autosave_position,
+        )
+
+        st.divider()
+
+        _account_size_conn = store.get_conn(db_path(cfg))
+        try:
+            _account_size_by_ccy = compute_holdings_value_by_currency(
+                _account_size_conn, price_fetcher=get_current_price,
+            )
+        finally:
+            _account_size_conn.close()
+        st.markdown(
+            "**שווי התיק הכולל**",
+            help="שווי נוכחי של אחזקות פתוחות. קובע את גודל ההשקעה מבוסס-הסיכון.",
+        )
+        as1, as2 = st.columns(2)
+        as1.number_input(
+            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, key="preview_account_ils",
+        )
+        as2.number_input(
+            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, key="preview_account_usd",
         )
 
         # "סכום השקעה" למעלה כבר *הוא* גודל ההשקעה בפועל (בטווח צר של 70%-130%
