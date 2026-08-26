@@ -40,6 +40,14 @@ CREATE TABLE IF NOT EXISTS price_alerts (
     triggered_at TEXT,
     active INTEGER DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS watchlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    company_name TEXT,
+    index_name TEXT,
+    entry_price REAL NOT NULL,
+    added_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS summary_log (
     kind TEXT NOT NULL,
     sent_date TEXT NOT NULL,
@@ -523,6 +531,33 @@ def deactivate_price_alert(conn: sqlite3.Connection, alert_id: int, triggered: b
         )
     else:
         conn.execute("UPDATE price_alerts SET active = 0 WHERE id = ?", (alert_id,))
+    conn.commit()
+
+
+def add_watchlist_item(
+    conn: sqlite3.Connection, ticker: str, company_name: str | None, index_name: str, entry_price: float,
+) -> int:
+    """מוסיף מניה למעקב - entry_price הוא מחיר "קנייה" היפותטי (מחיר נוכחי
+    ברגע ההוספה) לצורך צפייה בביצועים, לא קנייה אמיתית - אין כמות/עמלות/
+    סטופ/יעד כמו באחזקות בפועל."""
+    cur = conn.execute(
+        "INSERT INTO watchlist (ticker, company_name, index_name, entry_price, added_at) VALUES (?, ?, ?, ?, ?)",
+        (ticker, company_name, index_name, entry_price, dt.datetime.now().isoformat(timespec="seconds")),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_watchlist(conn: sqlite3.Connection) -> list[dict]:
+    cur = conn.execute(
+        "SELECT id, ticker, company_name, index_name, entry_price, added_at FROM watchlist ORDER BY added_at DESC"
+    )
+    columns = [c[0] for c in cur.description]
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def remove_watchlist_item(conn: sqlite3.Connection, item_id: int) -> None:
+    conn.execute("DELETE FROM watchlist WHERE id = ?", (item_id,))
     conn.commit()
 
 

@@ -1752,6 +1752,101 @@ with _tab_slot_movers.container():
                 if not near_miss_df.empty:
                     _render(near_miss_df)
 
+            _wl_conn = store.get_conn(db_path(cfg))
+            _wl_items = store.get_watchlist(_wl_conn)
+            _wl_conn.close()
+
+            with st.container(border=True):
+                st.image(render_text_image(f"⭐ מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
+                st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה.")
+
+                _wl_add_index = st.selectbox(
+                    "מדד", ALL_INDICES, format_func=lambda i: INDEX_LABELS[i], key="watchlist_add_index",
+                )
+                _wl_add_tickers = constituents.get_constituents(_wl_add_index)
+                _wl_add_name_map = (
+                    constituents.get_il_name_map(_wl_add_index) if _wl_add_index.upper() in ("TA35", "TA125")
+                    else constituents.get_us_name_map(_wl_add_index)
+                )
+                _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
+                _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
+                _wl_add_chosen = st.selectbox(
+                    "מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker",
+                )
+                if st.button("➕ הוסף למעקב"):
+                    _wl_entry_price = get_current_price(_wl_add_chosen)
+                    if _wl_entry_price is None:
+                        st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
+                    else:
+                        _wl_add_conn = store.get_conn(db_path(cfg))
+                        store.add_watchlist_item(
+                            _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen),
+                            _wl_add_index, _wl_entry_price,
+                        )
+                        _wl_add_conn.close()
+                        st.rerun()
+
+                if not _wl_items:
+                    st.info("אין מניות במעקב עדיין.")
+                else:
+                    _wl_tickers = tuple({it["ticker"] for it in _wl_items})
+                    _wl_daily_df = get_current_changes_for(_wl_tickers)
+                    _wl_rows = []
+                    for it in _wl_items:
+                        _match = _wl_daily_df[_wl_daily_df["ticker"] == it["ticker"]]
+                        if _match.empty:
+                            continue
+                        _r = _match.iloc[0]
+                        _wl_current = get_current_price(it["ticker"])
+                        if _wl_current is None:
+                            _wl_current = _r["last_close"]
+                        _wl_rows.append({
+                            "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
+                            "שער": _wl_current,
+                            "שינוי יומי (%)": _r["pct_change"],
+                            "שינוי מצטבר (%)": market_data.compute_n_day_change_pct(_r["history"], movers_days),
+                            "שינוי מאז נוסף (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
+                        })
+                    _wl_df = pd.DataFrame(_wl_rows)
+                    if not _wl_df.empty:
+                        st.markdown(
+                            _html_table(
+                                _wl_df,
+                                [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
+                                 ("שינוי מצטבר (%)", "מצטבר"), ("שינוי מאז נוסף (%)", "מאז נוסף"),
+                                 ("שער", "שער נוכחי")],
+                                formatters={
+                                    "שער": lambda v: f"{v:,.2f}",
+                                    "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                                    "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                                    "שינוי מאז נוסף (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                                },
+                                color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)", "שינוי מאז נוסף (%)"},
+                                truncate_columns={
+                                    "שם_וטיקר": 169, "שינוי יומי (%)": 58,
+                                    "שינוי מצטבר (%)": 58, "שינוי מאז נוסף (%)": 58, "שער": 58,
+                                },
+                                max_height=min(35 * (len(_wl_df) + 1) + 3, 2000),
+                            ),
+                            unsafe_allow_html=True,
+                        )
+
+                    _wl_remove_labels = {
+                        it["id"]: f"{it['company_name'] or it['ticker']} ({it['ticker']})" for it in _wl_items
+                    }
+                    _wl_remove_col1, _wl_remove_col2 = st.columns([4, 1])
+                    with _wl_remove_col1:
+                        _wl_remove_chosen = st.selectbox(
+                            "הסר ממעקב", list(_wl_remove_labels), format_func=lambda i: _wl_remove_labels[i],
+                            key="watchlist_remove_id", label_visibility="collapsed",
+                        )
+                    with _wl_remove_col2:
+                        if st.button("🗑️ הסר"):
+                            _wl_remove_conn = store.get_conn(db_path(cfg))
+                            store.remove_watchlist_item(_wl_remove_conn, _wl_remove_chosen)
+                            _wl_remove_conn.close()
+                            st.rerun()
+
         _render_movers_tab()
 
 _tab_slot_today = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
