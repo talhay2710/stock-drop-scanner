@@ -98,6 +98,11 @@ def run_scan(cfg: dict) -> list[dict]:
     except Exception:
         logger.exception("שגיאה בבדיקת heartbeat הסריקה")
     vix_level, _ = market_data.fetch_vix_level()
+    try:
+        holdings_value_by_ccy = compute_holdings_value_by_currency(conn)
+    except Exception:
+        logger.exception("שגיאה בחישוב שווי האחזקות (לצורך גודל פוזיציה מבוסס-סיכון)")
+        holdings_value_by_ccy = {}
     all_results = []
     try:
         for index in indices:
@@ -106,7 +111,7 @@ def run_scan(cfg: dict) -> list[dict]:
                 logger.info("מחוץ לשעות המסחר של מדד %s - דילוג", index)
                 continue
             try:
-                all_results.extend(_scan_one_index(cfg, index, conn, vix_level))
+                all_results.extend(_scan_one_index(cfg, index, conn, vix_level, holdings_value_by_ccy))
             except Exception:
                 logger.exception("שגיאה בסריקת מדד %s", index)
         try:
@@ -132,6 +137,32 @@ def _gain_level(gain_pct: float, start_pct: float, step_pct: float) -> int | Non
     if gain_pct < start_pct:
         return None
     return int((gain_pct - start_pct) // step_pct)
+
+
+def compute_holdings_value_by_currency(conn, price_fetcher=None) -> dict[str, float]:
+    """שווי שוק נוכחי של כל האחזקות הפתוחות (bought=1), לפי מטבע - זה 'גודל
+    התיק' לצורך גודל פוזיציה מבוסס-סיכון (ר' _scan_one_index). מחושב תמיד
+    מחדש מהמחירים החיים, לא נשמר ב-config - אין דרך לאפליקציה לדעת על מזומן
+    פנוי/הון שלא הושקע, אז זה בכוונה רק שווי האחזקות עצמן, לא 'התיק הכולל'
+    האמיתי. משותף בין הסורק (לצורך תמחור) לדשבורד (לצורך תצוגה) כדי ששני
+    המקומות תמיד יראו בדיוק אותו מספר. price_fetcher אופציונלי - הדשבורד מעביר
+    את הגרסה שלו עם cache (st.cache_data), כדי לא לשלוף שוב מחיר שכבר נשלף
+    השנייה הזו לכרטיס 'שווי תיק'; ברירת המחדל (בסורק בענן, בלי cache) שולפת חי."""
+    price_fetcher = price_fetcher or market_data.fetch_current_price
+    holdings = store_mod.get_bought_holdings(conn)
+    if not holdings:
+        return {}
+    tickers = list({h["ticker"] for h in holdings})
+    price_map = {t: price_fetcher(t) for t in tickers}
+    value_by_ccy: dict[str, float] = {}
+    for h in holdings:
+        price = price_map.get(h["ticker"])
+        qty = h["actual_qty"]
+        if price is None or not qty:
+            continue
+        ccy = constituents.INDEX_CURRENCY.get(h.get("index_name"), "ILS")
+        value_by_ccy[ccy] = value_by_ccy.get(ccy, 0.0) + price * qty
+    return value_by_ccy
 
 
 def check_holdings_gains(cfg: dict, conn) -> None:
@@ -450,7 +481,10 @@ def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israel
         })
 
 
-def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None) -> list[dict]:
+def _scan_one_index(
+    cfg: dict, index: str, conn, vix_level: float | None = None,
+    holdings_value_by_ccy: dict[str, float] | None = None,
+) -> list[dict]:
     threshold = abs(cfg["drop_threshold_pct"])
     country_code = constituents.INDEX_COUNTRY_CODE[index]
     is_israeli = country_code == "IL"
@@ -538,7 +572,7 @@ def _scan_one_index(cfg: dict, index: str, conn, vix_level: float | None = None)
 
     reference_position_size = cfg["position_size"].get(currency, 10000)
     max_position_size = cfg.get("max_position_size", {}).get(currency, reference_position_size * 3)
-    account_size = cfg.get("account_size", {}).get(currency)
+    account_size = (holdings_value_by_ccy or {}).get(currency)
     risk_pct_per_trade = cfg.get("risk_pct_per_trade", 0.75)
     max_holding_days = cfg.get("assumed_holding_days", 5)
 
