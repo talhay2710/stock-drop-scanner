@@ -1772,7 +1772,8 @@ with _tab_slot_movers.container():
                 # להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
                 _movers_cumulative_label = (
-                    f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" style="cursor:help;">ℹ️</span>'
+                    f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
+                    f'style="cursor:pointer; color:#888;">▾</span>'
                 )
                 _MOVERS_COLUMNS = [
                     ("שם_וטיקר", "מניה"), ("שינוי יומי (%)", _daily_label),
