@@ -1381,10 +1381,7 @@ with st.sidebar:
             value=float(cfg.get("max_position_size", {}).get("USD", 30000)),
             key="settings_max_position_usd", on_change=_autosave_position,
         )
-        st.markdown(
-            "**שווי התיק הכולל**",
-            help="שווי נוכחי של אחזקות פתוחות. קובע את גודל ההשקעה מבוסס-הסיכון.",
-        )
+        st.markdown("**שווי התיק הכולל**")
         _account_size_conn = store.get_conn(db_path(cfg))
         try:
             _account_size_by_ccy = compute_holdings_value_by_currency(
@@ -1401,7 +1398,10 @@ with st.sidebar:
             "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, format="%.0f",
             key="preview_account_usd",
         )
-        st.markdown("**סיכון לעסקה**")
+        st.markdown(
+            "**סיכון לעסקה**",
+            help="כמה מהתיק מוכן להפסיד בעסקה בודדת - קובע את גודל הפוזיציה בהתאם למרחק לסטופ-לוס.",
+        )
         rp1, rp2, rp3 = st.columns(3)
         rp1.number_input(
             "% מהתיק", min_value=0.1, max_value=10.0, step=0.05,
