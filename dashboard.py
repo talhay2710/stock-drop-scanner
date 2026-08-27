@@ -2295,7 +2295,7 @@ with _tab_slot_today.container():
                 st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
                 st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב.")
                 if not near_miss_df.empty:
-                    _render_movers_style_table(near_miss_df)
+                    _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
         _render_today_tab()
 
