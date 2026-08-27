@@ -2734,15 +2734,19 @@ with _tab_slot_portfolio.container():
                     # color/bg שכבר חושבו למעלה) - לא אדום קבוע כמו שהיה, שלא שיקף
                     # מצב אחזקה ברווח.
                     _sell_r, _sell_g, _sell_b = (int(color.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+                    # הסלקטור חייב לכלול את row['id'] - בלי זה, "st-key-sell_holding_"
+                    # (סוביסטרינג) תפס את הכפתורים של *כל* האחזקות, לא רק של השורה
+                    # הזו, ומאחר ש-<style> תגי מוזרקים גלובליים לעמוד, ה-CSS של
+                    # האחזקה האחרונה בלולאה "ניצח" וצבע את כל הכפתורים באותו צבע.
                     st.markdown(
                         f"""
                         <style>
-                        div[class*="st-key-sell_holding_"] button {{
+                        div[class*="st-key-sell_holding_{row['id']}"] button {{
                             background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08); color: {color};
                             border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.35); border-radius: 8px;
                             font-weight: 500;
                         }}
-                        div[class*="st-key-sell_holding_"] button:hover {{
+                        div[class*="st-key-sell_holding_{row['id']}"] button:hover {{
                             background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.16); color: {color};
                             border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.5);
                         }}
