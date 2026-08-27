@@ -398,6 +398,11 @@ st.markdown(
     [data-testid="stSliderTickBarMax"], [data-testid="stSliderTickBarMin"] {
         color: #3B6EA5 !important;
     }
+    /* אייקון ה-help= הטבעי של Streamlit הוא בעצם <button>, שמקבל cursor:pointer
+       כברירת מחדל של הדפדפן - לא cursor:help כמו שהיה מצופה מסימן שאלה. */
+    [data-testid="stTooltipHoverTarget"] button {
+        cursor: help !important;
+    }
     div[class*="st-key-backtest_rerun_btn"] button {
         background-color: rgba(59, 110, 165, 0.10); color: #3B6EA5;
         border: 1px solid rgba(59, 110, 165, 0.4); border-radius: 8px; font-weight: 500;
