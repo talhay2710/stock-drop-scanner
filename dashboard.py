@@ -364,11 +364,17 @@ st.markdown(
     [data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] svg {
         fill: #3B6EA5 !important;
     }
-    [data-testid="stSlider"] [role="slider"] {
-        background-color: #3B6EA5 !important; border-color: #3B6EA5 !important;
-    }
-    [data-testid="stSlider"] [data-baseweb="slider"] > div > div {
-        background-color: #3B6EA5 !important;
+    /* Streamlit's slider (react-aria, לא BaseWeb - הסלקטורים הישנים לא תפסו
+       כלום, ר' commit): הטרק ממוקם ב-left:X% שכן מתחשב ב-RTL (מתהפך ל-100-X%
+       עבור ערכים נמוכים), אבל ה-gradient שצובע את החלק "מלא" תמיד מצייר
+       "to right" מקצה שמאל פיזי - לא מתהפך. בלי scaleX(-1) הצבע והנקודה
+       (שמייצגים בדיוק אותו ערך) מופיעים בקצוות מנוגדים של הציר, לא נפגשים
+       בכלל. אומת בדפדפן: 112px→542px (צבע) מול 1062px (נקודה) בלי התיקון,
+       112px→1068px (צבע) מול 1062px (נקודה) איתו - כמעט מדויק.
+       שתי רמות [data-orientation="horizontal"] כי גם המעטפת החיצונית וגם
+       הפנימית נושאות את אותו attribute - הפנימית היא הרלוונטית. */
+    [data-testid="stSlider"] div[data-orientation="horizontal"] div[data-orientation="horizontal"] > div:first-child {
+        transform: scaleX(-1) !important;
     }
     [data-testid="stSliderTickBarMax"], [data-testid="stSliderTickBarMin"] {
         color: #3B6EA5 !important;
