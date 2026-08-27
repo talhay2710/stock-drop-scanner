@@ -1733,7 +1733,7 @@ with _tab_slot_movers.container():
                     )
                     _days_label_col, _days_input_col, _ = st.columns([3, 1, 6])
                     with _days_label_col:
-                        st.caption("📉 מספר ימים לעמודת \"מצטבר\" בטבלה")
+                        st.caption("📉 מספר ימים לשינוי מצטבר")
                     with _days_input_col:
                         movers_days = st.number_input(
                             "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
