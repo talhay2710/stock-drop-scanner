@@ -809,7 +809,11 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         f"{header_tag} <b>{display_name} {_signed(row['pct_change'], 1, '%')} {_format_header_price(row['last_close'], currency)}</b>",
     ]
     if expected_max_drop_pct is not None:
-        lines.append(f"📉 <b>צפי לשפל יומי: -{expected_max_drop_pct:.1f}%</b>")
+        # לא "-" גולמי בתוך טקסט עברי (RTL) - בדיוק כמו שאר הסימנים בקובץ הזה
+        # (ר' _signed) - סימן גולמי בלי isolate LRI/PDI עלול "לברוח" למקום הלא
+        # נכון ביחס למספר בתצוגה. expected_max_drop_pct הוא גודל חיובי (ירידה
+        # תמיד), אז שולחים אותו כשלילי ל-_signed כדי לקבל "-" תמיד, לא "+".
+        lines.append(f"📉 <b>צפי לשפל יומי: {_signed(-expected_max_drop_pct, 1, '%')}</b>")
     lines += [
         f"{ticker} · מדד {index}",
         "",
