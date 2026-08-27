@@ -2357,7 +2357,7 @@ def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFr
     return result
 
 
-_BACKTEST_CAPTION = "בדיקת הצלחת התראות עבר לפי מחירי שיא / שפל בפועל"
+_BACKTEST_CAPTION = "ניתוח הצלחת התראות עבר ע\"פ מחירי שיא / שפל בפועל"
 
 
 def _color_success_rate(val):
@@ -2381,12 +2381,12 @@ with _tab_slot_backtest.container():
                     "היקף הבדיקה", ["כל ההתראות", "התראות שמומשו"], horizontal=True, key="backtest_scope",
                     label_visibility="collapsed",
                 )
-                st.markdown("⏱️ טווח ימי מסחר להערכה")
+                st.markdown("⏱️ טווח ימי מסחר לבדיקה")
                 window_days = st.slider(
                     # 30 = בדיוק התקרה הפנימית (MAX_WINDOW_DAYS ב-backtest.py) שאליה
                     # החלון גדל אוטומטית עבור יעדים גדולים - בלי זה, הסליידר לא
                     # מאפשר לבחור ערך שהמערכת בעצמה כבר יכולה להגיע אליו.
-                    "טווח ימי מסחר להערכה", min_value=1, max_value=30, value=10, label_visibility="collapsed",
+                    "טווח ימי מסחר לבדיקה", min_value=1, max_value=30, value=10, label_visibility="collapsed",
                 )
             if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
                 get_backtest_results.clear()
