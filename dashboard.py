@@ -1736,10 +1736,7 @@ with _tab_slot_movers.container():
                             width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
                         }
                         div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
-                            /* 130px הוא הרוחב הצר ביותר שבדיקה אמפירית מצאה שעדיין מציג את
-                               כפתורי ה-+/-: 110px=0 כפתורים, 130px=2. מתחת לזה Streamlit לא
-                               מרנדר אותם בכלל (לא רק מסתיר ב-CSS). */
-                            width: 130px !important; flex: 0 0 auto !important;
+                            width: 90px !important; flex: 0 0 auto !important;
                         }
                         </style>
                         """,
