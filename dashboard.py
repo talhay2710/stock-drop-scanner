@@ -2377,7 +2377,10 @@ with _tab_slot_backtest.container():
                 )
                 st.markdown("⏱️ טווח ימי מסחר להערכה")
                 window_days = st.slider(
-                    "טווח ימי מסחר להערכה", min_value=3, max_value=20, value=10, label_visibility="collapsed",
+                    # 30 = בדיוק התקרה הפנימית (MAX_WINDOW_DAYS ב-backtest.py) שאליה
+                    # החלון גדל אוטומטית עבור יעדים גדולים - בלי זה, הסליידר לא
+                    # מאפשר לבחור ערך שהמערכת בעצמה כבר יכולה להגיע אליו.
+                    "טווח ימי מסחר להערכה", min_value=1, max_value=30, value=10, label_visibility="collapsed",
                 )
             if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
                 get_backtest_results.clear()
