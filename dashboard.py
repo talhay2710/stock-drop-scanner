@@ -1688,7 +1688,7 @@ with _tab_slot_movers.container():
                 _movers_cumulative_label = (
                     f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
                     f'onclick="alert(\'{_movers_tip_text}\')" '
-                    f'style="cursor:pointer; color:{ACCENT_COLOR};">▾</span>'
+                    f'style="cursor:pointer;">❓</span>'
                 )
 
                 def _render(sub_df: pd.DataFrame) -> None:
@@ -2716,18 +2716,22 @@ with _tab_slot_portfolio.container():
 
                 with st.container(border=True):
                     st.markdown(card_html, unsafe_allow_html=True)
+                    # אותו צבע בדיוק כמו הכרטיס עצמו (ירוק/אדום לפי רווח/הפסד, אותם
+                    # color/bg שכבר חושבו למעלה) - לא אדום קבוע כמו שהיה, שלא שיקף
+                    # מצב אחזקה ברווח.
+                    _sell_r, _sell_g, _sell_b = (int(color.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
                     st.markdown(
-                        """
+                        f"""
                         <style>
-                        div[class*="st-key-sell_holding_"] button {
-                            background-color: rgba(204, 47, 60, 0.08); color: #CC2F3C;
-                            border: 1px solid rgba(204, 47, 60, 0.35); border-radius: 8px;
+                        div[class*="st-key-sell_holding_"] button {{
+                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08); color: {color};
+                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.35); border-radius: 8px;
                             font-weight: 500;
-                        }
-                        div[class*="st-key-sell_holding_"] button:hover {
-                            background-color: rgba(204, 47, 60, 0.16); color: #CC2F3C;
-                            border: 1px solid rgba(204, 47, 60, 0.5);
-                        }
+                        }}
+                        div[class*="st-key-sell_holding_"] button:hover {{
+                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.16); color: {color};
+                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.5);
+                        }}
                         </style>
                         """,
                         unsafe_allow_html=True,
@@ -2747,6 +2751,11 @@ with _tab_slot_portfolio.container():
                         default_exit = default_exit * (100.0 if is_il else 1.0)
                         exit_price_raw = ec1.number_input(
                             "שער מכירה", min_value=0.0, value=float(default_exit),
+                            # step חייב להיות מפורש: ברירת המחדל של Streamlit היא 0.01, בזמן
+                            # שהתצוגה באגורות (IL) מעוגלת ל-0 ספרות (format="%.0f") - בלי step
+                            # מתאים, +/- שינו את הערך ב-0.01 בכל לחיצה, שינוי בלתי-נראה
+                            # לגמרי בתצוגה המעוגלת (נראה כאילו הכפתורים "לא עובדים").
+                            step=1.0 if is_il else 0.01,
                             format="%.0f" if is_il else "%.2f", key=f"exit_price_{row['id']}",
                         )
                         exit_price = (exit_price_raw / 100.0) if is_il else exit_price_raw
