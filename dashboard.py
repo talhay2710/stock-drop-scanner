@@ -1736,7 +1736,7 @@ with _tab_slot_movers.container():
                             width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
                         }
                         div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
-                            width: 125px !important; flex: 0 0 auto !important;
+                            width: 90px !important; flex: 0 0 auto !important;
                         }
                         </style>
                         """,
