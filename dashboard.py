@@ -297,7 +297,8 @@ st.markdown(
     }
     div[class*="st-key-navtab_"] button[kind="secondary"] {
         background-color: transparent;
-        font-weight: 500;
+        font-weight: 600;
+        color: #1a1a2e;
     }
     [data-testid="stMainBlockContainer"] {
         padding-top: 2rem;
@@ -770,9 +771,15 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     if not holdings_df.empty:
         _daily_df = market_data.fetch_universe_daily_changes(holdings_df["ticker"].tolist())
         _today_by_ccy = {}
+        # fetch_universe_daily_changes מחזיר DataFrame ריק-לגמרי (בלי אף עמודה,
+        # כולל "ticker") אם אף טיקר לא הצליח להישלף באותו סבב (למשל Yahoo
+        # חסם/rate-limit זמני) - אינדוקס לפי "ticker" על עמודה שלא קיימת קורס
+        # ב-KeyError. מתייחסים לזה כמו ל"אין נתון" לכל אחזקה, לא קריסה.
         for _, _r in holdings_df.iterrows():
             _qty = _r["actual_qty"]
             if not _qty:
+                continue
+            if "ticker" not in _daily_df.columns:
                 continue
             _match = _daily_df[_daily_df["ticker"] == _r["ticker"]]
             if _match.empty:
