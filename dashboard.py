@@ -1895,7 +1895,7 @@ with _tab_slot_today.container():
                     for _a in _active_price_alerts:
                         _a_name = _a.get("company_name") or _a["ticker"]
                         _a_is_il = market_data._is_israeli_ticker(_a["ticker"])
-                        _a_target_text = f"{_a['target_price']*100:,.0f} אג'" if _a_is_il else f"${_a['target_price']:,.2f}"
+                        _a_target_text = f"{_a['target_price']*100:,.0f}" if _a_is_il else f"${_a['target_price']:,.2f}"
                         _a_dir = "מעל" if _a["direction"] == "above" else "מתחת ל"
                         _a_col1, _a_col2 = st.columns([4, 1])
                         with _a_col1:
@@ -1955,7 +1955,7 @@ with _tab_slot_today.container():
                 _pa_price_col, _pa_pct_col = st.columns(2)
                 with _pa_price_col:
                     _pa_target_raw = st.number_input(
-                        "מחיר יעד" + (" (אג')" if _pa_is_il else " ($)"), min_value=0.0,
+                        "מחיר יעד" + ("" if _pa_is_il else " ($)"), min_value=0.0,
                         format="%.2f", key="price_alert_target",
                         on_change=_pa_sync_pct_from_price,
                     )
@@ -1973,7 +1973,7 @@ with _tab_slot_today.container():
                     if (_pa_live_price is not None and _pa_prev_close) else None
                 )
                 _pa_live_price_text = (
-                    (f"{_pa_live_price*100:,.0f} אג'" if _pa_is_il else f"${_pa_live_price:,.2f}")
+                    (f"{_pa_live_price*100:,.0f}" if _pa_is_il else f"${_pa_live_price:,.2f}")
                     if _pa_live_price is not None else "—"
                 )
                 _pa_live_change_text = (
@@ -2260,7 +2260,7 @@ with _tab_slot_today.container():
                         _ra_price_col, _ra_pct_col, _ra_btn_col = st.columns([2, 2, 1])
                         with _ra_price_col:
                             st.number_input(
-                                "שער" + (" (אג')" if _ra_is_il else " ($)"), value=0.0, format="%.2f",
+                                "שער" + ("" if _ra_is_il else " ($)"), value=0.0, format="%.2f",
                                 key=f"re_alert_price_{_ra_id}", on_change=_ra_sync_pct_from_price,
                                 disabled=not _ra_prev_close,
                             )
