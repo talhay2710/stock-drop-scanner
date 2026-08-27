@@ -1684,11 +1684,20 @@ with _tab_slot_movers.container():
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
                 # title=... לבד (הובר בלבד) לא עובד במגע (טאבלט/מובייל) - אין hover.
                 # onclick עם alert עובד בלחיצה/הקשה בכל מכשיר, בלי תלות ב-hover.
+                # אותו אייקון עיגול-שאלה בדיוק כמו ה-help= הטבעי של Streamlit (משמש
+                # כבר ליד "שווי התיק הכולל" וכו') - SVG במקום אימוג'י, כי אימוג'י "❓"
+                # מציג צבעוני/שונה מאוד בין פלטפורמות, לא העיגול האפור העדין המצופה.
+                _help_icon_svg = (
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+                    'style="vertical-align:-2px;"><circle cx="12" cy="12" r="10"></circle>'
+                    '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>'
+                )
                 _movers_tip_text = f"שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים\\nכולל השינוי היומי"
                 _movers_cumulative_label = (
                     f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
                     f'onclick="alert(\'{_movers_tip_text}\')" '
-                    f'style="cursor:pointer;">❓</span>'
+                    f'style="cursor:pointer; color:rgba(49,51,63,0.6);">{_help_icon_svg}</span>'
                 )
 
                 def _render(sub_df: pd.DataFrame) -> None:
