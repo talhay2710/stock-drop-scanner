@@ -1784,7 +1784,12 @@ with _tab_slot_movers.container():
                         _wl_current = get_current_price(it["ticker"])
                         if _wl_current is None:
                             _wl_current = _r["last_close"]
-                        _wl_days_held = (dt.datetime.now() - dt.datetime.fromisoformat(it["added_at"])).days + 1
+                        # תאריך מול תאריך (לא datetime מול datetime): "יום 1" הוא יום ההוספה
+                        # עצמו, ו"יום 2" מתחיל בחצות שלאחריו - לא רק אחרי שחלפו 24 שעות
+                        # מדויקות משעת ההוספה. ה-.days של הפרש datetime מודד משך זמן, לא
+                        # הפרש תאריכים - זה מה שגרם למונה "להיתקע" על 01 כל עוד לא חלפה
+                        # יממה מלאה משעת ההוספה, גם אחרי שכבר עבר יום קלנדרי.
+                        _wl_days_held = (israel_today() - dt.datetime.fromisoformat(it["added_at"]).date()).days + 1
                         _wl_rows.append({
                             "id": it["id"],
                             "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
