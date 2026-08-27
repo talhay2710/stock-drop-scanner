@@ -479,15 +479,19 @@ def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israel
 
 
 def _historical_expected_max_drop_pct(conn) -> float | None:
-    """חציון, מתוך כל ההתראות ההיסטוריות עם day_low_price ידוע, של "כמה עוד
-    ירד המחיר ממחיר ההתראה עד לשפל של אותו יום מסחר" - מוצג בהתראות הבאות
-    כ"צפי לירידה מקסימלית ביום המסחר הנוכחי". חציון (לא ממוצע) כדי שמקרה קיצון
-    בודד לא יזיז את המספר. גדל עם הזמן ככל שנצברות עוד התראות - לא קבוע."""
+    """חציון, מתוך כל ההתראות ההיסטוריות עם day_low_price ידוע, של הירידה
+    הכוללת מהסגירה הקודמת (prev_close) עד לשפל של אותו יום מסחר - באותו
+    בסיס השוואה בדיוק כמו pct_change של ההתראה עצמה (גם הוא נמדד מול
+    prev_close), כדי שהמספרים יהיו ניתנים להשוואה ישירה במקום להישמע סותרים
+    (ר' תלונת המשתמש 27.8.2026: "3.8% בהתראה מול 0.7% בצפי" - כי הגרסה
+    הקודמת מדדה מול מחיר ההתראה עצמו, לא מול prev_close). חציון (לא ממוצע)
+    כדי שמקרה קיצון בודד לא יזיז את המספר. גדל עם הזמן ככל שנצברות עוד
+    התראות - לא קבוע."""
     rows = conn.execute(
-        "SELECT last_close, day_low_price FROM alerts "
-        "WHERE day_low_price IS NOT NULL AND last_close IS NOT NULL AND last_close > 0 AND pct_change < 0"
+        "SELECT prev_close, day_low_price FROM alerts "
+        "WHERE day_low_price IS NOT NULL AND prev_close IS NOT NULL AND prev_close > 0 AND pct_change < 0"
     ).fetchall()
-    drops = [max(0.0, (last_close - day_low) / last_close * 100.0) for last_close, day_low in rows]
+    drops = [max(0.0, (prev_close - day_low) / prev_close * 100.0) for prev_close, day_low in rows]
     if not drops:
         return None
     return statistics.median(drops)
