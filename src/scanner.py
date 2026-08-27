@@ -809,7 +809,7 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         f"{header_tag} <b>{display_name} {_signed(row['pct_change'], 1, '%')} {_format_header_price(row['last_close'], currency)}</b>",
     ]
     if expected_max_drop_pct is not None:
-        lines.append(f"📉 <b>צפי לירידה מקסימלית ביום המסחר הנוכחי: {expected_max_drop_pct:.1f}%</b>")
+        lines.append(f"📉 <b>צפי לשפל יומי: -{expected_max_drop_pct:.1f}%</b>")
     lines += [
         f"{ticker} · מדד {index}",
         "",

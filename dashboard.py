@@ -2279,9 +2279,15 @@ with _tab_slot_today.container():
                 idx_df = get_all_changes(scanned_idx)
                 if idx_df.empty:
                     continue
+                # is_stale (מ-get_all_changes) חובה כאן: בלי הסינון הזה, מניה עם מקור
+                # נתונים תקוע (למשל yf.download שמפגר יום-יומיים, ר' is_data_stale)
+                # נכנסת ל"קרוב לסף" עם שינוי יומי שהוא בעצם שריד מלפני כמה ימים, לא
+                # קרבה אמיתית להתראה עכשיו - בדיוק מה שהמשתמש תפס בפועל (27.8.2026,
+                # NWMD.TA/TSEM.TA עם last_close_date מ-25.8 בזמן שהשוק פתוח ב-27.8).
                 near_miss_frames.append(idx_df[
                     (idx_df["שינוי יומי (%)"] < -scanning_threshold * 0.8) &
-                    (idx_df["שינוי יומי (%)"] >= -scanning_threshold)
+                    (idx_df["שינוי יומי (%)"] >= -scanning_threshold) &
+                    (~idx_df["is_stale"])
                 ])
             near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
 
