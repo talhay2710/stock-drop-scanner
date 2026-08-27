@@ -2351,7 +2351,7 @@ def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFr
     return result
 
 
-_BACKTEST_CAPTION = "בודק הצלחת התראות עבר לפי מחירי שיא/שפל בפועל."
+_BACKTEST_CAPTION = "בודק הצלחת התראות עבר לפי מחירי שיא / שפל בפועל."
 
 
 def _color_success_rate(val):
