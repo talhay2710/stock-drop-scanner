@@ -9,7 +9,7 @@ import numpy as np
 import yfinance as yf
 
 from .constituents import INDEX_PROXY_TICKER
-from .market_hours import is_market_open, MARKET_HOURS
+from .market_hours import is_market_open, has_closed_today, MARKET_HOURS
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +37,21 @@ def is_data_stale(last_close_date, ticker: str, as_of: dt.date | None = None) ->
     כלומר יש פער אמיתי בנתונים (המקור לא התעדכן), לא סתם שהשוק סגור כרגע.
     מנגנון מרכזי אחד לבדיקת טריות - כל מקום שמשתמש ב-last_close/prev_close
     צריך לעבור דרכו לפני שהוא מציג/מפעיל החלטה על "שינוי יומי", כדי שלא יקרה
-    שוב שהשוואה של יומיים-שלושה אחורה תוצג/תשמש כאילו היא של אתמול/היום."""
+    שוב שהשוואה של יומיים-שלושה אחורה תוצג/תשמש כאילו היא של אתמול/היום.
+
+    כשבודקים את "עכשיו" ממש (as_of=None, לא תאריך היסטורי): אם השוק של הטיקר
+    כבר נסגר היום, הסגירה המצופה היא של היום עצמו, לא רק של אתמול - אחרת נתון
+    שמפגר יום שלם מאחורי (yf.download batch, ר' _fix_stale_rows_with_live_quote)
+    לא נתפס בכלל כ"תקוע" ברגע שהשעה כבר אחרי הסגירה. גילינו את זה בפועל
+    (25-26.8.2026): הסיכום היומי (~18:00, אחרי סגירת ת"א) הציג לטאואר שינוי
+    יומי שגוי - השוואה בין ימים ישנים יותר שנראתה "לא תקועה" רק כי הבדיקה
+    הישנה תמיד ציפתה ל"אתמול", בלי קשר לשעה."""
     if last_close_date is None:
         return True
-    expected = _expected_last_close_date(as_of or dt.date.today())
+    check_date = as_of or dt.date.today()
+    expected = _expected_last_close_date(check_date)
+    if as_of is None and has_closed_today("IL" if _is_israeli_ticker(ticker) else "US"):
+        expected = check_date
     return last_close_date < expected
 
 # מיפוי סקטור GICS -> ETF סקטוריאלי (SPDR) לצורך השוואת "לחץ סקטוריאלי" בשוק האמריקאי בלבד
@@ -182,7 +193,14 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             # של 7% מהמערכת בזמן שבפועל היא הייתה בעלייה גדולה - הציטוט החי
             # מ-Yahoo היה תקוע על אתמול, ובלי הבדיקה הזו הוא התקבל כאילו הוא
             # של היום.
-            if is_market_open("TA35" if is_il else "NASDAQ100"):
+            # לא רק "השוק פתוח כרגע" - גם "השוק כבר נסגר היום" חייב ציטוט חי
+            # מהיום ממש, אחרת ציטוט חי שגם הוא תקוע על אתמול היה מתקבל בשקט
+            # (is_market_open=False אחרי סגירה) - זו בדיוק הפרצה שגרמה לטאואר
+            # להיראות עם שינוי יומי שגוי בסיכום היומי (25-26.8.2026, ~18:00
+            # שעון ישראל, אחרי סגירת ת"א). עדיף להחזיר None (בלי תיקון) מאשר
+            # להחליף נתון תקוע אחד באחר.
+            country = "IL" if is_il else "US"
+            if is_market_open("TA35" if is_il else "NASDAQ100") or has_closed_today(country):
                 today_in_market_tz = dt.datetime.now(ZoneInfo(spec["tz"])).date()
                 if close_date < today_in_market_tz:
                     return None

@@ -79,7 +79,15 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
             return "no_change"
 
         msg = f"Sync from local: {reason}" if reason else "Sync from local"
-        _git_run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+        # "-- " + paths (לא "git commit -m msg" סתמי): commit בלי pathspec מצרף
+        # את *כל* מה שכרגע ב-index, לא רק את מה שהתווסף כאן. גילינו בפועל
+        # (26.8.2026) שזה גרם לכך ש-alerts.db "נתפס" בטעות ל-commit הזה (למרות
+        # include_db=False) - כנראה נשאר staged משאריות של stash/rebase קודמים -
+        # ודחף עותק ישן של alerts.db שדרס state של הבוט (stop_alert_active,
+        # התראת-ירידה של היום), וגרם לו "לשכוח" שכבר התריע ולהתריע שוב על אותה
+        # ירידה בדיוק (אלביט 4 פעמים, אנלייט פעמיים). ה-"-- " + paths מבטיח
+        # שה-commit הזה יכיל את הנתיבים המיועדים בלבד, לא משנה מה עוד staged.
+        _git_run(_git + ["commit", "-m", msg, "--"] + paths, check=True, capture_output=True, timeout=15)
 
         for attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
             push = _git_run(_git + ["push", "--quiet"], capture_output=True, timeout=45)
@@ -91,7 +99,7 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
             )
             _git_run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
             _git_run(_git + ["reset", "--soft", "origin/master"], check=True, capture_output=True, timeout=15)
-            _git_run(_git + ["commit", "-m", msg], check=True, capture_output=True, timeout=15)
+            _git_run(_git + ["commit", "-m", msg, "--"] + paths, check=True, capture_output=True, timeout=15)
 
         logger.warning("סנכרון לענן נכשל (%s): push נדחה %d פעמים ברציפות", reason, _MAX_PUSH_ATTEMPTS)
         return "failed"

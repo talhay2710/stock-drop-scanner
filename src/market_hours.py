@@ -55,6 +55,21 @@ def is_market_open(index: str) -> bool:
     return open_t <= now <= close_t
 
 
+def has_closed_today(country: str) -> bool:
+    """True אם יום מסחר היום (country) והשעה הנוכחית כבר עברה את שעת הסגירה של
+    היום - להבדיל מ"עוד לא נפתח היום" או מסוף שבוע. משמש את market_data.is_data_stale
+    כדי לדעת שברגע שהשוק נסגר, הסגירה המצופה היא של היום עצמו ולא רק של אתמול
+    (גילינו בפועל 25-26.8.2026: טאואר הוצג עם שינוי יומי שגוי בסיכום היומי,
+    כי נתון שפיגר יום שלם מאחורי לא נתפס בכלל כ"תקוע" בבדיקה הישנה - ר' שם)."""
+    spec = MARKET_HOURS[country]
+    now = dt.datetime.now(ZoneInfo(spec["tz"]))
+    if now.isoweekday() not in spec["weekdays"]:
+        return False
+    close_hm = _close_for_weekday(spec, now.isoweekday())
+    close_t = now.replace(hour=close_hm[0], minute=close_hm[1], second=0, microsecond=0)
+    return now > close_t
+
+
 def get_market_status(country: str) -> dict:
     """מחזיר תמונת מצב מדויקת של השוק: פתוח/סגור, הזמן המקומי, ומתי האירוע
     הבא (פתיחה/סגירה) יחד עם ספירה לאחור אליו. מתחשב בסגירה מוקדמת בימי שישי בישראל."""
