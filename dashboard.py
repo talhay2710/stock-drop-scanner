@@ -297,8 +297,7 @@ st.markdown(
     }
     div[class*="st-key-navtab_"] button[kind="secondary"] {
         background-color: transparent;
-        font-weight: 600;
-        color: #1a1a2e;
+        font-weight: 500;
     }
     [data-testid="stMainBlockContainer"] {
         padding-top: 2rem;
