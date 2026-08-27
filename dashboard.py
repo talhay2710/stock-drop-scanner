@@ -1810,24 +1810,26 @@ with _tab_slot_movers.container():
                         _wl_current = get_current_price(it["ticker"])
                         if _wl_current is None:
                             _wl_current = _r["last_close"]
-                        # תאריך מול תאריך (לא datetime מול datetime): "יום 1" הוא יום ההוספה
-                        # עצמו, ו"יום 2" מתחיל בחצות שלאחריו - לא רק אחרי שחלפו 24 שעות
-                        # מדויקות משעת ההוספה. ה-.days של הפרש datetime מודד משך זמן, לא
-                        # הפרש תאריכים - זה מה שגרם למונה "להיתקע" על 01 כל עוד לא חלפה
-                        # יממה מלאה משעת ההוספה, גם אחרי שכבר עבר יום קלנדרי.
-                        _wl_days_held = (israel_today() - dt.datetime.fromisoformat(it["added_at"]).date()).days + 1
+                        # ימי מסחר, לא ימי לוח (כמו "שינוי מצטבר" בשאר האפליקציה) - סופ"ש
+                        # לא נספר. "יום 1" הוא יום ההוספה עצמו (אם הוא יום מסחר).
+                        _wl_added_date = dt.datetime.fromisoformat(it["added_at"]).date()
+                        _wl_today = israel_today()
+                        _wl_days_held = sum(
+                            1 for _wl_d in range((_wl_today - _wl_added_date).days + 1)
+                            if (_wl_added_date + dt.timedelta(days=_wl_d)).weekday() not in (5, 6)
+                        )
                         _wl_rows.append({
                             "id": it["id"],
                             "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
                             "שער קנייה": _price_text(it["entry_price"], it["index_name"]),
                             "שינוי יומי (%)": _r["pct_change"],
                             "תשואה (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
-                            "ימי אחזקה": _wl_days_held,
+                            "ימי מסחר": _wl_days_held,
                         })
                     _wl_col_ratios = [3, 1.3, 1.3, 1.3, 1.1, 0.6]
                     _wl_header_cols = st.columns(_wl_col_ratios)
                     for _wl_h_col, _wl_h_text in zip(
-                        _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", "ימי אחזקה", ""],
+                        _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", "ימי מסחר", ""],
                     ):
                         with _wl_h_col:
                             st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
@@ -1855,7 +1857,7 @@ with _tab_slot_movers.container():
                                         unsafe_allow_html=True,
                                     )
                         with _wl_days_col:
-                            st.write(f"{_wl_row['ימי אחזקה']:02d}")
+                            st.write(f"{_wl_row['ימי מסחר']:02d}")
                         with _wl_del_col:
                             if st.button("🗑️", key=f"watchlist_remove_{_wl_row['id']}"):
                                 _wl_remove_conn = store.get_conn(db_path(cfg))
