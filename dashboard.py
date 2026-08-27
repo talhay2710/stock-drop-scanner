@@ -1402,24 +1402,42 @@ with st.sidebar:
             key="preview_account_usd",
         )
         st.markdown("**סיכון לעסקה (% מהתיק)**")
-        rp1, rp2, rp3 = st.columns(3)
-        rp1.number_input(
-            "%", min_value=0.1, max_value=10.0, step=0.05,
-            value=float(cfg.get("risk_pct_per_trade", 0.75)),
-            key="settings_risk_pct", on_change=_autosave_position,
-        )
-        # נגזרת חיה: אחוז הסיכון (מה-widget, גם לפני שהשמירה/רענון הושלמו) כפול
-        # שווי התיק בכל מטבע - כדי שהמשתמש יראה מייד כמה כסף בפועל הוא מסכן,
-        # לא רק את האחוז המופשט.
-        _risk_pct_live = float(st.session_state.get("settings_risk_pct", cfg.get("risk_pct_per_trade", 0.75)))
-        rp2.number_input(
-            'ש"ח', value=_account_size_by_ccy.get("ILS", 0.0) * _risk_pct_live / 100.0,
-            disabled=True, format="%.0f", key="preview_risk_amount_ils",
-        )
-        rp3.number_input(
-            "$", value=_account_size_by_ccy.get("USD", 0.0) * _risk_pct_live / 100.0,
-            disabled=True, format="%.0f", key="preview_risk_amount_usd",
-        )
+        with st.container(key="risk_pct_row"):
+            # שלוש עמודות שוות (columns(3)) פרשו כל שדה על פני יותר מ-100px ברוחב
+            # הצר של הסיידבר - Streamlit "מוותר" על כפתורי +/- כשאין להם מספיק
+            # מקום, בלי הודעה, וגם למראה כללי רחב מדי מיותר. רוחב קבוע וצמוד
+            # (כמו ב-movers_days_row) מבטיח גם קומפקטיות וגם שהכפתורים בפועל יוצגו.
+            st.markdown(
+                """
+                <style>
+                div[class*="st-key-risk_pct_row"] div[data-testid="stHorizontalBlock"] {
+                    gap: 6px !important;
+                }
+                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"] {
+                    width: 90px !important; flex: 0 0 auto !important; min-width: 0 !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            rp1, rp2, rp3 = st.columns(3)
+            rp1.number_input(
+                "%", min_value=0.1, max_value=10.0, step=0.05,
+                value=float(cfg.get("risk_pct_per_trade", 0.75)),
+                key="settings_risk_pct", on_change=_autosave_position,
+            )
+            # נגזרת חיה: אחוז הסיכון (מה-widget, גם לפני שהשמירה/רענון הושלמו) כפול
+            # שווי התיק בכל מטבע - כדי שהמשתמש יראה מייד כמה כסף בפועל הוא מסכן,
+            # לא רק את האחוז המופשט.
+            _risk_pct_live = float(st.session_state.get("settings_risk_pct", cfg.get("risk_pct_per_trade", 0.75)))
+            rp2.number_input(
+                'ש"ח', value=_account_size_by_ccy.get("ILS", 0.0) * _risk_pct_live / 100.0,
+                disabled=True, format="%.0f", key="preview_risk_amount_ils",
+            )
+            rp3.number_input(
+                "$", value=_account_size_by_ccy.get("USD", 0.0) * _risk_pct_live / 100.0,
+                disabled=True, format="%.0f", key="preview_risk_amount_usd",
+            )
 
     with st.expander("📈 התראת אחזקות"):
         st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'.")
