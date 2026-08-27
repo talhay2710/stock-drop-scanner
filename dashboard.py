@@ -1360,24 +1360,24 @@ with st.sidebar:
         st.markdown("**סכום השקעה מינימלי**")
         ps1, ps2 = st.columns(2)
         ps1.number_input(
-            'ש"ח', min_value=0.0, step=500.0,
+            'ש"ח', min_value=0.0, step=500.0, format="%.0f",
             value=float(cfg.get("position_size", {}).get("ILS", 10000)),
             key="settings_position_ils", on_change=_autosave_position,
         )
         ps2.number_input(
-            "$", min_value=0.0, step=500.0,
+            "$", min_value=0.0, step=500.0, format="%.0f",
             value=float(cfg.get("position_size", {}).get("USD", 10000)),
             key="settings_position_usd", on_change=_autosave_position,
         )
         st.markdown("**תקרת השקעה מקסימלית**")
         mx1, mx2 = st.columns(2)
         mx1.number_input(
-            'ש"ח', min_value=0.0, step=500.0,
+            'ש"ח', min_value=0.0, step=500.0, format="%.0f",
             value=float(cfg.get("max_position_size", {}).get("ILS", 30000)),
             key="settings_max_position_ils", on_change=_autosave_position,
         )
         mx2.number_input(
-            "$", min_value=0.0, step=500.0,
+            "$", min_value=0.0, step=500.0, format="%.0f",
             value=float(cfg.get("max_position_size", {}).get("USD", 30000)),
             key="settings_max_position_usd", on_change=_autosave_position,
         )
@@ -1394,10 +1394,12 @@ with st.sidebar:
             _account_size_conn.close()
         as1, as2 = st.columns(2)
         as1.number_input(
-            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, key="preview_account_ils",
+            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, format="%.0f",
+            key="preview_account_ils",
         )
         as2.number_input(
-            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, key="preview_account_usd",
+            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, format="%.0f",
+            key="preview_account_usd",
         )
         st.markdown("**סיכון לעסקה (% מהתיק)**")
         rp1, rp2, rp3 = st.columns(3)
@@ -1412,11 +1414,11 @@ with st.sidebar:
         _risk_pct_live = float(st.session_state.get("settings_risk_pct", cfg.get("risk_pct_per_trade", 0.75)))
         rp2.number_input(
             'ש"ח', value=_account_size_by_ccy.get("ILS", 0.0) * _risk_pct_live / 100.0,
-            disabled=True, key="preview_risk_amount_ils",
+            disabled=True, format="%.0f", key="preview_risk_amount_ils",
         )
         rp3.number_input(
             "$", value=_account_size_by_ccy.get("USD", 0.0) * _risk_pct_live / 100.0,
-            disabled=True, key="preview_risk_amount_usd",
+            disabled=True, format="%.0f", key="preview_risk_amount_usd",
         )
 
     with st.expander("📈 התראת אחזקות"):
