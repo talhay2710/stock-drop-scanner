@@ -1688,7 +1688,7 @@ with _tab_slot_movers.container():
                 _movers_cumulative_label = (
                     f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
                     f'onclick="alert(\'{_movers_tip_text}\')" '
-                    f'style="cursor:pointer; color:#888;">▾</span>'
+                    f'style="cursor:pointer; color:{ACCENT_COLOR};">▾</span>'
                 )
 
                 def _render(sub_df: pd.DataFrame) -> None:
