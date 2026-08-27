@@ -1758,7 +1758,10 @@ with _tab_slot_movers.container():
                             width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
                         }
                         div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
-                            width: 90px !important; flex: 0 0 auto !important;
+                            /* 90px היה מונע מ-Streamlit לרנדר בכלל את כפתורי ה-+/- (לא
+                               רק CSS שמסתיר אותם) - אומת אמפירית (ר' risk_pct_row): מתחת
+                               ל-~150px אין כפתורים בכלל, לא משנה מה ה-CSS אומר. */
+                            width: 170px !important; flex: 0 0 auto !important;
                         }
                         </style>
                         """,
