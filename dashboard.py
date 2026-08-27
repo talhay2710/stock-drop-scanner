@@ -1401,10 +1401,10 @@ with st.sidebar:
             "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, format="%.0f",
             key="preview_account_usd",
         )
-        st.markdown("**סיכון לעסקה (% מהתיק)**")
+        st.markdown("**סיכון לעסקה**")
         rp1, rp2, rp3 = st.columns(3)
         rp1.number_input(
-            "%", min_value=0.1, max_value=10.0, step=0.05,
+            "% מהתיק", min_value=0.1, max_value=10.0, step=0.05,
             value=float(cfg.get("risk_pct_per_trade", 0.75)),
             key="settings_risk_pct", on_change=_autosave_position,
         )
