@@ -1403,17 +1403,21 @@ with st.sidebar:
         )
         st.markdown("**סיכון לעסקה (% מהתיק)**")
         with st.container(key="risk_pct_row"):
-            # שלוש עמודות שוות (columns(3)) פרשו כל שדה על פני יותר מ-100px ברוחב
-            # הצר של הסיידבר - Streamlit "מוותר" על כפתורי +/- כשאין להם מספיק
-            # מקום, בלי הודעה, וגם למראה כללי רחב מדי מיותר. רוחב קבוע וצמוד
-            # (כמו ב-movers_days_row) מבטיח גם קומפקטיות וגם שהכפתורים בפועל יוצגו.
+            # Streamlit לא מרנדר בכלל את כפתורי ה-+/- (לא רק מסתיר ב-CSS) כשהעמודה
+            # צרה מדי - אומת בפועל: אותו number_input עם 90px נתן 0 כפתורים,
+            # ועם 182px+ (אחוז ירידה יומי/מצטברת למעלה, "התראת אחזקות" למטה)
+            # קיבל 2. השדה הפעיל (%) מקבל עמודה רחבה מספיק לכפתורים; שני
+            # התצוגה-בלבד (ש"ח/$, disabled ממילא) נשארים צרים - לא צריכים כפתורים.
             st.markdown(
                 """
                 <style>
                 div[class*="st-key-risk_pct_row"] div[data-testid="stHorizontalBlock"] {
                     gap: 6px !important;
                 }
-                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"] {
+                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"]:first-child {
+                    width: 170px !important; flex: 0 0 auto !important; min-width: 0 !important;
+                }
+                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"]:not(:first-child) {
                     width: 90px !important; flex: 0 0 auto !important; min-width: 0 !important;
                 }
                 </style>
