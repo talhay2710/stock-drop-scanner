@@ -1,5 +1,6 @@
 """אורכסטרציית סריקה - מחבר בין כל המודולים לסבב סריקה אחד."""
 import logging
+import statistics
 import datetime as dt
 
 import pandas as pd
@@ -477,6 +478,21 @@ def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israel
         })
 
 
+def _historical_expected_max_drop_pct(conn) -> float | None:
+    """חציון, מתוך כל ההתראות ההיסטוריות עם day_low_price ידוע, של "כמה עוד
+    ירד המחיר ממחיר ההתראה עד לשפל של אותו יום מסחר" - מוצג בהתראות הבאות
+    כ"צפי לירידה מקסימלית ביום המסחר הנוכחי". חציון (לא ממוצע) כדי שמקרה קיצון
+    בודד לא יזיז את המספר. גדל עם הזמן ככל שנצברות עוד התראות - לא קבוע."""
+    rows = conn.execute(
+        "SELECT last_close, day_low_price FROM alerts "
+        "WHERE day_low_price IS NOT NULL AND last_close IS NOT NULL AND last_close > 0 AND pct_change < 0"
+    ).fetchall()
+    drops = [max(0.0, (last_close - day_low) / last_close * 100.0) for last_close, day_low in rows]
+    if not drops:
+        return None
+    return statistics.median(drops)
+
+
 def _scan_one_index(
     cfg: dict, index: str, conn, vix_level: float | None = None,
     holdings_value_by_ccy: dict[str, float] | None = None,
@@ -485,6 +501,7 @@ def _scan_one_index(
     country_code = constituents.INDEX_COUNTRY_CODE[index]
     is_israeli = country_code == "IL"
     currency = constituents.INDEX_CURRENCY[index]
+    expected_max_drop_pct = _historical_expected_max_drop_pct(conn)
 
     logger.info("שולף רשימת מניות עבור מדד %s", index)
     tickers = constituents.get_constituents(index)
@@ -705,6 +722,7 @@ def _scan_one_index(
             ticker, company_name, index, row, analysis, trade_idea,
             net_profit_scenario, net_loss_scenario, currency, position_size,
             multi_day_window, sector_peers, is_multi_day_only, market_regime_label,
+            expected_max_drop_pct,
         )
 
         edited = prior_message_id and notifier.edit_telegram(cfg, prior_message_id, message)
@@ -771,7 +789,8 @@ def _format_header_price(value: float, currency: str) -> str:
 def _format_message(ticker, company_name, index, row, analysis, trade_idea,
                      net_profit, net_loss, currency, position_size,
                      multi_day_window=3, sector_peers=0, is_multi_day_only=False,
-                     market_regime_label: str | None = None) -> str:
+                     market_regime_label: str | None = None,
+                     expected_max_drop_pct: float | None = None) -> str:
     """הודעה קצרה וממוקדת: מה קרה, למה (בקצרה), האם נראה תגובת יתר, והמלצת
     כניסה/יציאה עם התוצאה נטו - בלי לגלול. פרטים מלאים (חדשות, z-score/RSI
     וכו') זמינים בדשבורד."""
@@ -784,6 +803,10 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
     header_tag = "📉 ירידה מצטברת" if is_multi_day_only else "⚠️"
     lines = [
         f"{header_tag} <b>{display_name} {_signed(row['pct_change'], 1, '%')} {_format_header_price(row['last_close'], currency)}</b>",
+    ]
+    if expected_max_drop_pct is not None:
+        lines.append(f"📉 <b>צפי לירידה מקסימלית ביום המסחר הנוכחי: {expected_max_drop_pct:.1f}%</b>")
+    lines += [
         f"{ticker} · מדד {index}",
         "",
     ]

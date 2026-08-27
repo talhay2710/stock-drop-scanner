@@ -132,6 +132,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "reversal_low_price REAL", "reversal_alert_sent INTEGER DEFAULT 0",
         "residual_drop_pct REAL", "dist_from_ma50_pct REAL",
         "reversal_expired INTEGER DEFAULT 0",
+        "day_low_price REAL",
     ):
         try:
             conn.execute(f"ALTER TABLE alerts ADD COLUMN {column_def}")
@@ -431,7 +432,8 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
                 zscore=:zscore, rsi=:rsi, volume_ratio=:volume_ratio, vix_level=:vix_level,
                 intraday_recovery_pct=:intraday_recovery_pct, market_regime=:market_regime,
                 reversal_low_price=:reversal_low_price, reversal_alert_sent=:reversal_alert_sent,
-                residual_drop_pct=:residual_drop_pct, dist_from_ma50_pct=:dist_from_ma50_pct
+                residual_drop_pct=:residual_drop_pct, dist_from_ma50_pct=:dist_from_ma50_pct,
+                day_low_price=:day_low_price
                WHERE id = :id""",
             {**record, "id": alert_id},
         )
@@ -445,13 +447,13 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
          entry_limit, target_base, stop_loss, net_result_json, sector,
          quality_tier, quality_score, quality_flags_json, rebound_tier, last_close_date,
          zscore, rsi, volume_ratio, vix_level, intraday_recovery_pct, market_regime,
-         reversal_low_price, reversal_alert_sent, residual_drop_pct, dist_from_ma50_pct)
+         reversal_low_price, reversal_alert_sent, residual_drop_pct, dist_from_ma50_pct, day_low_price)
         VALUES (:scan_date, :scan_ts, :ticker, :company_name, :index_name, :pct_change, :last_close, :prev_close,
                 :reason_text, :reasons_json, :headlines_json, :overreaction_verdict, :overreaction_score,
                 :entry_limit, :target_base, :stop_loss, :net_result_json, :sector,
                 :quality_tier, :quality_score, :quality_flags_json, :rebound_tier, :last_close_date,
                 :zscore, :rsi, :volume_ratio, :vix_level, :intraday_recovery_pct, :market_regime,
-                :reversal_low_price, :reversal_alert_sent, :residual_drop_pct, :dist_from_ma50_pct)""",
+                :reversal_low_price, :reversal_alert_sent, :residual_drop_pct, :dist_from_ma50_pct, :day_low_price)""",
         record,
     )
     conn.commit()
@@ -606,4 +608,9 @@ def build_record(scan_date: str, ticker: str, company_name: str | None, index_na
             v for v in (row.get("last_close"), row.get("last_low")) if v is not None
         ) if (row.get("last_close") is not None or row.get("last_low") is not None) else None,
         "reversal_alert_sent": 0,
+        # שפל היום של יום ההתראה עצמו (לא מתעדכן אח"כ, בניגוד ל-reversal_low_price
+        # שממשיך לרדוף שפלים חדשים) - משמש לחשב רטרואקטיבית "כמה עוד ירדה המניה
+        # מרגע ההתראה עד לשפל אותו יום", ומזה בונים את "צפי לירידה מקסימלית"
+        # שמוצג בהתראות הבאות (ר' scanner._historical_expected_max_drop_pct).
+        "day_low_price": row.get("last_low"),
     }
