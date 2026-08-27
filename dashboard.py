@@ -534,12 +534,12 @@ def render_index_card(label: str, val: float | None, trading_open: bool) -> None
     elif not trading_open:
         color, bg = CLOSED_COLOR, CLOSED_BG
         arrow = "▲" if val >= 0 else "▼"
-        value_html = f"{arrow} {_signed_num(val, 2, '%')}"
+        value_html = f"{arrow} {_signed_num(val, 1, '%')}"
     else:
         color = POS_COLOR if val >= 0 else NEG_COLOR
         bg = POS_BG if val >= 0 else NEG_BG
         arrow = "▲" if val >= 0 else "▼"
-        value_html = f"{arrow} {_signed_num(val, 2, '%')}"
+        value_html = f"{arrow} {_signed_num(val, 1, '%')}"
 
     status_color = POS_COLOR if trading_open else CLOSED_COLOR
     status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
@@ -1658,8 +1658,8 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
             [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
              ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")],
             formatters={
-                "שינוי יומי (%)": lambda v: _signed_num(v, 2, "%"),
-                "שינוי מצטבר (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                "שינוי יומי (%)": lambda v: _signed_num(v, 1, "%"),
+                "שינוי מצטבר (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
             },
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
             truncate_columns={"שם_וטיקר": 169, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58},
@@ -1846,7 +1846,7 @@ with _tab_slot_movers.container():
                                     _wl_color = POS_COLOR if _wl_val >= 0 else NEG_COLOR
                                     st.markdown(
                                         f'<span style="color:{_wl_color}; font-weight:600;">'
-                                        f'{_signed_num(_wl_val, 2, "%")}</span>',
+                                        f'{_signed_num(_wl_val, 1, "%")}</span>',
                                         unsafe_allow_html=True,
                                     )
                         with _wl_days_col:
@@ -2116,8 +2116,8 @@ with _tab_slot_today.container():
                                  ("סיווג ריבאונד", _rebound_header_label),
                                  ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
                                 formatters={
-                                    "שינוי בזמן התראה": lambda v: _signed_num(v, 2, "%"),
-                                    "שינוי נוכחי": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                                    "שינוי בזמן התראה": lambda v: _signed_num(v, 1, "%"),
+                                    "שינוי נוכחי": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                                     "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
                                     "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
                                     "סיווג ריבאונד": _rebound_cell_text,
@@ -2528,7 +2528,7 @@ with _tab_slot_backtest.container():
                         [("טיקר", "טיקר"), ("זמן סריקה", "זמן סריקה"), ("שינוי (%)", "שינוי (%)"),
                          ("יעד", "יעד"), ("סטופ", "סטופ"), ("תוצאה", "תוצאה")],
                         formatters={
-                            "שינוי (%)": lambda v: _signed_num(v, 2, "%") if pd.notna(v) else "—",
+                            "שינוי (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                             "יעד": lambda v: f"{v:.2f}" if pd.notna(v) else "—",
                             "סטופ": lambda v: f"{v:.2f}" if pd.notna(v) else "—",
                         },
@@ -2666,7 +2666,7 @@ with _tab_slot_portfolio.container():
                     daily_badge_html = (
                         f'<div style="font-size:1rem; font-weight:700; color:{_daily_color}; '
                         f'display:flex; align-items:center; gap:4px;">'
-                        f'{_daily_icon} {_signed_num(_daily_pct, 2, "%")}'
+                        f'{_daily_icon} {_signed_num(_daily_pct, 1, "%")}'
                         f'<span style="font-size:0.7rem; font-weight:500; opacity:0.7;">שינוי יומי</span></div>'
                     )
                 else:
