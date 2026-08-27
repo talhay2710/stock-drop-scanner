@@ -1403,21 +1403,13 @@ with st.sidebar:
         )
         st.markdown("**סיכון לעסקה (% מהתיק)**")
         with st.container(key="risk_pct_row"):
-            # Streamlit לא מרנדר בכלל את כפתורי ה-+/- (לא רק מסתיר ב-CSS) כשהעמודה
-            # צרה מדי - אומת בפועל: אותו number_input עם 90px נתן 0 כפתורים,
-            # ועם 182px+ (אחוז ירידה יומי/מצטברת למעלה, "התראת אחזקות" למטה)
-            # קיבל 2. השדה הפעיל (%) מקבל עמודה רחבה מספיק לכפתורים; שני
-            # התצוגה-בלבד (ש"ח/$, disabled ממילא) נשארים צרים - לא צריכים כפתורים.
             st.markdown(
                 """
                 <style>
                 div[class*="st-key-risk_pct_row"] div[data-testid="stHorizontalBlock"] {
                     gap: 6px !important;
                 }
-                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"]:first-child {
-                    width: 170px !important; flex: 0 0 auto !important; min-width: 0 !important;
-                }
-                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"]:not(:first-child) {
+                div[class*="st-key-risk_pct_row"] div[data-testid="stColumn"] {
                     width: 90px !important; flex: 0 0 auto !important; min-width: 0 !important;
                 }
                 </style>
@@ -1758,10 +1750,7 @@ with _tab_slot_movers.container():
                             width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
                         }
                         div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
-                            /* 90px היה מונע מ-Streamlit לרנדר בכלל את כפתורי ה-+/- (לא
-                               רק CSS שמסתיר אותם) - אומת אמפירית (ר' risk_pct_row): מתחת
-                               ל-~150px אין כפתורים בכלל, לא משנה מה ה-CSS אומר. */
-                            width: 170px !important; flex: 0 0 auto !important;
+                            width: 90px !important; flex: 0 0 auto !important;
                         }
                         </style>
                         """,
