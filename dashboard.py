@@ -1356,7 +1356,7 @@ with st.sidebar:
         )
 
     with st.expander("💵 השקעה ויעד רווח"):
-        st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה.")
+        st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
         st.markdown("**סכום השקעה מינימלי**")
         ps1, ps2 = st.columns(2)
         ps1.number_input(
@@ -1422,7 +1422,7 @@ with st.sidebar:
         )
 
     with st.expander("📈 התראת אחזקות"):
-        st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'.")
+        st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
         st.markdown("**סף עלייה ראשוני (%)**")
         st.number_input(
             "סף עלייה ראשוני", min_value=0.5, max_value=50.0, step=0.5,
@@ -1773,7 +1773,7 @@ with _tab_slot_movers.container():
 
             with st.container(border=True):
                 st.image(render_text_image(f"מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
-                st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה.")
+                st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה")
 
                 if not _wl_items:
                     st.info("אין מניות במעקב עדיין.")
@@ -1887,7 +1887,7 @@ with _tab_slot_today.container():
             _pa_count_conn.close()
             _pa_label = f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית"
             with st.expander(_pa_label):
-                st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת.")
+                st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת")
                 _pa_conn = store.get_conn(db_path(cfg))
                 _active_price_alerts = store.get_active_price_alerts(_pa_conn)
 
@@ -2312,7 +2312,7 @@ with _tab_slot_today.container():
 
             with st.container(border=True):
                 st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
-                st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב.")
+                st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב")
                 if not near_miss_df.empty:
                     _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
@@ -2351,7 +2351,7 @@ def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFr
     return result
 
 
-_BACKTEST_CAPTION = "בודק הצלחת התראות עבר לפי מחירי שיא / שפל בפועל."
+_BACKTEST_CAPTION = "בודק הצלחת התראות עבר לפי מחירי שיא / שפל בפועל"
 
 
 def _color_success_rate(val):
@@ -2967,7 +2967,7 @@ _tab_slot_history = st.empty()  # placeholder עם מיקום קבוע, נוצר
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
 with _tab_slot_history.container():
     if st.session_state.active_tab == "history":
-        st.caption("היסטוריית העסקאות שסגרת בפועל - התחזית של המערכת מול התוצאה האמיתית שקיבלת.")
+        st.caption("היסטוריית העסקאות שסגרת בפועל - התחזית של המערכת מול התוצאה האמיתית שקיבלת")
         hist_conn = store.get_conn(db_path(cfg))
         closed_trades = store.get_closed_trades(hist_conn)
         hist_conn.close()
