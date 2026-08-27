@@ -119,7 +119,7 @@ def _help_icon_span(tooltip_text: str) -> str:
     _tip_js = tooltip_text.replace("'", "\\'")
     return (
         f'<span title="{tooltip_text}" onclick="alert(\'{_tip_js}\')" '
-        f'style="cursor:pointer; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
+        f'style="cursor:help; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
     )
 
 
@@ -1715,7 +1715,7 @@ with _tab_slot_movers.container():
                 _movers_cumulative_label = (
                     f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
                     f'onclick="alert(\'{_movers_tip_text}\')" '
-                    f'style="cursor:pointer; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
+                    f'style="cursor:help; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
                 )
 
                 def _render(sub_df: pd.DataFrame) -> None:
