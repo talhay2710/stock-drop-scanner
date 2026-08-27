@@ -45,6 +45,6 @@ multi_day_enabled: true
 holdings_stop_warn_pct: 1.0
 holdings_target_warn_pct: 0.5
 max_position_size:
-  ILS: 12000.0
+  ILS: 10000.0
   USD: 5000.0
 account_size: {}
