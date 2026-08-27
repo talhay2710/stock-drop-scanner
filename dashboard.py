@@ -103,6 +103,25 @@ NEUTRAL_BG = "rgba(120,120,120,0.07)"
 ACCENT_COLOR = "#3B6EA5"
 CURRENCY_SYMBOLS = {"ILS": 'ש"ח', "USD": "$"}
 
+# אייקון עיגול-שאלה שמחקה את ה-help= הטבעי של Streamlit (עיגול אפור עדין) -
+# SVG במקום אימוג'י "❓", שמציג צבעוני/שונה מאוד בין פלטפורמות.
+_HELP_ICON_SVG = (
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'style="vertical-align:-2px;"><circle cx="12" cy="12" r="10"></circle>'
+    '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>'
+)
+
+
+def _help_icon_span(tooltip_text: str) -> str:
+    """<span> עם האייקון + טולטיפ - onclick (לא רק title) כי הובר לבד לא עובד
+    במגע (טאבלט/מובייל)."""
+    _tip_js = tooltip_text.replace("'", "\\'")
+    return (
+        f'<span title="{tooltip_text}" onclick="alert(\'{_tip_js}\')" '
+        f'style="cursor:pointer; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
+    )
+
 
 def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
     """מספר עם סימן (+/-) שנשאר לפני המספר גם בתוך טקסט עברי (RTL) - עוטף
@@ -1692,20 +1711,11 @@ with _tab_slot_movers.container():
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
                 # title=... לבד (הובר בלבד) לא עובד במגע (טאבלט/מובייל) - אין hover.
                 # onclick עם alert עובד בלחיצה/הקשה בכל מכשיר, בלי תלות ב-hover.
-                # אותו אייקון עיגול-שאלה בדיוק כמו ה-help= הטבעי של Streamlit (משמש
-                # כבר ליד "שווי התיק הכולל" וכו') - SVG במקום אימוג'י, כי אימוג'י "❓"
-                # מציג צבעוני/שונה מאוד בין פלטפורמות, לא העיגול האפור העדין המצופה.
-                _help_icon_svg = (
-                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-                    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
-                    'style="vertical-align:-2px;"><circle cx="12" cy="12" r="10"></circle>'
-                    '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>'
-                )
                 _movers_tip_text = f"שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים\\nכולל השינוי היומי"
                 _movers_cumulative_label = (
                     f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
                     f'onclick="alert(\'{_movers_tip_text}\')" '
-                    f'style="cursor:pointer; color:rgba(49,51,63,0.6);">{_help_icon_svg}</span>'
+                    f'style="cursor:pointer; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
                 )
 
                 def _render(sub_df: pd.DataFrame) -> None:
@@ -2084,8 +2094,7 @@ with _tab_slot_today.container():
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
                 _rebound_header_label = (
-                    f'סיווג ריבאונד <span title="משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית" '
-                    'style="cursor:help;">ℹ️</span>'
+                    f'סיווג ריבאונד {_help_icon_span(f"משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית")}'
                 )
                 if _is_fallback_day:
                     _fallback_date_text = dt.date.fromisoformat(_last_scan_date).strftime("%d.%m")
