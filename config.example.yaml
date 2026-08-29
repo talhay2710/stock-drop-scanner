@@ -48,3 +48,16 @@ max_position_size:
   ILS: 10000.0
   USD: 5000.0
 account_size: {}
+telegram_message_types:
+  drop_alert: true
+  holdings_stop: true
+  holdings_target: true
+  holdings_gain: true
+  price_alert: true
+  reversal_alert: true
+  morning_summary: true
+  daily_summary: true
+  weekly_report: true
+  health_startup: true
+  health_heartbeat: true
+  health_dashboard: false
