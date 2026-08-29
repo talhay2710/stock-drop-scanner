@@ -60,4 +60,4 @@ telegram_message_types:
   weekly_report: true
   health_startup: true
   health_heartbeat: true
-  health_dashboard: false
+  health_dashboard: true
