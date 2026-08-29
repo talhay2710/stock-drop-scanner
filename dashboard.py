@@ -1567,7 +1567,10 @@ with st.sidebar:
                 key=f"settings_msgtype_{_mt_key}", on_change=_autosave_message_types,
             )
 
-    st.markdown("**📢 ערוצי התראה**")
+    st.markdown(
+        '<b><span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
+        unsafe_allow_html=True,
+    )
     ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
     ch1.checkbox(
         "טלגרם", value=bool(cfg.get("telegram", {}).get("enabled", True)),
