@@ -1416,13 +1416,13 @@ with st.sidebar:
             }
             div[class*="st-key-scan_button_box"] button {
                 background-color: transparent !important; border: none !important;
-                box-shadow: none !important; font-weight: 600 !important;
-                font-size: 1rem !important; padding: 4px 12px !important; width: 100%;
+                box-shadow: none !important; font-weight: 400 !important;
+                font-size: 14px !important; padding: 4px 12px !important; width: 100%;
                 text-align: right !important; justify-content: flex-start !important;
                 color: inherit !important;
             }
             div[class*="st-key-scan_button_box"] button p {
-                font-weight: 600 !important; font-size: 1rem !important; color: inherit !important;
+                font-weight: 400 !important; font-size: 14px !important; color: inherit !important;
             }
             div[class*="st-key-scan_button_box"] button > div {
                 justify-content: flex-start !important;
