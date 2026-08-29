@@ -416,27 +416,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.container(key="main_title"):
-    # לא <h1> אמיתי בכוונה - Streamlit מעבד תגי h1-h6 ב-markdown בעצמו (מוסיף
-    # עוגן-קישור אוטומטי) ומשחזר אותם מחדש, ומוחק כל style שמוגדר ידנית על
-    # ה-<h1> בתהליך. גם כתיבת "!important" ישירות בתוך style="..." לא עוזרת -
-    # אומת בפועל: ה-sanitizer של Streamlit מוחק כל הצהרת CSS שמכילה
-    # "!important" מתוך style inline (שאר ההצהרות באותו style שורדות תקין).
-    # <style> block דרך container(key=...) הוא הדרך היחידה שעבדה בפועל - אותו
-    # דפוס שכבר עובד לכל שאר ה-CSS-overrides בקובץ הזה.
-    st.markdown(
-        """
-        <style>
-        div[class*="st-key-main_title"], div[class*="st-key-main_title"] div,
-        div[class*="st-key-main_title"] p {
-            text-align: center !important;
-        }
-        </style>
-        <div style="font-size:2.25rem; font-weight:600; line-height:1.2; margin-bottom:1rem;">
-        📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</div>
-        """,
-        unsafe_allow_html=True,
-    )
+st.title("📉 סורק מניות - התראות ואסטרטגיית ריבאונד")
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
 _TAB_DEFS = [
