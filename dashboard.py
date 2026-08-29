@@ -1410,15 +1410,23 @@ with st.sidebar:
         st.markdown(
             """
             <style>
-            div[class*="st-key-scan_button_box"] { padding: 0 !important; }
+            div[class*="st-key-scan_button_box"] { padding: 0 !important; gap: 0 !important; }
+            div[class*="st-key-scan_button_box"] [data-testid="stElementContainer"]:has(style) {
+                display: none;
+            }
             div[class*="st-key-scan_button_box"] button {
                 background-color: transparent !important; border: none !important;
                 box-shadow: none !important; font-weight: 600 !important;
                 font-size: 1rem !important; padding: 4px 12px !important; width: 100%;
                 text-align: right !important; justify-content: flex-start !important;
+                color: inherit !important;
             }
-            div[class*="st-key-scan_button_box"] button p { font-weight: 600 !important; font-size: 1rem !important; }
-            div[class*="st-key-scan_button_box"] button:hover { color: #3B6EA5 !important; }
+            div[class*="st-key-scan_button_box"] button p {
+                font-weight: 600 !important; font-size: 1rem !important; color: inherit !important;
+            }
+            div[class*="st-key-scan_button_box"] button > div {
+                justify-content: flex-start !important;
+            }
             </style>
             """,
             unsafe_allow_html=True,
