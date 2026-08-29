@@ -427,7 +427,10 @@ with st.container(key="main_title"):
     st.markdown(
         """
         <style>
-        div[class*="st-key-main_title"] { text-align: center !important; }
+        div[class*="st-key-main_title"], div[class*="st-key-main_title"] div,
+        div[class*="st-key-main_title"] p {
+            text-align: center !important;
+        }
         </style>
         <div style="font-size:2.25rem; font-weight:600; line-height:1.2; margin-bottom:1rem;">
         📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</div>
