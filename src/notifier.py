@@ -1,4 +1,5 @@
-"""שליחת התראות: טלגרם + התראת דסקטופ (Windows toast)."""
+"""שליחת התראות: טלגרם + התראת דסקטופ (Windows toast).
+"""
 import logging
 import requests
 
