@@ -416,7 +416,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("📉 סורק מניות - התראות ואסטרטגיית ריבאונד")
+st.markdown(
+    '<h1 style="text-align:center;">📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</h1>',
+    unsafe_allow_html=True,
+)
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
 _TAB_DEFS = [
