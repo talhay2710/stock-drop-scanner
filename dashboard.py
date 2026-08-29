@@ -1366,43 +1366,6 @@ def _autosave_channels():
 with st.sidebar:
     current_indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
 
-    with st.container(key="scan_button_box", border=True):
-        # מעצבים את הכפתור עצמו (שקוף, בלי מילוי כחול) כדי שיתאים ויזואלית
-        # לכותרות ה-expander-ים האחרים בסיידבר - אותה תיבה עם מסגרת, אותו
-        # משקל/גודל טקסט. עדיין כפתור אמיתי (לא מתקפל), לא expander מזויף.
-        st.markdown(
-            """
-            <style>
-            div[class*="st-key-scan_button_box"] { padding: 0 !important; }
-            div[class*="st-key-scan_button_box"] button {
-                background-color: transparent !important; border: none !important;
-                box-shadow: none !important; font-weight: 600 !important;
-                font-size: 1rem !important; padding: 4px 12px !important; width: 100%;
-                text-align: right !important; justify-content: flex-start !important;
-            }
-            div[class*="st-key-scan_button_box"] button p { font-weight: 600 !important; font-size: 1rem !important; }
-            div[class*="st-key-scan_button_box"] button:hover { color: #3B6EA5 !important; }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("🔍 סריקת שווקים", key="sidebar_scan_button", use_container_width=True):
-            # קריאה ישירה ממצב הווידג'טים הנוכחי, לא סומכים על זה שהשמירה האוטומטית
-            # כבר הספיקה "להתיישב" ב-cfg לפני הלחיצה על סריקה (כדי לא לסרוק מדד ישן)
-            cfg["indices"] = st.session_state.get("settings_indices") or cfg.get("indices")
-            cfg["drop_threshold_pct"] = st.session_state.get("settings_threshold", cfg.get("drop_threshold_pct"))
-            cfg["multi_day_threshold_pct"] = st.session_state.get(
-                "settings_multi_day_threshold", cfg.get("multi_day_threshold_pct")
-            )
-            cfg["multi_day_enabled"] = st.session_state.get(
-                "settings_multi_day_enabled", cfg.get("multi_day_enabled", True)
-            )
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-            with st.spinner("סורק..."):
-                results = run_scan(cfg)
-            st.success(f"הסתיים - {len(results)} התראות חדשות")
-
     with st.container(border=True):
         st.markdown("**📊 מדדים לסריקה**")
         st.multiselect(
@@ -1439,6 +1402,43 @@ with st.sidebar:
             "הפעל התראת ירידה מצטברת", value=bool(cfg.get("multi_day_enabled", True)),
             key="settings_multi_day_enabled", on_change=_autosave_settings,
         )
+
+    with st.container(key="scan_button_box", border=True):
+        # מעצבים את הכפתור עצמו (שקוף, בלי מילוי כחול) כדי שיתאים ויזואלית
+        # לכותרות ה-expander-ים האחרים בסיידבר - אותה תיבה עם מסגרת, אותו
+        # משקל/גודל טקסט/padding. עדיין כפתור אמיתי (לא מתקפל), לא expander מזויף.
+        st.markdown(
+            """
+            <style>
+            div[class*="st-key-scan_button_box"] { padding: 0 !important; }
+            div[class*="st-key-scan_button_box"] button {
+                background-color: transparent !important; border: none !important;
+                box-shadow: none !important; font-weight: 600 !important;
+                font-size: 1rem !important; padding: 4px 12px !important; width: 100%;
+                text-align: right !important; justify-content: flex-start !important;
+            }
+            div[class*="st-key-scan_button_box"] button p { font-weight: 600 !important; font-size: 1rem !important; }
+            div[class*="st-key-scan_button_box"] button:hover { color: #3B6EA5 !important; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("🔍 סריקת שווקים", key="sidebar_scan_button", use_container_width=True):
+            # קריאה ישירה ממצב הווידג'טים הנוכחי, לא סומכים על זה שהשמירה האוטומטית
+            # כבר הספיקה "להתיישב" ב-cfg לפני הלחיצה על סריקה (כדי לא לסרוק מדד ישן)
+            cfg["indices"] = st.session_state.get("settings_indices") or cfg.get("indices")
+            cfg["drop_threshold_pct"] = st.session_state.get("settings_threshold", cfg.get("drop_threshold_pct"))
+            cfg["multi_day_threshold_pct"] = st.session_state.get(
+                "settings_multi_day_threshold", cfg.get("multi_day_threshold_pct")
+            )
+            cfg["multi_day_enabled"] = st.session_state.get(
+                "settings_multi_day_enabled", cfg.get("multi_day_enabled", True)
+            )
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+            with st.spinner("סורק..."):
+                results = run_scan(cfg)
+            st.success(f"הסתיים - {len(results)} התראות חדשות")
 
     with st.expander("💵 השקעות ויעדים"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
