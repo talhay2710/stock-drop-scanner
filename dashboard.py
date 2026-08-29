@@ -417,7 +417,12 @@ st.markdown(
 )
 
 st.markdown(
-    '<h1 style="text-align:center !important;">📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</h1>',
+    # לא <h1> אמיתי בכוונה - Streamlit מעבד תגי h1-h6 ב-markdown בעצמו (מוסיף
+    # עוגן-קישור אוטומטי) ומשחזר אותם מחדש, כך שכל style שמוגדר ידנית על
+    # ה-<h1> נמחק בדרך - אומת בפועל: style="" נעלם לגמרי מה-DOM הסופי.
+    # div בעיצוב-ידני עוקף את זה לגמרי.
+    '<div style="text-align:center; font-size:2.25rem; font-weight:600; line-height:1.2; margin-bottom:1rem;">'
+    '📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</div>',
     unsafe_allow_html=True,
 )
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
