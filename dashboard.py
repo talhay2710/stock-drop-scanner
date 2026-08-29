@@ -2396,10 +2396,10 @@ with _tab_slot_today.container():
                 ])
             near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
 
-            with st.container(border=True):
-                st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
-                st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב")
-                if not near_miss_df.empty:
+            if not near_miss_df.empty:
+                with st.container(border=True):
+                    st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
+                    st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב")
                     _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
         _render_today_tab()
