@@ -417,7 +417,7 @@ st.markdown(
 )
 
 st.markdown(
-    '<h1 style="text-align:center;">📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</h1>',
+    '<h1 style="text-align:center !important;">📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</h1>',
     unsafe_allow_html=True,
 )
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
