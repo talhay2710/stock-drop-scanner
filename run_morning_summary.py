@@ -126,7 +126,7 @@ if __name__ == "__main__":
             )
 
             if message:
-                notifier.send_telegram(cfg, message)
+                notifier.send_telegram_typed(cfg, "morning_summary", message)
                 schedule_guard.mark_sent_today(conn, "morning")
                 print("תמונת מצב בוקר נשלחה.")
             else:

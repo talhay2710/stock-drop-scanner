@@ -50,7 +50,7 @@ def run_startup_health_check(cfg: dict) -> None:
     logger.warning("בדיקת בריאות בהפעלה נכשלה: %s", " | ".join(problems))
     # מתריעים דרך הערוץ שכן עובד, אם יש כזה - כדי שהבעיה תגיע גם כשלא בודקים לוגים
     if not any(p.startswith("טלגרם") for p in problems):
-        notifier.send_telegram(cfg, "⚠️ <b>בדיקת בריאות בהפעלה נכשלה</b>\n" + "\n".join(problems))
+        notifier.send_telegram_typed(cfg, "health_startup", "⚠️ <b>בדיקת בריאות בהפעלה נכשלה</b>\n" + "\n".join(problems))
 
 
 def _check_scan_heartbeat(cfg: dict, conn) -> None:
@@ -78,7 +78,7 @@ def _check_scan_heartbeat(cfg: dict, conn) -> None:
     gap_minutes = (now - prev_dt).total_seconds() / 60
     threshold = abs(cfg.get("scan_heartbeat_gap_alert_minutes", 30))
     if gap_minutes > threshold:
-        notifier.send_telegram(cfg, (
+        notifier.send_telegram_typed(cfg, "health_heartbeat", (
             f"🔴 <b>הסריקה האוטומטית הייתה שקטה כ-{gap_minutes:.0f} דקות</b>\n"
             "יכול להיות שהטריגר החיצוני (cron-job.org) הפסיק לעבוד באותה תקופה, "
             "או תקלה ב-GitHub Actions. כדאי לבדוק."
@@ -231,7 +231,7 @@ def check_holdings_gains(cfg: dict, conn) -> None:
                 "💰 <b>נטו</b>",
                 f"רווח נטו: {_signed(net.net_pnl)} {ccy_symbol}  ({_signed(net.net_return_pct, 1, '%')})",
             ])
-            notifier.send_telegram(cfg, message)
+            notifier.send_telegram_typed(cfg, "holdings_gain", message)
             store_mod.update_gain_alert(conn, h["id"], gain_pct)
 
         _check_stop_proximity(cfg, conn, h, display_name, entry, current, ccy)
@@ -272,7 +272,7 @@ def _check_stop_proximity(cfg: dict, conn, h: dict, display_name: str, entry: fl
         f"<b>הסטופ שלך: {_format_price(stop_price, ccy, with_unit=False)}</b>",
         f"נכנסת ב-{_format_price(entry, ccy, with_unit=False)}",
     ])
-    notifier.send_telegram(cfg, message)
+    notifier.send_telegram_typed(cfg, "holdings_stop", message)
     store_mod.update_stop_alert(conn, h["id"], True)
 
 
@@ -306,7 +306,7 @@ def _check_target_proximity(cfg: dict, conn, h: dict, display_name: str, entry: 
         f"<b>היעד שלך: {_format_price(target_price, ccy, with_unit=False)}</b>",
         f"נכנסת ב-{_format_price(entry, ccy, with_unit=False)}",
     ])
-    notifier.send_telegram(cfg, message)
+    notifier.send_telegram_typed(cfg, "holdings_target", message)
     store_mod.update_target_alert(conn, h["id"], True)
 
 
@@ -341,7 +341,7 @@ def check_price_alerts(cfg: dict, conn) -> None:
             f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}",
             f"מחיר יעד שקבעת: {_format_price(target, ccy, with_unit=False)}",
         ])
-        notifier.send_telegram(cfg, message)
+        notifier.send_telegram_typed(cfg, "price_alert", message)
         store_mod.deactivate_price_alert(conn, a["id"], triggered=True)
         logger.info("התראת מחיר הופעלה: %s %s %s", a["ticker"], direction_word, target)
 
@@ -411,7 +411,7 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
                 f"יעד: {_format_price(p['target_base'], ccy, with_unit=False)}"
             )
 
-        notifier.send_telegram(cfg, "\n".join(lines))
+        notifier.send_telegram_typed(cfg, "reversal_alert", "\n".join(lines))
         store_mod.mark_reversal_alert_sent(conn, p["id"])
         logger.info("התראת היפוך נשלחה: %s (%.1f%% מהשפל)", p["ticker"], bounce_pct)
 
@@ -729,11 +729,12 @@ def _scan_one_index(
             expected_max_drop_pct,
         )
 
-        edited = prior_message_id and notifier.edit_telegram(cfg, prior_message_id, message)
-        if not edited:
-            new_message_id = notifier.send_telegram(cfg, message)
-            if new_message_id:
-                store_mod.update_telegram_message_id(conn, new_id, new_message_id)
+        if notifier.is_message_type_enabled(cfg, "drop_alert"):
+            edited = prior_message_id and notifier.edit_telegram(cfg, prior_message_id, message)
+            if not edited:
+                new_message_id = notifier.send_telegram(cfg, message)
+                if new_message_id:
+                    store_mod.update_telegram_message_id(conn, new_id, new_message_id)
 
         if is_multi_day_only:
             desktop_title = f"📉 {ticker} ירדה מצטבר {row.get('n_day_change', 0):.1f}% ב-{multi_day_window} ימים"

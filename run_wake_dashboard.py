@@ -17,14 +17,32 @@ import os
 import sys
 
 import requests
+import yaml
 from playwright.sync_api import sync_playwright
 
 DASHBOARD_URL = "https://stock-drop-scanner-b2rrberutcyv4uaelcdigu.streamlit.app"
 WAKE_BUTTON_TEXT = "Yes, get this app back up!"
 APP_TITLE_TEXT = "סורק מניות"  # מופיע רק כשהאפליקציה בפועל טעונה ועובדת
+_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
+
+
+def _is_health_alert_enabled() -> bool:
+    """קריאת config.yaml מינימלית, בלי תלות ב-src (הסקריפט הזה עצמאי בכוונה) -
+    בודק את אותו מפתח "סוגי התראה" שהדשבורד/notifier.py משתמשים בו, כדי
+    שכיבוי "בריאות הדשבורד הציבורי" בסיידבר יכבה גם את ההתראה הזו. נכשל
+    לכיוון "מופעל" (לא חוסם) אם config.yaml חסר/לא קריא."""
+    try:
+        with open(_CONFIG_PATH, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        return bool(cfg.get("telegram_message_types", {}).get("health_dashboard", True))
+    except Exception:
+        return True
 
 
 def _send_telegram_alert(message: str) -> None:
+    if not _is_health_alert_enabled():
+        print("סוג ההתראה 'בריאות הדשבורד הציבורי' כבוי בהגדרות - מדלג.")
+        return
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:

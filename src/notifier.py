@@ -20,6 +20,40 @@ def _telegram_creds(cfg: dict) -> tuple[str, str] | None:
     return token, chat_id
 
 
+# כל סוג הודעה שהמערכת שולחת - מוצג בסיידבר ("סוגי התראה") עם צ'קבוקס לכל
+# אחד, כדי שאפשר יהיה לכבות סוגים ספציפיים בלי לכבות טלגרם כולו. ברירת מחדל
+# (מפתח חסר ב-config.yaml) היא תמיד "מופעל" - תאימות לאחור, לא דורש שינוי
+# ידני בקובץ קיים.
+MESSAGE_TYPES = {
+    "drop_alert": "ירידה חדה / מצטברת",
+    "holdings_stop": "קרוב/חצה סטופ-לוס",
+    "holdings_target": "קרוב/הגיע ליעד",
+    "holdings_gain": "עלייה מהכניסה",
+    "price_alert": "התראת מחיר ידנית",
+    "reversal_alert": "סימני התאוששות",
+    "morning_summary": "תמונת מצב - תחילת יום",
+    "daily_summary": "סיכום יומי",
+    "weekly_report": "דוח שבועי",
+    "health_startup": "בדיקת בריאות בהפעלה",
+    "health_heartbeat": "פער בסריקה האוטומטית",
+    "health_dashboard": "בריאות הדשבורד הציבורי",
+}
+
+
+def is_message_type_enabled(cfg: dict, message_type: str) -> bool:
+    return bool(cfg.get("telegram_message_types", {}).get(message_type, True))
+
+
+def send_telegram_typed(cfg: dict, message_type: str, text: str) -> int | None:
+    """כמו send_telegram, אבל בודק קודם שהסוג הזה לא כובה ב"סוגי התראה"
+    בסיידבר - נקודת מעבר יחידה לכל שולחי ההודעות, כדי שכיבוי סוג לא ידרוש
+    לגעת בכל מקום שבו הוא נשלח בפועל."""
+    if not is_message_type_enabled(cfg, message_type):
+        logger.info("דילוג על שליחת טלגרם - סוג '%s' כבוי בהגדרות", message_type)
+        return None
+    return send_telegram(cfg, text)
+
+
 def send_telegram(cfg: dict, text: str) -> int | None:
     """שולח הודעת טלגרם חדשה, מחזיר את message_id שלה (לשימוש אפשרי בעריכה
     מאוחרת יותר, ראה edit_telegram) - או None אם השליחה נכשלה/מבוטלת."""

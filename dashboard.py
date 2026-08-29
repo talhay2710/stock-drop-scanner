@@ -78,7 +78,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price
-from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync
+from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now
 
 st.set_page_config(page_title="סורק מניות", layout="wide")
@@ -1342,6 +1342,18 @@ def _autosave_holdings_alerts():
     st.toast("הגדרות התראות אחזקות נשמרו.", icon="💾", duration=2)
 
 
+def _autosave_message_types():
+    types = {
+        key: bool(st.session_state.get(f"settings_msgtype_{key}", True))
+        for key in notifier.MESSAGE_TYPES
+    }
+    cfg["telegram_message_types"] = types
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    _sync_and_warn("message types")
+    st.toast("סוגי התראה נשמרו.", icon="💾", duration=2)
+
+
 def _autosave_channels():
     cfg.setdefault("telegram", {})["enabled"] = st.session_state.get("settings_telegram_enabled", True)
     cfg.setdefault("desktop_notifications", {})["enabled"] = st.session_state.get("settings_desktop_enabled", True)
@@ -1526,6 +1538,15 @@ with st.sidebar:
         st.success(f"הסתיים - {len(results)} התראות חדשות")
 
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    with st.expander("🔔 סוגי התראה"):
+        st.caption("איזה סוגי הודעות לשלוח בטלגרם - כיבוי כאן לא נוגע בערוץ עצמו")
+        _saved_msg_types = cfg.get("telegram_message_types", {})
+        for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
+            st.checkbox(
+                _mt_label, value=bool(_saved_msg_types.get(_mt_key, True)),
+                key=f"settings_msgtype_{_mt_key}", on_change=_autosave_message_types,
+            )
+
     st.markdown("**🔔 ערוצי התראה**")
     ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
     ch1.checkbox(
