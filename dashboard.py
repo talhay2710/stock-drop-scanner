@@ -1373,10 +1373,11 @@ with st.sidebar:
         st.markdown(
             """
             <style>
+            div[class*="st-key-scan_button_box"] { padding: 0 !important; }
             div[class*="st-key-scan_button_box"] button {
                 background-color: transparent !important; border: none !important;
                 box-shadow: none !important; font-weight: 600 !important;
-                font-size: 1rem !important; padding: 0 !important; width: 100%;
+                font-size: 1rem !important; padding: 4px 12px !important; width: 100%;
                 text-align: right !important; justify-content: flex-start !important;
             }
             div[class*="st-key-scan_button_box"] button p { font-weight: 600 !important; font-size: 1rem !important; }
