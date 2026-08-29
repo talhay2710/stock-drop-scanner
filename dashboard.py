@@ -1568,7 +1568,6 @@ with st.sidebar:
             )
 
     with st.expander("🔔 סוגי התראה"):
-        st.caption("איזה סוגי הודעות לשלוח בטלגרם - כיבוי כאן לא נוגע בערוץ עצמו")
         _saved_msg_types = cfg.get("telegram_message_types", {})
         for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
             st.checkbox(
@@ -2168,11 +2167,15 @@ with _tab_slot_today.container():
                 else:
                     _today_header_text = f"התראות היום ({len(todays_alerts)})"
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
+                _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
                 with st.container(border=True):
-                    st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
-                    if _no_new_alerts_yet:
+                    if _no_new_alerts_yet and not _market_open_now:
+                        st.info("השווקים סגורים - ההתראות יתחדשו עם פתיחת המסחר.")
+                    elif _no_new_alerts_yet:
+                        st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
                         st.info("אין התראות חדשות במסחר הנוכחי.")
                     else:
+                        st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
                         st.markdown(
                             _html_table(
                                 alerts_display,
