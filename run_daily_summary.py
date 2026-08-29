@@ -21,7 +21,7 @@ if sys.platform == "win32":
     ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
 
 from src.config import load_config, db_path
-from src.store import get_conn, get_bought_holdings
+from src.store import get_conn, get_bought_holdings, get_closed_trades_on_date
 from src.daily_summary import build_daily_summary
 from src import market_data, notifier, backtest, fees, constituents, schedule_guard
 
@@ -95,7 +95,8 @@ if __name__ == "__main__":
 
             today = dt.date.today().isoformat()
             holdings_summary = _build_holdings_summary(conn, cfg)
-            message = build_daily_summary(conn, today, holdings_summary)
+            closed_today = get_closed_trades_on_date(conn, today)
+            message = build_daily_summary(conn, today, holdings_summary, closed_today=closed_today)
 
             updated = backtest.refresh_pending_outcomes(conn)
             if updated:

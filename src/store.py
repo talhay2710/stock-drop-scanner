@@ -242,6 +242,18 @@ def get_closed_trades(conn: sqlite3.Connection) -> list[dict]:
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
+def get_closed_trades_on_date(conn: sqlite3.Connection, date_iso: str) -> list[dict]:
+    """עסקאות שנסגרו (מכירה בפועל) ביום מסוים - exit_at הוא תאריך+שעה מלאים,
+    אז משווים רק את קידומת התאריך (10 התווים הראשונים, YYYY-MM-DD). לשימוש
+    בסיכום היומי: לציין מכירות של אותו יום, לא רק אחזקות עדיין פתוחות."""
+    cur = conn.execute(
+        "SELECT * FROM closed_trades WHERE substr(exit_at, 1, 10) = ? ORDER BY exit_at DESC",
+        (date_iso,),
+    )
+    columns = [c[0] for c in cur.description]
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
 def unmark_as_bought(conn: sqlite3.Connection, alert_id: int) -> None:
     conn.execute(
         "UPDATE alerts SET bought = 0, actual_entry_price = NULL, actual_qty = NULL, bought_at = NULL, "

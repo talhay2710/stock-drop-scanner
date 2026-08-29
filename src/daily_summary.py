@@ -86,6 +86,30 @@ def _build_holdings_section(holdings: list[dict]) -> list[str]:
     return lines
 
 
+def _build_closed_today_section(closed_today: list[dict]) -> list[str]:
+    """עסקאות שנסגרו (מכירה בפועל, מ-closed_trades) היום ממש - נפרד מהאחזקות
+    שעדיין פתוחות (_build_holdings_section), כדי שמכירה לא "תיעלם" מהסיכום
+    היומי רק כי היא כבר לא מופיעה בין האחזקות הפעילות."""
+    if not closed_today:
+        return []
+    lines = ["💰 <b>מכרת היום</b>", ""]
+    for c in closed_today:
+        name = c.get("company_name") or c["ticker"]
+        net_pnl, net_pct = c.get("net_pnl"), c.get("net_pct")
+        ccy_symbol = {"ILS": 'ש"ח', "USD": "$"}.get(c.get("currency"), c.get("currency") or "")
+        if net_pnl is None or net_pct is None:
+            lines.append(f"⚪ מכרת את <b>{name}</b> - אין נתון רווח/הפסד")
+            continue
+        emoji = "🟢" if net_pnl >= 0 else "🔴"
+        verb = "הרווחת" if net_pnl >= 0 else "הפסדת"
+        lines.append(
+            f"{emoji} מכרת את <b>{name}</b> ב-{_signed(net_pct, 1, '%')} - "
+            f"{verb} {abs(net_pnl):,.0f} {ccy_symbol}"
+        )
+    lines.append("")
+    return lines
+
+
 def _build_watch_section(rows: list[dict], excluded_tickers: set[str], top_n: int = 2) -> list[str]:
     """1-2 מניות מכל ההתראות של היום, לפי ציון תגובת-יתר הכי גבוה - "שווה לשים
     לב" ליום המסחר הבא, עם הלימיט שהמערכת חישבה. לא כולל מה שכבר יש לך (owned)
@@ -172,10 +196,12 @@ def build_morning_summary(
 def build_daily_summary(
     conn: sqlite3.Connection, scan_date: str,
     holdings: list[dict] | None = None, top_n_per_index: int = 2,
+    closed_today: list[dict] | None = None,
 ) -> str | None:
-    """בונה טקסט סיכום יומי: קודם האחזקות שלך, אחר כך top_n_per_index ההתראות
-    הכי בולטות (לפי ציון תגובת-יתר) מכל מדד שנסרק, ולבסוף 1-2 מניות "לשים לב"
-    ליום הבא (לא מתוך האחזקות שלך). מחזיר None אם אין התראות ואין אחזקות."""
+    """בונה טקסט סיכום יומי: קודם האחזקות שלך, אחר כך מכירות שנסגרו היום ממש
+    (אם היו), אחר כך top_n_per_index ההתראות הכי בולטות (לפי ציון תגובת-יתר)
+    מכל מדד שנסרק, ולבסוף 1-2 מניות "לשים לב" ליום הבא (לא מתוך האחזקות
+    שלך). מחזיר None אם אין התראות, אין אחזקות, ואין מכירות מהיום."""
     cur = conn.execute(
         "SELECT ticker, company_name, index_name, pct_change, overreaction_score, "
         "reason_text, entry_limit FROM alerts WHERE scan_date = ?",
@@ -184,13 +210,14 @@ def build_daily_summary(
     columns = [c[0] for c in cur.description]
     rows = [dict(zip(columns, r)) for r in cur.fetchall()]
 
-    if not rows and not holdings:
+    if not rows and not holdings and not closed_today:
         return None
 
     owned_tickers = {h["ticker"] for h in (holdings or [])}
 
     lines = [f"📅 <b>סיכום יומי - {_israeli_date(scan_date)}</b>", ""]
     lines.extend(_build_holdings_section(holdings or []))
+    lines.extend(_build_closed_today_section(closed_today or []))
 
     if rows:
         by_index: dict[str, list[dict]] = {}
