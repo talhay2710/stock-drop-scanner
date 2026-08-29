@@ -1431,7 +1431,7 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
-        if st.button("🔍 סריקת שווקים", key="sidebar_scan_button", use_container_width=True):
+        if st.button("🔍 סריקת שווקים ידנית", key="sidebar_scan_button", use_container_width=True):
             # קריאה ישירה ממצב הווידג'טים הנוכחי, לא סומכים על זה שהשמירה האוטומטית
             # כבר הספיקה "להתיישב" ב-cfg לפני הלחיצה על סריקה (כדי לא לסרוק מדד ישן)
             cfg["indices"] = st.session_state.get("settings_indices") or cfg.get("indices")
@@ -1448,7 +1448,7 @@ with st.sidebar:
                 results = run_scan(cfg)
             st.success(f"הסתיים - {len(results)} התראות חדשות")
 
-    with st.expander("💵 השקעות ויעדים"):
+    with st.expander("💵 השקעה וסיכון"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
         st.markdown("**סכום השקעה מינימלי**")
         ps1, ps2 = st.columns(2)
@@ -2384,10 +2384,15 @@ with _tab_slot_today.container():
                 # נכנסת ל"קרוב לסף" עם שינוי יומי שהוא בעצם שריד מלפני כמה ימים, לא
                 # קרבה אמיתית להתראה עכשיו - בדיוק מה שהמשתמש תפס בפועל (27.8.2026,
                 # NWMD.TA/TSEM.TA עם last_close_date מ-25.8 בזמן שהשוק פתוח ב-27.8).
+                # last_close_date == היום ממש: בלי זה, בסופ"ש/לפני שהשוק נפתח הטבלה
+                # ממשיכה להראות את שארית יום המסחר הקודם (לא "תקוע" מבחינת
+                # is_data_stale - זה עדיין הסגירה האחרונה התקינה - אבל המשתמש רוצה
+                # שהטבלה תתנהג כמו "התראות היום" ותתאפס, לא תישאר עם נתון מיום קודם).
                 near_miss_frames.append(idx_df[
                     (idx_df["שינוי יומי (%)"] < -scanning_threshold * 0.8) &
                     (idx_df["שינוי יומי (%)"] >= -scanning_threshold) &
-                    (~idx_df["is_stale"])
+                    (~idx_df["is_stale"]) &
+                    (idx_df["last_close_date"] == israel_today())
                 ])
             near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
 
