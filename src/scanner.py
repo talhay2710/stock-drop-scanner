@@ -50,7 +50,10 @@ def run_startup_health_check(cfg: dict) -> None:
     logger.warning("בדיקת בריאות בהפעלה נכשלה: %s", " | ".join(problems))
     # מתריעים דרך הערוץ שכן עובד, אם יש כזה - כדי שהבעיה תגיע גם כשלא בודקים לוגים
     if not any(p.startswith("טלגרם") for p in problems):
-        notifier.send_telegram_typed(cfg, "health_startup", "⚠️ <b>בדיקת בריאות בהפעלה נכשלה</b>\n" + "\n".join(problems))
+        notifier.notify_typed(
+            cfg, "health_startup", "⚠️ <b>בדיקת בריאות בהפעלה נכשלה</b>\n" + "\n".join(problems),
+            "⚠️ בדיקת בריאות בהפעלה נכשלה", " | ".join(problems),
+        )
 
 
 def _check_scan_heartbeat(cfg: dict, conn) -> None:
@@ -78,11 +81,14 @@ def _check_scan_heartbeat(cfg: dict, conn) -> None:
     gap_minutes = (now - prev_dt).total_seconds() / 60
     threshold = abs(cfg.get("scan_heartbeat_gap_alert_minutes", 30))
     if gap_minutes > threshold:
-        notifier.send_telegram_typed(cfg, "health_heartbeat", (
-            f"🔴 <b>הסריקה האוטומטית הייתה שקטה כ-{gap_minutes:.0f} דקות</b>\n"
-            "יכול להיות שהטריגר החיצוני (cron-job.org) הפסיק לעבוד באותה תקופה, "
-            "או תקלה ב-GitHub Actions. כדאי לבדוק."
-        ))
+        notifier.notify_typed(
+            cfg, "health_heartbeat", (
+                f"🔴 <b>הסריקה האוטומטית הייתה שקטה כ-{gap_minutes:.0f} דקות</b>\n"
+                "יכול להיות שהטריגר החיצוני (cron-job.org) הפסיק לעבוד באותה תקופה, "
+                "או תקלה ב-GitHub Actions. כדאי לבדוק."
+            ),
+            f"🔴 הסריקה הייתה שקטה כ-{gap_minutes:.0f} דקות", "יכול להיות תקלה ב-cron-job.org/GitHub Actions",
+        )
         logger.warning("פער heartbeat חריג: %.1f דקות מאז הסריקה הקודמת", gap_minutes)
 
 
@@ -231,7 +237,10 @@ def check_holdings_gains(cfg: dict, conn) -> None:
                 "💰 <b>נטו</b>",
                 f"רווח נטו: {_signed(net.net_pnl)} {ccy_symbol}  ({_signed(net.net_return_pct, 1, '%')})",
             ])
-            notifier.send_telegram_typed(cfg, "holdings_gain", message)
+            notifier.notify_typed(
+                cfg, "holdings_gain", message,
+                f"📈 {display_name} עלתה {_signed(gain_pct, 1, '%')}", "מהכניסה שלך",
+            )
             store_mod.update_gain_alert(conn, h["id"], gain_pct)
 
         _check_stop_proximity(cfg, conn, h, display_name, entry, current, ccy)
@@ -272,7 +281,11 @@ def _check_stop_proximity(cfg: dict, conn, h: dict, display_name: str, entry: fl
         f"<b>הסטופ שלך: {_format_price(stop_price, ccy, with_unit=False)}</b>",
         f"נכנסת ב-{_format_price(entry, ccy, with_unit=False)}",
     ])
-    notifier.send_telegram_typed(cfg, "holdings_stop", message)
+    desktop_title = (
+        f"🛑 {display_name} חצתה את הסטופ שלך" if current <= stop_price
+        else f"🛑 {display_name} מתקרבת לסטופ שלך"
+    )
+    notifier.notify_typed(cfg, "holdings_stop", message, desktop_title, f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}")
     store_mod.update_stop_alert(conn, h["id"], True)
 
 
@@ -306,7 +319,11 @@ def _check_target_proximity(cfg: dict, conn, h: dict, display_name: str, entry: 
         f"<b>היעד שלך: {_format_price(target_price, ccy, with_unit=False)}</b>",
         f"נכנסת ב-{_format_price(entry, ccy, with_unit=False)}",
     ])
-    notifier.send_telegram_typed(cfg, "holdings_target", message)
+    desktop_title = (
+        f"🎯 {display_name} הגיעה ליעד שלך!" if current >= target_price
+        else f"🎯 {display_name} מתקרבת ליעד שלך"
+    )
+    notifier.notify_typed(cfg, "holdings_target", message, desktop_title, f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}")
     store_mod.update_target_alert(conn, h["id"], True)
 
 
@@ -341,7 +358,11 @@ def check_price_alerts(cfg: dict, conn) -> None:
             f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}",
             f"מחיר יעד שקבעת: {_format_price(target, ccy, with_unit=False)}",
         ])
-        notifier.send_telegram_typed(cfg, "price_alert", message)
+        notifier.notify_typed(
+            cfg, "price_alert", message,
+            f"🔔 {display_name} הגיעה ל{direction_word}-{_format_price(target, ccy, with_unit=False)}",
+            f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}",
+        )
         store_mod.deactivate_price_alert(conn, a["id"], triggered=True)
         logger.info("התראת מחיר הופעלה: %s %s %s", a["ticker"], direction_word, target)
 
@@ -411,7 +432,10 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
                 f"יעד: {_format_price(p['target_base'], ccy, with_unit=False)}"
             )
 
-        notifier.send_telegram_typed(cfg, "reversal_alert", "\n".join(lines))
+        notifier.notify_typed(
+            cfg, "reversal_alert", "\n".join(lines),
+            f"🔄 {display_name} מראה סימני התאוששות", f"עלתה {_signed(bounce_pct, 1, '%')} מהשפל של היום",
+        )
         store_mod.mark_reversal_alert_sent(conn, p["id"])
         logger.info("התראת היפוך נשלחה: %s (%.1f%% מהשפל)", p["ticker"], bounce_pct)
 
@@ -736,15 +760,15 @@ def _scan_one_index(
                 if new_message_id:
                     store_mod.update_telegram_message_id(conn, new_id, new_message_id)
 
-        if is_multi_day_only:
-            desktop_title = f"📉 {ticker} ירדה מצטבר {row.get('n_day_change', 0):.1f}% ב-{multi_day_window} ימים"
-        else:
-            desktop_title = f"⚠ {ticker} ירדה {row['pct_change']:.1f}%"
-        notifier.send_desktop_notification(
-            cfg,
-            title=desktop_title,
-            message=analysis.reason_text[:250],
-        )
+            if is_multi_day_only:
+                desktop_title = f"📉 {ticker} ירדה מצטבר {row.get('n_day_change', 0):.1f}% ב-{multi_day_window} ימים"
+            else:
+                desktop_title = f"⚠ {ticker} ירדה {row['pct_change']:.1f}%"
+            notifier.send_desktop_notification(
+                cfg,
+                title=desktop_title,
+                message=analysis.reason_text[:250],
+            )
 
         results.append({
             "ticker": ticker, "pct_change": row["pct_change"],

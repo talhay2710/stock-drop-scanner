@@ -40,7 +40,7 @@ if __name__ == "__main__":
         message = build_weekly_report(conn)
 
         if message:
-            notifier.send_telegram_typed(cfg, "weekly_report", message)
+            notifier.notify_typed(cfg, "weekly_report", message, "📊 דוח שבועי", "")
             schedule_guard.mark_sent_today(conn, "weekly")
             print("דוח שבועי נשלח.")
         else:

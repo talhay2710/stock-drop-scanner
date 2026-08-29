@@ -54,6 +54,22 @@ def send_telegram_typed(cfg: dict, message_type: str, text: str) -> int | None:
     return send_telegram(cfg, text)
 
 
+def notify_typed(
+    cfg: dict, message_type: str, telegram_text: str,
+    desktop_title: str | None = None, desktop_message: str = "",
+) -> int | None:
+    """שולח לטלגרם *וגם* לדסקטופ לפי אותו סוג הודעה בדיוק - כדי ש"סוגי התראה"
+    יחול על שני הערוצים במקביל (בהתאם לזה שערוצי ההתראה עצמם, טלגרם/דסקטופ,
+    כבר קובעים איזה מהם בכלל פעיל). דסקטופ נשלח רק אם desktop_title סופק -
+    לא כל הודעה צריכה גרסת דסקטופ קצרה משלה בהכרח."""
+    if not is_message_type_enabled(cfg, message_type):
+        logger.info("דילוג על התראה - סוג '%s' כבוי בהגדרות", message_type)
+        return None
+    if desktop_title:
+        send_desktop_notification(cfg, desktop_title, desktop_message)
+    return send_telegram(cfg, telegram_text)
+
+
 def send_telegram(cfg: dict, text: str) -> int | None:
     """שולח הודעת טלגרם חדשה, מחזיר את message_id שלה (לשימוש אפשרי בעריכה
     מאוחרת יותר, ראה edit_telegram) - או None אם השליחה נכשלה/מבוטלת."""

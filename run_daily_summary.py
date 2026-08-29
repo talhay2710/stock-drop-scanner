@@ -107,7 +107,7 @@ if __name__ == "__main__":
                 print(f"נפתרו {signals_resolved} אותות-צל (signal_log).")
 
             if message:
-                notifier.send_telegram_typed(cfg, "daily_summary", message)
+                notifier.notify_typed(cfg, "daily_summary", message, "📅 סיכום יומי", "")
                 schedule_guard.mark_sent_today(conn, "daily")
                 print("סיכום יומי נשלח.")
             else:
