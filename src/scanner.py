@@ -833,7 +833,12 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
     lines = [
         f"{header_tag} <b>{display_name} {_signed(row['pct_change'], 1, '%')} {_format_header_price(row['last_close'], currency)}</b>",
     ]
-    if expected_max_drop_pct is not None:
+    # מוצג רק כשהחציון ההיסטורי עדיין "רחוק" יותר מהירידה שכבר קרתה בפועל -
+    # אחרת (למשל התראה על ירידה של 21.6%, אבל החציון ההיסטורי הוא רק 4.9%)
+    # השורה נשמעת כאילו היא "צופה" ירידה קלה יותר ממה שכבר קרה, סותרת את
+    # עצמה (ר' תלונת המשתמש 1.9.2026 על EIX: "אתה כותב שהשפל גבוה יותר
+    # מהמצב הנוכחי של ההתראה. זה לא הגיוני").
+    if expected_max_drop_pct is not None and expected_max_drop_pct > abs(row["pct_change"]):
         # לא "-" גולמי בתוך טקסט עברי (RTL) - בדיוק כמו שאר הסימנים בקובץ הזה
         # (ר' _signed) - סימן גולמי בלי isolate LRI/PDI עלול "לברוח" למקום הלא
         # נכון ביחס למספר בתצוגה. expected_max_drop_pct הוא גודל חיובי (ירידה
