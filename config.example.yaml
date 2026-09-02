@@ -61,6 +61,6 @@ telegram_message_types:
   morning_summary: true
   daily_summary: true
   weekly_report: true
-  health_startup: false
-  health_heartbeat: false
-  health_dashboard: false
+  health_startup: true
+  health_heartbeat: true
+  health_dashboard: true
