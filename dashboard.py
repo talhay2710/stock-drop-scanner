@@ -3010,8 +3010,10 @@ with _tab_slot_portfolio.container():
                         "sector": r.get("sector") or "לא ידוע",
                     })
 
-                # ממוין לפי שינוי יומי - הכי עולה קודם (2.9.2026).
-                rows.sort(key=lambda r: r["daily_pct"] if r["daily_pct"] is not None else float("-inf"), reverse=True)
+                # ממוין לפי תשואה נטו (%) מאז הכניסה - הכי מרוויחה קודם. יותר
+                # רלוונטי מ"שינוי יומי" כי זה בדיוק מה שקובע קרבה ליעד/סטופ,
+                # לא רק תנודה חד-יומית שיכולה להטעות (2.9.2026).
+                rows.sort(key=lambda r: r["net_pct"] if r["net_pct"] is not None else float("-inf"), reverse=True)
                 _total_current_value = sum(r["current_value"] for r in rows if r["current_value"]) or 1.0
                 for _r in rows:
                     _r["portfolio_pct"] = (_r["current_value"] or 0) / _total_current_value * 100
