@@ -269,7 +269,13 @@ st.markdown(
     }
     [data-testid="stSidebar"] {
         width: 300px;
+        overflow: hidden;
     }
+    /* בלי overflow:hidden כאן, כשה-JS של Streamlit מכווץ את הסיידבר (מסך צר/
+    מובייל - aria-expanded="false", width:0 + transform), התוכן הפנימי שלו
+    (שמניח 300px רוחב) ממשיך "לדלוף" ונראה כפס טקסט אנכי דחוס בקצה המסך -
+    כנראה כי כיוון ה-transform מניח LTR ולא מזיז את הסיידבר RTL הזה מספיק
+    רחוק אל מחוץ למסך (1.9.2026). */
     [data-testid="stSidebarHeader"] {
         height: 8px;
         min-height: 0px;
