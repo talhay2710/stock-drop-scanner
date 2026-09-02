@@ -2686,6 +2686,7 @@ with _tab_slot_portfolio.container():
                                 else:
                                     bought_at = dt.datetime.combine(add_trade_date, dt.datetime.now().time()).isoformat(timespec="seconds")
                                     add_stop_price = get_holding_stop_price(chosen_row["ticker"], add_entry)
+                                    cloud_sync.refresh_alerts_db_if_clean()
                                     add_conn = store.get_conn(db_path(cfg))
                                     store.mark_as_bought(
                                         add_conn, int(chosen_row["id"]), add_entry, final_qty, bought_at, add_stop_price,
@@ -2892,6 +2893,7 @@ with _tab_slot_portfolio.container():
                                     position_size_ccy=row["entry"] * row["qty"], holding_days=holding_days,
                                     fees_cfg=cfg["fees"],
                                 )
+                                cloud_sync.refresh_alerts_db_if_clean()
                                 close_conn = store.get_conn(db_path(cfg))
                                 store.save_closed_trade(close_conn, {
                                     "alert_id": row["id"], "ticker": row["ticker"], "company_name": row["name"],

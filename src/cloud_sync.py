@@ -42,6 +42,32 @@ def _git_run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(args, **kwargs, **_NO_WINDOW)
 
 
+def refresh_alerts_db_if_clean() -> bool:
+    """מרענן את alerts.db המקומי מהעותק העדכני בענן - נקרא ממש לפני כל כתיבה
+    חדשה לאחזקות (פתיחה/סגירת פוזיציה), כדי לצמצם את החלון שבו הקובץ המקומי
+    יכול להיות לא-מסונכרן עם סריקות ענן שקרו במהלך היום (ר' תלונת המשתמש
+    1.9.2026: הדשבורד הראה רק 1 מתוך 40 התראות של היום - כי run_dashboard.bat
+    מושך מהענן פעם אחת בלבד, בעליית הדשבורד בבוקר, ולא שוב לאורך כל היום).
+
+    רק אם *אין* כרגע שינוי מקומי לא-שמור בקובץ (git diff נקי) - אחרת יש סיכון
+    למחוק עבודה שעוד לא הגיעה לענן (למשל sync קודם שנכשל בשקט), אז פשוט
+    מדלגים ומשאירים את הקובץ כפי שהוא. מחזיר True אם רוענן בפועל."""
+    _git = ["git", "-C", ROOT_DIR]
+    try:
+        diff = _git_run(_git + ["diff", "--quiet", "--", "alerts.db"], capture_output=True, timeout=15)
+        if diff.returncode != 0:
+            logger.warning("דילוג על רענון alerts.db - יש שינוי מקומי לא-שמור בקובץ")
+            return False
+        _git_run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+        _git_run(_git + ["checkout", "origin/master", "--", "alerts.db"], check=True, capture_output=True, timeout=15)
+        return True
+    except Exception as e:
+        stderr = getattr(e, "stderr", None)
+        stderr_text = stderr.decode("utf-8", "replace") if isinstance(stderr, bytes) else stderr
+        logger.warning("רענון alerts.db מהענן נכשל: %s | stderr: %s", e, stderr_text)
+        return False
+
+
 def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     """מעדכן config.example.yaml מתוך config.yaml המקומי (בלי סודות), ודוחף
     אותו ל-git אם יש שינוי אמיתי. מחזיר "pushed"/"no_change"/"failed" - לא
