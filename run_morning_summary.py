@@ -24,6 +24,7 @@ from src.config import load_config, db_path
 from src.store import get_conn, get_bought_holdings
 from src.daily_summary import build_morning_summary
 from src import market_data, notifier, fees, constituents, schedule_guard
+from src.market_hours import israel_today
 
 
 def _build_holdings_summary(conn, cfg) -> list[dict]:
@@ -122,7 +123,7 @@ if __name__ == "__main__":
             index_changes = _build_index_changes(cfg)
             movers_by_index = _build_movers_by_index(cfg)
             message = build_morning_summary(
-                dt.date.today().isoformat(), index_changes, holdings_summary, movers_by_index,
+                israel_today().isoformat(), index_changes, holdings_summary, movers_by_index,
             )
 
             if message:

@@ -24,6 +24,7 @@ from src.config import load_config, db_path
 from src.store import get_conn, get_bought_holdings, get_closed_trades_on_date
 from src.daily_summary import build_daily_summary
 from src import market_data, notifier, backtest, fees, constituents, schedule_guard
+from src.market_hours import israel_today
 
 
 def _build_holdings_summary(conn, cfg) -> list[dict]:
@@ -93,7 +94,7 @@ if __name__ == "__main__":
                 print("דילוג - כבר נשלח סיכום יומי היום.")
                 sys.exit(0)
 
-            today = dt.date.today().isoformat()
+            today = israel_today().isoformat()
             holdings_summary = _build_holdings_summary(conn, cfg)
             closed_today = get_closed_trades_on_date(conn, today)
             message = build_daily_summary(conn, today, holdings_summary, closed_today=closed_today)

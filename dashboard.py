@@ -1791,7 +1791,7 @@ with _tab_slot_movers.container():
                 # מסחר נוכחי (השוק פתוח והנתון מהיום) או שהוא נכון לסגירת יום מסחר
                 # קודם (סוף שבוע, לפני הפתיחה, או שהמקור פשוט עוד לא התעדכן).
                 _movers_rep_date = movers_df["last_close_date"].max()
-                if _movers_rep_date == dt.date.today() and is_market_open(movers_index):
+                if _movers_rep_date == israel_today() and is_market_open(movers_index):
                     st.caption("🟢 מסחר נוכחי")
                 elif pd.notna(_movers_rep_date):
                     _movers_stale = market_data.is_data_stale(_movers_rep_date, "")

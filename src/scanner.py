@@ -220,7 +220,7 @@ def check_holdings_gains(cfg: dict, conn) -> None:
         last_alerted = h["last_gain_alert_pct"]
         last_level = _gain_level(last_alerted, start_pct, step_pct) if last_alerted is not None else None
         if level is not None and (last_level is None or level > last_level):
-            holding_days = max((dt.date.today() - bought_dt.date()).days, 1) if bought_dt is not None else 1
+            holding_days = max((israel_today() - bought_dt.date()).days, 1) if bought_dt is not None else 1
             net = fees_mod.compute_net_result(
                 country_code=country_code, buy_price=entry, sell_price=current,
                 position_size_ccy=entry * (qty or 0), holding_days=holding_days, fees_cfg=cfg["fees"],
