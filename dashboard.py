@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import sqlite3
+from zoneinfo import ZoneInfo
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -1364,6 +1365,17 @@ def _autosave_channels():
 
 
 with st.sidebar:
+    # תאריך העדכון האחרון בפועל של קובץ alerts.db על הדיסק (לא רק "התחבר
+    # בהצלחה") - כדי שאם הסנכרון עם הענן ייתקע שוב (ר' cloud_sync.py), זה
+    # ייראה כאן מיד ולא יתגלה רק כשמישהו שם לב שחסרות התראות (1.9.2026).
+    try:
+        _db_mtime = dt.datetime.fromtimestamp(
+            os.path.getmtime(db_path(cfg)), dt.timezone.utc
+        ).astimezone(ZoneInfo("Asia/Jerusalem"))
+        st.caption(f"🔄 נתונים סונכרנו לאחרונה: {_db_mtime.strftime('%H:%M')}")
+    except OSError:
+        pass
+
     current_indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
 
     with st.container(border=True):
@@ -2798,10 +2810,11 @@ with _tab_slot_portfolio.container():
                 card_html = f"""
                     <div style="border-radius:10px; padding:10px 14px; background:{bg}; margin:-14px -14px 8px -14px;
                                 border-bottom:1px solid {color}44;">
-                      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                        <div style="font-size:1.05rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                          {row['name']} <span style="opacity:0.55; font-weight:500; font-size:0.9rem;">({row['ticker']})</span>
-                          {'<span style="font-size:0.75rem; font-weight:600; opacity:0.75; margin-right:6px;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
+                      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; min-width:0;">
+                        <div style="display:flex; align-items:baseline; gap:5px; min-width:0; font-size:1.05rem; font-weight:700;" title="{row['name']}">
+                          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">{row['name']}</span>
+                          <span style="opacity:0.55; font-weight:500; font-size:0.9rem; flex-shrink:0;">({row['ticker']})</span>
+                          {'<span style="font-size:0.75rem; font-weight:600; opacity:0.75; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
                         </div>
                         {daily_badge_html}
                       </div>
@@ -3191,6 +3204,15 @@ with st.container(border=True, key="market_panel"):
         )
         st.subheader("📊 מצב המדדים")
         index_changes = get_index_changes()
+        # שליפה בודדת שנכשלה זמנית (למשל rate-limit של Yahoo) לא אמורה להבהב
+        # ל"אין נתונים" בכל רענון של ה-fragment (כל 60 שניות) - שומרים את הערך
+        # התקין האחרון שראינו בסשן ומשתמשים בו כנפילה חזרה, במקום להראות ריק.
+        _last_good_idx = st.session_state.setdefault("_last_good_index_changes", {})
+        for _idx_key, _idx_val in index_changes.items():
+            if _idx_val is not None:
+                _last_good_idx[_idx_key] = _idx_val
+            elif _idx_key in _last_good_idx:
+                index_changes[_idx_key] = _last_good_idx[_idx_key]
         cols = st.columns(4, gap="medium")
         for col, idx in zip(cols, ALL_INDICES):
             with col:
