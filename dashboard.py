@@ -6,7 +6,6 @@ import os
 import re
 import sys
 import sqlite3
-from zoneinfo import ZoneInfo
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -1371,17 +1370,6 @@ def _autosave_channels():
 
 
 with st.sidebar:
-    # תאריך העדכון האחרון בפועל של קובץ alerts.db על הדיסק (לא רק "התחבר
-    # בהצלחה") - כדי שאם הסנכרון עם הענן ייתקע שוב (ר' cloud_sync.py), זה
-    # ייראה כאן מיד ולא יתגלה רק כשמישהו שם לב שחסרות התראות (1.9.2026).
-    try:
-        _db_mtime = dt.datetime.fromtimestamp(
-            os.path.getmtime(db_path(cfg)), dt.timezone.utc
-        ).astimezone(ZoneInfo("Asia/Jerusalem"))
-        st.caption(f"🔄 נתונים סונכרנו לאחרונה: {_db_mtime.strftime('%H:%M')}")
-    except OSError:
-        pass
-
     current_indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
 
     with st.container(border=True):
