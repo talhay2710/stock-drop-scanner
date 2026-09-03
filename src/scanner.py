@@ -843,7 +843,7 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         # (ר' _signed) - סימן גולמי בלי isolate LRI/PDI עלול "לברוח" למקום הלא
         # נכון ביחס למספר בתצוגה. expected_max_drop_pct הוא גודל חיובי (ירידה
         # תמיד), אז שולחים אותו כשלילי ל-_signed כדי לקבל "-" תמיד, לא "+".
-        lines.append(f"📉 <b>צפי לשפל יומי: {_signed(-expected_max_drop_pct, 1, '%')}</b>")
+        lines.append(f"📉 <b>צפי לנמוך היומי: {_signed(-expected_max_drop_pct, 1, '%')}</b>")
     lines += [
         f"{ticker} · מדד {index}",
         "",
