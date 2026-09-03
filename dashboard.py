@@ -276,7 +276,10 @@ st.markdown(
     כנראה כי כיוון ה-transform מניח LTR ולא מזיז את הסיידבר RTL הזה מספיק
     רחוק אל מחוץ למסך (1.9.2026). */
     [data-testid="stSidebarHeader"] {
-        height: 8px;
+        /* 28px, לא 8px - זה בדיוק גובה כפתור הכיווץ (stSidebarCollapseButton)
+        שממורכז בתוכו; אם ה-header נמוך יותר מהכפתור, הוא נחתך מלמעלה (ובגלל
+        ה-overflow:hidden על stSidebar עצמו, ר' למטה, נעלם לגמרי - 2.9.2026). */
+        height: 28px;
         min-height: 0px;
     }
     div[class*="st-key-nav_tabs_row"] {
