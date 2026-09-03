@@ -133,6 +133,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "residual_drop_pct REAL", "dist_from_ma50_pct REAL",
         "reversal_expired INTEGER DEFAULT 0",
         "day_low_price REAL",
+        "expected_max_drop_pct REAL",
     ):
         try:
             conn.execute(f"ALTER TABLE alerts ADD COLUMN {column_def}")
@@ -576,7 +577,8 @@ def remove_watchlist_item(conn: sqlite3.Connection, item_id: int) -> None:
 
 
 def build_record(scan_date: str, ticker: str, company_name: str | None, index_name: str,
-                  row: dict, analysis, trade_idea, net_results: dict) -> dict:
+                  row: dict, analysis, trade_idea, net_results: dict,
+                  expected_max_drop_pct: float | None = None) -> dict:
     return {
         "scan_date": scan_date,
         "scan_ts": israel_now().isoformat(timespec="seconds"),
@@ -625,4 +627,8 @@ def build_record(scan_date: str, ticker: str, company_name: str | None, index_na
         # מרגע ההתראה עד לשפל אותו יום", ומזה בונים את "צפי לירידה מקסימלית"
         # שמוצג בהתראות הבאות (ר' scanner._historical_expected_max_drop_pct).
         "day_low_price": row.get("last_low"),
+        # החציון ההיסטורי כפי שהיה *באותו רגע* (ר' scanner._historical_expected_max_drop_pct) -
+        # נשמר כדי שהדשבורד יוכל להציג את אותו מספר בדיוק שהופיע בהודעת הטלגרם,
+        # ולא לחשב מחדש לפי החציון הנוכחי (שגדל עם הזמן וייתן מספר אחר בדיעבד).
+        "expected_max_drop_pct": expected_max_drop_pct,
     }

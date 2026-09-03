@@ -2239,6 +2239,17 @@ with _tab_slot_today.container():
                             if svg:
                                 st.markdown(svg, unsafe_allow_html=True)
 
+                        # אותו תנאי הצגה בדיוק כמו בהודעת הטלגרם (scanner._format_message) -
+                        # לא מציגים אם הירידה שכבר קרתה בפועל חמורה יותר מהחציון ההיסטורי,
+                        # אחרת זה נשמע כאילו "צופה" שפל קל יותר ממה שכבר קרה.
+                        _exp_drop = r.get("expected_max_drop_pct")
+                        if pd.notna(_exp_drop) and _exp_drop > abs(r["pct_change"]):
+                            st.markdown(
+                                f'<div style="font-size:0.9rem; margin-top:2px;">'
+                                f'<b>📉 צפי לנמוך היומי:</b> {_signed_num(-_exp_drop, 1, "%")}</div>',
+                                unsafe_allow_html=True,
+                            )
+
                         _verdict_color = POS_COLOR if r["overreaction_score"] >= 70 else (ACCENT_COLOR if r["overreaction_score"] >= 45 else NEG_COLOR)
                         st.markdown(
                             f'<div style="font-size:0.9rem; margin-top:4px;">'

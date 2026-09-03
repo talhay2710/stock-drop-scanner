@@ -741,7 +741,10 @@ def _scan_one_index(
 
         prior_message_id = store_mod.get_todays_telegram_message_id(conn, ticker, scan_date)
 
-        record = store_mod.build_record(scan_date, ticker, company_name, index, row, analysis, trade_idea, net_results)
+        record = store_mod.build_record(
+            scan_date, ticker, company_name, index, row, analysis, trade_idea, net_results,
+            expected_max_drop_pct=expected_max_drop_pct,
+        )
         record["market_regime"] = market_regime_tag
         new_id = store_mod.save_alert(conn, record)
         sector_peers = store_mod.count_todays_sector_alerts(conn, analysis.sector, scan_date, exclude_ticker=ticker)
