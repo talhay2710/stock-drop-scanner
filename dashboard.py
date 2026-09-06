@@ -2912,7 +2912,7 @@ with _tab_slot_portfolio.container():
                     _daily_date_html = ""
                     if _daily_date and not is_market_open(row.get("index_name") or ""):
                         _daily_date_html = (
-                            f'<div style="font-size:0.6rem; font-weight:500; opacity:0.6; margin-top:-2px;">'
+                            f'<div style="font-size:0.6rem; font-weight:500; color:{_daily_color}; opacity:0.6; margin-top:-2px;">'
                             f'{_daily_date.strftime("%d/%m")}</div>'
                         )
                     daily_badge_html = (
