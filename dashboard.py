@@ -639,14 +639,8 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             unsafe_allow_html=True,
         )
 
-        # תג סטטוס אחיד: נקודה ירוקה (פתוח)/אדומה (סגור) ליד שם המדד - לא עוד
-        # שורת טקסט נפרדת. ההבדל היחיד בין שני המצבים מעכשיו: התג הזה, וגודל/עובי
-        # אחוז השינוי (בולט יותר כשהמסחר פעיל) - הכל השאר (גרף, סליידר, ימים)
-        # זהה לחלוטין בין המצבים (2.9.2026).
-        _dot_color = POS_COLOR if trading_open else NEG_COLOR
-        _dot_span = f'<span style="color:{_dot_color}; font-size:0.7em;">●</span>'
         st.markdown(
-            f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label} {_dot_span}</div>',
+            f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label}</div>',
             unsafe_allow_html=True,
         )
 
@@ -671,10 +665,10 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
 
             def _fmt_day_option(v: int) -> str:
                 if v == 0:
-                    return "גרף מסחר פעיל"
+                    return "מסחר פעיל"
                 if v == 1:
-                    return "גרף יומי אחרון"
-                return f"גרף {v} ימים"
+                    return "יום אחרון"
+                return f"{v} ימים"
 
             if _raw == 0:
                 prices, as_of = get_index_intraday_sparkline(index_key)
@@ -683,8 +677,20 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             range_label = _fmt_day_option(_raw)
             svg = _sparkline_svg(prices, width=130, height=16, show_baseline=True) if prices else ""
 
+            range_pct_html = ""
+            if prices and len(prices) >= 2 and prices[0]:
+                _range_pct = (prices[-1] - prices[0]) / prices[0] * 100
+                _range_color = POS_COLOR if _range_pct >= 0 else NEG_COLOR
+                range_pct_html = (
+                    f'<span style="font-size:0.62rem; font-weight:700; color:{_range_color};">'
+                    f'{_signed_num(_range_pct, 1, "%")}</span>'
+                )
+
             st.markdown(
-                f'<div style="text-align:center; margin-top:6px; margin-bottom:5px;">{svg}</div>' if svg else "",
+                (
+                    f'<div style="display:flex; align-items:center; justify-content:center; gap:5px; '
+                    f'margin-top:6px; margin-bottom:5px;">{range_pct_html}{svg}</div>'
+                ) if svg else "",
                 unsafe_allow_html=True,
             )
 
