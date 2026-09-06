@@ -578,10 +578,11 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
     else:
         prices, as_of = get_index_sparkline(index_key)
         svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
+        _caption = f"שינוי יומי אחרון ({as_of}) · מסחר סגור" if as_of else "מסחר סגור"
         bottom_html = (
             f'<div style="margin-top:4px; display:flex; flex-direction:column; align-items:center; gap:2px;">'
-            f'{svg}<div style="font-size:0.7rem; opacity:0.6;">נכון ל-{as_of}</div></div>'
-            if svg and as_of else
+            f'{svg}<div style="font-size:0.7rem; opacity:0.6;">{_caption}</div></div>'
+            if svg else
             f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
             f'{_status_dot(CLOSED_COLOR)}מסחר סגור</div>'
         )
@@ -805,6 +806,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     if not holdings_df.empty:
         _daily_df = market_data.fetch_universe_daily_changes(holdings_df["ticker"].tolist())
         _today_by_ccy = {}
+        _today_max_close_date = None
         # fetch_universe_daily_changes מחזיר DataFrame ריק-לגמרי (בלי אף עמודה,
         # כולל "ticker") אם אף טיקר לא הצליח להישלף באותו סבב (למשל Yahoo
         # חסם/rate-limit זמני) - אינדוקס לפי "ticker" על עמודה שלא קיימת קורס
@@ -843,12 +845,19 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _agg2 = _today_by_ccy.setdefault(_ccy2, {"prev_value": 0.0, "change": 0.0})
             _agg2["prev_value"] += _baseline * _qty
             _agg2["change"] += (_last_close - _baseline) * _qty
+            if _last_close_date and (_today_max_close_date is None or _last_close_date > _today_max_close_date):
+                _today_max_close_date = _last_close_date
         if _today_by_ccy:
             _dom_ccy2 = max(_today_by_ccy, key=lambda c: _today_by_ccy[c]["prev_value"])
             _dom2 = _today_by_ccy[_dom_ccy2]
             _today_pct = (_dom2["change"] / _dom2["prev_value"] * 100) if _dom2["prev_value"] else 0.0
+            # התווית עצמה כוללת "אחרון (תאריך)" - לא רק "שינוי יומי" סתמי - כדי
+            # שיהיה ברור שזה השינוי מהסגירה האחרונה, לא בהכרח "ממש עכשיו".
+            _today_label = "שינוי יומי אחרון"
+            if _today_max_close_date:
+                _today_label += f" ({_today_max_close_date.strftime('%d/%m')})"
             today_summary = (
-                "שינוי יומי", _dom2["change"], _today_pct, CURRENCY_SYMBOLS.get(_dom_ccy2, _dom_ccy2)
+                _today_label, _dom2["change"], _today_pct, CURRENCY_SYMBOLS.get(_dom_ccy2, _dom_ccy2)
             )
 
     proximity_summary = None
