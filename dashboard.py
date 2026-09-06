@@ -698,7 +698,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             if trading_open:
                 _cap_html = f'<div style="font-size:1.15rem; font-weight:700; color:{color};">{value_html}</div>'
             else:
-                _caption = f"{value_html} שינוי אחרון ({as_of})" if as_of else value_html
+                _caption = f"{value_html} שינוי יומי ({as_of})" if as_of else value_html
                 _cap_html = f'<div style="font-size:0.68rem; opacity:0.65;">{_caption}</div>'
 
             # הסליידר לצד הכיתוב, לא כשורה נפרדת, עם חיווי טווח ממורכז מעליו
