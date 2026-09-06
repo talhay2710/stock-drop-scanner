@@ -675,7 +675,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             else:
                 prices, as_of = get_index_sparkline(index_key, _raw)
             range_label = f"יומי ({as_of})" if _raw == 1 and as_of else _fmt_day_option(_raw)
-            svg = _sparkline_svg(prices, width=130, height=16, show_baseline=True) if prices else ""
+            svg = _sparkline_svg(prices, width=140, height=28, show_baseline=True) if prices else ""
 
             range_pct_html = ""
             if prices and len(prices) >= 2 and prices[0]:
@@ -694,30 +694,16 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 unsafe_allow_html=True,
             )
 
-            value_html = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
-            if trading_open:
-                _cap_html = f'<div style="font-size:1.15rem; font-weight:700; color:{color};">{value_html}</div>'
-            else:
-                _caption = f"{value_html} שינוי יומי ({as_of})" if as_of else value_html
-                _cap_html = f'<div style="font-size:0.68rem; opacity:0.65;">{_caption}</div>'
-
-            # הסליידר לצד הכיתוב, לא כשורה נפרדת, עם חיווי טווח ממורכז מעליו
-            # (לא מעל כל העמודה - מעל הסליידר עצמו) - זהה בשני המצבים.
-            _cap_col, _slider_col = st.columns([3, 1])
-            with _cap_col:
-                st.markdown(
-                    f'<div style="text-align:center;">{_cap_html}</div>',
-                    unsafe_allow_html=True,
-                )
-            with _slider_col:
-                st.markdown(
-                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{range_label}</div>',
-                    unsafe_allow_html=True,
-                )
-                _raw = st.select_slider(
-                    "ימים", options=_options, value=_raw, format_func=_fmt_day_option,
-                    key=_slider_key, label_visibility="collapsed",
-                )
+            # האחוז ליד הגרף (למעלה) כבר מתעדכן לפי הטווח הנבחר בסליידר - כיתוב
+            # נוסף כאן היה כפילות מיותרת (זהה כמעט תמיד לברירת המחדל "יום").
+            st.markdown(
+                f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{range_label}</div>',
+                unsafe_allow_html=True,
+            )
+            _raw = st.select_slider(
+                "ימים", options=_options, value=_raw, format_func=_fmt_day_option,
+                key=_slider_key, label_visibility="collapsed",
+            )
 
 
 def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
