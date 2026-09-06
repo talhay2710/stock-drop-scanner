@@ -582,8 +582,15 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             div[class*="st-key-{container_key}"] [data-testid="stElementContainer"]:has(style) {{
                 display: none;
             }}
+            /* הבועה הצפה עם המספר מעל הידית, ותווי הקצה (min/max) מתחת לפס -
+            הרבה "רעש" חזותי מיותר בכרטיס קטן כזה (2.9.2026) - מוסתרים לגמרי.
+            הפס עצמו מוקטן ומוצמד לתחתית הכרטיס, לא בראש. */
+            div[class*="st-key-{container_key}"] [data-testid="stSliderThumbValue"],
+            div[class*="st-key-{container_key}"] [data-testid="stSliderTickBar"] {{
+                display: none;
+            }}
             div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
-                padding: 0 6px; margin-top: 2px;
+                width: 70px; margin: 4px auto 0 auto;
             }}
             </style>
             """,
@@ -596,14 +603,16 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
         status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
         label_html = f"{label} - {status_text}"
 
+        # קוראים את הבחירה השמורה *לפני* שהווידג'ט עצמו מוצג, כדי שאפשר יהיה
+        # להציג אותו בתחתית הכרטיס (אחרי הגרף) בעוד שהגרף עצמו כבר צריך את הערך
+        # הזה למעלה - סדר הרינדור של st.markdown/st.slider קובע את המיקום על
+        # המסך, לא סדר החישוב.
+        _slider_key = f"spark_days_{index_key}"
+        spark_days = st.session_state.get(_slider_key, 14)
+
         if val is None:
-            spark_days = 14
             svg, as_of = "", None
         else:
-            spark_days = st.slider(
-                "ימים", min_value=2, max_value=90, value=14,
-                key=f"spark_days_{index_key}", label_visibility="collapsed",
-            )
             prices, as_of = get_index_sparkline(index_key, spark_days)
             svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
 
@@ -627,6 +636,12 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             """,
             unsafe_allow_html=True,
         )
+
+        if val is not None:
+            st.slider(
+                "ימים", min_value=2, max_value=90, value=spark_days,
+                key=_slider_key, label_visibility="collapsed",
+            )
 
 
 def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
