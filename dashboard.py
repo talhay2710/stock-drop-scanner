@@ -665,7 +665,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             unsafe_allow_html=True,
         )
 
-        if val is not None:
+        if show_graph:
             st.slider(
                 "ימים", min_value=2, max_value=90, value=spark_days,
                 key=_slider_key, label_visibility="collapsed",
