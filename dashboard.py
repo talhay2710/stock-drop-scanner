@@ -173,20 +173,34 @@ def render_reason_pill(reasons_json: str) -> str:
     )
 
 
-def _sparkline_svg(prices: list, width: int = 140, height: int = 36) -> str:
-    """גרף זעיר (sparkline) כ-SVG מוטבע - מציג את מגמת המחיר האחרונה בלי צירים/legend."""
+def _sparkline_svg(prices: list, width: int = 140, height: int = 36, show_baseline: bool = False) -> str:
+    """גרף זעיר (sparkline) כ-SVG מוטבע - מציג את מגמת המחיר האחרונה בלי צירים/legend.
+    show_baseline (אופציונלי, ברירת מחדל כבוי כדי לא לשנות התנהגות קיימת בכרטיסי
+    אחזקות) - מוסיף קו מקווקו בגובה נקודת ההתחלה + נקודה בקצה הגרף, כדי שיהיה
+    ברור בלי לחשוב אם המגמה נגמרת מעל/מתחת למקום שהתחילה בו, לא רק "יש קו"."""
     if len(prices) < 2:
         return ""
     lo, hi = min(prices), max(prices)
     rng = (hi - lo) or 1
     step = width / (len(prices) - 1)
-    points = " ".join(
-        f"{i * step:.1f},{height - ((p - lo) / rng) * (height - 4) - 2:.1f}"
+    coords = [
+        (i * step, height - ((p - lo) / rng) * (height - 4) - 2)
         for i, p in enumerate(prices)
-    )
+    ]
+    points = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
     color = POS_COLOR if prices[-1] >= prices[0] else NEG_COLOR
+    extra = ""
+    if show_baseline:
+        _, base_y = coords[0]
+        end_x, end_y = coords[-1]
+        extra = (
+            f'<line x1="0" y1="{base_y:.1f}" x2="{width}" y2="{base_y:.1f}" '
+            f'stroke="{color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.35"/>'
+            f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="3" fill="{color}"/>'
+        )
     return (
         f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">'
+        f'{extra}'
         f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="2" '
         f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
     )
@@ -592,6 +606,11 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
                 width: 70px; margin: 4px auto 0 auto;
             }}
+            /* הידית עצמה (העיגול הצבעוני) - קטנה משמעותית מברירת המחדל (12px),
+            פחות "צועקת" ליד גרף קטן כזה. */
+            div[class*="st-key-{container_key}"] [data-testid="stSlider"] [data-rac][style*="absolute"] {{
+                width: 8px !important; height: 8px !important;
+            }}
             </style>
             """,
             unsafe_allow_html=True,
@@ -614,9 +633,15 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             svg, as_of = "", None
         else:
             prices, as_of = get_index_sparkline(index_key, spark_days)
-            svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
+            svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
 
-        main_html = f'<div style="margin-top:2px;">{svg}</div>' if svg else '<div style="height:24px;"></div>'
+        if svg:
+            main_html = (
+                f'<div style="display:flex; align-items:center; justify-content:center; gap:5px; margin-top:2px;">'
+                f'<span style="font-size:0.62rem; opacity:0.5;">{spark_days} ימים</span>{svg}</div>'
+            )
+        else:
+            main_html = '<div style="height:38px;"></div>'
 
         if val is None:
             _caption = "אין נתונים"
