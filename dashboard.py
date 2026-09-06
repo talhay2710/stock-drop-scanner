@@ -665,7 +665,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 range_label = "מסחר נוכחי"
             else:
                 prices, as_of = get_index_sparkline(index_key, spark_days)
-                range_label = f"{spark_days} ימים"
+                range_label = "יום מסחר אחרון" if spark_days == 1 else f"{spark_days} ימים"
             svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
 
             st.markdown(
