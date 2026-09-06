@@ -592,22 +592,25 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             div[class*="st-key-{container_key}"] {{
                 border: 1px solid {color}; border-radius: 12px; padding: 10px 16px 12px 16px;
                 background: {bg}; box-shadow: 0 2px 6px rgba(0,0,0,0.06); gap: 0 !important;
+                height: 125px !important; min-height: 125px !important; max-height: 125px !important;
+                box-sizing: border-box !important; display: flex !important;
+                flex-direction: column !important; justify-content: space-between !important;
+                flex-shrink: 0 !important; flex-grow: 0 !important;
             }}
             div[class*="st-key-{container_key}"] [data-testid="stElementContainer"]:has(style) {{
                 display: none;
             }}
             /* הבועה הצפה עם המספר מעל הידית, ותווי הקצה (min/max) מתחת לפס -
-            הרבה "רעש" חזותי מיותר בכרטיס קטן כזה (2.9.2026) - מוסתרים לגמרי.
-            הפס עצמו מוקטן ומוצמד לתחתית הכרטיס, לא בראש. */
+            הרבה "רעש" חזותי מיותר בשורה קטנה כזו - מוסתרים לגמרי. */
             div[class*="st-key-{container_key}"] [data-testid="stSliderThumbValue"],
             div[class*="st-key-{container_key}"] [data-testid="stSliderTickBar"] {{
                 display: none;
             }}
             div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
-                width: 70px; margin: 4px auto 0 auto;
+                margin-top: -6px;
             }}
             /* הידית עצמה (העיגול הצבעוני) - קטנה משמעותית מברירת המחדל (12px),
-            פחות "צועקת" ליד גרף קטן כזה. */
+            פחות "צועקת" בשורה כה קטנה. */
             div[class*="st-key-{container_key}"] [data-testid="stSlider"] [data-rac][style*="absolute"] {{
                 width: 8px !important; height: 8px !important;
             }}
@@ -619,57 +622,52 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
         # כשהמסחר פעיל: בדיוק כמו לפני כל השינויים של היום - אחוז גדול + נקודת
         # סטטוס, בלי גרף/סליידר. כל התוספות (גרף, טווח ימים, כיתוב) רלוונטיות
         # רק כשהמסחר סגור - זה המצב שבו "שינוי יומי" הוא נתון של הסגירה
-        # האחרונה ולא ממש "עכשיו", ואיפה שהיה חסר הקשר (2.9.2026).
+        # האחרונה ולא ממש "עכשיו", ואיפה שהיה חסר הקשר (2.9.2026). שני המצבים
+        # חולקים את אותו גובה קבוע (125px) + justify-content:space-between,
+        # כדי שהשורה התחתונה (סטטוס/כיתוב) תיישר לאותו גובה בדיוק גם כשהתוכן
+        # שמעליה שונה באורכו (גרף מול אחוז גדול).
         show_graph = val is not None and not trading_open
         label_html = f"{label} - מסחר סגור" if show_graph else label
+
+        st.markdown(
+            f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label_html}</div>',
+            unsafe_allow_html=True,
+        )
 
         if not show_graph:
             status_color = POS_COLOR if trading_open else CLOSED_COLOR
             status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
             value_html = "אין נתונים" if val is None else f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
-            main_html = f'<div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>'
-            bottom_html = (
-                f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
-                f'{_status_dot(status_color)}{status_text}</div>'
+            st.markdown(
+                f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color};">{value_html}</div>'
+                f'<div style="text-align:center; font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; line-height:17px;">'
+                f'{_status_dot(status_color)}{status_text}</div>',
+                unsafe_allow_html=True,
             )
         else:
-            # קוראים את הבחירה השמורה *לפני* שהווידג'ט עצמו מוצג, כדי שאפשר יהיה
-            # להציג אותו בתחתית הכרטיס (אחרי הגרף) בעוד שהגרף עצמו כבר צריך את
-            # הערך הזה למעלה - סדר הרינדור של st.markdown/st.slider קובע את
-            # המיקום על המסך, לא סדר החישוב.
             _slider_key = f"spark_days_{index_key}"
             spark_days = st.session_state.get(_slider_key, 14)
             prices, as_of = get_index_sparkline(index_key, spark_days)
             svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
-
-            if svg:
-                main_html = (
-                    f'<div style="display:flex; align-items:center; justify-content:center; gap:5px; margin-top:2px;">'
-                    f'<span style="font-size:0.62rem; opacity:0.5;">{spark_days} ימים</span>{svg}</div>'
-                )
-            else:
-                main_html = '<div style="height:38px;"></div>'
+            st.markdown(
+                f'<div style="text-align:center; margin-top:2px;">{svg}</div>' if svg else "",
+                unsafe_allow_html=True,
+            )
 
             _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
             _caption = f"{_pct_text} · שינוי אחרון ({as_of})" if as_of else _pct_text
-            bottom_html = f'<div style="font-size:0.68rem; opacity:0.65; margin-top:3px;">{_caption}</div>'
-
-        st.markdown(
-            f"""
-            <div style="text-align:center;">
-              <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label_html}</div>
-              {main_html}
-              {bottom_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if show_graph:
-            st.slider(
-                "ימים", min_value=2, max_value=90, value=spark_days,
-                key=_slider_key, label_visibility="collapsed",
-            )
+            # הסליידר לצד הכיתוב, לא כשורה נפרדת - אותו קו בדיוק (2.9.2026).
+            _cap_col, _slider_col = st.columns([3, 1])
+            with _cap_col:
+                st.markdown(
+                    f'<div style="font-size:0.68rem; opacity:0.65; text-align:center; margin-top:8px;">{_caption}</div>',
+                    unsafe_allow_html=True,
+                )
+            with _slider_col:
+                spark_days = st.slider(
+                    "ימים", min_value=2, max_value=90, value=spark_days,
+                    key=_slider_key, label_visibility="collapsed",
+                )
 
 
 def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
