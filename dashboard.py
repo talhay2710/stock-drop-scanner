@@ -614,34 +614,30 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             div[class*="st-key-{container_key}"] [data-testid="stSlider"] [data-rac][style*="absolute"] {{
                 width: 8px !important; height: 8px !important;
             }}
+            /* הפס עצמו (הקו הדק) לא היה ממורכז אנכית מול הידית - כ-2px נמוך
+            מדי (נמדד בפועל, 2.9.2026) - מזיזים אותו למעלה בהתאם. */
+            div[class*="st-key-{container_key}"] [data-testid="stSlider"] [data-orientation="horizontal"] > div:first-child {{
+                margin-top: -2px;
+            }}
             </style>
             """,
             unsafe_allow_html=True,
         )
 
-        # כשהמסחר פעיל: בדיוק כמו לפני כל השינויים של היום - אחוז גדול + נקודת
-        # סטטוס, בלי גרף/סליידר. כל התוספות (גרף, טווח ימים, כיתוב) רלוונטיות
-        # רק כשהמסחר סגור - זה המצב שבו "שינוי יומי" הוא נתון של הסגירה
-        # האחרונה ולא ממש "עכשיו", ואיפה שהיה חסר הקשר (2.9.2026). שני המצבים
-        # חולקים את אותו גובה קבוע (125px) + justify-content:space-between,
-        # כדי שהשורה התחתונה (סטטוס/כיתוב) תיישר לאותו גובה בדיוק גם כשהתוכן
-        # שמעליה שונה באורכו (גרף מול אחוז גדול).
-        show_graph = val is not None and not trading_open
-        label_html = f"{label} - מסחר סגור" if show_graph else label
-
+        # תג סטטוס אחיד: נקודה ירוקה (פתוח)/אדומה (סגור) ליד שם המדד - לא עוד
+        # שורת טקסט נפרדת. ההבדל היחיד בין שני המצבים מעכשיו: התג הזה, וגודל/עובי
+        # אחוז השינוי (בולט יותר כשהמסחר פעיל) - הכל השאר (גרף, סליידר, ימים)
+        # זהה לחלוטין בין המצבים (2.9.2026).
+        _dot_color = POS_COLOR if trading_open else NEG_COLOR
+        _dot_span = f'<span style="color:{_dot_color}; font-size:0.7em;">●</span>'
         st.markdown(
-            f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label_html}</div>',
+            f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label} {_dot_span}</div>',
             unsafe_allow_html=True,
         )
 
-        if not show_graph:
-            status_color = POS_COLOR if trading_open else CLOSED_COLOR
-            status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
-            value_html = "אין נתונים" if val is None else f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
+        if val is None:
             st.markdown(
-                f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color};">{value_html}</div>'
-                f'<div style="text-align:center; font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; line-height:17px;">'
-                f'{_status_dot(status_color)}{status_text}</div>',
+                f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color};">אין נתונים</div>',
                 unsafe_allow_html=True,
             )
         else:
@@ -649,21 +645,32 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             spark_days = st.session_state.get(_slider_key, 14)
             prices, as_of = get_index_sparkline(index_key, spark_days)
             svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
+
             st.markdown(
                 f'<div style="text-align:center; margin-top:2px;">{svg}</div>' if svg else "",
                 unsafe_allow_html=True,
             )
 
-            _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
-            _caption = f"{_pct_text} · שינוי אחרון ({as_of})" if as_of else _pct_text
-            # הסליידר לצד הכיתוב, לא כשורה נפרדת - אותו קו בדיוק (2.9.2026).
+            value_html = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
+            if trading_open:
+                _cap_html = f'<div style="font-size:1.15rem; font-weight:700; color:{color};">{value_html}</div>'
+            else:
+                _caption = f"{value_html} · שינוי אחרון ({as_of})" if as_of else value_html
+                _cap_html = f'<div style="font-size:0.68rem; opacity:0.65;">{_caption}</div>'
+
+            # הסליידר לצד הכיתוב, לא כשורה נפרדת, עם חיווי "X ימים" ממורכז
+            # מעליו (לא מעל כל העמודה - מעל הסליידר עצמו) - זהה בשני המצבים.
             _cap_col, _slider_col = st.columns([3, 1])
             with _cap_col:
                 st.markdown(
-                    f'<div style="font-size:0.68rem; opacity:0.65; text-align:center; margin-top:8px;">{_caption}</div>',
+                    f'<div style="text-align:center; margin-top:6px;">{_cap_html}</div>',
                     unsafe_allow_html=True,
                 )
             with _slider_col:
+                st.markdown(
+                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{spark_days} ימים</div>',
+                    unsafe_allow_html=True,
+                )
                 spark_days = st.slider(
                     "ימים", min_value=2, max_value=90, value=spark_days,
                     key=_slider_key, label_visibility="collapsed",
