@@ -542,7 +542,17 @@ CLOSED_COLOR = "#888"
 CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
-def render_index_card(label: str, val: float | None, trading_open: bool) -> None:
+@st.cache_data(ttl=300)
+def get_index_sparkline(index_key: str) -> tuple[list, str | None]:
+    """היסטוריית סגירות קצרה של המדד (לגרף הזעיר) + תאריך הסגירה האחרונה -
+    מטמון ל-5 דקות (לא צריך רענון תכוף כמו האחוז עצמו, זו רק מגמה חזותית)."""
+    hist = market_data.fetch_index_history(index_key, period="1mo")
+    if hist.empty:
+        return [], None
+    return hist.tolist()[-14:], hist.index[-1].strftime("%d/%m")
+
+
+def render_index_card(label: str, val: float | None, trading_open: bool, index_key: str = "") -> None:
     if val is None:
         color, bg, value_html = CLOSED_COLOR, CLOSED_BG, "אין נתונים"
     elif not trading_open:
@@ -555,8 +565,26 @@ def render_index_card(label: str, val: float | None, trading_open: bool) -> None
         arrow = "▲" if val >= 0 else "▼"
         value_html = f"{arrow} {_signed_num(val, 1, '%')}"
 
-    status_color = POS_COLOR if trading_open else CLOSED_COLOR
-    status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
+    # כשהמסחר סגור: graph זעיר של המדד + התאריך שהנתון מתייחס אליו, במקום
+    # התיוג הסטטי "מסחר סגור" - יותר אינפורמטיבי (רואים מגמה, לא רק מספר יבש),
+    # ושעת הפתיחה הבאה כבר מוצגת בנפרד למטה ("שעות מסחר") כך שאין צורך לחזור עליה כאן.
+    if trading_open or val is None:
+        status_color = POS_COLOR if trading_open else CLOSED_COLOR
+        status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
+        bottom_html = (
+            f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
+            f'{_status_dot(status_color)}{status_text}</div>'
+        )
+    else:
+        prices, as_of = get_index_sparkline(index_key)
+        svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
+        bottom_html = (
+            f'<div style="margin-top:4px; display:flex; flex-direction:column; align-items:center; gap:2px;">'
+            f'{svg}<div style="font-size:0.7rem; opacity:0.6;">נכון ל-{as_of}</div></div>'
+            if svg and as_of else
+            f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
+            f'{_status_dot(CLOSED_COLOR)}מסחר סגור</div>'
+        )
 
     st.markdown(
         f"""
@@ -565,9 +593,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool) -> None
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
           <div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>
-          <div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">
-            {_status_dot(status_color)}{status_text}
-          </div>
+          {bottom_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -3227,7 +3253,7 @@ with st.container(border=True, key="market_panel"):
         cols = st.columns(4, gap="medium")
         for col, idx in zip(cols, ALL_INDICES):
             with col:
-                render_index_card(INDEX_LABELS[idx], index_changes.get(idx), is_market_open(idx))
+                render_index_card(INDEX_LABELS[idx], index_changes.get(idx), is_market_open(idx), idx)
 
         _portfolio_summary, _today_summary, _value_summary, _proximity_summary = _compute_portfolio_summaries(_fresh_holdings_df)
         if _portfolio_summary:
