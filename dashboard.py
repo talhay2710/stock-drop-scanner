@@ -558,25 +558,20 @@ def get_index_sparkline(index_key: str, days: int) -> tuple[list, str | None]:
 
 def render_index_card(label: str, val: float | None, trading_open: bool, index_key: str = "") -> None:
     if val is None:
-        color, bg, value_html = CLOSED_COLOR, CLOSED_BG, "אין נתונים"
+        color, bg = CLOSED_COLOR, CLOSED_BG
     elif not trading_open:
         color, bg = CLOSED_COLOR, CLOSED_BG
-        arrow = "▲" if val >= 0 else "▼"
-        value_html = f"{arrow} {_signed_num(val, 1, '%')}"
     else:
         color = POS_COLOR if val >= 0 else NEG_COLOR
         bg = POS_BG if val >= 0 else NEG_BG
-        arrow = "▲" if val >= 0 else "▼"
-        value_html = f"{arrow} {_signed_num(val, 1, '%')}"
 
-    show_graph = not trading_open and val is not None
     container_key = f"idx_card_{index_key}"
     with st.container(key=container_key):
         # אותה טכניקת עיצוב שכבר בשימוש בכל הקובץ (כפתור הסריקה, portfolio_header
         # וכו'): container עם מפתח + <style> שמכוון אליו לפי class, כדי שהצבע
         # יוכל להשתנות דינמית (חיובי/שלילי/סגור) בלי לאבד את היכולת להכניס
-        # ווידג'טים אמיתיים (number_input) *בתוך* הכרטיס - מה שלא אפשרי כש
-        # הכרטיס כולו הוא HTML גולמי אחד מבודד.
+        # ווידג'ט אמיתי (slider) *בתוך* הכרטיס - מה שלא אפשרי כשהכרטיס כולו
+        # הוא HTML גולמי אחד מבודד.
         st.markdown(
             f"""
             <style>
@@ -587,45 +582,40 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             div[class*="st-key-{container_key}"] [data-testid="stElementContainer"]:has(style) {{
                 display: none;
             }}
-            div[class*="st-key-{container_key}"] [data-testid="stNumberInput"] {{
-                width: 90px; margin: 2px auto 0 auto;
-            }}
-            div[class*="st-key-{container_key}"] [data-testid="stNumberInput"] input {{
-                text-align: center; font-size: 0.75rem; padding: 2px 4px;
+            div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
+                padding: 0 6px; margin-top: 2px;
             }}
             </style>
             """,
             unsafe_allow_html=True,
         )
 
-        spark_days = 14
-        if show_graph:
-            spark_days = st.number_input(
-                "ימים", min_value=2, max_value=90, value=14, step=1,
+        # אותו מבנה בדיוק בין מסחר פתוח/סגור (תווית+סטטוס, גרף, שורת כיתוב קטנה) -
+        # כדי שכרטיס אחד לא "יקפוץ" ויראה שונה לגמרי מהשכן שלו כשמדד אחד פתוח
+        # והשני סגור (2.9.2026).
+        status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
+        label_html = f"{label} - {status_text}"
+
+        if val is None:
+            spark_days = 14
+            svg, as_of = "", None
+        else:
+            spark_days = st.slider(
+                "ימים", min_value=2, max_value=90, value=14,
                 key=f"spark_days_{index_key}", label_visibility="collapsed",
             )
+            prices, as_of = get_index_sparkline(index_key, spark_days)
+            svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
 
-        prices, as_of = (get_index_sparkline(index_key, spark_days) if show_graph else ([], None))
-        svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
+        main_html = f'<div style="margin-top:2px;">{svg}</div>' if svg else '<div style="height:24px;"></div>'
 
-        # כשיש גרף: המספר הגדול "הישן" מתבטל - הגרף עצמו הופך למרכז הכרטיס, וכל
-        # השאר (אחוז, תאריך, סטטוס) מתכווץ לשורה אחת קטנה מתחתיו במקום להתחרות
-        # איתו על תשומת הלב. "מסחר סגור" בהמשך לשם המדד עצמו (אותו פונט/גודל).
-        label_html = f"{label} - מסחר סגור" if svg else label
-
-        if svg:
-            _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
-            _caption = f"{_pct_text} · שינוי אחרון ({as_of})" if as_of else _pct_text
-            main_html = f'<div style="margin-top:2px;">{svg}</div>'
-            bottom_html = f'<div style="font-size:0.68rem; opacity:0.65; margin-top:3px;">{_caption}</div>'
+        if val is None:
+            _caption = "אין נתונים"
         else:
-            status_color = POS_COLOR if trading_open else CLOSED_COLOR
-            status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
-            main_html = f'<div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>'
-            bottom_html = (
-                f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
-                f'{_status_dot(status_color)}{status_text}</div>'
-            )
+            _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
+            _change_label = "שינוי אחרון" if not trading_open else "שינוי נוכחי"
+            _caption = f"{_pct_text} · {_change_label} ({as_of})" if as_of else _pct_text
+        bottom_html = f'<div style="font-size:0.68rem; opacity:0.65; margin-top:3px;">{_caption}</div>'
 
         st.markdown(
             f"""
@@ -636,7 +626,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             </div>
             """,
             unsafe_allow_html=True,
-    )
+        )
 
 
 def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
