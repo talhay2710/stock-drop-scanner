@@ -597,14 +597,10 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 display: none;
             }}
             /* הבועה הצפה עם המספר מעל הידית, ותווי הקצה (min/max) מתחת לפס -
-            הרבה "רעש" חזותי מיותר בכרטיס קטן כזה (2.9.2026) - מוסתרים לגמרי.
-            הפס עצמו מוקטן ומוצמד לתחתית הכרטיס, לא בראש. */
+            מיותר כשהמספר המעודכן כבר מוצג כתווית קבועה מתחת לסליידר. */
             div[class*="st-key-{container_key}"] [data-testid="stSliderThumbValue"],
             div[class*="st-key-{container_key}"] [data-testid="stSliderTickBar"] {{
                 display: none;
-            }}
-            div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
-                width: 70px; margin: 4px auto 0 auto;
             }}
             /* הידית עצמה (העיגול הצבעוני) - קטנה משמעותית מברירת המחדל (12px),
             פחות "צועקת" ליד גרף קטן כזה. */
@@ -618,54 +614,52 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
 
         # אותו מבנה בדיוק בין מסחר פתוח/סגור (תווית+סטטוס, גרף, שורת כיתוב קטנה) -
         # כדי שכרטיס אחד לא "יקפוץ" ויראה שונה לגמרי מהשכן שלו כשמדד אחד פתוח
-        # והשני סגור (2.9.2026).
+        # והשני סגור (2.9.2026). הסליידר עצמו עבר לעמודה צרה בצד הגרף (לא מתחתיו) -
+        # ולכן אפשר להאריך אותו קצת, יש לו מקום משלו עכשיו.
         status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
         label_html = f"{label} - {status_text}"
-
-        # קוראים את הבחירה השמורה *לפני* שהווידג'ט עצמו מוצג, כדי שאפשר יהיה
-        # להציג אותו בתחתית הכרטיס (אחרי הגרף) בעוד שהגרף עצמו כבר צריך את הערך
-        # הזה למעלה - סדר הרינדור של st.markdown/st.slider קובע את המיקום על
-        # המסך, לא סדר החישוב.
         _slider_key = f"spark_days_{index_key}"
-        spark_days = st.session_state.get(_slider_key, 14)
 
-        if val is None:
-            svg, as_of = "", None
-        else:
-            prices, as_of = get_index_sparkline(index_key, spark_days)
-            svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
+        _side_col, _main_col = st.columns([1, 3])
+        with _side_col:
+            if val is not None:
+                spark_days = st.slider(
+                    "ימים", min_value=2, max_value=90, value=st.session_state.get(_slider_key, 14),
+                    key=_slider_key, label_visibility="collapsed",
+                )
+                st.markdown(
+                    f'<div style="font-size:0.62rem; opacity:0.5; text-align:center; margin-top:-6px;">'
+                    f'{spark_days} ימים</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                spark_days = 14
 
-        if svg:
-            main_html = (
-                f'<div style="display:flex; align-items:center; justify-content:center; gap:5px; margin-top:2px;">'
-                f'<span style="font-size:0.62rem; opacity:0.5;">{spark_days} ימים</span>{svg}</div>'
-            )
-        else:
-            main_html = '<div style="height:38px;"></div>'
+        with _main_col:
+            if val is None:
+                svg, as_of = "", None
+            else:
+                prices, as_of = get_index_sparkline(index_key, spark_days)
+                svg = _sparkline_svg(prices, width=110, height=38, show_baseline=True) if prices else ""
+            main_html = f'<div style="margin-top:2px;">{svg}</div>' if svg else '<div style="height:38px;"></div>'
 
-        if val is None:
-            _caption = "אין נתונים"
-        else:
-            _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
-            _change_label = "שינוי אחרון" if not trading_open else "שינוי נוכחי"
-            _caption = f"{_pct_text} · {_change_label} ({as_of})" if as_of else _pct_text
-        bottom_html = f'<div style="font-size:0.68rem; opacity:0.65; margin-top:3px;">{_caption}</div>'
+            if val is None:
+                _caption = "אין נתונים"
+            else:
+                _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
+                _change_label = "שינוי אחרון" if not trading_open else "שינוי נוכחי"
+                _caption = f"{_pct_text} · {_change_label} ({as_of})" if as_of else _pct_text
+            bottom_html = f'<div style="font-size:0.68rem; opacity:0.65; margin-top:3px;">{_caption}</div>'
 
-        st.markdown(
-            f"""
-            <div style="text-align:center;">
-              <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label_html}</div>
-              {main_html}
-              {bottom_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if val is not None:
-            st.slider(
-                "ימים", min_value=2, max_value=90, value=spark_days,
-                key=_slider_key, label_visibility="collapsed",
+            st.markdown(
+                f"""
+                <div style="text-align:center;">
+                  <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label_html}</div>
+                  {main_html}
+                  {bottom_html}
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
 
