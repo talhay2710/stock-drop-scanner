@@ -652,30 +652,39 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
 
         if val is None:
             st.markdown(
-                f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color};">אין נתונים</div>',
+                f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color}; margin-top:8px;">אין נתונים</div>',
                 unsafe_allow_html=True,
             )
         else:
-            # הסליידר עצמו הפוך למה שהוא "אומר": הערך הגולמי (raw) שנשמר הוא
-            # מיקום על הפס, אבל raw הכי *גבוה* (הקצה הימני) תמיד אומר "הכי
-            # עדכני" - יום מסחר אחרון (סגור) או מסחר פעיל (פתוח) - כי ברירת
-            # המחדל (אין עדיין בחירה שמורה) היא תמיד הקצה הימני, וזה אמור
-            # להיות המצב הכי עדכני, לא "90 ימים" (2.9.2026).
+            # עצירות קבועות (לא טווח רציף 1-90) - הרבה יותר קל לפגוע בדיוק
+            # כשיש רק כמה נקודות עצירה על הפס, לא צריך לגרור פיקסל בודד בול
+            # (2.9.2026, בעקבות תלונה שקשה לדייק). האופציה הראשונה ברשימה
+            # תמיד יושבת בקצה הימני (הקצה שקרוב יותר ל"עכשיו") - כי min
+            # ברכיב הזה מוצג ימינה, לא שמאלה (נבדק בפועל).
+            _day_options = [1, 3, 7, 14, 30, 60, 90]
+            _options = ([0] + _day_options) if trading_open else _day_options
             _slider_key = f"spark_days_{index_key}"
-            _raw_max = 91 if trading_open else 90
-            _raw = min(st.session_state.get(_slider_key, _raw_max), _raw_max)
+            _default = _options[0]
+            _raw = st.session_state.get(_slider_key, _default)
+            if _raw not in _options:
+                _raw = _default  # למשל המסחר נסגר מאז שנבחר "מסחר פעיל" (0)
 
-            if trading_open and _raw == _raw_max:
+            def _fmt_day_option(v: int) -> str:
+                if v == 0:
+                    return "גרף מסחר פעיל"
+                if v == 1:
+                    return "גרף יומי אחרון"
+                return f"גרף {v} ימים"
+
+            if _raw == 0:
                 prices, as_of = get_index_intraday_sparkline(index_key)
-                range_label = "מסחר פעיל"
             else:
-                spark_days = 91 - _raw
-                prices, as_of = get_index_sparkline(index_key, spark_days)
-                range_label = "יום מסחר אחרון" if spark_days == 1 else f"{spark_days} ימים"
-            svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
+                prices, as_of = get_index_sparkline(index_key, _raw)
+            range_label = _fmt_day_option(_raw)
+            svg = _sparkline_svg(prices, width=130, height=16, show_baseline=True) if prices else ""
 
             st.markdown(
-                f'<div style="text-align:center; margin-top:2px;">{svg}</div>' if svg else "",
+                f'<div style="text-align:center; margin-top:6px; margin-bottom:5px;">{svg}</div>' if svg else "",
                 unsafe_allow_html=True,
             )
 
@@ -691,16 +700,16 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             _cap_col, _slider_col = st.columns([3, 1])
             with _cap_col:
                 st.markdown(
-                    f'<div style="text-align:center; margin-top:6px;">{_cap_html}</div>',
+                    f'<div style="text-align:center;">{_cap_html}</div>',
                     unsafe_allow_html=True,
                 )
             with _slider_col:
                 st.markdown(
-                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center; margin-top:6px;">{range_label}</div>',
+                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{range_label}</div>',
                     unsafe_allow_html=True,
                 )
-                _raw = st.slider(
-                    "ימים", min_value=1, max_value=_raw_max, value=_raw,
+                _raw = st.select_slider(
+                    "ימים", options=_options, value=_raw, format_func=_fmt_day_option,
                     key=_slider_key, label_visibility="collapsed",
                 )
 
