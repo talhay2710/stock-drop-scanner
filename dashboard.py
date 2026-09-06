@@ -556,6 +556,18 @@ CLOSED_COLOR = "#888"
 CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
+@st.cache_data(ttl=60)
+def get_index_intraday_sparkline(index_key: str) -> tuple[list, str | None]:
+    """נקודות המסחר התוך-יומי של היום - מטמון קצר (דקה, לא 5 כמו הגרסה
+    ההיסטורית) כי זה "מסחר נוכחי" ואמור להיות רענן ממש. התווית היא שעת
+    הנקודה האחרונה (HH:MM), לא תאריך - "היום ב-14:35" לא אומר הרבה יותר
+    מ"עכשיו", אבל השעה כן (2.9.2026)."""
+    hist = market_data.fetch_index_intraday(index_key)
+    if hist.empty:
+        return [], None
+    return hist.tolist(), hist.index[-1].strftime("%H:%M")
+
+
 @st.cache_data(ttl=300)
 def get_index_sparkline(index_key: str, days: int) -> tuple[list, str | None]:
     """היסטוריית סגירות קצרה של המדד (לגרף הזעיר) + תאריך הסגירה האחרונה -
@@ -641,9 +653,19 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 unsafe_allow_html=True,
             )
         else:
+            # "0" בסליידר = מסחר נוכחי (תוך-יומי) - נעול רק כשהמדד הזה באמת
+            # פעיל עכשיו ("ככל ומתקיים"); כשסגור, המינימום הוא 1 (יום מסחר
+            # בודד - עדיין שימושי, רק לא "נוכחי" כי אין session חי) (2.9.2026).
             _slider_key = f"spark_days_{index_key}"
-            spark_days = st.session_state.get(_slider_key, 14)
-            prices, as_of = get_index_sparkline(index_key, spark_days)
+            _slider_min = 0 if trading_open else 1
+            spark_days = max(st.session_state.get(_slider_key, 14), _slider_min)
+
+            if spark_days == 0:
+                prices, as_of = get_index_intraday_sparkline(index_key)
+                range_label = "מסחר נוכחי"
+            else:
+                prices, as_of = get_index_sparkline(index_key, spark_days)
+                range_label = f"{spark_days} ימים"
             svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
 
             st.markdown(
@@ -655,11 +677,11 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             if trading_open:
                 _cap_html = f'<div style="font-size:1.15rem; font-weight:700; color:{color};">{value_html}</div>'
             else:
-                _caption = f"{value_html} · שינוי אחרון ({as_of})" if as_of else value_html
+                _caption = f"{value_html} שינוי אחרון ({as_of})" if as_of else value_html
                 _cap_html = f'<div style="font-size:0.68rem; opacity:0.65;">{_caption}</div>'
 
-            # הסליידר לצד הכיתוב, לא כשורה נפרדת, עם חיווי "X ימים" ממורכז
-            # מעליו (לא מעל כל העמודה - מעל הסליידר עצמו) - זהה בשני המצבים.
+            # הסליידר לצד הכיתוב, לא כשורה נפרדת, עם חיווי טווח ממורכז מעליו
+            # (לא מעל כל העמודה - מעל הסליידר עצמו) - זהה בשני המצבים.
             _cap_col, _slider_col = st.columns([3, 1])
             with _cap_col:
                 st.markdown(
@@ -668,11 +690,11 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 )
             with _slider_col:
                 st.markdown(
-                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{spark_days} ימים</div>',
+                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{range_label}</div>',
                     unsafe_allow_html=True,
                 )
                 spark_days = st.slider(
-                    "ימים", min_value=2, max_value=90, value=spark_days,
+                    "ימים", min_value=_slider_min, max_value=90, value=spark_days,
                     key=_slider_key, label_visibility="collapsed",
                 )
 

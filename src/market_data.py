@@ -326,6 +326,22 @@ def fetch_index_history(index: str, period: str) -> pd.Series:
         return pd.Series(dtype=float)
 
 
+def fetch_index_intraday(index: str) -> pd.Series:
+    """נקודות מחיר תוך-יומיות (5 דק') של יום המסחר הנוכחי בלבד - ל"מסחר נוכחי"
+    בגרף הזעיר (2.9.2026), בניגוד ל-fetch_index_history שהיא סגירות יומיות
+    (יום אחד = נקודה אחת, לא שימושי כשרוצים לראות את המגמה *בתוך* יום המסחר
+    הנוכחי עצמו). period="1d" מחזיר רק את הנתונים מאז תחילת המסחר היום."""
+    proxy = INDEX_PROXY_TICKER.get(index.upper())
+    if not proxy:
+        return pd.Series(dtype=float)
+    try:
+        hist = yf.Ticker(proxy).history(period="1d", interval="5m")
+        return hist["Close"].dropna()
+    except Exception as e:
+        logger.warning("נכשלה שליפת מסחר תוך-יומי (%s): %s", proxy, e)
+        return pd.Series(dtype=float)
+
+
 MARKET_REGIME_LABELS = {
     "bull_calm": "🟢 שוק עולה, רגוע",
     "bull_volatile": "🟡 שוק עולה, תנודתי",
