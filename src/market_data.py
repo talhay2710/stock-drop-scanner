@@ -293,7 +293,7 @@ def fetch_current_price(ticker: str) -> float | None:
 _MAX_PLAUSIBLE_INDEX_CHANGE_PCT = 20.0
 
 
-def fetch_index_proxy_change(index: str) -> float | None:
+def _fetch_index_proxy_change_and_date(index: str) -> tuple[float, dt.date] | None:
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
         return None
@@ -307,8 +307,20 @@ def fetch_index_proxy_change(index: str) -> float | None:
         if abs(pct) > _MAX_PLAUSIBLE_INDEX_CHANGE_PCT:
             logger.warning("שינוי מדד לא סביר עבור %s (%.1f%%) - כנראה נתון פגום, מוחזר 'אין נתון'", proxy, pct)
             return None
-        return pct
+        return pct, closes.index[-1].date()
     return _with_retry(_do, f"שינוי המדד ({proxy})")
+
+
+def fetch_index_proxy_change(index: str) -> float | None:
+    result = _fetch_index_proxy_change_and_date(index)
+    return result[0] if result else None
+
+
+def fetch_index_proxy_change_with_date(index: str) -> tuple[float, dt.date] | None:
+    """כמו fetch_index_proxy_change, אבל מחזיר גם את תאריך הסגירה שהשינוי
+    מחושב ביחס אליה - כדי שאפשר יהיה להציג 'נכון ל-DD/MM' ליד האחוז, בדיוק
+    כמו שכבר מוצג בטבלת 'מניות מובילות' (2.9.2026)."""
+    return _fetch_index_proxy_change_and_date(index)
 
 
 def fetch_index_history(index: str, period: str) -> pd.Series:
