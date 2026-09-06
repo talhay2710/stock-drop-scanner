@@ -970,9 +970,9 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _dom_ccy2 = max(_today_by_ccy, key=lambda c: _today_by_ccy[c]["prev_value"])
             _dom2 = _today_by_ccy[_dom_ccy2]
             _today_pct = (_dom2["change"] / _dom2["prev_value"] * 100) if _dom2["prev_value"] else 0.0
-            # התווית עצמה כוללת "אחרון (תאריך)" - לא רק "שינוי יומי" סתמי - כדי
-            # שיהיה ברור שזה השינוי מהסגירה האחרונה, לא בהכרח "ממש עכשיו".
-            _today_label = "שינוי יומי אחרון"
+            # התאריך בסוגריים כבר מבהיר שזה השינוי מהסגירה האחרונה, לא צריך גם
+            # את המילה "אחרון" בתווית עצמה.
+            _today_label = "שינוי יומי"
             if _today_max_close_date:
                 _today_label += f" ({_today_max_close_date.strftime('%d/%m')})"
             today_summary = (
