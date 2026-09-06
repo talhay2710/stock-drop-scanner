@@ -2799,11 +2799,22 @@ with _tab_slot_portfolio.container():
                 if _daily_pct is not None and pd.notna(_daily_pct):
                     _daily_color = POS_COLOR if _daily_pct >= 0 else NEG_COLOR
                     _daily_icon = "📈" if _daily_pct >= 0 else "📉"
+                    # תאריך מתחת ל"שינוי יומי" רק כשהמסחר של המניה הזו סגור - כשהוא
+                    # פעיל, "שינוי יומי" כבר אומר "עכשיו" בלי צורך בתאריך (2.9.2026).
+                    _daily_date = row.get("daily_pct_date")
+                    _daily_date_html = ""
+                    if _daily_date and not is_market_open(row.get("index_name") or ""):
+                        _daily_date_html = (
+                            f'<div style="font-size:0.6rem; font-weight:500; opacity:0.6; margin-top:-2px;">'
+                            f'{_daily_date.strftime("%d/%m")}</div>'
+                        )
                     daily_badge_html = (
+                        f'<div style="display:flex; flex-direction:column; align-items:flex-end;">'
                         f'<div style="font-size:1rem; font-weight:700; color:{_daily_color}; '
                         f'display:flex; align-items:center; gap:4px;">'
                         f'{_daily_icon} {_signed_num(_daily_pct, 1, "%")}'
                         f'<span style="font-size:0.7rem; font-weight:500; opacity:0.7;">שינוי יומי</span></div>'
+                        f'{_daily_date_html}</div>'
                     )
                 else:
                     daily_badge_html = ""
@@ -3018,6 +3029,7 @@ with _tab_slot_portfolio.container():
                     # מול prev_close (הסגירה של אתמול) לא רלוונטית למי שהחזיק אותה רק
                     # מהקנייה - הבסיס הנכון הוא שער הכניסה, לא סגירת אתמול.
                     daily_pct = None
+                    daily_pct_date = None
                     _dr = _daily_data_map.get(r["ticker"])
                     if current is not None and _dr is not None:
                         _prev_close, _prev_close_date = _dr.get("prev_close"), _dr.get("prev_close_date")
@@ -3026,6 +3038,7 @@ with _tab_slot_portfolio.container():
                             _baseline = entry
                         if _baseline:
                             daily_pct = (current - _baseline) / _baseline * 100
+                            daily_pct_date = _dr.get("last_close_date")
 
                     net_pnl, net_pct = None, None
                     if current is not None and entry:
@@ -3050,6 +3063,7 @@ with _tab_slot_portfolio.container():
                         "holding_stop_price": get_or_backfill_stop_price(r, entry) if entry else None,
                         "is_manual_trade": bool(r.get("is_manual_trade")) if pd.notna(r.get("is_manual_trade")) else False,
                         "daily_pct": daily_pct,
+                        "daily_pct_date": daily_pct_date,
                         "sector": r.get("sector") or "לא ידוע",
                     })
 
