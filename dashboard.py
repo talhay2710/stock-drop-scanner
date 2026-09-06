@@ -674,7 +674,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 prices, as_of = get_index_intraday_sparkline(index_key)
             else:
                 prices, as_of = get_index_sparkline(index_key, _raw)
-            range_label = _fmt_day_option(_raw)
+            range_label = f"יומי ({as_of})" if _raw == 1 and as_of else _fmt_day_option(_raw)
             svg = _sparkline_svg(prices, width=130, height=16, show_baseline=True) if prices else ""
 
             range_pct_html = ""
