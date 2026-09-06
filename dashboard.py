@@ -530,7 +530,7 @@ INDEX_LABELS = {"SP500": "S&P 500", "NASDAQ100": "NASDAQ-100", "TA35": 'ת"א 35
 
 @st.cache_data(ttl=60)
 def get_index_changes() -> dict:
-    return {idx: market_data.fetch_index_proxy_change_with_date(idx) for idx in ALL_INDICES}
+    return {idx: market_data.fetch_index_proxy_change(idx) for idx in ALL_INDICES}
 
 
 def _status_dot(color: str) -> str:
@@ -542,8 +542,7 @@ CLOSED_COLOR = "#888"
 CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
-def render_index_card(label: str, val_and_date: tuple[float, dt.date] | None, trading_open: bool) -> None:
-    val, as_of_date = val_and_date if val_and_date is not None else (None, None)
+def render_index_card(label: str, val: float | None, trading_open: bool) -> None:
     if val is None:
         color, bg, value_html = CLOSED_COLOR, CLOSED_BG, "אין נתונים"
     elif not trading_open:
@@ -557,12 +556,7 @@ def render_index_card(label: str, val_and_date: tuple[float, dt.date] | None, tr
         value_html = f"{arrow} {_signed_num(val, 1, '%')}"
 
     status_color = POS_COLOR if trading_open else CLOSED_COLOR
-    # כשהמסחר סגור, הערך הוא הסגירה האחרונה - לא "עכשיו" - אז מציינים בדיוק
-    # לאיזה תאריך זה נכון, באותה רוח כמו הכיתוב הזהה בטבלת "מניות מובילות".
-    status_text = (
-        "מסחר פע‌יל" if trading_open
-        else (f"נכון ל-{as_of_date.strftime('%d/%m')}" if as_of_date else "מסחר סגור")
-    )
+    status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
 
     st.markdown(
         f"""
@@ -580,22 +574,13 @@ def render_index_card(label: str, val_and_date: tuple[float, dt.date] | None, tr
     )
 
 
-def render_portfolio_card(
-    label: str, pnl: float, pnl_pct: float, ccy_symbol: str,
-    as_of_date: dt.date | None = None, dynamic_icon: bool = False,
-) -> None:
+def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
     bg = POS_BG if pnl >= 0 else NEG_BG
     arrow = "▲" if pnl >= 0 else "▼"
     value_html = f"{arrow} {_signed_num(pnl_pct, 1, '%')}"
     if dynamic_icon:
         label = f"{'📈' if pnl >= 0 else '📉'} {label}"
-    # מתי בדיוק "היום" הזה נכון - אותה מטרה כמו הכיתוב בטבלת "מניות מובילות":
-    # השינוי היומי מבוסס על הסגירה האחרונה, לא בהכרח "ממש עכשיו".
-    as_of_html = (
-        f'<div style="font-size:0.7rem; opacity:0.6; margin-top:2px;">נכון ל-{as_of_date.strftime("%d/%m")}</div>'
-        if as_of_date else ""
-    )
 
     st.markdown(
         f"""
@@ -607,7 +592,6 @@ def render_portfolio_card(
           <div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
             {_signed_num(pnl)} {ccy_symbol}
           </div>
-          {as_of_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -795,7 +779,6 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     if not holdings_df.empty:
         _daily_df = market_data.fetch_universe_daily_changes(holdings_df["ticker"].tolist())
         _today_by_ccy = {}
-        _today_max_close_date = None
         # fetch_universe_daily_changes מחזיר DataFrame ריק-לגמרי (בלי אף עמודה,
         # כולל "ticker") אם אף טיקר לא הצליח להישלף באותו סבב (למשל Yahoo
         # חסם/rate-limit זמני) - אינדוקס לפי "ticker" על עמודה שלא קיימת קורס
@@ -834,15 +817,12 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _agg2 = _today_by_ccy.setdefault(_ccy2, {"prev_value": 0.0, "change": 0.0})
             _agg2["prev_value"] += _baseline * _qty
             _agg2["change"] += (_last_close - _baseline) * _qty
-            if _last_close_date and (_today_max_close_date is None or _last_close_date > _today_max_close_date):
-                _today_max_close_date = _last_close_date
         if _today_by_ccy:
             _dom_ccy2 = max(_today_by_ccy, key=lambda c: _today_by_ccy[c]["prev_value"])
             _dom2 = _today_by_ccy[_dom_ccy2]
             _today_pct = (_dom2["change"] / _dom2["prev_value"] * 100) if _dom2["prev_value"] else 0.0
             today_summary = (
-                "שינוי יומי", _dom2["change"], _today_pct, CURRENCY_SYMBOLS.get(_dom_ccy2, _dom_ccy2),
-                _today_max_close_date,
+                "שינוי יומי", _dom2["change"], _today_pct, CURRENCY_SYMBOLS.get(_dom_ccy2, _dom_ccy2)
             )
 
     proximity_summary = None
