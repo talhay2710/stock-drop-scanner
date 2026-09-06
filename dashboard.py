@@ -542,17 +542,25 @@ CLOSED_COLOR = "#888"
 CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
+SPARKLINE_DAY_OPTIONS = {"7 ימים": 7, "14 ימים": 14, "30 ימים": 30}
+
+
 @st.cache_data(ttl=300)
-def get_index_sparkline(index_key: str) -> tuple[list, str | None]:
+def get_index_sparkline(index_key: str, days: int) -> tuple[list, str | None]:
     """היסטוריית סגירות קצרה של המדד (לגרף הזעיר) + תאריך הסגירה האחרונה -
-    מטמון ל-5 דקות (לא צריך רענון תכוף כמו האחוז עצמו, זו רק מגמה חזותית)."""
-    hist = market_data.fetch_index_history(index_key, period="1mo")
+    מטמון ל-5 דקות (לא צריך רענון תכוף כמו האחוז עצמו, זו רק מגמה חזותית).
+    שולפים חודשיים קלנדריים תמיד (מספיק גם ל-30 ימי מסחר) ומחתכים לפי הבחירה,
+    כדי לא להזדקק למחרוזת period שונה של yfinance לכל אפשרות."""
+    hist = market_data.fetch_index_history(index_key, period="2mo")
     if hist.empty:
         return [], None
-    return hist.tolist()[-14:], hist.index[-1].strftime("%d/%m")
+    sliced = hist.tolist()[-days:]
+    return sliced, hist.index[-1].strftime("%d/%m")
 
 
-def render_index_card(label: str, val: float | None, trading_open: bool, index_key: str = "") -> None:
+def render_index_card(
+    label: str, val: float | None, trading_open: bool, index_key: str = "", spark_days: int = 14,
+) -> None:
     if val is None:
         color, bg, value_html = CLOSED_COLOR, CLOSED_BG, "אין נתונים"
     elif not trading_open:
@@ -565,26 +573,24 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
         arrow = "▲" if val >= 0 else "▼"
         value_html = f"{arrow} {_signed_num(val, 1, '%')}"
 
-    # כשהמסחר סגור: graph זעיר של המדד + התאריך שהנתון מתייחס אליו, במקום
-    # התיוג הסטטי "מסחר סגור" - יותר אינפורמטיבי (רואים מגמה, לא רק מספר יבש),
-    # ושעת הפתיחה הבאה כבר מוצגת בנפרד למטה ("שעות מסחר") כך שאין צורך לחזור עליה כאן.
-    if trading_open or val is None:
+    prices, as_of = (get_index_sparkline(index_key, spark_days) if (not trading_open and val is not None) else ([], None))
+    svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
+
+    # כשיש גרף: המספר הגדול "הישן" מתבטל - הגרף עצמו הופך למרכז הכרטיס, וכל
+    # השאר (אחוז, תאריך, טווח, סטטוס) מתכווץ לשורה אחת קטנה מתחתיו במקום
+    # להתחרות איתו על תשומת הלב.
+    if svg:
+        _pct_text = f"{'▲' if val >= 0 else '▼'} {_signed_num(val, 1, '%')}"
+        _caption = f"{_pct_text} · שינוי אחרון ({as_of}) · {spark_days} ימים · מסחר סגור" if as_of else _pct_text
+        main_html = f'<div style="margin-top:2px;">{svg}</div>'
+        bottom_html = f'<div style="font-size:0.68rem; opacity:0.65; margin-top:3px;">{_caption}</div>'
+    else:
         status_color = POS_COLOR if trading_open else CLOSED_COLOR
         status_text = "מסחר פע‌יל" if trading_open else "מסחר סגור"
+        main_html = f'<div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>'
         bottom_html = (
             f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
             f'{_status_dot(status_color)}{status_text}</div>'
-        )
-    else:
-        prices, as_of = get_index_sparkline(index_key)
-        svg = _sparkline_svg(prices, width=90, height=24) if prices else ""
-        _caption = f"שינוי יומי אחרון ({as_of}) · מסחר סגור" if as_of else "מסחר סגור"
-        bottom_html = (
-            f'<div style="margin-top:4px; display:flex; flex-direction:column; align-items:center; gap:2px;">'
-            f'{svg}<div style="font-size:0.7rem; opacity:0.6;">{_caption}</div></div>'
-            if svg else
-            f'<div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; line-height:17px;">'
-            f'{_status_dot(CLOSED_COLOR)}מסחר סגור</div>'
         )
 
     st.markdown(
@@ -593,7 +599,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                     background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
-          <div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>
+          {main_html}
           {bottom_html}
         </div>
         """,
@@ -3248,7 +3254,15 @@ with st.container(border=True, key="market_panel"):
             _fresh_df[_fresh_df.get("bought") == 1] if (not _fresh_df.empty and "bought" in _fresh_df.columns)
             else pd.DataFrame()
         )
-        st.subheader("📊 מצב המדדים")
+        _mp_head_col1, _mp_head_col2 = st.columns([3, 2])
+        with _mp_head_col1:
+            st.subheader("📊 מצב המדדים")
+        with _mp_head_col2:
+            _spark_label = st.radio(
+                "טווח הגרף", list(SPARKLINE_DAY_OPTIONS), horizontal=True,
+                index=1, key="market_panel_spark_range", label_visibility="collapsed",
+            )
+        _spark_days = SPARKLINE_DAY_OPTIONS[_spark_label]
         index_changes = get_index_changes()
         # שליפה בודדת שנכשלה זמנית (למשל rate-limit של Yahoo) לא אמורה להבהב
         # ל"אין נתונים" בכל רענון של ה-fragment (כל 60 שניות) - שומרים את הערך
@@ -3262,7 +3276,7 @@ with st.container(border=True, key="market_panel"):
         cols = st.columns(4, gap="medium")
         for col, idx in zip(cols, ALL_INDICES):
             with col:
-                render_index_card(INDEX_LABELS[idx], index_changes.get(idx), is_market_open(idx), idx)
+                render_index_card(INDEX_LABELS[idx], index_changes.get(idx), is_market_open(idx), idx, _spark_days)
 
         _portfolio_summary, _today_summary, _value_summary, _proximity_summary = _compute_portfolio_summaries(_fresh_holdings_df)
         if _portfolio_summary:
