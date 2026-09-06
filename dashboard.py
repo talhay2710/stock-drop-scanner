@@ -656,17 +656,20 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 unsafe_allow_html=True,
             )
         else:
-            # "0" בסליידר = מסחר נוכחי (תוך-יומי) - נעול רק כשהמדד הזה באמת
-            # פעיל עכשיו ("ככל ומתקיים"); כשסגור, המינימום הוא 1 (יום מסחר
-            # בודד - עדיין שימושי, רק לא "נוכחי" כי אין session חי) (2.9.2026).
+            # הסליידר עצמו הפוך למה שהוא "אומר": הערך הגולמי (raw) שנשמר הוא
+            # מיקום על הפס, אבל raw הכי *גבוה* (הקצה הימני) תמיד אומר "הכי
+            # עדכני" - יום מסחר אחרון (סגור) או מסחר פעיל (פתוח) - כי ברירת
+            # המחדל (אין עדיין בחירה שמורה) היא תמיד הקצה הימני, וזה אמור
+            # להיות המצב הכי עדכני, לא "90 ימים" (2.9.2026).
             _slider_key = f"spark_days_{index_key}"
-            _slider_min = 0 if trading_open else 1
-            spark_days = max(st.session_state.get(_slider_key, 14), _slider_min)
+            _raw_max = 91 if trading_open else 90
+            _raw = min(st.session_state.get(_slider_key, _raw_max), _raw_max)
 
-            if spark_days == 0:
+            if trading_open and _raw == _raw_max:
                 prices, as_of = get_index_intraday_sparkline(index_key)
-                range_label = "מסחר נוכחי"
+                range_label = "מסחר פעיל"
             else:
+                spark_days = 91 - _raw
                 prices, as_of = get_index_sparkline(index_key, spark_days)
                 range_label = "יום מסחר אחרון" if spark_days == 1 else f"{spark_days} ימים"
             svg = _sparkline_svg(prices, width=130, height=38, show_baseline=True) if prices else ""
@@ -693,11 +696,11 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 )
             with _slider_col:
                 st.markdown(
-                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{range_label}</div>',
+                    f'<div style="font-size:0.6rem; opacity:0.6; text-align:center; margin-top:6px;">{range_label}</div>',
                     unsafe_allow_html=True,
                 )
-                spark_days = st.slider(
-                    "ימים", min_value=_slider_min, max_value=90, value=spark_days,
+                _raw = st.slider(
+                    "ימים", min_value=1, max_value=_raw_max, value=_raw,
                     key=_slider_key, label_visibility="collapsed",
                 )
 
