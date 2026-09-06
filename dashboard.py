@@ -578,7 +578,10 @@ def get_index_sparkline(index_key: str, days: int) -> tuple[list, str | None]:
     hist = market_data.fetch_index_history(index_key, period="4mo")
     if hist.empty:
         return [], None
-    sliced = hist.tolist()[-days:]
+    # days+1, לא days: "יום מסחר אחרון" (days=1) לבדו הוא נקודת מחיר אחת -
+    # אי אפשר לצייר קו מנקודה בודדת. נקודה נוספת אחת מלפני התחלת הטווח
+    # נותנת קו בעל משמעות (השינוי *לאורך* הטווח שנבחר) בכל ערך, כולל 1 (2.9.2026).
+    sliced = hist.tolist()[-(days + 1):]
     return sliced, hist.index[-1].strftime("%d/%m")
 
 
