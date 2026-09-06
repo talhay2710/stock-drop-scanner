@@ -1,0 +1,26 @@
+# Blueprint ל-Render.com - מעביר את הדשבורד הציבורי מ-Streamlit Community
+# Cloud (טייר חינמי לא יציב - "build מפוצל" אחרי דחיפות רצופות, ר' commit
+# history סביב 2.9.2026) לפריסה בסגנון container אטומי, בלי לגעת בסריקה
+# עצמה (scan.yml ב-GitHub Actions נשאר בדיוק כמו שהוא, לא קשור לשינוי הזה).
+#
+# הקמה (חד-פעמית, ידנית באתר Render - לא ניתן לביצוע דרך קובץ הזה בלבד):
+# 1. חשבון חינמי ב-render.com, מחובר לחשבון ה-GitHub הזה.
+# 2. New + -> Blueprint -> בחר את הריפו הזה - Render יזהה את הקובץ הזה לבד.
+# 3. במסך ההגדרות, לפני "Apply", למלא את שני משתני הסביבה (TELEGRAM_BOT_TOKEN,
+#    TELEGRAM_CHAT_ID) עם הערכים האמיתיים - בדיוק כמו שכבר עשית ב-GitHub
+#    Secrets וב-Streamlit Cloud Secrets. אלה לא נשמרים כאן ולא ב-git בכלל.
+services:
+  - type: web
+    name: stock-drop-scanner
+    runtime: python
+    plan: free
+    branch: master
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run dashboard.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.10"
