@@ -163,12 +163,14 @@ def _price_text(value, index_name) -> str:
     return f"${value:,.2f}"
 
 
-def _stat_card(label: str, value: str, color: str, bg: str) -> str:
+def _stat_card(label: str, value: str, color: str, bg: str, sub: str = "") -> str:
+    sub_html = f'<div style="font-size:0.75rem; opacity:0.7; margin-top:3px;">{sub}</div>' if sub else ""
     return (
         f'<div style="flex:1; min-width:120px; border:1px solid {color}33; border-radius:12px; '
         f'padding:12px 14px; background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
         f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75;">{label}</div>'
         f'<div style="font-size:1.35rem; font-weight:700; color:{color}; margin-top:4px;">{value}</div>'
+        f'{sub_html}'
         f'</div>'
     )
 
@@ -2472,7 +2474,10 @@ with _tab_slot_today.container():
 
                         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
                         entry_target_stop_html = "".join([
-                            _stat_card("לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")), NEUTRAL_COLOR, NEUTRAL_BG),
+                            _stat_card(
+                                "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")),
+                                NEUTRAL_COLOR, NEUTRAL_BG, sub=f'{_signed_num(r["pct_change"], 1, "%")} שינוי יומי',
+                            ),
                             _stat_card("יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG),
                             _stat_card("סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG),
                         ])
