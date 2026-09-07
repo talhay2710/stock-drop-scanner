@@ -1395,65 +1395,75 @@ def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | Non
 
 
 def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
-                                 holdings_count: int, holdings: list[dict] | None = None) -> str:
-    """כרטיס תיק בסגנון "heatmap" (כמו מפת חום של שוק המניות) במקום בר+דונאט
-    מופשטים: כל אחזקה היא אריח ברוחב יחסי למשקל שלה בתיק, וצבע/עוצמה לפי
-    התשואה הנטו שלה - ריכוז (גודל) וביצועים (צבע) נראים במבט אחד, בלי צורך
-    בקריאת מספרים. גרסה קודמת (בר "עלות מול שווי" + דונאט סקטורים + שורת
-    "הכי פוגעת") הייתה אמנם עשירה יותר מ-3 קופסאות שטוחות, אבל עדיין הרגישה
-    כמו הרכבה של רכיבים סטנדרטיים - זו ניסיון לרעיון חזותי שונה לגמרי
-    (9.9.2026, בעקבות משוב "תהיה יצירתי")."""
+                                 holdings_count: int, sector_rows: list[dict] | None = None) -> str:
+    """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד, ולצידם (כשיש
+    יותר מסקטור אחד) דונאט+מקרא התפלגות הסקטורים, הכל באותו כרטיס אחד רחב.
+    זו הגרסה שהתקבלה בפועל ("יפה") - אחרי כמה ניסיונות המשך (כותרות נפרדות,
+    פירוט לפי אחזקה, heatmap) שנדחו בפועל, חוזרים לגרסה הזו במפורש
+    (9.9.2026, בעקבות "זה ממש גרוע" על הניסיונות המאוחרים יותר)."""
     pnl_pct = (pnl / invested * 100) if invested else 0.0
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
+    scale = max(invested, current_value, 1.0)
+    current_bar_pct = max(0.0, min(100.0, current_value / scale * 100))
+    invested_marker_pct = max(0.0, min(100.0, invested / scale * 100))
+    # בר בודד: הרוחב המלא (אפור) הוא קנה-המידה, המילוי הצבעוני הוא השווי
+    # הנוכחי, והסימון האנכי הוא נקודת ההשקעה - כך רואים במבט אחד אם השווי
+    # עבר את ההשקעה (המילוי חורג מהסימון) או עדיין מתחתיה, לא רק לפי הצבע.
+    bar = (
+        f'<div style="position:relative; height:7px; background:#e2e5e9; border-radius:4px; '
+        f'margin:10px 0 6px 0; direction:ltr;">'
+        f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_bar_pct:.1f}%; '
+        f'background:{color}; border-radius:4px;"></div>'
+        f'<div style="position:absolute; left:{invested_marker_pct:.1f}%; top:-2px; width:2px; height:11px; '
+        f'background:#5b6572; opacity:0.6;"></div>'
+        f'</div>'
+    )
+    numbers = (
+        f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.7rem; opacity:0.75;">'
+        f'<span>עלות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
+    )
+    pnl_line = (
+        f'<div style="text-align:center; font-size:1.5rem; font-weight:700; color:{color}; margin-top:8px;">'
+        f'{_signed_num(pnl)} {ccy_symbol} '
+        f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
+    )
+    # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
+    # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
+    # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
+    status_side = (
+        f'<div style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center;">'
+        f'<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}</div></div>'
+    )
 
-    tiles_html = ""
-    if holdings:
-        # RGB גולמי של POS/NEG_COLOR (לא ניתן לחשב שקיפות/גוון מ-hex ישירות
-        # ב-CSS) - עוצמת הצבע (לא רק ירוק/אדום בינארי) לפי גודל התשואה,
-        # כך שהפרש בין 2%- ל-20%- ניכר גם בעין, לא רק במספר הקטן.
-        _pos_rgb, _neg_rgb = (6, 128, 107), (204, 47, 60)
-        tiles = []
-        for h in holdings:
-            _pct = h.get("net_pct")
-            _weight = max(h.get("portfolio_pct") or 0, 2.0)  # רצפה - גם אחזקה זעירה נשארת אריח נראה
-            if _pct is None:
-                _bg, _fg = f"{NEUTRAL_COLOR}22", NEUTRAL_COLOR
-            else:
-                _rgb = _pos_rgb if _pct >= 0 else _neg_rgb
-                _intensity = max(0.35, min(1.0, abs(_pct) / 12))
-                _bg = f"rgba({_rgb[0]},{_rgb[1]},{_rgb[2]},{_intensity:.2f})"
-                _fg = "#fff" if _intensity > 0.55 else (POS_COLOR if _pct >= 0 else NEG_COLOR)
-            _pct_text = _signed_num(_pct, 1, "%") if _pct is not None else "—"
-            tiles.append(
-                f'<div style="flex:{_weight:.1f} 1 0; min-width:0; background:{_bg}; border-radius:8px; '
-                f'padding:8px 6px; display:flex; flex-direction:column; align-items:center; '
-                f'justify-content:center; gap:2px; overflow:hidden;">'
-                f'<span style="color:{_fg}; font-size:0.72rem; font-weight:700; white-space:nowrap; '
-                f'overflow:hidden; text-overflow:ellipsis; max-width:100%;">{h["name"]}</span>'
-                f'<span style="color:{_fg}; font-size:0.95rem; font-weight:800;">{_pct_text}</span>'
-                f'</div>'
-            )
-        tiles_html = (
-            f'<div style="display:flex; direction:rtl; gap:5px; margin-top:8px; height:60px;">'
-            f'{"".join(tiles)}</div>'
+    sector_side = ""
+    if sector_rows:
+        donut = _mini_donut_svg(sector_rows)
+        legend_items = "".join(
+            f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
+            f'text-overflow:ellipsis; font-size:12.5px; font-weight:700; line-height:17px; opacity:0.9;">'
+            f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
+            f'background:{_ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]}; margin-left:4px; '
+            f'vertical-align:middle;"></span>{r["name"]} <b>{r["pct"]:.0f}%</b></div>'
+            for i, r in enumerate(sector_rows)
+        )
+        legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
+        sector_side = (
+            f'<div style="flex:1; min-width:170px; display:flex; direction:rtl; align-items:center; '
+            f'justify-content:center; gap:16px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
+            f'{legend}{donut}</div>'
         )
 
-    pnl_line = (
-        f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color}; margin-top:12px;">'
-        f'{_signed_num(pnl)} {ccy_symbol} '
-        f'<span style="font-size:0.9rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-    )
-    footer = (
-        f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.7rem; '
-        f'opacity:0.7; margin-top:8px;">'
-        f'<span>עלות {invested:,.0f} · שווי {current_value:,.0f}</span>'
-        f'<span>{holdings_count} אחזקות</span></div>'
+    count_label = (
+        f'<style>.holding-count-label{{text-align:left !important;}}</style>'
+        f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:8px;">'
+        f'{holdings_count} אחזקות</div>'
     )
     return (
         f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
         f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">מצב תיק ({ccy_symbol})</div>'
-        f'{tiles_html}{pnl_line}{footer}</div>'
+        f'<div style="display:flex; direction:rtl; gap:16px; margin-top:4px;">{status_side}{sector_side}</div>'
+        f'{count_label}</div>'
     )
 
 
@@ -3327,14 +3337,19 @@ with _tab_slot_portfolio.container():
                     row["sector_color"] = _sector_color_map.get(
                         _SECTOR_LABELS_HE.get(row["sector"], row["sector"]), NEUTRAL_COLOR)
 
+                # התפלגות הסקטורים משולבת בתוך כרטיס "מצב תיק" עצמו (לא כרטיס
+                # נפרד) - כשיש יותר מסקטור אחד (אחרת אין מה להראות). רק במטבע
+                # הראשון (הנפוץ: מטבע יחיד) - הסקטורים חוצי-מטבעות, לא שייכים
+                # לאחד ספציפי.
+                _sector_rows = _breakdown_rows(by_sector) if len(by_sector) > 1 else None
                 cards_html = ""
                 for ccy, agg in by_ccy.items():
                     symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
-                    _ccy_rows = [r for r in rows if r["ccy"] == ccy]
                     cards_html += _stat_card_portfolio_status(
                         agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
-                        holdings=_ccy_rows,
+                        sector_rows=_sector_rows,
                     )
+                    _sector_rows = None
 
                 st.markdown(
                     f"""<div style="display:flex; gap:10px; flex-wrap:wrap;">{cards_html}</div>""",
