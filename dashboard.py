@@ -2478,8 +2478,20 @@ with _tab_slot_today.container():
                                 "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")),
                                 NEUTRAL_COLOR, NEUTRAL_BG, sub=f'{_signed_num(r["pct_change"], 1, "%")} שינוי יומי',
                             ),
-                            _stat_card("יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG),
-                            _stat_card("סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG),
+                            _stat_card(
+                                "יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG,
+                                sub=(
+                                    f'{_signed_num((r["target_base"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
+                                    if r.get("entry_limit") else ""
+                                ),
+                            ),
+                            _stat_card(
+                                "סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG,
+                                sub=(
+                                    f'{_signed_num((r["stop_loss"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
+                                    if r.get("entry_limit") else ""
+                                ),
+                            ),
                         ])
                         st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{entry_target_stop_html}</div>', unsafe_allow_html=True)
 
