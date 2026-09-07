@@ -174,11 +174,17 @@ def render_reason_pill(reasons_json: str) -> str:
     )
 
 
-def _sparkline_svg(prices: list, width: int = 140, height: int = 36, show_baseline: bool = False) -> str:
+def _sparkline_svg(
+    prices: list, width: int = 140, height: int = 36, show_baseline: bool = False, responsive: bool = False,
+) -> str:
     """גרף זעיר (sparkline) כ-SVG מוטבע - מציג את מגמת המחיר האחרונה בלי צירים/legend.
     show_baseline (אופציונלי, ברירת מחדל כבוי כדי לא לשנות התנהגות קיימת בכרטיסי
     אחזקות) - מוסיף קו מקווקו בגובה נקודת ההתחלה + נקודה בקצה הגרף, כדי שיהיה
-    ברור בלי לחשוב אם המגמה נגמרת מעל/מתחת למקום שהתחילה בו, לא רק "יש קו"."""
+    ברור בלי לחשוב אם המגמה נגמרת מעל/מתחת למקום שהתחילה בו, לא רק "יש קו".
+    responsive (אופציונלי, ברירת מחדל כבוי) - ה-width הופך לרזולוציית-ציור
+    פנימית בלבד (viewBox), וה-SVG בפועל נמתח ל-100% מרוחב המכיל שלו - כך שהגרף
+    ממלא את כל רוחב המשבצת בפועל בלי תלות ברוחב קבוע בפיקסלים (9.9.2026,
+    בעקבות בקשה לגרף רחב/ממורכז יותר בכרטיסי המדדים)."""
     if len(prices) < 2:
         return ""
     lo, hi = min(prices), max(prices)
@@ -199,8 +205,10 @@ def _sparkline_svg(prices: list, width: int = 140, height: int = 36, show_baseli
             f'stroke="{color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.35"/>'
             f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="3" fill="{color}"/>'
         )
+    size_attrs = f'width="100%" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none"' \
+        if responsive else f'width="{width}" height="{height}"'
     return (
-        f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">'
+        f'<svg {size_attrs} xmlns="http://www.w3.org/2000/svg">'
         f'{extra}'
         f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="2" '
         f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
@@ -636,7 +644,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 display: none;
             }}
             div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
-                margin-top: -6px;
+                margin-top: 0px;
             }}
             /* הידית עצמה (העיגול הצבעוני) - קטנה משמעותית מברירת המחדל (12px),
             פחות "צועקת" בשורה כה קטנה. */
@@ -653,12 +661,11 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             unsafe_allow_html=True,
         )
 
-        st.markdown(
-            f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label}</div>',
-            unsafe_allow_html=True,
-        )
-
         if val is None:
+            st.markdown(
+                f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label}</div>',
+                unsafe_allow_html=True,
+            )
             st.markdown(
                 f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color}; margin-top:8px;">אין נתונים</div>',
                 unsafe_allow_html=True,
@@ -689,29 +696,41 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             else:
                 prices, as_of = get_index_sparkline(index_key, _raw)
             range_label = f"יום המסחר האחרון ({as_of})" if _raw == 1 and as_of else _fmt_day_option(_raw)
-            svg = _sparkline_svg(prices, width=140, height=28, show_baseline=True) if prices else ""
+            # width הוא כאן רזולוציית-ציור פנימית בלבד (responsive=True) - ה-SVG
+            # בפועל נמתח ל-100% מרוחב ה-wrapper שלו, לא של הכרטיס - ה-wrapper
+            # עצמו רק 86% מהכרטיס (ר' למטה) - רוחב ביניים בכוונה, לא מלא-קצה-לקצה
+            # ולא צר כמו הגרסה המקורית הלא-responsive (9.9.2026).
+            svg = _sparkline_svg(prices, width=280, height=24, show_baseline=True, responsive=True) if prices else ""
 
-            range_pct_html = ""
+            # השם ואחוז השינוי (לפי הטווח הנבחר) על אותה שורה - כך שהאחוז
+            # מקבל בליטה אמיתית בלי להוסיף שורה שלמה נוספת לתקציב הגובה הצפוף
+            # של הכרטיס (9.9.2026, בעקבות "בקושי רואים אותו"). גודל השם תואם
+            # בכוונה את כותרות כרטיסי "התיק שלי" (0.9rem/600, ר' render_value_card).
+            # white-space:nowrap + min-width:0 + dir="ltr" על השם: בלי זה
+            # "NASDAQ-100" נשבר לשתי שורות בטעות (המקף מתפרש כהזדמנות-שבירה
+            # בטקסט RTL) ומעוות את השורה.
+            _range_pct = None
             if prices and len(prices) >= 2 and prices[0]:
                 _range_pct = (prices[-1] - prices[0]) / prices[0] * 100
-                _range_color = POS_COLOR if _range_pct >= 0 else NEG_COLOR
-                range_pct_html = (
-                    f'<span style="font-size:0.62rem; font-weight:700; color:{_range_color};">'
-                    f'{_signed_num(_range_pct, 1, "%")}</span>'
-                )
-
+            _pct_color = POS_COLOR if (_range_pct or 0) >= 0 else NEG_COLOR
+            _pct_html = f'{_signed_num(_range_pct, 1, "%")}' if _range_pct is not None else ""
             st.markdown(
-                (
-                    f'<div style="display:flex; align-items:center; justify-content:center; gap:5px; '
-                    f'margin-top:6px; margin-bottom:5px;">{range_pct_html}{svg}</div>'
-                ) if svg else "",
+                f'<div style="display:flex; align-items:baseline; justify-content:space-between; gap:3px;">'
+                f'<span style="flex:1 1 auto; font-size:0.88rem; font-weight:600; opacity:0.9; white-space:nowrap; '
+                f'overflow:hidden; text-overflow:ellipsis; min-width:0;" dir="ltr">{label}</span>'
+                f'<span style="flex:0 0 auto; font-size:0.82rem; font-weight:700; color:{_pct_color}; '
+                f'white-space:nowrap;">{_pct_html}</span>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
 
-            # האחוז ליד הגרף (למעלה) כבר מתעדכן לפי הטווח הנבחר בסליידר - כיתוב
-            # נוסף כאן היה כפילות מיותרת (זהה כמעט תמיד לברירת המחדל "יום").
             st.markdown(
-                f'<div style="font-size:0.6rem; opacity:0.6; text-align:center;">{range_label}</div>',
+                f'<div style="width:86%; margin:6px auto 5px auto;">{svg}</div>' if svg else "",
+                unsafe_allow_html=True,
+            )
+
+            st.markdown(
+                f'<div style="font-size:0.7rem; opacity:0.7; text-align:center; margin-top:6px;">{range_label}</div>',
                 unsafe_allow_html=True,
             )
             _raw = st.select_slider(
