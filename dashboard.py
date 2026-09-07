@@ -1427,12 +1427,19 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'{_signed_num(pnl)} {ccy_symbol} '
         f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
     )
+    # הכותרת כאן חייבת להיות בדיוק אותה שורה/גובה כמו כותרת הסקטור (לא כותרת
+    # אחת משותפת מעל שתי העמודות) - אחרת שתי הכותרות לא מיושרות זו מול זו
+    # (9.9.2026, בעקבות משוב מפורש על חוסר-יישור).
+    status_title = (
+        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">'
+        f'מצב תיק ({ccy_symbol})</div>'
+    )
     # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
     # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
     # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
     status_side = (
-        f'<div style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center;">'
-        f'<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}</div></div>'
+        f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center;">'
+        f'{status_title}<div style="width:100%; max-width:230px; margin-top:6px;">{bar}{numbers}{pnl_line}</div></div>'
     )
 
     sector_side = ""
@@ -1466,8 +1473,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     return (
         f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">מצב תיק ({ccy_symbol})</div>'
-        f'<div style="display:flex; direction:rtl; gap:16px; margin-top:4px;">{status_side}{sector_side}</div>'
+        f'<div style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
         f'{count_label}</div>'
     )
 
