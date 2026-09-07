@@ -1447,10 +1447,15 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
             for i, r in enumerate(sector_rows)
         )
         legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
+        sector_title = (
+            f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:right;">'
+            f'התפלגות לפי סקטור</div>'
+        )
         sector_side = (
-            f'<div style="flex:1; min-width:170px; display:flex; direction:rtl; align-items:center; '
-            f'justify-content:center; gap:16px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
-            f'{legend}{donut}</div>'
+            f'<div style="flex:1; min-width:170px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
+            f'{sector_title}'
+            f'<div style="display:flex; direction:rtl; align-items:center; justify-content:center; '
+            f'gap:16px; margin-top:6px;">{legend}{donut}</div></div>'
         )
 
     count_label = (
