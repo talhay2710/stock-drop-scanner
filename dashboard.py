@@ -1420,7 +1420,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     )
     numbers = (
         f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.7rem; opacity:0.75;">'
-        f'<span>השקעות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
+        f'<span>עלות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
     )
     pnl_line = (
         f'<div style="text-align:center; font-size:1.5rem; font-weight:700; color:{color}; margin-top:8px;">'
@@ -1430,9 +1430,13 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
     # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
     # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
+    status_title = (
+        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">'
+        f'מצב תיק ({ccy_symbol})</div>'
+    )
     status_side = (
-        f'<div style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center;">'
-        f'<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}</div></div>'
+        f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center;">'
+        f'{status_title}<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}</div></div>'
     )
 
     sector_side = ""
@@ -1447,10 +1451,15 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
             for i, r in enumerate(sector_rows)
         )
         legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
+        sector_title = (
+            f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">'
+            f'התפלגות לפי סקטור</div>'
+        )
         sector_side = (
-            f'<div style="flex:1; min-width:170px; display:flex; direction:rtl; align-items:center; '
-            f'justify-content:center; gap:16px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
-            f'{legend}{donut}</div>'
+            f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center; '
+            f'border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
+            f'{sector_title}<div style="display:flex; direction:rtl; align-items:center; justify-content:center; '
+            f'gap:16px; margin-top:4px;">{legend}{donut}</div></div>'
         )
 
     count_label = (
@@ -1461,8 +1470,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     return (
         f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">מצב תיק ({ccy_symbol})</div>'
-        f'<div style="display:flex; direction:rtl; gap:16px; margin-top:4px;">{status_side}{sector_side}</div>'
+        f'<div style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
         f'{count_label}</div>'
     )
 
