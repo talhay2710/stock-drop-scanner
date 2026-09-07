@@ -730,11 +730,17 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             # תמיד יושבת בקצה הימני (הקצה שקרוב יותר ל"עכשיו") - כי min
             # מוצג ימינה ב-RTL (dir="rtl" על ה-<input type=range> ברכיב).
             _day_options = [1, 3, 7, 14, 30, 60, 90]
-            _options = ([0] + _day_options) if trading_open else _day_options
+            # 0 (תוך-יומי) תמיד באפשרויות, גם כשהשוק סגור - fetch_index_intraday
+            # (period="1d") ממילא מחזיר את יום המסחר האחרון שהושלם, לא רק "היום
+            # אם עדיין פתוח", אז אין סיבה להסתיר את התנודות תוך-יומיות בפועל
+            # ולהתחיל (ברירת מחדל, initial_index=0) מקו שטוח של 2 נקודות בלבד -
+            # בדיוק מה שהמשתמש תפס בפועל גם במדדים האמריקאיים כשהשוק שלהם סגור
+            # (9.9.2026, "לא רואים את התנודות האמיתיות שהיו היום").
+            _options = [0] + _day_options
 
             def _fmt_day_option(v: int) -> str:
                 if v == 0:
-                    return "מסחר פעיל"
+                    return "מסחר פעיל" if trading_open else "מסחר היום"
                 if v == 1:
                     return "יום אחרון"
                 return f"{v} ימים"
