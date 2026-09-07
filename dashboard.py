@@ -95,6 +95,26 @@ components.html(
     height=0,
 )
 
+# רכיב JS שמציג גרף+סליידר שמתעדכן מיידית בגרירה בצד הלקוח בלבד, בלי סבב-רינדור
+# בפייתון על כל פיקסל גרירה (בניגוד ל-st.select_slider הרגיל, שרק שולח ערך
+# בשחרור העכבר). נוסה קודם עם declare_component (רכיב דו-כיווני אמיתי) - אבל
+# ה-handshake (componentReady/streamlit:render) התברר כשבור לגמרי ב-streamlit
+# 1.61.1 בסביבה הזו (timeout קבוע, גם ברכיב מינימלי ריק לחלוטין - נבדק ואומת,
+# 9.9.2026). components.html (חד-כיווני, בלי handshake, כבר בשימוש בהצלחה
+# בקובץ הזה - ר' שורה 87) לא סובל מהבאג הזה, אז הנתונים מוטבעים ישירות ב-HTML
+# בזמן הרינדור מפייתון במקום להישלח דרך postMessage. המחיר: הבחירה בסליידר לא
+# נשמרת יותר בין ריצות מחדש מלאות (אין ערך חוזר לפייתון) - התקבל כפשרה סבירה.
+_LIVE_INDEX_CARD_HTML = None
+
+
+def _get_live_index_card_template() -> str:
+    global _LIVE_INDEX_CARD_HTML
+    if _LIVE_INDEX_CARD_HTML is None:
+        _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "components", "live_index_card", "index.html")
+        with open(_path, "r", encoding="utf-8") as _f:
+            _LIVE_INDEX_CARD_HTML = _f.read()
+    return _LIVE_INDEX_CARD_HTML
+
 POS_COLOR = "#06806B"
 NEG_COLOR = "#CC2F3C"
 POS_BG = "rgba(6, 128, 107, 0.10)"
@@ -461,7 +481,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("📉 סורק מניות - התראות ואסטרטגיית ריבאונד")
+st.markdown(
+    '<h1 style="text-align:center;">📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</h1>',
+    unsafe_allow_html=True,
+)
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
 _TAB_DEFS = [
@@ -637,24 +660,12 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             div[class*="st-key-{container_key}"] [data-testid="stElementContainer"]:has(style) {{
                 display: none;
             }}
-            /* הבועה הצפה עם המספר מעל הידית, ותווי הקצה (min/max) מתחת לפס -
-            הרבה "רעש" חזותי מיותר בשורה קטנה כזו - מוסתרים לגמרי. */
-            div[class*="st-key-{container_key}"] [data-testid="stSliderThumbValue"],
-            div[class*="st-key-{container_key}"] [data-testid="stSliderTickBar"] {{
-                display: none;
-            }}
-            div[class*="st-key-{container_key}"] [data-testid="stSlider"] {{
-                margin-top: 0px;
-            }}
-            /* הידית עצמה (העיגול הצבעוני) - קטנה משמעותית מברירת המחדל (12px),
-            פחות "צועקת" בשורה כה קטנה. */
-            div[class*="st-key-{container_key}"] [data-testid="stSlider"] [data-rac][style*="absolute"] {{
-                width: 8px !important; height: 8px !important;
-            }}
-            /* הפס עצמו (הקו הדק) לא היה ממורכז אנכית מול הידית - כ-2px נמוך
-            מדי (נמדד בפועל, 2.9.2026) - מזיזים אותו למעלה בהתאם. */
-            div[class*="st-key-{container_key}"] [data-testid="stSlider"] [data-orientation="horizontal"] > div:first-child {{
-                margin-top: -2px;
+            /* הכרטיס עם val אמיתי מרנדר ה-iframe של live_index_card כילד יחיד
+            (הגרף+הסליידר החי) - ה-iframe עצמו צריך למלא רוחב מלא כדי
+            שהתוכן שבתוכו (ר' components/live_index_card/index.html) יתפרס
+            נכון בתוך הריפוד של הכרטיס. */
+            div[class*="st-key-{container_key}"] iframe {{
+                width: 100% !important;
             }}
             </style>
             """,
@@ -675,14 +686,9 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             # כשיש רק כמה נקודות עצירה על הפס, לא צריך לגרור פיקסל בודד בול
             # (2.9.2026, בעקבות תלונה שקשה לדייק). האופציה הראשונה ברשימה
             # תמיד יושבת בקצה הימני (הקצה שקרוב יותר ל"עכשיו") - כי min
-            # ברכיב הזה מוצג ימינה, לא שמאלה (נבדק בפועל).
+            # מוצג ימינה ב-RTL (dir="rtl" על ה-<input type=range> ברכיב).
             _day_options = [1, 3, 7, 14, 30, 60, 90]
             _options = ([0] + _day_options) if trading_open else _day_options
-            _slider_key = f"spark_days_{index_key}"
-            _default = _options[0]
-            _raw = st.session_state.get(_slider_key, _default)
-            if _raw not in _options:
-                _raw = _default  # למשל המסחר נסגר מאז שנבחר "מסחר פעיל" (0)
 
             def _fmt_day_option(v: int) -> str:
                 if v == 0:
@@ -691,52 +697,27 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                     return "יום אחרון"
                 return f"{v} ימים"
 
-            if _raw == 0:
-                prices, as_of = get_index_intraday_sparkline(index_key)
-            else:
-                prices, as_of = get_index_sparkline(index_key, _raw)
-            range_label = f"יום המסחר האחרון ({as_of})" if _raw == 1 and as_of else _fmt_day_option(_raw)
-            # width הוא כאן רזולוציית-ציור פנימית בלבד (responsive=True) - ה-SVG
-            # בפועל נמתח ל-100% מרוחב ה-wrapper שלו, לא של הכרטיס - ה-wrapper
-            # עצמו רק 86% מהכרטיס (ר' למטה) - רוחב ביניים בכוונה, לא מלא-קצה-לקצה
-            # ולא צר כמו הגרסה המקורית הלא-responsive (9.9.2026).
-            svg = _sparkline_svg(prices, width=280, height=24, show_baseline=True, responsive=True) if prices else ""
+            # שולפים נתונים לכל האפשרויות מראש (לא רק לנבחרת) - כדי שהגרירה
+            # ברכיב הלקוח תוכל לעבור בין כל טווח בלי לחזור לפייתון. כל קריאה
+            # ל-get_index_sparkline/get_index_intraday_sparkline כבר ממוטמנת
+            # (ttl=300/60), אז זה בפועל 1-8 שליפות רשת בלבד לכל מדד לכל 5
+            # דקות, לא בכל טעינת עמוד (9.9.2026, בעקבות בקשה לעדכון חי בגרירה).
+            _series = {}
+            _labels = {}
+            for _d in _options:
+                if _d == 0:
+                    _prices, _as_of = get_index_intraday_sparkline(index_key)
+                else:
+                    _prices, _as_of = get_index_sparkline(index_key, _d)
+                _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
+                _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})" if (_d == 1 and _as_of) else _fmt_day_option(_d)
 
-            # השם ואחוז השינוי (לפי הטווח הנבחר) על אותה שורה - כך שהאחוז
-            # מקבל בליטה אמיתית בלי להוסיף שורה שלמה נוספת לתקציב הגובה הצפוף
-            # של הכרטיס (9.9.2026, בעקבות "בקושי רואים אותו"). גודל השם תואם
-            # בכוונה את כותרות כרטיסי "התיק שלי" (0.9rem/600, ר' render_value_card).
-            # white-space:nowrap + min-width:0 + dir="ltr" על השם: בלי זה
-            # "NASDAQ-100" נשבר לשתי שורות בטעות (המקף מתפרש כהזדמנות-שבירה
-            # בטקסט RTL) ומעוות את השורה.
-            _range_pct = None
-            if prices and len(prices) >= 2 and prices[0]:
-                _range_pct = (prices[-1] - prices[0]) / prices[0] * 100
-            _pct_color = POS_COLOR if (_range_pct or 0) >= 0 else NEG_COLOR
-            _pct_html = f'{_signed_num(_range_pct, 1, "%")}' if _range_pct is not None else ""
-            st.markdown(
-                f'<div style="display:flex; align-items:baseline; justify-content:space-between; gap:3px;">'
-                f'<span style="flex:1 1 auto; font-size:0.88rem; font-weight:600; opacity:0.9; white-space:nowrap; '
-                f'overflow:hidden; text-overflow:ellipsis; min-width:0;" dir="ltr">{label}</span>'
-                f'<span style="flex:0 0 auto; font-size:0.82rem; font-weight:700; color:{_pct_color}; '
-                f'white-space:nowrap;">{_pct_html}</span>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
-            st.markdown(
-                f'<div style="width:86%; margin:6px auto 5px auto;">{svg}</div>' if svg else "",
-                unsafe_allow_html=True,
-            )
-
-            st.markdown(
-                f'<div style="font-size:0.7rem; opacity:0.7; text-align:center; margin-top:6px;">{range_label}</div>',
-                unsafe_allow_html=True,
-            )
-            _raw = st.select_slider(
-                "ימים", options=_options, value=_raw, format_func=_fmt_day_option,
-                key=_slider_key, label_visibility="collapsed",
-            )
+            _card_args = {
+                "label": label, "options": _options, "series": _series, "labels": _labels,
+                "pos_color": POS_COLOR, "neg_color": NEG_COLOR, "initial_index": 0,
+            }
+            _card_html = _get_live_index_card_template().replace("__ARGS_JSON__", json.dumps(_card_args))
+            components.html(_card_html, height=100)
 
 
 def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
@@ -765,7 +746,7 @@ def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: st
 
 def render_value_card(label: str, value: float, invested: float, ccy_symbol: str, holdings_count: int) -> None:
     # ירוק אם השווי הנוכחי כיסה/עבר את סך ההשקעה (רווח כולל או לפחות איזון),
-    # אדום אם עדיין מתחת לסכום שהושקע - בניגוד ל"שינוי כללי" זה לא באחוזים
+    # אדום אם עדיין מתחת לסכום שהושקע - בניגוד ל"תשואה" זה לא באחוזים
     # אלא שאלה בינארית של "האם אני בפלוס על הכסף שהכנסתי בפועל".
     color = POS_COLOR if value >= invested else NEG_COLOR
     bg = POS_BG if value >= invested else NEG_BG
@@ -933,7 +914,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _dom_agg = _by_ccy[_dominant_ccy]
             _dom_pct = (_dom_agg["pnl"] / _dom_agg["invested"] * 100) if _dom_agg["invested"] else 0.0
             portfolio_summary = (
-                "שינוי כללי", _dom_agg["pnl"], _dom_pct,
+                "תשואה", _dom_agg["pnl"], _dom_pct,
                 CURRENCY_SYMBOLS.get(_dominant_ccy, _dominant_ccy),
             )
             _total_value = _dom_agg["invested"] + _dom_agg["pnl"]
@@ -990,10 +971,12 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _dom_ccy2 = max(_today_by_ccy, key=lambda c: _today_by_ccy[c]["prev_value"])
             _dom2 = _today_by_ccy[_dom_ccy2]
             _today_pct = (_dom2["change"] / _dom2["prev_value"] * 100) if _dom2["prev_value"] else 0.0
-            # התאריך בסוגריים כבר מבהיר שזה השינוי מהסגירה האחרונה, לא צריך גם
-            # את המילה "אחרון" בתווית עצמה.
+            # התאריך בסוגריים רלוונטי רק כשהמסחר סגור (מבהיר שזה מהסגירה
+            # האחרונה, לא "עכשיו") - כשהמסחר פתוח "היום" חד-משמעי בלי צורך
+            # בתאריך (9.9.2026, בעקבות בקשת המשתמש).
             _today_label = "שינוי יומי"
-            if _today_max_close_date:
+            _dom_index_hint = "TA35" if _dom_ccy2 == "ILS" else "NASDAQ100"
+            if _today_max_close_date and not is_market_open(_dom_index_hint):
                 _today_label += f" ({_today_max_close_date.strftime('%d/%m')})"
             today_summary = (
                 _today_label, _dom2["change"], _today_pct, CURRENCY_SYMBOLS.get(_dom_ccy2, _dom_ccy2)

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: transparent; overflow: hidden;
+    font-family: "Source Sans Pro", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #31333F; direction: rtl;
+  }
+  #row1 {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 3px;
+  }
+  #nameSpan {
+    flex: 1 1 auto; font-size: 0.88rem; font-weight: 600; opacity: 0.9;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    direction: ltr; text-align: right;
+  }
+  #pctSpan {
+    flex: 0 0 auto; font-size: 0.82rem; font-weight: 700; white-space: nowrap;
+  }
+  #graphWrap { width: 86%; margin: 6px auto 5px auto; line-height: 0; }
+  #rangeLabel { font-size: 0.7rem; opacity: 0.7; text-align: center; margin-top: 6px; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 16px;
+    background: transparent; margin: 0; padding: 0; cursor: pointer; display: block;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 2px; background: #d5d8dc; border-radius: 2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%;
+    background: #FF4B4B; margin-top: -3px; border: none;
+  }
+  input[type=range]::-moz-range-track { height: 2px; background: #d5d8dc; border-radius: 2px; }
+  input[type=range]::-moz-range-thumb { width: 8px; height: 8px; border-radius: 50%; background: #FF4B4B; border: none; }
+</style>
+</head>
+<body>
+<div id="row1">
+  <span id="nameSpan"></span>
+  <span id="pctSpan"></span>
+</div>
+<div id="graphWrap"></div>
+<div id="rangeLabel"></div>
+<input type="range" id="slider" dir="rtl" min="0" max="0" step="1" value="0">
+
+<script>
+/* גישה שונה לגמרי מהניסיון הראשון (declare_component + postMessage handshake) -
+זה התברר כשבור ב-streamlit 1.61.1 (componentReady/streamlit:render אף פעם לא
+מגיע, גם ברכיב מינימלי לחלוטין - נבדק ואומת בפועל, 9.9.2026). הנתונים במקום
+זה מוטבעים ישירות ב-HTML בזמן הרינדור מפייתון (components.html, לא
+declare_component) - בלי שום handshake, בלי תלות ברכיב שנשבר. */
+var args = __ARGS_JSON__;
+var optIdx = args.initial_index || 0;
+
+var nameSpan = document.getElementById("nameSpan");
+var pctSpan = document.getElementById("pctSpan");
+var graphWrap = document.getElementById("graphWrap");
+var rangeLabel = document.getElementById("rangeLabel");
+var slider = document.getElementById("slider");
+slider.max = args.options.length - 1;
+
+function buildSparklineSvg(prices, color) {
+  if (!prices || prices.length < 2) return "";
+  var width = 280, height = 24;
+  var lo = Math.min.apply(null, prices), hi = Math.max.apply(null, prices);
+  var rng = (hi - lo) || 1;
+  var step = width / (prices.length - 1);
+  var coords = prices.map(function (p, i) {
+    return [i * step, height - ((p - lo) / rng) * (height - 4) - 2];
+  });
+  var points = coords.map(function (c) { return c[0].toFixed(1) + "," + c[1].toFixed(1); }).join(" ");
+  var baseY = coords[0][1];
+  var end = coords[coords.length - 1];
+  return (
+    '<svg width="100%" height="' + height + '" viewBox="0 0 ' + width + ' ' + height +
+    '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<line x1="0" y1="' + baseY.toFixed(1) + '" x2="' + width + '" y2="' + baseY.toFixed(1) +
+    '" stroke="' + color + '" stroke-width="1" stroke-dasharray="2,3" opacity="0.35"/>' +
+    '<circle cx="' + end[0].toFixed(1) + '" cy="' + end[1].toFixed(1) + '" r="3" fill="' + color + '"/>' +
+    '<polyline points="' + points + '" fill="none" stroke="' + color +
+    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>'
+  );
+}
+
+function signedPct(v) {
+  if (v === null || v === undefined) return "";
+  var sign = v >= 0 ? "+" : "";
+  return "‎" + sign + v.toFixed(1) + "%";
+}
+
+function update() {
+  var opt = args.options[optIdx];
+  var s = args.series[String(opt)] || { prices: [], as_of: null };
+  var prices = s.prices || [];
+  var rangePct = null;
+  if (prices.length >= 2 && prices[0]) {
+    rangePct = (prices[prices.length - 1] - prices[0]) / prices[0] * 100;
+  }
+  var color = (rangePct === null || rangePct >= 0) ? args.pos_color : args.neg_color;
+
+  nameSpan.textContent = args.label;
+  pctSpan.textContent = signedPct(rangePct);
+  pctSpan.style.color = color;
+  graphWrap.innerHTML = buildSparklineSvg(prices, color);
+  rangeLabel.textContent = (args.labels && args.labels[String(opt)]) || "";
+  slider.value = optIdx;
+}
+
+slider.addEventListener("input", function () {
+  /* גרירה חיה - עדכון תצוגה מיידי בצד הלקוח, בלי שום קריאה לפייתון (זו כל
+  הסיבה לרכיב הזה - st.select_slider הרגיל רק שולח ערך בשחרור העכבר). */
+  optIdx = parseInt(slider.value, 10);
+  update();
+});
+
+update();
+</script>
+</body>
+</html>
