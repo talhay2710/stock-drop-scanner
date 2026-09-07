@@ -629,7 +629,20 @@ def get_index_intraday_sparkline(index_key: str) -> tuple[list, str | None]:
     hist = market_data.fetch_index_intraday(index_key)
     if hist.empty:
         return [], None
-    return hist.tolist(), hist.index[-1].strftime("%H:%M")
+    prices = hist.tolist()
+    # האחוז שמחושב מהנקודה הראשונה כאן (ר' render_index_card/הרכיב ב-JS,
+    # (last-first)/first) חייב להיות ביחס לסגירה *הקודמת* - המוסכמה הפיננסית
+    # הרגילה (כמו בגוגל/יאהו פייננס) - לא ביחס לבר התוך-יומי הראשון של היום.
+    # בלי זה, "מסחר פעיל" הראה בפועל שינוי מאז פתיחת המסחר של היום, לא מאז
+    # אתמול - יכול להיתקע קרוב ל-0% שעות אם המדד פתח בפער ואז נסחר שטוח,
+    # למרות שהגרף עצמו ממשיך לזוז ונראה כאילו "קורה משהו" (9.9.2026, בעקבות
+    # תלונה שהאחוז נשאר על 0% כל היום).
+    _prev_close_hist = _get_index_history_raw(index_key)
+    if not _prev_close_hist.empty:
+        _prev_close = float(_prev_close_hist.iloc[-1])
+        if prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
+            prices = [_prev_close] + prices
+    return prices, hist.index[-1].strftime("%H:%M")
 
 
 @st.cache_data(ttl=300)
@@ -1955,8 +1968,13 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
                 # עדיין מתרחבת לפי תוכן) - עוטפים ב-div פנימי עם overflow:hidden,
                 # שכן זה אוכף את החיתוך בצורה אמינה בכל דפדפן.
                 width_px = truncate_columns[col]
+                # title="{text}" רק כשה-text הוא טקסט רגיל - אם הוא כבר HTML (כמו
+                # קישור <a href="...">, ר' עמודת "שם"), הגרשיים הפנימיים שלו
+                # שוברים את התכונה title="..." באמצע ומדליפים HTML גולמי כטקסט
+                # גלוי (9.9.2026, נמצא בפועל אחרי הוספת הקישורים בטבלה).
+                title_attr = f' title="{text}"' if "<" not in text else ""
                 inner = (f'<div style="max-width:{width_px}px; overflow:hidden; text-overflow:ellipsis; '
-                         f'white-space:nowrap;" title="{text}">{text}</div>')
+                         f'white-space:nowrap;"{title_attr}>{text}</div>')
                 cells.append(f'<td style="{style}">{inner}</td>')
             else:
                 cells.append(f'<td style="{style}">{text}</td>')
@@ -2456,6 +2474,16 @@ with _tab_slot_today.container():
                 if "שם" not in alerts_display.columns:
                     alerts_display["שם"] = ""
                 alerts_display["שם"] = alerts_display["שם"].fillna(alerts_display["טיקר"])
+                # שם המניה הופך לקישור עם ?open_alert=<id> - קליק עליו גורם ל-rerun
+                # רגיל של Streamlit (לא JS מותאם אישית) שמציג את כרטיס הפרטים של
+                # השורה הזו בלבד מתחת לטבלה, במקום הערימה של כל הכרטיסים
+                # (9.9.2026, בעקבות בקשה מפורשת - "id" חייב להישמר כאן, לפני
+                # שהסינון של alerts_display לעמודות התצוגה מוריד אותו).
+                alerts_display["שם"] = [
+                    f'<a href="?open_alert={int(_id)}" target="_self" '
+                    f'style="color:inherit; text-decoration:underline dotted; text-underline-offset:2px;">{_name}</a>'
+                    for _id, _name in zip(alerts_display["id"], alerts_display["שם"])
+                ]
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
                 alerts_display = alerts_display[["שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
                                                   "תגובת יתר", "איכות פונדמנטלית",
@@ -2507,7 +2535,25 @@ with _tab_slot_today.container():
                         )
 
                 with _slot_cards:
-                    for _, r in todays_alerts.iterrows():
+                    # קליק על שם מניה בטבלה (קישור ?open_alert=<id>, ר' alerts_display["שם"]
+                    # למעלה) גורם ל-rerun רגיל שמעדכן את הפרמטר הזה - מציגים כרטיס פרטים
+                    # רק לשורה הנבחרת, לא ערימה של כרטיס סגור לכל התראה (9.9.2026,
+                    # בעקבות בקשה מפורשת - "הכרטיסים ייפתחו מהטבלה"). מסננים ל-DataFrame
+                    # של שורה אחת לכל היותר, כדי לשמור על גוף הלולאה בדיוק כמו שהיה
+                    # (אותה הזחה) - "for" על 0 או 1 שורות, לא ריפקטור לפונקציה נפרדת.
+                    try:
+                        _open_alert_id = int(st.query_params.get("open_alert", ""))
+                    except (TypeError, ValueError):
+                        _open_alert_id = None
+                    _selected_alerts = (
+                        todays_alerts[todays_alerts["id"] == _open_alert_id]
+                        if _open_alert_id is not None else todays_alerts.iloc[0:0]
+                    )
+                    if _open_alert_id is not None and _selected_alerts.empty:
+                        st.caption("ההתראה שנבחרה כבר לא זמינה (אולי סריקה חדשה החליפה אותה).")
+                    elif _open_alert_id is None:
+                        st.caption("💡 לחץ על שם מניה בטבלה למעלה לצפייה בפרטים.")
+                    for _, r in _selected_alerts.iterrows():
                         _expander_name = r.get("company_name") or r["ticker"]
                         try:
                             _scan_dt = dt.datetime.fromisoformat(r["scan_ts"])
@@ -2523,7 +2569,11 @@ with _tab_slot_today.container():
                         _title = f"{_expander_name} ({r['ticker']}) · {_scan_ts_text} · {_pct_isolated}"
                         if _badge:
                             _title = f"{_badge} {_title}"
-                        with st.expander(_title):
+                        st.markdown(
+                            '<a href="?" target="_self" style="font-size:0.8rem; opacity:0.7;">✕ סגור</a>',
+                            unsafe_allow_html=True,
+                        )
+                        with st.expander(_title, expanded=True):
                             sc1, sc2 = st.columns([3, 1])
                             with sc1:
                                 st.markdown(render_reason_pill(r.get("reasons_json", "[]")), unsafe_allow_html=True)
