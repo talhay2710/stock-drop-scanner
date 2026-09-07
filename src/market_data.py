@@ -293,6 +293,26 @@ def fetch_current_price(ticker: str) -> float | None:
 _MAX_PLAUSIBLE_INDEX_CHANGE_PCT = 20.0
 
 
+def _drop_isolated_price_outliers(closes: pd.Series, threshold: float = 0.5) -> pd.Series:
+    """מסננת נקודה בודדת שקפצה/צנחה ביותר מ-threshold *משני* השכנים שלה (גם
+    לפני וגם אחרי) - טביעת-אצבע של נתון פגום בודד (למשל TCH-F2.TA שהחזירה
+    41.11 ביום שלפניו ואחריו היה ~4,080 - פי-100 בטעות, 9.9.2026), לא תנועת
+    שוק אמיתית שהייתה משפיעה על הימים הסמוכים גם כן, לא רק על יום בודד
+    שחוזר בדיוק למקום למחרת. בלי הסינון הזה, אותו יום פגום גורם ל"אין נתון"
+    למשך כל חלון ה-5 ימים שהוא מופיע בו (ר' _MAX_PLAUSIBLE_INDEX_CHANGE_PCT
+    למעלה) - עדיף לדלג עליו ולהשתמש בסגירה התקינה הקודמת."""
+    if len(closes) < 3:
+        return closes
+    vals = closes.to_numpy()
+    keep = [True] * len(vals)
+    for i in range(1, len(vals) - 1):
+        prev_ratio = abs(vals[i] - vals[i - 1]) / vals[i - 1] if vals[i - 1] else 0
+        next_ratio = abs(vals[i + 1] - vals[i]) / vals[i] if vals[i] else 0
+        if prev_ratio > threshold and next_ratio > threshold:
+            keep[i] = False
+    return closes[keep]
+
+
 def fetch_index_proxy_change(index: str) -> float | None:
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
@@ -300,7 +320,7 @@ def fetch_index_proxy_change(index: str) -> float | None:
 
     def _do():
         hist = yf.Ticker(proxy).history(period="5d")
-        closes = hist["Close"].dropna()
+        closes = _drop_isolated_price_outliers(hist["Close"].dropna())
         if len(closes) < 2:
             return None
         pct = float((closes.iloc[-1] - closes.iloc[-2]) / closes.iloc[-2] * 100.0)
@@ -320,7 +340,7 @@ def fetch_index_history(index: str, period: str) -> pd.Series:
         return pd.Series(dtype=float)
     try:
         hist = yf.Ticker(proxy).history(period=period)
-        return hist["Close"].dropna()
+        return _drop_isolated_price_outliers(hist["Close"].dropna())
     except Exception as e:
         logger.warning("נכשלה שליפת היסטוריית המדד (%s): %s", proxy, e)
         return pd.Series(dtype=float)
