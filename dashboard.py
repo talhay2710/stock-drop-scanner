@@ -633,13 +633,23 @@ def get_index_intraday_sparkline(index_key: str) -> tuple[list, str | None]:
 
 
 @st.cache_data(ttl=300)
+def _get_index_history_raw(index_key: str) -> pd.Series:
+    """שליפת ה-4 חודשים הגולמית בלבד, ממוטמנת בנפרד לפי index_key בלבד (לא
+    לפי days) - כדי שכרטיס המדדים יוכל לשלוף מראש את כל אפשרויות הטווח (0-9
+    קריאות ל-get_index_sparkline לכל מדד, ר' render_index_card) בלי להכפיל
+    את קריאת הרשת היקרה פי-7: בלי ההפרדה הזו, כל days שונה הוא מפתח-מטמון
+    נפרד ב-get_index_sparkline, וכל אחד קורא שוב ל-fetch_index_history בעצמו
+    (שאינה ממוטמנת בכלל ברמת src/market_data.py) - זו הייתה הסיבה האמיתית
+    לאיטיות חמורה אחרי restart שדווחה בפועל (9.9.2026)."""
+    return market_data.fetch_index_history(index_key, period="4mo")
+
+
 def get_index_sparkline(index_key: str, days: int) -> tuple[list, str | None]:
     """היסטוריית סגירות קצרה של המדד (לגרף הזעיר) + תאריך הסגירה האחרונה -
-    מטמון ל-5 דקות (לא צריך רענון תכוף כמו האחוז עצמו, זו רק מגמה חזותית).
     שולפים 4 חודשים קלנדריים תמיד (מספיק גם ל-90 ימי מסחר, המקסימום שהבורר
-    מאפשר) ומחתכים לפי מה שהמשתמש בחר, כדי לא להזדקק למחרוזת period שונה
-    של yfinance לכל ערך אפשרי."""
-    hist = market_data.fetch_index_history(index_key, period="4mo")
+    מאפשר, ר' _get_index_history_raw) ומחתכים לפי מה שהמשתמש בחר, כדי לא
+    להזדקק למחרוזת period שונה של yfinance לכל ערך אפשרי."""
+    hist = _get_index_history_raw(index_key)
     if hist.empty:
         return [], None
     # days+1, לא days: "יום מסחר אחרון" (days=1) לבדו הוא נקודת מחיר אחת -
