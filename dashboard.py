@@ -2468,7 +2468,7 @@ with _tab_slot_today.container():
                     _fallback_date_text = dt.date.fromisoformat(_last_scan_date).strftime("%d.%m")
                     _today_header_text = f"{len(todays_alerts)} התראות מיום המסחר האחרון ({_fallback_date_text})"
                 else:
-                    _today_header_text = f"התראות היום ({len(todays_alerts)})"
+                    _today_header_text = "התראות היום"
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
                 with _slot_table, st.container(border=True):
@@ -2731,8 +2731,7 @@ with _tab_slot_today.container():
 
             if not near_miss_df.empty:
                 with _slot_nearmiss, st.container(border=True):
-                    st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
-                    st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב")
+                    st.image(render_text_image(f"קרוב לסף התראה ({scanning_threshold:.1f}%)", NEAR_MISS_COLOR, font_size=17))
                     _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
         _render_today_tab()
