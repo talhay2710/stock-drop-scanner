@@ -1385,11 +1385,12 @@ def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | Non
 
 
 def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
-                                 holdings_count: int) -> str:
-    """מאחד את שלושת המשבצות הישנות (השקעות/שווי נוכחי/רווח-הפסד) למשבצת אחת
-    עשירה, באותה "שפה" חזותית כמו _stat_card_breakdown (כותרת ממורכזת + ייצוג
-    גרפי קטן + שורת meta בפינה) - במקום שלוש תיבות שטוחות עם מספר בודד כל
-    אחת (9.9.2026, בעקבות בקשה לשפר את הנראות "כמו כרטיס הסקטור")."""
+                                 holdings_count: int, sector_rows: list[dict] | None = None) -> str:
+    """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד, ולצידם (כשיש
+    יותר מסקטור אחד) דונאט+מקרא התפלגות הסקטורים, הכל באותו כרטיס אחד רחב.
+    היה שני כרטיסים נפרדים (מצב תיק + התפלגות סקטור) - במסכים רחבים מאוד כל
+    אחד נמתח לבד ואיבד פרופורציה (בר דק וארוך מדי). כרטיס אחד עם שני חלקים
+    עוגן משני הצדדים נשאר מאוזן בכל רוחב (9.9.2026, בעקבות משוב)."""
     pnl_pct = (pnl / invested * 100) if invested else 0.0
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
     scale = max(invested, current_value, 1.0)
@@ -1416,16 +1417,37 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'{_signed_num(pnl)} {ccy_symbol} '
         f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
     )
+    status_side = f'<div style="flex:1; min-width:170px;">{bar}{numbers}{pnl_line}</div>'
+
+    sector_side = ""
+    if sector_rows:
+        donut = _mini_donut_svg(sector_rows)
+        legend_items = "".join(
+            f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
+            f'text-overflow:ellipsis; font-size:12.5px; font-weight:700; line-height:17px; opacity:0.9;">'
+            f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
+            f'background:{_ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]}; margin-left:4px; '
+            f'vertical-align:middle;"></span>{r["name"]} <b>{r["pct"]:.0f}%</b></div>'
+            for i, r in enumerate(sector_rows)
+        )
+        legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
+        sector_side = (
+            f'<div style="flex:1; min-width:170px; display:flex; direction:rtl; align-items:center; '
+            f'justify-content:center; gap:16px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
+            f'{legend}{donut}</div>'
+        )
+
     count_label = (
         f'<style>.holding-count-label{{text-align:left !important;}}</style>'
-        f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:6px;">'
+        f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:8px;">'
         f'{holdings_count} אחזקות</div>'
     )
     return (
-        f'<div style="flex:1; min-width:220px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
+        f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
         f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">מצב תיק ({ccy_symbol})</div>'
-        f'{bar}{numbers}{pnl_line}{count_label}</div>'
+        f'<div style="display:flex; direction:rtl; gap:16px; margin-top:4px;">{status_side}{sector_side}</div>'
+        f'{count_label}</div>'
     )
 
 
@@ -3299,18 +3321,20 @@ with _tab_slot_portfolio.container():
                     row["sector_color"] = _sector_color_map.get(
                         _SECTOR_LABELS_HE.get(row["sector"], row["sector"]), NEUTRAL_COLOR)
 
-                # משבצת "סה"כ אחזקות" מוחלפת בהתפלגות לפי סקטור כשיש יותר מסקטור
-                # אחד (אחרת אין מה להראות, ונשאר המספר הרגיל). ראשונה ב-DOM כדי
-                # שתופיע בצד ימין (הראשון בסדר RTL), כפי שהתבקש.
-                if len(by_sector) > 1:
-                    cards_html = _stat_card_breakdown("התפלגות לפי סקטור", _breakdown_rows(by_sector), holdings_count=len(rows))
-                else:
-                    cards_html = _stat_card("סה\"כ אחזקות", str(len(rows)), NEUTRAL_COLOR, NEUTRAL_BG)
+                # התפלגות הסקטורים משולבת בתוך כרטיס "מצב תיק" עצמו (לא כרטיס
+                # נפרד) - כשיש יותר מסקטור אחד (אחרת אין מה להראות). רק במטבע
+                # הראשון (הנפוץ: מטבע יחיד) - הסקטורים חוצי-מטבעות, לא שייכים
+                # לאחד ספציפי (9.9.2026, בעקבות משוב על אובדן פרופורציה בשני
+                # כרטיסים נפרדים במסך רחב).
+                _sector_rows = _breakdown_rows(by_sector) if len(by_sector) > 1 else None
+                cards_html = ""
                 for ccy, agg in by_ccy.items():
                     symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
                     cards_html += _stat_card_portfolio_status(
                         agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
+                        sector_rows=_sector_rows,
                     )
+                    _sector_rows = None
 
                 st.markdown(
                     f"""<div style="display:flex; gap:10px; flex-wrap:wrap;">{cards_html}</div>""",
