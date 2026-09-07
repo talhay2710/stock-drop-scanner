@@ -1760,7 +1760,8 @@ with st.sidebar:
             )
 
     st.markdown(
-        '<b><span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
+        '<b style="display:inline-block; margin-top:14px;">'
+        '<span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
         unsafe_allow_html=True,
     )
     ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
