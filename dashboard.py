@@ -2396,14 +2396,15 @@ with _tab_slot_today.container():
                     return "🔴 "
 
                 def _rebound_cell_text(v) -> str:
-                    # v הוא האות בלבד ("B") - הציון המשוקלל עבר לכרטיס ההתראה,
-                    # לא מוצג בטבלה יותר (25.8.2026, לסריקה נקייה יותר). רוצים
-                    # ויזואלית (קריאה מימין לשמאל): עיגול בימין, אות משמאלו.
-                    # <bdi> מזהה LTR (יש אות לטינית) ומיישר לימין - אז כדי
-                    # שהעיגול יצא הכי ימני צריך לכתוב אותו אחרון בתוך ה-bdi.
+                    # v הוא "C-34" (אות-מקף-ציון משוקלל) - הציון חזר לטבלה
+                    # (9.9.2026, בעקבות בקשה מפורשת). רוצים ויזואלית (קריאה
+                    # מימין לשמאל): עיגול בימין, אות+ציון משמאלו. <bdi> מזהה
+                    # LTR (יש אות לטינית) ומיישר לימין - אז כדי שהעיגול יצא
+                    # הכי ימני צריך לכתוב אותו אחרון בתוך ה-bdi.
                     if pd.isna(v):
                         return "—"
-                    emoji = _REBOUND_TIER_EMOJI.get(v, "")
+                    _tier = v.split("-")[0]
+                    emoji = _REBOUND_TIER_EMOJI.get(_tier, "")
                     return f"<bdi>{v} {emoji}</bdi>"
 
                 todays_display_src = todays_alerts.copy()
@@ -2411,6 +2412,17 @@ with _tab_slot_today.container():
                     todays_display_src[_price_col] = todays_display_src.apply(
                         lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
                     )
+                # "C-34" - האות מ-rebound_tier, הציון המשוקלל מחושב כאן (לא
+                # שמור בעמודה נפרדת ב-DB) מאותם overreaction_score/quality_score
+                # שכבר נשלפו לשורה, בדיוק כמו ש-_classify_rebound מחשב.
+                todays_display_src["rebound_tier"] = todays_display_src.apply(
+                    lambda r: (
+                        f'{r["rebound_tier"]}-{round(analysis.weighted_rebound_score(r["overreaction_score"], r["quality_score"]))}'
+                        if pd.notna(r.get("rebound_tier")) and pd.notna(r.get("overreaction_score"))
+                        else r.get("rebound_tier")
+                    ),
+                    axis=1,
+                )
 
                 # שינוי נוכחי - נשלף בכל ריצה של הפרגמנט (run_every="60s") לרשימת
                 # הטיקרים של היום בלבד, בנפרד מ"שינוי בזמן התראה" השמור שלא זז.
