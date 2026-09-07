@@ -2242,11 +2242,22 @@ with _tab_slot_today.container():
             לבד תוך דקה, בלי ריענון ידני של כל הדף."""
             df = load_alerts(db_path(cfg))
 
+            # פלייסהולדרים בסדר התצוגה המבוקש (טבלה, קרוב לסף, התראה ידנית,
+            # כרטיסים) - לא סדר הריצה בפועל (שנשאר כמו שהיה, כי הכנה כמו
+            # todays_alerts/alerts_display עדיין צריכה לקרות לפני שממלאים כל
+            # סלוט). st.container() נקבע במיקום שבו הוא *נוצר*, לא במיקום
+            # שבו ממלאים אותו - בדיוק כמו _tab_slot_X בטאבים אחרים בקובץ הזה
+            # (9.9.2026, בעקבות בקשה מפורשת לסדר הזה).
+            _slot_table = st.container()
+            _slot_nearmiss = st.container()
+            _slot_manual = st.container()
+            _slot_cards = st.container()
+
             _pa_count_conn = store.get_conn(db_path(cfg))
             _pa_active_count = len(store.get_active_price_alerts(_pa_count_conn))
             _pa_count_conn.close()
             _pa_label = f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית"
-            with st.expander(_pa_label):
+            with _slot_manual, st.expander(_pa_label):
                 st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת")
                 _pa_conn = store.get_conn(db_path(cfg))
                 _active_price_alerts = store.get_active_price_alerts(_pa_conn)
@@ -2368,7 +2379,8 @@ with _tab_slot_today.container():
                 _pa_conn.close()
 
             if df.empty:
-                st.info("אין עדיין התראות שמורות. הרץ סריקה כדי להתחיל.")
+                with _slot_table:
+                    st.info("אין עדיין התראות שמורות. הרץ סריקה כדי להתחיל.")
             else:
                 # תאריך היום בפועל, לא "התאריך המקסימלי שנרשם אי פעם". אם עוד
                 # לא נרשמה התראה היום (למשל לפני פתיחת המסחר, או בסופ"ש) -
@@ -2459,7 +2471,7 @@ with _tab_slot_today.container():
                     _today_header_text = f"התראות היום ({len(todays_alerts)})"
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
-                with st.container(border=True):
+                with _slot_table, st.container(border=True):
                     if _no_new_alerts_yet and not _market_open_now:
                         st.info("השווקים סגורים - ההתראות יתחדשו עם פתיחת המסחר.")
                     elif _no_new_alerts_yet:
@@ -2494,202 +2506,203 @@ with _tab_slot_today.container():
                             unsafe_allow_html=True,
                         )
 
-                for _, r in todays_alerts.iterrows():
-                    _expander_name = r.get("company_name") or r["ticker"]
-                    try:
-                        _scan_dt = dt.datetime.fromisoformat(r["scan_ts"])
-                        _scan_ts_text = _scan_dt.strftime("%H:%M")
-                    except Exception:
-                        _scan_ts_text = r["scan_ts"]
-                    _badge_tier = r.get("rebound_tier")
-                    _badge = _REBOUND_TIER_EMOJI.get(_badge_tier, "⚪") if pd.notna(_badge_tier) else ""
-                    # עיגול, שם, טיקר, שעה, אחוז - בדיוק בסדר הזה. האחוז עטוף
-                    # ב-LRI/PDI לבדו (לא כל השורה) כדי שלא יתמזג ל-run אחד עם
-                    # השעה שאחריו ויתחלף איתה ב-bidi (זה מה שקרה בניסיון קודם).
-                    _pct_isolated = f"⁦{_signed_num(r['pct_change'], 1, '%')}⁩"
-                    _title = f"{_expander_name} ({r['ticker']}) · {_scan_ts_text} · {_pct_isolated}"
-                    if _badge:
-                        _title = f"{_badge} {_title}"
-                    with st.expander(_title):
-                        sc1, sc2 = st.columns([3, 1])
-                        with sc1:
-                            st.markdown(render_reason_pill(r.get("reasons_json", "[]")), unsafe_allow_html=True)
-                            st.caption(r["reason_text"])
-                        with sc2:
-                            sparkline_prices = get_sparkline_prices(r["ticker"])
-                            svg = _sparkline_svg(sparkline_prices)
-                            if svg:
-                                st.markdown(svg, unsafe_allow_html=True)
+                with _slot_cards:
+                    for _, r in todays_alerts.iterrows():
+                        _expander_name = r.get("company_name") or r["ticker"]
+                        try:
+                            _scan_dt = dt.datetime.fromisoformat(r["scan_ts"])
+                            _scan_ts_text = _scan_dt.strftime("%H:%M")
+                        except Exception:
+                            _scan_ts_text = r["scan_ts"]
+                        _badge_tier = r.get("rebound_tier")
+                        _badge = _REBOUND_TIER_EMOJI.get(_badge_tier, "⚪") if pd.notna(_badge_tier) else ""
+                        # עיגול, שם, טיקר, שעה, אחוז - בדיוק בסדר הזה. האחוז עטוף
+                        # ב-LRI/PDI לבדו (לא כל השורה) כדי שלא יתמזג ל-run אחד עם
+                        # השעה שאחריו ויתחלף איתה ב-bidi (זה מה שקרה בניסיון קודם).
+                        _pct_isolated = f"⁦{_signed_num(r['pct_change'], 1, '%')}⁩"
+                        _title = f"{_expander_name} ({r['ticker']}) · {_scan_ts_text} · {_pct_isolated}"
+                        if _badge:
+                            _title = f"{_badge} {_title}"
+                        with st.expander(_title):
+                            sc1, sc2 = st.columns([3, 1])
+                            with sc1:
+                                st.markdown(render_reason_pill(r.get("reasons_json", "[]")), unsafe_allow_html=True)
+                                st.caption(r["reason_text"])
+                            with sc2:
+                                sparkline_prices = get_sparkline_prices(r["ticker"])
+                                svg = _sparkline_svg(sparkline_prices)
+                                if svg:
+                                    st.markdown(svg, unsafe_allow_html=True)
 
-                        # אותו תנאי הצגה בדיוק כמו בהודעת הטלגרם (scanner._format_message) -
-                        # לא מציגים אם הירידה שכבר קרתה בפועל חמורה יותר מהחציון ההיסטורי,
-                        # אחרת זה נשמע כאילו "צופה" שפל קל יותר ממה שכבר קרה.
-                        _exp_drop = r.get("expected_max_drop_pct")
-                        if pd.notna(_exp_drop) and _exp_drop > abs(r["pct_change"]):
+                            # אותו תנאי הצגה בדיוק כמו בהודעת הטלגרם (scanner._format_message) -
+                            # לא מציגים אם הירידה שכבר קרתה בפועל חמורה יותר מהחציון ההיסטורי,
+                            # אחרת זה נשמע כאילו "צופה" שפל קל יותר ממה שכבר קרה.
+                            _exp_drop = r.get("expected_max_drop_pct")
+                            if pd.notna(_exp_drop) and _exp_drop > abs(r["pct_change"]):
+                                st.markdown(
+                                    f'<div style="font-size:0.9rem; margin-top:2px;">'
+                                    f'<b>📉 צפי לנמוך היומי:</b> {_signed_num(-_exp_drop, 1, "%")}</div>',
+                                    unsafe_allow_html=True,
+                                )
+
+                            _verdict_color = POS_COLOR if r["overreaction_score"] >= 70 else (ACCENT_COLOR if r["overreaction_score"] >= 45 else NEG_COLOR)
                             st.markdown(
-                                f'<div style="font-size:0.9rem; margin-top:2px;">'
-                                f'<b>📉 צפי לנמוך היומי:</b> {_signed_num(-_exp_drop, 1, "%")}</div>',
+                                f'<div style="font-size:0.9rem; margin-top:4px;">'
+                                f'<b>הערכת תגובת יתר:</b> <span style="color:{_verdict_color}; font-weight:600;">'
+                                f'{r["overreaction_verdict"]} (ציון {r["overreaction_score"]}/100)</span></div>',
                                 unsafe_allow_html=True,
                             )
 
-                        _verdict_color = POS_COLOR if r["overreaction_score"] >= 70 else (ACCENT_COLOR if r["overreaction_score"] >= 45 else NEG_COLOR)
-                        st.markdown(
-                            f'<div style="font-size:0.9rem; margin-top:4px;">'
-                            f'<b>הערכת תגובת יתר:</b> <span style="color:{_verdict_color}; font-weight:600;">'
-                            f'{r["overreaction_verdict"]} (ציון {r["overreaction_score"]}/100)</span></div>',
-                            unsafe_allow_html=True,
-                        )
-
-                        _rebound_labels = {"A": "🟢 A - סיכוי גבוה לריבאונד", "B": "🟡 B - סיכוי אפשרי", "C": "🔴 C - סיכוי נמוך"}
-                        _rebound_text = _rebound_labels.get(r.get("rebound_tier"), "⚪ לא זמין (נסרק לפני העדכון)")
-                        if pd.notna(r.get("rebound_tier")):
-                            _rb_score = analysis.weighted_rebound_score(
-                                r["overreaction_score"], r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
+                            _rebound_labels = {"A": "🟢 A - סיכוי גבוה לריבאונד", "B": "🟡 B - סיכוי אפשרי", "C": "🔴 C - סיכוי נמוך"}
+                            _rebound_text = _rebound_labels.get(r.get("rebound_tier"), "⚪ לא זמין (נסרק לפני העדכון)")
+                            if pd.notna(r.get("rebound_tier")):
+                                _rb_score = analysis.weighted_rebound_score(
+                                    r["overreaction_score"], r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
+                                )
+                                _rebound_text += f" (ציון משוקלל: {round(_rb_score)}/100)"
+                            _quality_tier = r.get("quality_tier")
+                            _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
+                            _quality_text = (
+                                f"{_quality_labels.get(_quality_tier, '')} ({int(r.get('quality_score'))}/100)"
+                                if _quality_tier and _quality_tier != "unknown" and pd.notna(r.get("quality_score"))
+                                else "⚪ לא ידוע (נתונים חסרים)"
                             )
-                            _rebound_text += f" (ציון משוקלל: {round(_rb_score)}/100)"
-                        _quality_tier = r.get("quality_tier")
-                        _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
-                        _quality_text = (
-                            f"{_quality_labels.get(_quality_tier, '')} ({int(r.get('quality_score'))}/100)"
-                            if _quality_tier and _quality_tier != "unknown" and pd.notna(r.get("quality_score"))
-                            else "⚪ לא ידוע (נתונים חסרים)"
-                        )
-                        st.markdown(
-                            f'<div style="font-size:0.9rem; margin-top:2px;">'
-                            f'<b>סיווג ריבאונד:</b> {_rebound_text} &nbsp;|&nbsp; '
-                            f'<b>איכות פונדמנטלית:</b> {_quality_text}</div>',
-                            unsafe_allow_html=True,
-                        )
-                        _raw_quality_flags = r.get("quality_flags_json")
-                        _quality_flags = json.loads(_raw_quality_flags) if isinstance(_raw_quality_flags, str) else []
-                        if _quality_flags:
-                            st.caption("⚑ " + " · ".join(_quality_flags))
+                            st.markdown(
+                                f'<div style="font-size:0.9rem; margin-top:2px;">'
+                                f'<b>סיווג ריבאונד:</b> {_rebound_text} &nbsp;|&nbsp; '
+                                f'<b>איכות פונדמנטלית:</b> {_quality_text}</div>',
+                                unsafe_allow_html=True,
+                            )
+                            _raw_quality_flags = r.get("quality_flags_json")
+                            _quality_flags = json.loads(_raw_quality_flags) if isinstance(_raw_quality_flags, str) else []
+                            if _quality_flags:
+                                st.caption("⚑ " + " · ".join(_quality_flags))
 
-                        headlines = json.loads(r["headlines_json"] or "[]")
-                        if headlines:
-                            st.write("**חדשות:**")
-                            for h in headlines:
-                                link = h.get("link")
-                                title = h.get("title")
-                                src = h.get("source")
-                                if link:
-                                    st.markdown(f"- [{title}]({link}) ({src})")
-                                else:
-                                    st.markdown(f"- {title} ({src})")
-                        else:
-                            st.write("לא נמצאו חדשות רלוונטיות.")
+                            headlines = json.loads(r["headlines_json"] or "[]")
+                            if headlines:
+                                st.write("**חדשות:**")
+                                for h in headlines:
+                                    link = h.get("link")
+                                    title = h.get("title")
+                                    src = h.get("source")
+                                    if link:
+                                        st.markdown(f"- [{title}]({link}) ({src})")
+                                    else:
+                                        st.markdown(f"- {title} ({src})")
+                            else:
+                                st.write("לא נמצאו חדשות רלוונטיות.")
 
-                        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-                        entry_target_stop_html = "".join([
-                            _stat_card(
-                                "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")),
-                                NEUTRAL_COLOR, NEUTRAL_BG, sub=f'{_signed_num(r["pct_change"], 1, "%")} שינוי יומי',
-                            ),
-                            _stat_card(
-                                "יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG,
-                                sub=(
-                                    f'{_signed_num((r["target_base"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
-                                    if r.get("entry_limit") else ""
+                            st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+                            entry_target_stop_html = "".join([
+                                _stat_card(
+                                    "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")),
+                                    NEUTRAL_COLOR, NEUTRAL_BG, sub=f'{_signed_num(r["pct_change"], 1, "%")} שינוי יומי',
                                 ),
-                            ),
-                            _stat_card(
-                                "סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG,
-                                sub=(
-                                    f'{_signed_num((r["stop_loss"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
-                                    if r.get("entry_limit") else ""
+                                _stat_card(
+                                    "יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG,
+                                    sub=(
+                                        f'{_signed_num((r["target_base"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
+                                        if r.get("entry_limit") else ""
+                                    ),
                                 ),
-                            ),
-                        ])
-                        st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{entry_target_stop_html}</div>', unsafe_allow_html=True)
+                                _stat_card(
+                                    "סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG,
+                                    sub=(
+                                        f'{_signed_num((r["stop_loss"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
+                                        if r.get("entry_limit") else ""
+                                    ),
+                                ),
+                            ])
+                            st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{entry_target_stop_html}</div>', unsafe_allow_html=True)
 
-                        net = json.loads(r["net_result_json"] or "{}")
-                        if net:
-                            profit = net.get("profit_scenario", {})
-                            loss = net.get("loss_scenario", {})
+                            net = json.loads(r["net_result_json"] or "{}")
+                            if net:
+                                profit = net.get("profit_scenario", {})
+                                loss = net.get("loss_scenario", {})
+                                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+                                st.markdown("**תמונת ברוטו/נטו**")
+                                nc1, nc2 = st.columns(2)
+                                with nc1:
+                                    st.caption("תרחיש רווח (יעד בסיס)")
+                                    _p_color = POS_COLOR if profit.get("net_pnl", 0) >= 0 else NEG_COLOR
+                                    st.markdown(
+                                        f'<div style="font-size:0.85rem; opacity:0.8;">ברוטו: '
+                                        f'{_signed_num(profit.get("gross_pnl", 0))} {profit.get("currency", "")} '
+                                        f'({_signed_num(profit.get("gross_return_pct", 0), 1, "%")})</div>'
+                                        f'<div style="font-size:1rem; font-weight:700; color:{_p_color};">נטו: '
+                                        f'{_signed_num(profit.get("net_pnl", 0))} {profit.get("currency", "")} '
+                                        f'({_signed_num(profit.get("net_return_pct", 0), 1, "%")})</div>',
+                                        unsafe_allow_html=True,
+                                    )
+                                    st.caption(f"עמלות: {profit.get('total_commission', 0):.0f} | "
+                                               f"מס: {profit.get('capital_gains_tax', 0):.0f} | "
+                                               f"דמי ניהול: {profit.get('management_fee', 0):.0f}")
+                                with nc2:
+                                    st.caption("תרחיש סטופ-לוס")
+                                    _l_color = POS_COLOR if loss.get("net_pnl", 0) >= 0 else NEG_COLOR
+                                    st.markdown(
+                                        f'<div style="font-size:0.85rem; opacity:0.8;">ברוטו: '
+                                        f'{_signed_num(loss.get("gross_pnl", 0))} {loss.get("currency", "")} '
+                                        f'({_signed_num(loss.get("gross_return_pct", 0), 1, "%")})</div>'
+                                        f'<div style="font-size:1rem; font-weight:700; color:{_l_color};">נטו: '
+                                        f'{_signed_num(loss.get("net_pnl", 0))} {loss.get("currency", "")} '
+                                        f'({_signed_num(loss.get("net_return_pct", 0), 1, "%")})</div>',
+                                        unsafe_allow_html=True,
+                                    )
+
                             st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
-                            st.markdown("**תמונת ברוטו/נטו**")
-                            nc1, nc2 = st.columns(2)
-                            with nc1:
-                                st.caption("תרחיש רווח (יעד בסיס)")
-                                _p_color = POS_COLOR if profit.get("net_pnl", 0) >= 0 else NEG_COLOR
-                                st.markdown(
-                                    f'<div style="font-size:0.85rem; opacity:0.8;">ברוטו: '
-                                    f'{_signed_num(profit.get("gross_pnl", 0))} {profit.get("currency", "")} '
-                                    f'({_signed_num(profit.get("gross_return_pct", 0), 1, "%")})</div>'
-                                    f'<div style="font-size:1rem; font-weight:700; color:{_p_color};">נטו: '
-                                    f'{_signed_num(profit.get("net_pnl", 0))} {profit.get("currency", "")} '
-                                    f'({_signed_num(profit.get("net_return_pct", 0), 1, "%")})</div>',
-                                    unsafe_allow_html=True,
+                            st.caption("🔔 הודע לי שוב כששינוי יומי מגיע ל-")
+                            _ra_id = r["id"]
+                            _ra_is_il = market_data._is_israeli_ticker(r["ticker"])
+                            _ra_unit_scale = 100.0 if _ra_is_il else 1.0
+                            _ra_prev_close = r.get("prev_close")
+
+                            def _ra_sync_pct_from_price(_id=_ra_id, _prev=_ra_prev_close, _scale=_ra_unit_scale) -> None:
+                                if not _prev:
+                                    return
+                                price_actual = st.session_state.get(f"re_alert_price_{_id}", 0.0) / _scale
+                                if price_actual > 0:
+                                    st.session_state[f"re_alert_pct_{_id}"] = round((price_actual / _prev - 1) * 100.0, 2)
+
+                            def _ra_sync_price_from_pct(_id=_ra_id, _prev=_ra_prev_close, _scale=_ra_unit_scale, _il=_ra_is_il) -> None:
+                                if not _prev:
+                                    return
+                                pct = st.session_state.get(f"re_alert_pct_{_id}", 0.0)
+                                price_actual = _prev * (1 + pct / 100.0)
+                                st.session_state[f"re_alert_price_{_id}"] = round(price_actual * _scale, 0 if _il else 2)
+
+                            _ra_price_col, _ra_pct_col, _ra_btn_col = st.columns([2, 2, 1])
+                            with _ra_price_col:
+                                st.number_input(
+                                    "שער" + ("" if _ra_is_il else " ($)"), value=0.0, format="%.2f",
+                                    key=f"re_alert_price_{_ra_id}", on_change=_ra_sync_pct_from_price,
+                                    disabled=not _ra_prev_close,
                                 )
-                                st.caption(f"עמלות: {profit.get('total_commission', 0):.0f} | "
-                                           f"מס: {profit.get('capital_gains_tax', 0):.0f} | "
-                                           f"דמי ניהול: {profit.get('management_fee', 0):.0f}")
-                            with nc2:
-                                st.caption("תרחיש סטופ-לוס")
-                                _l_color = POS_COLOR if loss.get("net_pnl", 0) >= 0 else NEG_COLOR
-                                st.markdown(
-                                    f'<div style="font-size:0.85rem; opacity:0.8;">ברוטו: '
-                                    f'{_signed_num(loss.get("gross_pnl", 0))} {loss.get("currency", "")} '
-                                    f'({_signed_num(loss.get("gross_return_pct", 0), 1, "%")})</div>'
-                                    f'<div style="font-size:1rem; font-weight:700; color:{_l_color};">נטו: '
-                                    f'{_signed_num(loss.get("net_pnl", 0))} {loss.get("currency", "")} '
-                                    f'({_signed_num(loss.get("net_return_pct", 0), 1, "%")})</div>',
-                                    unsafe_allow_html=True,
+                            with _ra_pct_col:
+                                _ra_pct = st.number_input(
+                                    "שינוי יומי (%)", value=0.0, step=0.5, format="%.1f",
+                                    key=f"re_alert_pct_{_ra_id}", on_change=_ra_sync_price_from_pct,
                                 )
-
-                        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
-                        st.caption("🔔 הודע לי שוב כששינוי יומי מגיע ל-")
-                        _ra_id = r["id"]
-                        _ra_is_il = market_data._is_israeli_ticker(r["ticker"])
-                        _ra_unit_scale = 100.0 if _ra_is_il else 1.0
-                        _ra_prev_close = r.get("prev_close")
-
-                        def _ra_sync_pct_from_price(_id=_ra_id, _prev=_ra_prev_close, _scale=_ra_unit_scale) -> None:
-                            if not _prev:
-                                return
-                            price_actual = st.session_state.get(f"re_alert_price_{_id}", 0.0) / _scale
-                            if price_actual > 0:
-                                st.session_state[f"re_alert_pct_{_id}"] = round((price_actual / _prev - 1) * 100.0, 2)
-
-                        def _ra_sync_price_from_pct(_id=_ra_id, _prev=_ra_prev_close, _scale=_ra_unit_scale, _il=_ra_is_il) -> None:
-                            if not _prev:
-                                return
-                            pct = st.session_state.get(f"re_alert_pct_{_id}", 0.0)
-                            price_actual = _prev * (1 + pct / 100.0)
-                            st.session_state[f"re_alert_price_{_id}"] = round(price_actual * _scale, 0 if _il else 2)
-
-                        _ra_price_col, _ra_pct_col, _ra_btn_col = st.columns([2, 2, 1])
-                        with _ra_price_col:
-                            st.number_input(
-                                "שער" + ("" if _ra_is_il else " ($)"), value=0.0, format="%.2f",
-                                key=f"re_alert_price_{_ra_id}", on_change=_ra_sync_pct_from_price,
-                                disabled=not _ra_prev_close,
-                            )
-                        with _ra_pct_col:
-                            _ra_pct = st.number_input(
-                                "שינוי יומי (%)", value=0.0, step=0.5, format="%.1f",
-                                key=f"re_alert_pct_{_ra_id}", on_change=_ra_sync_price_from_pct,
-                            )
-                        with _ra_btn_col:
-                            st.markdown("<div style='padding-top:28px;'></div>", unsafe_allow_html=True)
-                            if st.button("✅ הוסף", key=f"re_alert_btn_{_ra_id}"):
-                                if _ra_pct == 0:
-                                    st.warning("יש למלא אחוז שונה מאפס.")
-                                elif not _ra_prev_close:
-                                    st.warning("אין מחיר בסיס שמור להתראה הזו - לא ניתן לחשב שינוי יומי.")
-                                else:
-                                    _ra_target = float(_ra_prev_close) * (1 + _ra_pct / 100.0)
-                                    _ra_direction = "below" if _ra_pct < 0 else "above"
-                                    _ra_conn = store.get_conn(db_path(cfg))
-                                    store.add_price_alert(
-                                        _ra_conn, r["ticker"], r.get("company_name"), r.get("index_name"),
-                                        _ra_target, _ra_direction,
-                                    )
-                                    _ra_conn.close()
-                                    st.success(
-                                        f"תישלח התראה כש{r.get('company_name') or r['ticker']} "
-                                        f"מגיעה לשינוי יומי של {_ra_pct:+.1f}%."
-                                    )
+                            with _ra_btn_col:
+                                st.markdown("<div style='padding-top:28px;'></div>", unsafe_allow_html=True)
+                                if st.button("✅ הוסף", key=f"re_alert_btn_{_ra_id}"):
+                                    if _ra_pct == 0:
+                                        st.warning("יש למלא אחוז שונה מאפס.")
+                                    elif not _ra_prev_close:
+                                        st.warning("אין מחיר בסיס שמור להתראה הזו - לא ניתן לחשב שינוי יומי.")
+                                    else:
+                                        _ra_target = float(_ra_prev_close) * (1 + _ra_pct / 100.0)
+                                        _ra_direction = "below" if _ra_pct < 0 else "above"
+                                        _ra_conn = store.get_conn(db_path(cfg))
+                                        store.add_price_alert(
+                                            _ra_conn, r["ticker"], r.get("company_name"), r.get("index_name"),
+                                            _ra_target, _ra_direction,
+                                        )
+                                        _ra_conn.close()
+                                        st.success(
+                                            f"תישלח התראה כש{r.get('company_name') or r['ticker']} "
+                                            f"מגיעה לשינוי יומי של {_ra_pct:+.1f}%."
+                                        )
 
             # "קרוב לסף התראה" - הועבר לכאן מטאב "מניות מובילות" (26.8.2026): קונספטואלית
             # זה צפי להתראה עתידית (מבוסס על סף ההתראה), לא עיון במניות כמו שאר הטאב ההוא.
@@ -2717,7 +2730,7 @@ with _tab_slot_today.container():
             near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
 
             if not near_miss_df.empty:
-                with st.container(border=True):
+                with _slot_nearmiss, st.container(border=True):
                     st.image(render_text_image(f"קרוב לסף התראה ({len(near_miss_df)})", NEAR_MISS_COLOR, font_size=17))
                     st.caption(f"מניות שמתקרבות לסף ההתראה ({scanning_threshold:.1f}%) אך עדיין לא חצו אותו - כדאי לשים לב")
                     _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
