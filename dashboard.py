@@ -1431,7 +1431,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     # אחת משותפת מעל שתי העמודות) - אחרת שתי הכותרות לא מיושרות זו מול זו
     # (9.9.2026, בעקבות משוב מפורש על חוסר-יישור).
     status_title = (
-        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">'
+        f'<div style="width:100%; font-size:0.8rem; font-weight:600; opacity:0.75; text-align:right;">'
         f'מצב תיק ({ccy_symbol})</div>'
     )
     # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
