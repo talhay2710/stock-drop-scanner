@@ -1,4 +1,5 @@
 """דשבורד צפייה חיה בהתראות - הרצה: streamlit run dashboard.py"""
+import concurrent.futures
 import datetime as dt
 import html
 import json
@@ -212,6 +213,19 @@ def get_current_price(ticker: str) -> float | None:
     כי ל-fetch_universe_daily_changes (הורדה בבת אחת להרבה טיקרים) יש לפעמים
     פער/עיכוב בנתון היומי, ואצל אחזקות שלך זה קריטי (בשונה מרשימת "מניות מובילות")."""
     return market_data.fetch_current_price(ticker)
+
+
+@st.cache_data(ttl=60)
+def get_current_prices_batch(tickers: tuple[str, ...]) -> dict[str, float | None]:
+    """כמו get_current_price, אבל לכמה טיקרים במקביל (ThreadPoolExecutor) -
+    נקרא פעם אחת עם כל הטיקרים של האחזקות, כדי לא לחכות לכל אחד בתור (כל
+    אחד עד כמה שניות, כולל ניסיונות חוזרים) - זו הייתה הסיבה המרכזית לאיטיות
+    שדווחה אחרי restart/מעבר טאב (9.9.2026)."""
+    if not tickers:
+        return {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(tickers))) as executor:
+        results = list(executor.map(market_data.fetch_current_price, tickers))
+    return dict(zip(tickers, results))
 
 
 @st.cache_data(ttl=60)
@@ -873,13 +887,14 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     fetch_universe_daily_changes) יישלפו טריים בכל הפעלה עצמאית שלו - לא רק
     פעם אחת בטעינת הדף."""
     portfolio_summary = value_summary = today_summary = None
+    _price_map = get_current_prices_batch(tuple(sorted(set(holdings_df["ticker"])))) if not holdings_df.empty else {}
     if not holdings_df.empty:
         _by_ccy = {}
         for _, _r in holdings_df.iterrows():
             _entry, _qty = _r["actual_entry_price"], _r["actual_qty"]
             if not _entry or not _qty:
                 continue
-            _current = get_current_price(_r["ticker"])
+            _current = _price_map.get(_r["ticker"])
             if _current is None:
                 # שליפה חיה נכשלה (למשל בדקות הראשונות אחרי פתיחת המסחר, לפני
                 # ש-Yahoo מפרסם נתון טרי) - נופלים חזרה למחיר האחרון הידוע
@@ -972,7 +987,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _entry, _qty = _r.get("actual_entry_price"), _r.get("actual_qty")
             if not _entry or not _qty:
                 continue
-            _current = get_current_price(_r["ticker"])
+            _current = _price_map.get(_r["ticker"])
             if _current is None:
                 _fallback_prices = get_sparkline_prices(_r["ticker"])
                 _current = _fallback_prices[-1] if _fallback_prices else None
@@ -3099,11 +3114,12 @@ with _tab_slot_portfolio.container():
                 _daily_df2 = market_data.fetch_universe_daily_changes(holdings["ticker"].tolist())
                 for _, _dr in _daily_df2.iterrows():
                     _daily_data_map[_dr["ticker"]] = _dr
+                _price_map3 = get_current_prices_batch(tuple(sorted(set(holdings["ticker"]))))
 
                 rows = []
                 for _, r in holdings.iterrows():
                     prices = get_sparkline_prices(r["ticker"])
-                    current = get_current_price(r["ticker"])
+                    current = _price_map3.get(r["ticker"])
                     if current is None:
                         current = prices[-1] if prices else None
                     entry = r["actual_entry_price"]
@@ -3455,13 +3471,14 @@ with st.container(border=True, key="market_panel"):
             _holdings = _load_fresh_holdings()
             if _holdings.empty:
                 return
+            _price_map4 = get_current_prices_batch(tuple(sorted(set(_holdings["ticker"]))))
             _rows = []
             for _, r in _holdings.iterrows():
                 entry = r.get("actual_entry_price")
                 qty = r.get("actual_qty")
                 if not entry or not qty:
                     continue
-                current = get_current_price(r["ticker"])
+                current = _price_map4.get(r["ticker"])
                 if current is None:
                     # שליפה חיה נכשלה (למשל בדקות הראשונות אחרי פתיחת המסחר) -
                     # נופלים חזרה למחיר האחרון הידוע במקום להשמיט את האחזקה
