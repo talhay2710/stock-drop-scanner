@@ -1929,7 +1929,7 @@ def _color_pct(val):
 def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: dict | None = None,
                  color_columns: set | None = None, color_fns: dict | None = None,
                  max_height: int | None = None, truncate_columns: dict | None = None,
-                 wrap_headers: bool = True) -> str:
+                 wrap_headers: bool = True, highlight_ids: set | None = None) -> str:
     """טבלת HTML פשוטה, בסדר עמודות טבעי (מימין לשמאל, כמו שכתוב כאן) - תחליף ל-
     st.dataframe בטבלאות שמציגות טיקרים/טקסט עברי. st.dataframe מצייר הכל על
     canvas תמיד משמאל לימין ומתעלם לגמרי מ-CSS, מה שגורם לחיתוך טקסט ולעמודות
@@ -1984,7 +1984,14 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
                 cells.append(f'<td style="{style}">{inner}</td>')
             else:
                 cells.append(f'<td style="{style}">{text}</td>')
-        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+        # מדגישים את השורה הנבחרת (כרטיס הפרטים "נדבק" ישירות מתחתיה, ר' הקורא) -
+        # "id" נשאר בעמודה חבויה ב-df גם כשהוא לא ברשימת columns המוצגת.
+        _row_id = r.get("id")
+        _row_style = (
+            f' style="background:{ACCENT_COLOR}1a;"'
+            if highlight_ids and pd.notna(_row_id) and int(_row_id) in highlight_ids else ""
+        )
+        body_rows.append(f"<tr{_row_style}>{''.join(cells)}</tr>")
     # table-layout:fixed + colgroup - כשיש עמודה מוגבלת ברוחב (truncate_columns), חובה
     # לקבוע רוחב מפורש לכל העמודות, אחרת table-layout:auto מתעלם מ-max-width ומתרחב
     # לפי התוכן בכל מקרה (ראו הערה בתוך הלולאה למעלה).
@@ -2491,7 +2498,7 @@ with _tab_slot_today.container():
                     for _id, _name in zip(alerts_display["id"], alerts_display["שם"])
                 ]
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
-                alerts_display = alerts_display[["שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
+                alerts_display = alerts_display[["id", "שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
                                                   "תגובת יתר", "איכות פונדמנטלית",
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
@@ -2505,6 +2512,14 @@ with _tab_slot_today.container():
                     _today_header_text = "התראות היום"
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
+                # ?open_alert=<id> (ר' alerts_display["שם"] למעלה) - מחושב כאן,
+                # לפני הטבלה, כדי שגם הטבלה (הדגשת השורה הנבחרת) וגם כרטיס
+                # הפרטים למטה ישתמשו באותו ערך בדיוק (9.9.2026, בעקבות בקשה
+                # שהשורה תודגש ושכרטיס הפרטים יידבק אליה בלי רווח).
+                try:
+                    _open_alert_id = int(st.query_params.get("open_alert", ""))
+                except (TypeError, ValueError):
+                    _open_alert_id = None
                 with _slot_table, st.container(border=True):
                     if _no_new_alerts_yet and not _market_open_now:
                         st.info("השווקים סגורים - ההתראות יתחדשו עם פתיחת המסחר.")
@@ -2536,21 +2551,15 @@ with _tab_slot_today.container():
                                 wrap_headers=False,
                                 color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
                                 max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
+                                highlight_ids={_open_alert_id} if _open_alert_id is not None else None,
                             ),
                             unsafe_allow_html=True,
                         )
 
                 with _slot_cards:
-                    # קליק על שם מניה בטבלה (קישור ?open_alert=<id>, ר' alerts_display["שם"]
-                    # למעלה) גורם ל-rerun רגיל שמעדכן את הפרמטר הזה - מציגים כרטיס פרטים
-                    # רק לשורה הנבחרת, לא ערימה של כרטיס סגור לכל התראה (9.9.2026,
-                    # בעקבות בקשה מפורשת - "הכרטיסים ייפתחו מהטבלה"). מסננים ל-DataFrame
-                    # של שורה אחת לכל היותר, כדי לשמור על גוף הלולאה בדיוק כמו שהיה
-                    # (אותה הזחה) - "for" על 0 או 1 שורות, לא ריפקטור לפונקציה נפרדת.
-                    try:
-                        _open_alert_id = int(st.query_params.get("open_alert", ""))
-                    except (TypeError, ValueError):
-                        _open_alert_id = None
+                    # מסננים ל-DataFrame של שורה אחת לכל היותר, כדי לשמור על גוף
+                    # הלולאה בדיוק כמו שהיה (אותה הזחה) - "for" על 0 או 1 שורות,
+                    # לא ריפקטור לפונקציה נפרדת.
                     _selected_alerts = (
                         todays_alerts[todays_alerts["id"] == _open_alert_id]
                         if _open_alert_id is not None else todays_alerts.iloc[0:0]
@@ -2787,7 +2796,7 @@ with _tab_slot_today.container():
 
             if not near_miss_df.empty:
                 with _slot_nearmiss, st.container(border=True):
-                    st.image(render_text_image(f"קרוב לסף התראה ({scanning_threshold:.1f}%)", NEAR_MISS_COLOR, font_size=17))
+                    st.image(render_text_image("קרוב לסף התראה", NEAR_MISS_COLOR, font_size=17))
                     _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
         _render_today_tab()
