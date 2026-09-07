@@ -947,7 +947,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             )
             _total_value = _dom_agg["invested"] + _dom_agg["pnl"]
             value_summary = (
-                "🪙 שווי תיק", _total_value, _dom_agg["invested"],
+                "🪙 שווי אחזקות", _total_value, _dom_agg["invested"],
                 CURRENCY_SYMBOLS.get(_dominant_ccy, _dominant_ccy), len(holdings_df),
             )
 
