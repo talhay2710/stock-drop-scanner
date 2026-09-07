@@ -1384,6 +1384,51 @@ def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | Non
     )
 
 
+def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
+                                 holdings_count: int) -> str:
+    """מאחד את שלושת המשבצות הישנות (השקעות/שווי נוכחי/רווח-הפסד) למשבצת אחת
+    עשירה, באותה "שפה" חזותית כמו _stat_card_breakdown (כותרת ממורכזת + ייצוג
+    גרפי קטן + שורת meta בפינה) - במקום שלוש תיבות שטוחות עם מספר בודד כל
+    אחת (9.9.2026, בעקבות בקשה לשפר את הנראות "כמו כרטיס הסקטור")."""
+    pnl_pct = (pnl / invested * 100) if invested else 0.0
+    color = POS_COLOR if pnl >= 0 else NEG_COLOR
+    scale = max(invested, current_value, 1.0)
+    current_bar_pct = max(0.0, min(100.0, current_value / scale * 100))
+    invested_marker_pct = max(0.0, min(100.0, invested / scale * 100))
+    # בר בודד: הרוחב המלא (אפור) הוא קנה-המידה, המילוי הצבעוני הוא השווי
+    # הנוכחי, והסימון האנכי הוא נקודת ההשקעה - כך רואים במבט אחד אם השווי
+    # עבר את ההשקעה (המילוי חורג מהסימון) או עדיין מתחתיה, לא רק לפי הצבע.
+    bar = (
+        f'<div style="position:relative; height:7px; background:#e2e5e9; border-radius:4px; '
+        f'margin:10px 0 6px 0; direction:ltr;">'
+        f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_bar_pct:.1f}%; '
+        f'background:{color}; border-radius:4px;"></div>'
+        f'<div style="position:absolute; left:{invested_marker_pct:.1f}%; top:-2px; width:2px; height:11px; '
+        f'background:#5b6572; opacity:0.6;"></div>'
+        f'</div>'
+    )
+    numbers = (
+        f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.7rem; opacity:0.75;">'
+        f'<span>השקעות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
+    )
+    pnl_line = (
+        f'<div style="text-align:center; font-size:1.5rem; font-weight:700; color:{color}; margin-top:8px;">'
+        f'{_signed_num(pnl)} {ccy_symbol} '
+        f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
+    )
+    count_label = (
+        f'<style>.holding-count-label{{text-align:left !important;}}</style>'
+        f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:6px;">'
+        f'{holdings_count} אחזקות</div>'
+    )
+    return (
+        f'<div style="flex:1; min-width:220px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
+        f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
+        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">מצב תיק ({ccy_symbol})</div>'
+        f'{bar}{numbers}{pnl_line}{count_label}</div>'
+    )
+
+
 
 
 _SECTOR_LABELS_HE = {
@@ -3263,11 +3308,9 @@ with _tab_slot_portfolio.container():
                     cards_html = _stat_card("סה\"כ אחזקות", str(len(rows)), NEUTRAL_COLOR, NEUTRAL_BG)
                 for ccy, agg in by_ccy.items():
                     symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
-                    pnl_color = POS_COLOR if agg["pnl"] >= 0 else NEG_COLOR
-                    pnl_bg = POS_BG if agg["pnl"] >= 0 else NEG_BG
-                    cards_html += _stat_card(f"השקעות ({symbol})", f"{agg['invested']:,.0f}", NEUTRAL_COLOR, NEUTRAL_BG)
-                    cards_html += _stat_card(f"שווי נ‌וכחי ({symbol})", f"{agg['current_value']:,.0f}", NEUTRAL_COLOR, NEUTRAL_BG)
-                    cards_html += _stat_card(f"רווח/הפסד ({symbol})", _signed_num(agg["pnl"]), pnl_color, pnl_bg)
+                    cards_html += _stat_card_portfolio_status(
+                        agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
+                    )
 
                 st.markdown(
                     f"""<div style="display:flex; gap:10px; flex-wrap:wrap;">{cards_html}</div>""",
