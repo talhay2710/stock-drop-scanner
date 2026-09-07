@@ -481,10 +481,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    '<h1 style="text-align:center;">📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈</h1>',
-    unsafe_allow_html=True,
-)
+with st.container(key="main_title_wrap"):
+    st.markdown(
+        # תפוס יותר ייחודי מ-"h1" הגלובלי (שקובע text-align:right !important
+        # לכל האתר, ר' כלל ה-RTL הראשי) - container עם מפתח, כמו בכל מקום
+        # אחר בקובץ הזה, כדי לנצח אותו רק כאן בלי לגעת בשאר הכותרות.
+        """
+        <style>
+        div[class*="st-key-main_title_wrap"] h1 { text-align: center !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.title("📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈")
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
 _TAB_DEFS = [
