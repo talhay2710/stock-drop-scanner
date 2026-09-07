@@ -515,6 +515,12 @@ _TAB_DEFS = [
 ]
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = None
+# קישור ?open_alert=<id> (ר' alerts_display["שם"] בטאב ההתראות) הוא ניווט
+# רגיל של הדפדפן, לא קריאת Streamlit rerun - מאתחל סשן חדש לגמרי, וה-tab
+# חוזר לברירת המחדל (None). בלי השורה הזו, קליק על שם מניה בטבלה היה מנחית
+# את המשתמש בטאב הבית במקום בטאב ההתראות עם כרטיס הפרטים שביקש (9.9.2026).
+if st.query_params.get("open_alert"):
+    st.session_state.active_tab = "today"
 
 with st.container(key="nav_tabs_row"):
     _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
