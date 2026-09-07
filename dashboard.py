@@ -515,14 +515,6 @@ _TAB_DEFS = [
 ]
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = None
-# קישור ?open_alert=<id> (ר' alerts_display["שם"]/_build_alert_detail_html
-# בטאב ההתראות) הוא ניווט רגיל של הדפדפן, לא קריאת Streamlit rerun - מאתחל
-# סשן חדש לגמרי, וה-tab חוזר לברירת המחדל (None). בדיקת "in" (לא truthiness)
-# בכוונה - קישור ה"סגור" שולח ?open_alert= (ערך ריק) כדי לנקות את הבחירה,
-# וגם אז עדיין רוצים להישאר בטאב ההתראות, לא לקפוץ הביתה (9.9.2026, נמצא
-# בפועל: truthiness על מחרוזת ריקה הוא False, "סגור" קפץ הביתה בטעות).
-if "open_alert" in st.query_params:
-    st.session_state.active_tab = "today"
 
 with st.container(key="nav_tabs_row"):
     _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
@@ -2034,11 +2026,6 @@ def _build_alert_detail_html(r) -> str:
     expand_html), לא כקטע נפרד מתחת לכל הטבלה. טופס "הוסף התראת מחיר" (היה
     כאן קודם) הושמט - הוא צריך שדות/כפתור אמיתיים שלא ניתן להטמיע כ-HTML
     סטטי; יש טופס דומה נגיש למטה (9.9.2026, בעקבות בקשה מפורשת "מתוך הטבלה")."""
-    _close_link = (
-        '<a href="?open_alert=" target="_self" style="display:inline-block; padding:3px 10px; '
-        f'border-radius:6px; background:{NEUTRAL_COLOR}14; color:inherit; font-size:0.78rem; '
-        'text-decoration:none; font-weight:600;">✕ סגור</a>'
-    )
     _reason_pill = render_reason_pill(r.get("reasons_json", "[]"))
     _sparkline_prices = get_sparkline_prices(r["ticker"])
     _svg = _sparkline_svg(_sparkline_prices)
@@ -2159,7 +2146,7 @@ def _build_alert_detail_html(r) -> str:
         f'<div style="text-align:right; direction:rtl; padding:14px 18px;">'
         f'<div style="display:flex; direction:rtl; justify-content:space-between; align-items:center;">'
         f'<span style="font-weight:700; font-size:0.95rem;">{r.get("company_name") or r["ticker"]} ({r["ticker"]})</span>'
-        f'{_close_link}</div>'
+        f'</div>'
         f'<div style="display:flex; direction:rtl; gap:16px; margin-top:8px; align-items:center;">'
         f'<div style="flex:2; min-width:0;">{_reason_pill}'
         f'<div style="font-size:0.8rem; opacity:0.7; margin-top:4px;">{r["reason_text"]}</div></div>'
@@ -2642,16 +2629,6 @@ with _tab_slot_today.container():
                 if "שם" not in alerts_display.columns:
                     alerts_display["שם"] = ""
                 alerts_display["שם"] = alerts_display["שם"].fillna(alerts_display["טיקר"])
-                # שם המניה הופך לקישור עם ?open_alert=<id> - קליק עליו גורם ל-rerun
-                # רגיל של Streamlit (לא JS מותאם אישית) שמציג את כרטיס הפרטים של
-                # השורה הזו בלבד מתחת לטבלה, במקום הערימה של כל הכרטיסים
-                # (9.9.2026, בעקבות בקשה מפורשת - "id" חייב להישמר כאן, לפני
-                # שהסינון של alerts_display לעמודות התצוגה מוריד אותו).
-                alerts_display["שם"] = [
-                    f'<a href="?open_alert={int(_id)}" target="_self" '
-                    f'style="color:inherit; text-decoration:underline dotted; text-underline-offset:2px;">{_name}</a>'
-                    for _id, _name in zip(alerts_display["id"], alerts_display["שם"])
-                ]
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
                 alerts_display = alerts_display[["id", "שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
                                                   "תגובת יתר", "איכות פונדמנטלית",
@@ -2667,21 +2644,14 @@ with _tab_slot_today.container():
                     _today_header_text = "התראות היום"
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
-                # ?open_alert=<id> (ר' alerts_display["שם"] למעלה) - מחושב כאן,
-                # לפני הטבלה, כדי שגם הטבלה (הדגשת השורה הנבחרת) וגם כרטיס
-                # הפרטים למטה ישתמשו באותו ערך בדיוק (9.9.2026, בעקבות בקשה
-                # שהשורה תודגש ושכרטיס הפרטים יידבק אליה בלי רווח).
-                try:
-                    _open_alert_id = int(st.query_params.get("open_alert", ""))
-                except (TypeError, ValueError):
-                    _open_alert_id = None
-                _selected_alerts = (
-                    todays_alerts[todays_alerts["id"] == _open_alert_id]
-                    if _open_alert_id is not None else todays_alerts.iloc[0:0]
-                )
-                _expand_html = ""
-                if _open_alert_id is not None and not _selected_alerts.empty:
-                    _expand_html = _build_alert_detail_html(_selected_alerts.iloc[0])
+                # session_state, לא ?open_alert= ב-URL: קישור/ניווט אמיתי (כפי
+                # שנוסה קודם) פותח סשן Streamlit חדש לגמרי בכל קליק - מריץ
+                # מחדש את *כל* הסקריפט (כל הטאבים, כל שליפות הנתונים), לא רק
+                # את טאב ההתראות - איטי בפועל, לא רק "מהבהב" ויזואלית
+                # (9.9.2026, בעקבות תלונה מפורשת על איטיות). st.button עם
+                # session_state הוא rerun רגיל של Streamlit - חלק ומהיר,
+                # בלי ניווט דפדפן בכלל.
+                st.session_state.setdefault("open_alert_id", None)
                 with _slot_table, st.container(border=True):
                     if _no_new_alerts_yet and not _market_open_now:
                         st.info("השווקים סגורים - ההתראות יתחדשו עם פתיחת המסחר.")
@@ -2690,36 +2660,81 @@ with _tab_slot_today.container():
                         st.info("אין התראות חדשות במסחר הנוכחי.")
                     else:
                         st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
+                        # שם המניה הוא כפתור Streamlit אמיתי (מעוצב כמו קישור,
+                        # לא כפתור מרובע - ר' ה-CSS למטה), לא <a href>, כי
+                        # כפתור גורם ל-rerun רגיל בלי ניווט דפדפן בכלל.
                         st.markdown(
-                            _html_table(
-                                alerts_display,
-                                [("שם", "שם"), ("טיקר", "טיקר"),
-                                 ("שינוי בזמן התראה", "שינוי בזמן התראה"), ("שינוי נוכחי", "שינוי נוכחי"),
-                                 ("תגובת יתר", "תגובת יתר"), ("איכות פונדמנטלית", "איכות פונדמנטלית"),
-                                 ("סיווג ריבאונד", _rebound_header_label),
-                                 ("לימיט כניסה", "לימיט כניסה"), ("יעד מכירה", "יעד מכירה"), ("סטופ-לוס", "סטופ-לוס")],
-                                formatters={
-                                    "שינוי בזמן התראה": lambda v: _signed_num(v, 1, "%"),
-                                    "שינוי נוכחי": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
-                                    "תגובת יתר": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
-                                    "איכות פונדמנטלית": lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—",
-                                    "סיווג ריבאונד": _rebound_cell_text,
-                                },
-                                truncate_columns={
-                                    "שם": 140, "טיקר": 115, "שינוי בזמן התראה": 115, "שינוי נוכחי": 115,
-                                    "תגובת יתר": 115, "איכות פונדמנטלית": 115,
-                                    "סיווג ריבאונד": 115, "לימיט כניסה": 115, "יעד מכירה": 115, "סטופ-לוס": 115,
-                                },
-                                wrap_headers=False,
-                                color_columns={"שינוי בזמן התראה", "שינוי נוכחי"},
-                                max_height=min(35 * (len(todays_alerts) + 1) + 3, 2000),
-                                highlight_ids={_open_alert_id} if _open_alert_id is not None else None,
-                                expand_id=_open_alert_id, expand_html=_expand_html,
-                            ),
+                            """
+                            <style>
+                            div[class*="st-key-alert_row_"] button {
+                                background: transparent !important; border: none !important;
+                                box-shadow: none !important; padding: 0 !important;
+                                color: inherit !important; text-decoration: underline dotted;
+                                text-underline-offset: 2px; font-weight: 400 !important;
+                                font-size: 0.85rem !important; justify-content: flex-end !important;
+                                width: 100%;
+                            }
+                            div[class*="st-key-alert_row_"] button p { font-size: 0.85rem !important; }
+                            </style>
+                            """,
                             unsafe_allow_html=True,
                         )
-                    if _open_alert_id is not None and _selected_alerts.empty:
-                        st.caption("ההתראה שנבחרה כבר לא זמינה (אולי סריקה חדשה החליפה אותה).")
+                        _col_weights = [2, 1, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
+                        _col_defs = [
+                            ("שם", None), ("טיקר", None),
+                            ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
+                            ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
+                            ("תגובת יתר", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
+                            ("איכות פונדמנטלית", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
+                            ("סיווג ריבאונד", _rebound_cell_text),
+                            ("לימיט כניסה", None), ("יעד מכירה", None), ("סטופ-לוס", None),
+                        ]
+                        _color_cols = {"שינוי בזמן התראה", "שינוי נוכחי"}
+                        _header_cols = st.columns(_col_weights)
+                        for _hc, (_col_name, _) in zip(_header_cols, _col_defs):
+                            _label = _rebound_header_label if _col_name == "סיווג ריבאונד" else _col_name
+                            _hc.markdown(
+                                f'<div style="font-weight:600; font-size:0.85rem; border-bottom:1px solid '
+                                f'rgba(128,128,128,0.3); padding-bottom:4px;">{_label}</div>',
+                                unsafe_allow_html=True,
+                            )
+                        for _, _row in alerts_display.iterrows():
+                            _rid = int(_row["id"])
+                            _is_selected = st.session_state["open_alert_id"] == _rid
+                            _row_bg = f'background:{ACCENT_COLOR}1a;' if _is_selected else ""
+                            with st.container(key=f"alert_row_{_rid}"):
+                                st.markdown(
+                                    f'<style>div[class*="st-key-alert_row_{_rid}"] {{ {_row_bg} }}</style>',
+                                    unsafe_allow_html=True,
+                                )
+                                _row_cols = st.columns(_col_weights)
+                                for _rc, (_col_name, _fmt) in zip(_row_cols, _col_defs):
+                                    _val = _row[_col_name]
+                                    if _col_name == "שם":
+                                        if _rc.button(str(_val), key=f"open_alert_btn_{_rid}", use_container_width=True):
+                                            st.session_state["open_alert_id"] = None if _is_selected else _rid
+                                            st.rerun()
+                                        continue
+                                    _text = _fmt(_val) if _fmt else ("—" if pd.isna(_val) else str(_val))
+                                    _color_style = ""
+                                    if _col_name in _color_cols and pd.notna(_val):
+                                        _color_style = f"color:{POS_COLOR if _val >= 0 else NEG_COLOR}; font-weight:600;"
+                                    _rc.markdown(
+                                        f'<div style="font-size:0.85rem; {_color_style} overflow:hidden; '
+                                        f'text-overflow:ellipsis; white-space:nowrap;">{_text}</div>',
+                                        unsafe_allow_html=True,
+                                    )
+                                if _is_selected:
+                                    _sel_row = todays_alerts[todays_alerts["id"] == _rid]
+                                    if not _sel_row.empty:
+                                        st.markdown(_build_alert_detail_html(_sel_row.iloc[0]), unsafe_allow_html=True)
+                                        # כפתור סגירה אמיתי, לא <a href="?..."> (ר' הערה למעלה
+                                        # למה בוטל href) - נופל לאותה עמודת CSS של שם השורה
+                                        # (st-key-alert_row_) כי הוא בתוך אותו container.
+                                        _close_cols = st.columns([9, 1])
+                                        if _close_cols[1].button("✕ סגור", key=f"close_alert_btn_{_rid}"):
+                                            st.session_state["open_alert_id"] = None
+                                            st.rerun()
 
             # "קרוב לסף התראה" - הועבר לכאן מטאב "מניות מובילות" (26.8.2026): קונספטואלית
             # זה צפי להתראה עתידית (מבוסס על סף ההתראה), לא עיון במניות כמו שאר הטאב ההוא.
