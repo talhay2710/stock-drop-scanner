@@ -1395,12 +1395,13 @@ def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | Non
 
 
 def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
-                                 holdings_count: int, sector_rows: list[dict] | None = None) -> str:
-    """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד, ולצידם (כשיש
-    יותר מסקטור אחד) דונאט+מקרא התפלגות הסקטורים, הכל באותו כרטיס אחד רחב.
-    היה שני כרטיסים נפרדים (מצב תיק + התפלגות סקטור) - במסכים רחבים מאוד כל
-    אחד נמתח לבד ואיבד פרופורציה (בר דק וארוך מדי). כרטיס אחד עם שני חלקים
-    עוגן משני הצדדים נשאר מאוזן בכל רוחב (9.9.2026, בעקבות משוב)."""
+                                 holdings_count: int, sector_rows: list[dict] | None = None,
+                                 worst: dict | None = None) -> str:
+    """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד + שורת "הכי
+    פוגעת" (האחזקה עם התשואה הנטו הכי נמוכה - מידע חדש, לא חוזר על מה שכבר
+    מוצג בעמוד), ולצידם (כשיש יותר מאחזקה אחת) דונאט+מקרא התפלגות *לפי
+    אחזקה בודדת* (לא סקטור - עם 1-2 אחזקות לסקטור זו כפילות, ר' משוב
+    9.9.2026 שהכרטיס "לא מספיק מעניין")."""
     pnl_pct = (pnl / invested * 100) if invested else 0.0
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
     scale = max(invested, current_value, 1.0)
@@ -1427,16 +1428,20 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'{_signed_num(pnl)} {ccy_symbol} '
         f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
     )
+    worst_line = ""
+    if worst:
+        _worst_color = POS_COLOR if worst["net_pct"] >= 0 else NEG_COLOR
+        worst_line = (
+            f'<div style="text-align:center; font-size:0.7rem; opacity:0.75; margin-top:6px;">'
+            f'הכי פוגעת: {worst["name"]} '
+            f'<b style="color:{_worst_color};">({_signed_num(worst["net_pct"], 1, "%")})</b></div>'
+        )
     # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
     # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
     # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
-    status_title = (
-        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">'
-        f'מצב תיק ({ccy_symbol})</div>'
-    )
     status_side = (
-        f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center;">'
-        f'{status_title}<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}</div></div>'
+        f'<div style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center;">'
+        f'<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}{worst_line}</div></div>'
     )
 
     sector_side = ""
@@ -1451,15 +1456,10 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
             for i, r in enumerate(sector_rows)
         )
         legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
-        sector_title = (
-            f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">'
-            f'התפלגות לפי סקטור</div>'
-        )
         sector_side = (
-            f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center; '
-            f'border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
-            f'{sector_title}<div style="display:flex; direction:rtl; align-items:center; justify-content:center; '
-            f'gap:16px; margin-top:4px;">{legend}{donut}</div></div>'
+            f'<div style="flex:1; min-width:170px; display:flex; direction:rtl; align-items:center; '
+            f'justify-content:center; gap:16px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
+            f'{legend}{donut}</div>'
         )
 
     count_label = (
@@ -1470,7 +1470,8 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     return (
         f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
+        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center;">מצב תיק ({ccy_symbol})</div>'
+        f'<div style="display:flex; direction:rtl; gap:16px; margin-top:4px;">{status_side}{sector_side}</div>'
         f'{count_label}</div>'
     )
 
@@ -3345,20 +3346,25 @@ with _tab_slot_portfolio.container():
                     row["sector_color"] = _sector_color_map.get(
                         _SECTOR_LABELS_HE.get(row["sector"], row["sector"]), NEUTRAL_COLOR)
 
-                # התפלגות הסקטורים משולבת בתוך כרטיס "מצב תיק" עצמו (לא כרטיס
-                # נפרד) - כשיש יותר מסקטור אחד (אחרת אין מה להראות). רק במטבע
-                # הראשון (הנפוץ: מטבע יחיד) - הסקטורים חוצי-מטבעות, לא שייכים
-                # לאחד ספציפי (9.9.2026, בעקבות משוב על אובדן פרופורציה בשני
-                # כרטיסים נפרדים במסך רחב).
-                _sector_rows = _breakdown_rows(by_sector) if len(by_sector) > 1 else None
+                # התפלגות *לפי אחזקה בודדת* (לא סקטור - עם 1-2 אחזקות לסקטור
+                # זו כפילות, ר' משוב 9.9.2026) משולבת בתוך כרטיס "מצב תיק"
+                # עצמו (לא כרטיס נפרד) - כשיש יותר מאחזקה אחת. רק במטבע
+                # הראשון (הנפוץ: מטבע יחיד) - האחזקות חוצות-מטבעות, לא
+                # שייכות לאחד ספציפי.
+                _by_holding = {r["name"]: (r["current_value"] or 0) for r in rows}
+                _holding_rows = _breakdown_rows(_by_holding) if len(rows) > 1 else None
+                # rows כבר ממוין לפי net_pct יורד (ר' rows.sort למעלה) - האחרון
+                # הוא האחזקה עם התשואה הנטו הכי נמוכה, בלי חישוב נוסף.
+                _worst = rows[-1] if rows and rows[-1].get("net_pct") is not None else None
                 cards_html = ""
                 for ccy, agg in by_ccy.items():
                     symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
                     cards_html += _stat_card_portfolio_status(
                         agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
-                        sector_rows=_sector_rows,
+                        sector_rows=_holding_rows, worst=_worst,
                     )
-                    _sector_rows = None
+                    _holding_rows = None
+                    _worst = None
 
                 st.markdown(
                     f"""<div style="display:flex; gap:10px; flex-wrap:wrap;">{cards_html}</div>""",
