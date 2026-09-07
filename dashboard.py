@@ -1395,7 +1395,8 @@ def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | Non
 
 
 def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
-                                 holdings_count: int, sector_rows: list[dict] | None = None) -> str:
+                                 holdings_count: int, sector_rows: list[dict] | None = None,
+                                 holdings_timeline: list[dict] | None = None) -> str:
     """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד, ולצידם (כשיש
     יותר מסקטור אחד) דונאט+מקרא התפלגות הסקטורים, הכל באותו כרטיס אחד רחב.
     זו הגרסה שהתקבלה בפועל ("יפה") - אחרי כמה ניסיונות המשך (כותרות נפרדות,
@@ -1465,6 +1466,38 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
             f'gap:16px; margin-top:6px;">{legend}{donut}</div></div>'
         )
 
+    # ציר זמן זעיר - כל אחזקה כנקודה לפי ותק (ימי החזקה), עבר (ותיק) בצד שמאל
+    # ועכשיו (חדש) בצד ימין, בצבע לפי הביצועים שלה. מידע שלא מוצג בשום מקום
+    # אחר בצורה מצטברת - רק כטקסט קטן ("מוחזק X ימים") בכל כרטיס אחזקה בנפרד
+    # (9.9.2026, בעקבות בקשה למשהו חדש שקשור לאחזקות).
+    timeline_html = ""
+    _tl_holdings = [h for h in (holdings_timeline or []) if h.get("days_held") is not None]
+    if len(_tl_holdings) > 1:
+        _max_days = max(h["days_held"] for h in _tl_holdings) or 1
+        _dots = []
+        for i, h in enumerate(_tl_holdings):
+            _left_pct = max(0.0, min(100.0, (_max_days - h["days_held"]) / _max_days * 100))
+            _dot_color = POS_COLOR if (h.get("net_pct") or 0) >= 0 else NEG_COLOR
+            _label_above = i % 2 == 0
+            _label = (
+                f'<div style="position:absolute; left:50%; transform:translateX(-50%); '
+                f'{"bottom" if _label_above else "top"}:10px; white-space:nowrap; font-size:0.65rem; '
+                f'font-weight:700; opacity:0.85;">{h["name"]} · {h["days_held"]}י\'</div>'
+            )
+            _dots.append(
+                f'<div style="position:absolute; left:{_left_pct:.1f}%; top:50%; transform:translate(-50%,-50%); '
+                f'width:9px; height:9px; border-radius:50%; background:{_dot_color}; '
+                f'border:2px solid {NEUTRAL_BG}; z-index:2;">{_label}</div>'
+            )
+        timeline_html = (
+            f'<div style="position:relative; height:34px; margin:22px 8px 20px 8px; direction:ltr;">'
+            f'<div style="position:absolute; left:0; right:0; top:50%; height:2px; '
+            f'background:{NEUTRAL_COLOR}33; transform:translateY(-50%);"></div>'
+            f'{"".join(_dots)}</div>'
+            f'<div style="display:flex; direction:ltr; justify-content:space-between; font-size:0.62rem; '
+            f'opacity:0.55; margin:0 8px;"><span>ותיק</span><span>חדש</span></div>'
+        )
+
     count_label = (
         f'<style>.holding-count-label{{text-align:left !important;}}</style>'
         f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:8px;">'
@@ -1474,7 +1507,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
         f'<div style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
-        f'{count_label}</div>'
+        f'{timeline_html}{count_label}</div>'
     )
 
 
@@ -3356,9 +3389,10 @@ with _tab_slot_portfolio.container():
                 cards_html = ""
                 for ccy, agg in by_ccy.items():
                     symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
+                    _ccy_rows = [r for r in rows if r["ccy"] == ccy]
                     cards_html += _stat_card_portfolio_status(
                         agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
-                        sector_rows=_sector_rows,
+                        sector_rows=_sector_rows, holdings_timeline=_ccy_rows,
                     )
                     _sector_rows = None
 
