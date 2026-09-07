@@ -1427,7 +1427,13 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'{_signed_num(pnl)} {ccy_symbol} '
         f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
     )
-    status_side = f'<div style="flex:1; min-width:170px;">{bar}{numbers}{pnl_line}</div>'
+    # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
+    # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
+    # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
+    status_side = (
+        f'<div style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center;">'
+        f'<div style="width:100%; max-width:230px;">{bar}{numbers}{pnl_line}</div></div>'
+    )
 
     sector_side = ""
     if sector_rows:
@@ -3352,14 +3358,15 @@ with _tab_slot_portfolio.container():
                 )
 
                 st.divider()
-                _render_open_position_expander()
-                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
                 for i, row in enumerate(rows):
                     if i % 3 == 0:
                         card_cols = st.columns(3)
                     with card_cols[i % 3]:
                         render_holding_card(row)
+
+                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                _render_open_position_expander()
 
         _render_holdings_tab()
 
