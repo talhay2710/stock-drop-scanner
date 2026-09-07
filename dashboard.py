@@ -780,10 +780,6 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
     color = POS_COLOR if is_target else NEG_COLOR
     bg = POS_BG if is_target else NEG_BG
     icon = "🎯" if is_target else "🛑"
-    # רק "קרוב לסטופ" (לא "קרוב ליעד") מקבל עיצוב שונה - זו התראה פעילה
-    # שדורשת תשומת לב, לא רק עוד מדד מספרי כמו שאר הכרטיסים (9.9.2026,
-    # בעקבות משוב שקשה להבחין בין התראה אמיתית לנתון רגיל).
-    border_style = "1px solid" if is_target else "2px dashed"
     # gap_pct שלילי אומר שהמחיר כבר עבר את הרף (יעד או סטופ) - "0.0% נותרו" היה
     # מטעה כאן (משתמע שהיא בדיוק על הרף, לא כבר מעבר לו). מציגים "חצתה ב-X%"
     # במקום, עם ה-X בפועל (לא מקוצץ ל-0), כדי שהכרטיס יישאר מדויק גם במצב הזה.
@@ -795,7 +791,7 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
         gap_line = f"{gap_pct:.1f}% נותרו"
     st.markdown(
         f"""
-        <div style="border:{border_style} {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
+        <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
                     background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
