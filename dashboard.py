@@ -409,6 +409,14 @@ st.markdown(
     [data-testid="stMetricLabel"], [data-testid="stMetricValue"], [data-testid="stMetricDelta"] {
         justify-content: flex-end !important;
     }
+    /* חריגה מכוונת לכלל ה-RTL הכללי למעלה - השורה התחתונה (הקטנה) בכרטיסי
+    "התיק שלי" (render_portfolio_card/render_value_card/render_proximity_card)
+    צמודה לשמאל בכוונה, לא לימין כמו שאר הטקסט - סלקטור מורכב יותר (לא רק
+    ".card-bottom-line") כדי לנצח בוודאות את הכלל הכללי, לא להסתמך על סדר
+    ה-DOM (9.9.2026, בעקבות בקשה מפורשת). */
+    [data-testid="stMarkdownContainer"] .card-bottom-line {
+        text-align: left !important;
+    }
     [data-testid="stHorizontalBlock"] {
         direction: rtl;
     }
@@ -744,7 +752,7 @@ def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: st
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
           <div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>
-          <div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
+          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
             {_signed_num(pnl)} {ccy_symbol}
           </div>
         </div>
@@ -765,7 +773,7 @@ def render_value_card(label: str, value: float, invested: float, ccy_symbol: str
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
           <div style="font-size:1.6rem; font-weight:700; margin-top:4px; color:{color};">{value:,.0f} {ccy_symbol}</div>
-          <div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
+          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
             {holdings_count} אחזקות
           </div>
         </div>
@@ -796,7 +804,7 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
           <div style="font-size:1.25rem; font-weight:700; color:{color}; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{name}</div>
-          <div style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
+          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
             {gap_line}
           </div>
         </div>
