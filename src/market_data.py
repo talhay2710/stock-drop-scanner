@@ -339,36 +339,41 @@ def _with_retry(fn, description: str):
 
 
 def fetch_current_price(ticker: str) -> float | None:
-    """מחיר עדכני אמיתי (regularMarketPrice) לטיקר בודד - בניגוד ל-Close היומי
-    שמגיע מ-yf.download() בבת אחת עבור הרבה טיקרים, שמתגלה לפעמים כפער/מפגר
-    (לא מעודכן לסשן המסחר האחרון בפועל). איטי יותר (קריאת רשת בודדת), ולכן
-    מיועד למספר קטן של טיקרים - כמו האחזקות שלך - לא לסריקת יקום שלם.
+    """מחיר עדכני אמיתי לטיקר בודד - בניגוד ל-Close היומי שמגיע מ-yf.download()
+    בבת אחת עבור הרבה טיקרים, שמתגלה לפעמים כפער/מפגר (לא מעודכן לסשן המסחר
+    האחרון בפועל). איטי יותר (קריאת רשת בודדת), ולכן מיועד למספר קטן של
+    טיקרים - כמו האחזקות שלך - לא לסריקת יקום שלם.
+
+    period="1d"/interval="1m" (לא .info/regularMarketPrice כמו קודם, 9.9.2026) -
+    .info לא חושפת פרמטר timeout ל-yfinance בכלל, אז קריאה תקועה בפועל יכולה
+    להקפיא ריצה שלמה במשך דקות בלי שום גבול (נמדד בפועל: מעל 6 דקות). ניסיון
+    לעטוף רק את .info ב-thread+timeout משלנו גרם לקריסה אמיתית באתר הציבורי -
+    התנגשות עם המנגנון הפנימי של Streamlit ל-@st.cache_data (ר' היסטוריית
+    git). .history() כן מקבלת timeout= אמיתי מ-yfinance עצמה, בלי שום צורך
+    ב-thread - הפתרון הבטוח.
+
     כולל ניסיונות חוזרים (_with_retry) - כשל בודד לא אמור להחזיר 'אין נתון'.
-    בנוסף בודק טריות: אם השוק פתוח כרגע אבל regularMarketTime שחזר עדיין
-    מהסשן הקודם (Yahoo לא עדכן עדיין - קורה במיוחד בדקות הראשונות אחרי
-    פתיחה), זה נספר ככישלון ומפעיל ניסיון חוזר, במקום להחזיר בשקט מחיר
-    ישן כאילו הוא עדכני."""
+    בנוסף בודק טריות: אם השוק פתוח כרגע אבל הבר האחרון עדיין מהסשן הקודם
+    (Yahoo לא עדכן עדיין - קורה במיוחד בדקות הראשונות אחרי פתיחה), זה נספר
+    ככישלון ומפעיל ניסיון חוזר, במקום להחזיר בשקט מחיר ישן כאילו הוא עדכני."""
     is_il = _is_israeli_ticker(ticker)
     index_hint = "TA35" if is_il else "NASDAQ100"
 
     def _do():
-        info = yf.Ticker(ticker).info
-        price = info.get("regularMarketPrice")
-        if price is None:
+        hist = yf.Ticker(ticker).history(period="1d", interval="1m", timeout=_YF_TIMEOUT_SECONDS)
+        closes = hist["Close"].dropna()
+        if closes.empty:
             return None
-        ts = info.get("regularMarketTime")
-        if ts and is_market_open(index_hint):
-            # is_data_stale בודק "האם זו סגירה תקינה", לא "האם זה ציטוט חי מהיום
-            # הזה ממש" - ב-08:00 בבוקר, אתמול עדיין נחשב סגירה תקינה כי היום
-            # עוד לא נסגר, אז הבדיקה ההיא לא הייתה תופסת את המקרה הזה. כאן
-            # השוק פתוח בפועל, אז ציטוט חי חייב לשאת תאריך של היום ממש
-            # (באזור הזמן של אותו שוק) - לא "סגירה אחרונה תקינה כלשהי".
+        price = float(closes.iloc[-1])
+        if is_market_open(index_hint):
+            # אותה בדיקת טריות כמו קודם (ר' הערה למעלה) - רק ש"עכשיו" נגזר
+            # מהחותמת של הבר האחרון עצמו, לא משדה נפרד ב-.info.
             spec = MARKET_HOURS["IL" if is_il else "US"]
             today_in_market_tz = dt.datetime.now(ZoneInfo(spec["tz"])).date()
-            quote_date = dt.datetime.fromtimestamp(ts, tz=ZoneInfo(spec["tz"])).date()
+            quote_date = closes.index[-1].astimezone(ZoneInfo(spec["tz"])).date()
             if quote_date < today_in_market_tz:
                 raise RuntimeError(f"מחיר לא טרי (מ-{quote_date}) בזמן שהשוק פתוח היום ({today_in_market_tz})")
-        return float(price) / 100.0 if is_il else float(price)
+        return price / 100.0 if is_il else price
     return _with_retry(_do, f"מחיר עדכני של {ticker}")
 
 
