@@ -621,14 +621,17 @@ CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
 @st.cache_data(ttl=60)
-def get_index_intraday_sparkline(index_key: str) -> tuple[list, str | None]:
-    """נקודות המסחר התוך-יומי של היום - מטמון קצר (דקה, לא 5 כמו הגרסה
-    ההיסטורית) כי זה "מסחר נוכחי" ואמור להיות רענן ממש. התווית היא שעת
-    הנקודה האחרונה (HH:MM), לא תאריך - "היום ב-14:35" לא אומר הרבה יותר
-    מ"עכשיו", אבל השעה כן (2.9.2026)."""
+def get_index_intraday_sparkline(index_key: str, trading_open: bool = True) -> tuple[list, str | None]:
+    """נקודות המסחר התוך-יומי - מטמון קצר (דקה, לא 5 כמו הגרסה ההיסטורית) כי
+    זה "מסחר נוכחי" ואמור להיות רענן ממש. התווית היא שעת הנקודה האחרונה
+    (HH:MM) כשהמסחר פעיל ("היום ב-14:35" לא אומר הרבה יותר מ"עכשיו", אבל
+    השעה כן, 2.9.2026) - אבל כשהשוק סגור זה כבר לא בהכרח "היום" (יכול להיות
+    יום המסחר האחרון, אתמול/שישי), אז מציגים תאריך כמו באפשרויות הימים
+    האחרות, לא שעה בלי הקשר (9.9.2026, בעקבות בקשה מפורשת)."""
     hist = market_data.fetch_index_intraday(index_key)
     if hist.empty:
         return [], None
+    _as_of = hist.index[-1].strftime("%H:%M") if trading_open else hist.index[-1].strftime("%d/%m")
     prices = hist.tolist()
     # האחוז שמחושב מהנקודה הראשונה כאן (ר' render_index_card/הרכיב ב-JS,
     # (last-first)/first) חייב להיות ביחס לסגירה *הקודמת* - המוסכמה הפיננסית
@@ -642,7 +645,7 @@ def get_index_intraday_sparkline(index_key: str) -> tuple[list, str | None]:
         _prev_close = float(_prev_close_hist.iloc[-1])
         if prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
             prices = [_prev_close] + prices
-    return prices, hist.index[-1].strftime("%H:%M")
+    return prices, _as_of
 
 
 @st.cache_data(ttl=300)
@@ -754,11 +757,16 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             _labels = {}
             for _d in _options:
                 if _d == 0:
-                    _prices, _as_of = get_index_intraday_sparkline(index_key)
+                    _prices, _as_of = get_index_intraday_sparkline(index_key, trading_open)
                 else:
                     _prices, _as_of = get_index_sparkline(index_key, _d)
                 _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
-                _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})" if (_d == 1 and _as_of) else _fmt_day_option(_d)
+                if _d == 1 and _as_of:
+                    _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})"
+                elif _d == 0 and _as_of:
+                    _labels[str(_d)] = f"{_fmt_day_option(_d)} ({_as_of})"
+                else:
+                    _labels[str(_d)] = _fmt_day_option(_d)
 
             _card_args = {
                 "label": label, "options": _options, "series": _series, "labels": _labels,
