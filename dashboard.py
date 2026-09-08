@@ -2704,10 +2704,25 @@ with _tab_slot_today.container():
                                 box-shadow: none !important; padding: 0 !important;
                                 color: inherit !important; text-decoration: underline dotted;
                                 text-underline-offset: 2px; font-weight: 400 !important;
-                                font-size: 0.85rem !important; justify-content: flex-end !important;
+                                font-size: 0.85rem !important;
+                                /* flex-start, לא flex-end: לכפתור יש direction:rtl (ר' Streamlit
+                                בעצמו), אז justify-content בציר הראשי מתפרש הפוך מ-LTR - flex-end
+                                דוחף לשמאל (ה"סוף" ב-RTL), flex-start דוחף לימין (9.9.2026, "תיישר
+                                את שמות המניות לימין" - נמדד בפועל ב-DOM שזו הייתה הסיבה). */
+                                justify-content: flex-start !important; text-align: right !important;
                                 width: 100%;
                             }
-                            div[class*="st-key-alert_row_"] button p { font-size: 0.85rem !important; }
+                            /* ה-justify-content על ה-button עצמו לא מספיק - יש עוד div פנימי
+                            (ילד ישיר של הכפתור, ה-wrapper האמיתי של האייקון/טקסט) שמקבל
+                            display:flex + width:100% משלו וממרכז (justify-content:center)
+                            בעצמו - הוא זה שקובע בפועל את המיקום, לא ה-button (נמדד ב-DOM
+                            בפועל, 9.9.2026). */
+                            div[class*="st-key-alert_row_"] button > div {
+                                justify-content: flex-start !important;
+                            }
+                            div[class*="st-key-alert_row_"] button p {
+                                font-size: 0.85rem !important; text-align: right !important; width: 100%;
+                            }
                             /* אותו border-bottom כמו שאר התאים בשורה (ר' _rc.markdown למטה) -
                             כך שגם עמודת ה"שם" (כפתור, לא div רגיל) מקבלת אותו קו מפריד
                             בין שורות כמו כל שאר הטבלה (9.9.2026, בקשה שהטבלה תיראה
