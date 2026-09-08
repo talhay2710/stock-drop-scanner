@@ -2,6 +2,7 @@
 import concurrent.futures
 import datetime as dt
 import logging
+import socket
 import time
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -12,6 +13,21 @@ from .constituents import INDEX_PROXY_TICKER
 from .market_hours import is_market_open, has_closed_today, MARKET_HOURS
 
 logger = logging.getLogger(__name__)
+
+# בלי timeout מפורש, קריאת yfinance שיאהו "בולעת" (מקבלת את החיבור אבל לא
+# עונה) יכולה להיתקע דקות ארוכות - retry/circuit-breaker (ר' _with_retry
+# למטה) לא עוזרים במקרה הזה, כי הם פועלים רק אחרי שקריאה בפועל *נכשלה*
+# (זרקה שגיאה), לא כשהיא פשוט תקועה. נמדד בפועל (9.9.2026): קליק בודד
+# בדשבורד תקוע מעל 80 שניות גם אחרי restart נקי לגמרי.
+_YF_TIMEOUT_SECONDS = 8
+
+# רשת ברירת מחדל ברמת ה-socket (לא רק ל-.history()/.download() שמקבלים
+# timeout= מפורש למעלה) - .info/.get_info (fetch_current_price,
+# _fix_stale_rows_with_live_quote, quality.py) לא חושפים פרמטר timeout
+# משלהם ב-yfinance, אז זו הדרך היחידה לוודא שגם הם לא יתקעו לצמיתות.
+# תקף לכל התהליך (לא רק yfinance) - מקובל בקוד רשת שאין לו כבר לוגיקת
+# timeout ספציפית, וטיימאאוט 8 שניות סביר גם לקריאות טלגרם.
+socket.setdefaulttimeout(_YF_TIMEOUT_SECONDS)
 
 # מניות ת"א (.TA) מדווחות ב-Yahoo Finance באגורות (currency='ILA'), לא בש"ח -
 # ממירים לש"ח (חלקי 100) מיד עם השליפה כדי שכל שאר האפליקציה תעבוד ביחידה עקבית.
@@ -75,15 +91,28 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
     """מוריד היסטוריית מחירים עבור כל המניות ברשימה בבת אחת, ומחזיר טבלת
     שינוי יומי אחוזי לכל מניה (סגירה אחרונה מול הסגירה הקודמת).
     """
-    data = yf.download(
-        tickers=tickers,
-        period=history_period,
-        interval="1d",
-        group_by="ticker",
-        threads=True,
-        auto_adjust=False,
-        progress=False,
-    )
+    # קריאה יקרה אחת על עשרות/מאות טיקרים - אם המעגל כבר "פתוח" (כשלים
+    # רצופים ידועים, ר' _circuit_is_open) מדלגים לגמרי במקום לחכות ל-timeout
+    # (8 שניות) על משהו שכמעט בטוח ייכשל, בדיוק כשזה הכי יקר (9.9.2026).
+    if _circuit_is_open():
+        logger.warning("מדלג על fetch_universe_daily_changes - circuit-breaker פתוח")
+        return pd.DataFrame()
+    try:
+        data = _call_with_hard_timeout(lambda: yf.download(
+            tickers=tickers,
+            period=history_period,
+            interval="1d",
+            group_by="ticker",
+            threads=True,
+            auto_adjust=False,
+            progress=False,
+            timeout=_YF_TIMEOUT_SECONDS,
+        ), timeout_seconds=_BATCH_HARD_TIMEOUT_SECONDS)
+        _report_circuit_success()
+    except Exception as e:
+        _report_circuit_failure()
+        logger.warning("נכשלה fetch_universe_daily_changes (%d טיקרים): %s", len(tickers), e)
+        return pd.DataFrame()
 
     rows = []
     for ticker in tickers:
@@ -231,24 +260,94 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
         list(executor.map(_fetch_live, target_rows))
 
 
-_RETRY_ATTEMPTS = 3
-_RETRY_DELAY_SECONDS = 2.0
+_RETRY_ATTEMPTS = 2
+_RETRY_DELAY_SECONDS = 1.0
+
+# Circuit breaker: אם כמה קריאות רצופות נכשלות, זה כנראה rate-limit אמיתי
+# של יאהו (לא כשל חד-פעמי) - ממשיכים לנסות 2x/1s על *כל* טיקר בנפרד רק
+# מנפחים ריצה אחת (עשרות טיקרים) לדקות, בלי לשפר את הסיכוי להצליח (9.9.2026,
+# נמדד בפועל: קליק בודד תקוע מעל 80 שניות, גם אחרי restart נקי לגמרי - יאהו
+# חסום, לא תהליך תקוע). בזמן שהמעגל "פתוח" מנסים פעם אחת בלבד, בלי sleep,
+# על כל קריאה - נכשלים מהר ומראים "אין נתון" במקום לתקוע את כל האפליקציה.
+_CIRCUIT_FAILURE_THRESHOLD = 5
+_CIRCUIT_COOLDOWN_SECONDS = 60.0
+_circuit_consecutive_failures = 0
+_circuit_open_until = 0.0
+
+
+def _circuit_is_open() -> bool:
+    """True אם המעגל כרגע 'פתוח' (הצטברו כשלים רצופים) - קריאות יקרות
+    שלא עוברות דרך _with_retry (כמו yf.download על עשרות/מאות טיקרים בבת
+    אחת ב-fetch_universe_daily_changes/fetch_latest_prices) יכולות לבדוק
+    את זה מראש ולדלג לגמרי במקום לחכות ל-timeout על משהו שכבר כמעט בטוח
+    ייכשל בכל מקרה."""
+    return time.monotonic() < _circuit_open_until
+
+
+# executor משותף אחד ל-fn() בתוך _with_retry (לא executor חדש בכל קריאה -
+# מיותר) - קורא ל-fn() בת'רד נפרד עם timeout אמיתי על ה-*קריאה* עצמה, לא
+# רק על ה-timeout= שמועבר ל-yfinance. חיוני כי yfinance 1.6.0 משתמש
+# ב-curl_cffi (לא requests רגיל) שלא בהכרח מכבד את socket.setdefaulttimeout
+# הגלובלי - וגם קריאות .info/.get_info() (fetch_current_price וכו') לא
+# חושפות פרמטר timeout ליfinance בכלל. בלי ה-thread timeout הזה, קריאה
+# תקועה בפועל יכולה עדיין להקפיא ריצה שלמה במשך דקות (נמדד בפועל 9.9.2026 -
+# מעל 6 דקות על ריצה אחת, גם אחרי הוספת timeout= ל-.history()/.download()).
+# ה-thread הרקע לא נהרג בפועל (פייתון לא יודע להרוג thread) - פשוט ממשיך
+# לרוץ ברקע ונזרק בסוף, זה בסדר: לא מצטבר בלי גבול כי כל קריאה חוסמת לכל
+# היותר לזמן ה-timeout שלה בעצמה מתישהו.
+_fn_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf_call")
+_HARD_TIMEOUT_SECONDS = _YF_TIMEOUT_SECONDS + 2  # מרווח קטן מעל timeout= הפנימי של yfinance עצמו
+# באצ'ים גדולים (fetch_universe_daily_changes/fetch_latest_prices - עשרות/מאות
+# טיקרים בקריאה אחת) לגיטימי שייקחו יותר זמן גם במצב בריא לגמרי - timeout קצר
+# מדי כאן היה גורם ל"אין נתון" תמידי על יקום גדול, לא רק כשיאהו באמת תקוע.
+_BATCH_HARD_TIMEOUT_SECONDS = 30
+
+
+def _call_with_hard_timeout(fn, timeout_seconds: float | None = None):
+    future = _fn_executor.submit(fn)
+    return future.result(timeout=timeout_seconds or _HARD_TIMEOUT_SECONDS)
+
+
+def _report_circuit_success() -> None:
+    global _circuit_consecutive_failures
+    _circuit_consecutive_failures = 0
+
+
+def _report_circuit_failure() -> None:
+    """קורא שלא עובר דרך _with_retry (fetch_universe_daily_changes/
+    fetch_latest_prices - כשל אחד על באצ' שלם) גם צריך לדווח כשל למעגל
+    המשותף, אחרת רק כשלים דרך _with_retry יכולים לפתוח אותו."""
+    global _circuit_consecutive_failures, _circuit_open_until
+    _circuit_consecutive_failures += 1
+    if _circuit_consecutive_failures >= _CIRCUIT_FAILURE_THRESHOLD:
+        _circuit_open_until = time.monotonic() + _CIRCUIT_COOLDOWN_SECONDS
+        logger.warning(
+            "%d כשלים רצופים - נכנס למצב circuit-breaker ל-%.0f שניות (בלי ניסיונות חוזרים)",
+            _circuit_consecutive_failures, _CIRCUIT_COOLDOWN_SECONDS,
+        )
 
 
 def _with_retry(fn, description: str):
     """מנסה עד _RETRY_ATTEMPTS פעמים עם המתנה קצרה ביניהן, לפני שנכנעים -
-    כשלים חד-פעמיים (rate-limit זמני, הפרעת רשת) לא אמורים להפוך ל"אין נתון"
-    אם ניסיון חוזר שנייה-שתיים אחר כך היה מצליח. חשוב במיוחד סביב פתיחת
-    המסחר (סיכום בוקר) ובסיכום היומי, שם 'אין מידע'/'לא מדויק' לא מתקבל."""
+    כשלים חד-פעמיים (רעש רשת נקודתי) לא אמורים להפוך ל"אין נתון" אם ניסיון
+    חוזר שנייה אחר כך היה מצליח. אבל אם כבר הצטברו הרבה כשלים רצופים
+    (_circuit_open_until), מדלגים על הניסיון החוזר לגמרי - ר' הערה למעלה."""
+    now = time.monotonic()
+    circuit_open = now < _circuit_open_until
+    attempts = 1 if circuit_open else _RETRY_ATTEMPTS
     last_err = None
-    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+    for attempt in range(1, attempts + 1):
         try:
-            return fn()
+            result = _call_with_hard_timeout(fn)
+            _report_circuit_success()
+            return result
         except Exception as e:
             last_err = e
-            if attempt < _RETRY_ATTEMPTS:
+            if attempt < attempts:
                 time.sleep(_RETRY_DELAY_SECONDS)
-    logger.warning("נכשלו כל %d הניסיונות עבור %s: %s", _RETRY_ATTEMPTS, description, last_err)
+    if not circuit_open:
+        _report_circuit_failure()
+    logger.warning("נכשלו כל %d הניסיונות עבור %s: %s", attempts, description, last_err)
     return None
 
 
@@ -319,7 +418,7 @@ def fetch_index_proxy_change(index: str) -> float | None:
         return None
 
     def _do():
-        hist = yf.Ticker(proxy).history(period="5d")
+        hist = yf.Ticker(proxy).history(period="5d", timeout=_YF_TIMEOUT_SECONDS)
         closes = _drop_isolated_price_outliers(hist["Close"].dropna())
         if len(closes) < 2:
             return None
@@ -339,7 +438,7 @@ def fetch_index_history(index: str, period: str) -> pd.Series:
     if not proxy:
         return pd.Series(dtype=float)
     try:
-        hist = yf.Ticker(proxy).history(period=period)
+        hist = yf.Ticker(proxy).history(period=period, timeout=_YF_TIMEOUT_SECONDS)
         return _drop_isolated_price_outliers(hist["Close"].dropna())
     except Exception as e:
         logger.warning("נכשלה שליפת היסטוריית המדד (%s): %s", proxy, e)
@@ -355,7 +454,7 @@ def fetch_index_intraday(index: str) -> pd.Series:
     if not proxy:
         return pd.Series(dtype=float)
     try:
-        hist = yf.Ticker(proxy).history(period="1d", interval="5m")
+        hist = yf.Ticker(proxy).history(period="1d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
         return hist["Close"].dropna()
     except Exception as e:
         logger.warning("נכשלה שליפת מסחר תוך-יומי (%s): %s", proxy, e)
@@ -451,7 +550,7 @@ def fetch_vix_level() -> tuple[float | None, float | None]:
     """שולף את רמת מדד הפחד (VIX) הנוכחית ואת השינוי היומי שלו (%) - אינדיקציה
     למידת העצבנות הכללית בשוק, לשימוש בכיול הערכת תגובת-היתר."""
     try:
-        hist = yf.Ticker("^VIX").history(period="5d")
+        hist = yf.Ticker("^VIX").history(period="5d", timeout=_YF_TIMEOUT_SECONDS)
         closes = hist["Close"].dropna()
         if len(closes) < 1:
             return None, None
@@ -495,12 +594,18 @@ def fetch_latest_prices(tickers: list[str]) -> dict[str, float]:
     """שולף את מחיר הסגירה האחרון הזמין עבור רשימת טיקרים, בבת אחת."""
     if not tickers:
         return {}
+    if _circuit_is_open():
+        logger.warning("מדלג על fetch_latest_prices - circuit-breaker פתוח")
+        return {}
     try:
-        data = yf.download(
+        data = _call_with_hard_timeout(lambda: yf.download(
             tickers=tickers, period="2d", interval="1d",
             group_by="ticker", threads=True, auto_adjust=False, progress=False,
-        )
+            timeout=_YF_TIMEOUT_SECONDS,
+        ), timeout_seconds=_BATCH_HARD_TIMEOUT_SECONDS)
+        _report_circuit_success()
     except Exception as e:
+        _report_circuit_failure()
         logger.warning("נכשלה שליפת מחירים עדכניים: %s", e)
         return {}
 
@@ -545,7 +650,7 @@ def get_stock_deep_info(ticker: str) -> dict:
         sector_etf = US_SECTOR_ETF.get(info["sector"])
         if sector_etf:
             try:
-                hist = yf.Ticker(sector_etf).history(period="5d")
+                hist = yf.Ticker(sector_etf).history(period="5d", timeout=_YF_TIMEOUT_SECONDS)
                 closes = hist["Close"].dropna()
                 if len(closes) >= 2:
                     info["sector_etf_change_pct"] = float(
