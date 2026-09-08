@@ -2664,9 +2664,16 @@ with _tab_slot_today.container():
                 })
                 if "שם" not in alerts_display.columns:
                     alerts_display["שם"] = ""
-                alerts_display["שם"] = alerts_display["שם"].fillna(alerts_display["טיקר"])
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
-                alerts_display = alerts_display[["id", "שם", "טיקר", "שינוי בזמן התראה", "שינוי נוכחי",
+                # "שם (טיקר)" - עמודת טיקר נפרדת בוטלה, אותו פורמט בדיוק כמו
+                # "שם_וטיקר" בטבלת "קרוב לסף" (_render_movers_style_table) -
+                # פינוי עמודה שלמה לרוחב לשאר העמודות הצפופות (9.9.2026,
+                # בקשה מפורשת, אושר שאותו פורמט כבר עובד בלי בעיה במקום אחר).
+                alerts_display["שם"] = alerts_display.apply(
+                    lambda r: f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"],
+                    axis=1,
+                )
+                alerts_display = alerts_display[["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי",
                                                   "תגובת יתר", "איכות פונדמנטלית",
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
@@ -2749,9 +2756,9 @@ with _tab_slot_today.container():
                             """,
                             unsafe_allow_html=True,
                         )
-                        _col_weights = [2, 1, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
+                        _col_weights = [2.4, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
                         _col_defs = [
-                            ("שם", None), ("טיקר", None),
+                            ("שם", None),
                             ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
                             ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
                             ("תגובת יתר", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
