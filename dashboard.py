@@ -2807,7 +2807,14 @@ with _tab_slot_today.container():
                                         _tier_raw = _row.get("סיווג ריבאונד")
                                         _tier_letter = _tier_raw.split("-")[0] if pd.notna(_tier_raw) else None
                                         _tier_badge = _REBOUND_TIER_EMOJI.get(_tier_letter, "")
-                                        _name_label = f"{_tier_badge} {_val}" if _tier_badge else str(_val)
+                                        _name_text = str(_val)
+                                        # קיצור ידני בפייתון, לא text-overflow:ellipsis - נמצא בפועל
+                                        # (9.9.2026) ש-ellipsis על מחרוזת מעורבת (עברית+טיקר לטיני)
+                                        # חותך מהצד הלא נכון ("...RG)" במקום "עזריאלי..."), גם עם
+                                        # RLI/PDI מפורשים - CSS לא מכבד את זה בפועל לצורך קיצור.
+                                        if len(_name_text) > 22:
+                                            _name_text = _name_text[:21] + "…"
+                                        _name_label = f"{_tier_badge} {_name_text}" if _tier_badge else _name_text
                                         if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", use_container_width=True):
                                             st.session_state["open_alert_id"] = None if _is_selected else _rid
                                             st.rerun(scope="fragment")
