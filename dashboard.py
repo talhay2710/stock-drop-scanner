@@ -2715,6 +2715,21 @@ with _tab_slot_today.container():
                             div[class*="st-key-alert_row_"] div[data-testid="stButton"] {
                                 padding:6px 10px; border-bottom:1px solid rgba(128,128,128,0.15);
                             }
+                            /* st.button נושא min-height/padding ברירת מחדל של Streamlit (בערך
+                            2.5rem) - כשהוא באותה שורת flex עם תאי טקסט רגילים (padding:6px
+                            10px בלבד, ר' _rc.markdown למטה), *כל השורה* נמתחת לגובה הכפתור,
+                            לא לגובה הטקסט - זו הסיבה שהשורות יצאו הרבה יותר גבוהות/מרווחות
+                            מהטבלה הישנה (HTML טהור, בלי widgets בכלל). מאפסים כל padding/gap/
+                            min-height שמתווסף ע"י ה-containers/columns של Streamlit עצמו, כדי
+                            שה-padding:6px 10px שכתבנו בעצמנו יהיה המקור היחיד לגובה השורה.
+                            (9.9.2026, "תעשה שייראה בדיוק כמו קודם"). */
+                            div[class*="st-key-alert_row_"] [data-testid="stVerticalBlock"] { gap: 0 !important; }
+                            div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] { gap: 0 !important; }
+                            div[class*="st-key-alert_row_"] [data-testid="stElementContainer"] { margin: 0 !important; }
+                            div[class*="st-key-alert_row_"] [data-testid="column"] { padding: 0 !important; }
+                            div[class*="st-key-alert_row_"] div[data-testid="stButton"] button {
+                                min-height: 0 !important; height: auto !important; line-height: 1.4 !important;
+                            }
                             </style>
                             """,
                             unsafe_allow_html=True,
