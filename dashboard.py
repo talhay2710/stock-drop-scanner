@@ -3785,11 +3785,15 @@ with st.container(border=True, key="market_panel"):
                     "target_pct": (target_price / entry - 1) * 100,
                     "value": current * qty,
                 })
-            if not _rows:
-                return
             st.divider()
             with st.container(border=True, key="chart_card_pnl"):
                 st.image(render_text_image("רווח/הפסד לפי אחזקה", ACCENT_COLOR, font_size=15))
+                if not _rows:
+                    # לא מדלגים בשקט - הגרף כולו "נעלם" בלי שום סימן אם כל
+                    # האחזקות נכשלו יחד (rate-limit של יאהו), נמצא בפועל
+                    # יותר מפעם אחת (9.9.2026, "איפה הגרף?").
+                    st.caption("אין כרגע נתוני מחיר להצגת הגרף - ינסה שוב ברענון הבא.")
+                    return
                 st.altair_chart(_build_pnl_bar_chart(_rows), use_container_width=True)
 
         _render_pnl_chart()
@@ -3803,13 +3807,19 @@ with st.container(border=True, key="market_panel"):
             if _holdings.empty:
                 return
             _comp_df = _compute_portfolio_history(_holdings)
-            if _comp_df is None:
-                return
             st.divider()
-            _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
-            _port_color = POS_COLOR if _comp_df[_port_col].iloc[-1] >= 0 else NEG_COLOR
             with st.container(border=True, key="chart_card_comparison"):
                 st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
+                if _comp_df is None:
+                    # לא מדלגים בשקט - _compute_portfolio_history מחזירה None גם
+                    # כשאין מספיק נתונים וגם כשנפילה של יאהו (fetch_universe_
+                    # daily_changes/fetch_index_history) מחזירה ריק - אין דרך
+                    # להבדיל מבחוץ, אז לפחות מציגים שלט במקום היעלמות שקטה
+                    # (9.9.2026, "איפה הגרף השני?").
+                    st.caption("אין כרגע מספיק נתונים להשוואה מול מדד - ינסה שוב ברענון הבא.")
+                    return
+                _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
+                _port_color = POS_COLOR if _comp_df[_port_col].iloc[-1] >= 0 else NEG_COLOR
                 st.altair_chart(
                     _build_comparison_chart(_comp_df, _port_col, _bench_col, _port_color),
                     use_container_width=True,
