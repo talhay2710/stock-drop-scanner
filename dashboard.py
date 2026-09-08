@@ -2710,14 +2710,19 @@ with _tab_slot_today.container():
                                 background: transparent !important; border: none !important;
                                 box-shadow: none !important; padding: 0 !important;
                                 color: inherit !important; text-decoration: underline dotted;
-                                text-underline-offset: 2px; font-weight: 400 !important;
-                                font-size: 0.85rem !important;
+                                text-underline-offset: 2px; font-weight: 500 !important;
+                                font-size: 0.9rem !important;
                                 /* flex-start, לא flex-end: לכפתור יש direction:rtl (ר' Streamlit
                                 בעצמו), אז justify-content בציר הראשי מתפרש הפוך מ-LTR - flex-end
                                 דוחף לשמאל (ה"סוף" ב-RTL), flex-start דוחף לימין (9.9.2026, "תיישר
                                 את שמות המניות לימין" - נמדד בפועל ב-DOM שזו הייתה הסיבה). */
                                 justify-content: flex-start !important; text-align: right !important;
                                 width: 100%;
+                                /* בלי nowrap, טקסט ארוך (שם+טיקר יחד) עובר שורה כשהעמודה צרה -
+                                "מדרגות" לא אחידות בין שורות לפי אורך השם (9.9.2026, "הקיוקוו
+                                המוזר"). אותה גזירה כמו שאר התאים בטבלה (ר' _rc.markdown למטה). */
+                                white-space: nowrap !important; overflow: hidden !important;
+                                text-overflow: ellipsis !important; display: block !important;
                             }
                             /* ה-justify-content על ה-button עצמו לא מספיק - יש עוד div פנימי
                             (ילד ישיר של הכפתור, ה-wrapper האמיתי של האייקון/טקסט) שמקבל
@@ -2725,10 +2730,12 @@ with _tab_slot_today.container():
                             בעצמו - הוא זה שקובע בפועל את המיקום, לא ה-button (נמדד ב-DOM
                             בפועל, 9.9.2026). */
                             div[class*="st-key-alert_row_"] button > div {
-                                justify-content: flex-start !important;
+                                justify-content: flex-start !important; overflow: hidden !important;
                             }
                             div[class*="st-key-alert_row_"] button p {
-                                font-size: 0.85rem !important; text-align: right !important; width: 100%;
+                                font-size: 0.9rem !important; font-weight: 500 !important;
+                                text-align: right !important; width: 100%; white-space: nowrap !important;
+                                overflow: hidden !important; text-overflow: ellipsis !important;
                             }
                             /* אותו border-bottom כמו שאר התאים בשורה (ר' _rc.markdown למטה) -
                             כך שגם עמודת ה"שם" (כפתור, לא div רגיל) מקבלת אותו קו מפריד
