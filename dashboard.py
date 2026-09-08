@@ -738,12 +738,16 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             # אם עדיין פתוח", אז אין סיבה להסתיר את התנודות תוך-יומיות בפועל
             # ולהתחיל (ברירת מחדל, initial_index=0) מקו שטוח של 2 נקודות בלבד -
             # בדיוק מה שהמשתמש תפס בפועל גם במדדים האמריקאיים כשהשוק שלהם סגור
-            # (9.9.2026, "לא רואים את התנודות האמיתיות שהיו היום").
-            _options = [0] + _day_options
+            # (9.9.2026, "לא רואים את התנודות האמיתיות שהיו היום"). אבל כשהשוק
+            # סגור, אפשרות "1" (יום אחרון) מייצגת בדיוק אותו יום מסחר כמו
+            # אפשרות "0" - שתי אפשרויות לאותו הדבר, אחת עם גרף אמיתי ואחת עם
+            # קו שטוח של 2 נקודות בלבד. מדלגים על "1" במקרה הזה כדי לא להציג
+            # שתי אפשרויות זהות בפועל בסליידר (9.9.2026, "שים לב שיש לך כפל").
+            _options = [0] + ([d for d in _day_options if d != 1] if not trading_open else _day_options)
 
             def _fmt_day_option(v: int) -> str:
                 if v == 0:
-                    return "מסחר פעיל" if trading_open else "מסחר אחרון"
+                    return "מסחר פעיל" if trading_open else "יום המסחר האחרון"
                 if v == 1:
                     return "יום אחרון"
                 return f"{v} ימים"
@@ -761,13 +765,10 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 else:
                     _prices, _as_of = get_index_sparkline(index_key, _d)
                 _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
-                if _d == 1 and _as_of:
+                # "יום המסחר האחרון (תאריך)" - _d==1 (רק כשהשוק פתוח, ר' סינון
+                # למעלה) או _d==0 כשהשוק סגור, אף פעם לא שניהם יחד באותה ריצה.
+                if (_d == 1 or (_d == 0 and not trading_open)) and _as_of:
                     _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})"
-                elif _d == 0 and _as_of and not trading_open:
-                    # רק כשהשוק סגור מוסיפים תאריך - "מסחר אחרון (07/09)".
-                    # כשהמסחר פעיל בפועל עכשיו, "מסחר פעיל" מספיק בלי תוספת
-                    # (9.9.2026, בעקבות תלונה שהשעה בסוגריים לא התבקשה).
-                    _labels[str(_d)] = f"{_fmt_day_option(_d)} ({_as_of})"
                 else:
                     _labels[str(_d)] = _fmt_day_option(_d)
 
