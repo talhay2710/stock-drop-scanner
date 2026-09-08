@@ -2769,7 +2769,12 @@ with _tab_slot_today.container():
                         _color_cols = {"שינוי בזמן התראה", "שינוי נוכחי"}
                         _header_cols = st.columns(_col_weights)
                         for _hc, (_col_name, _) in zip(_header_cols, _col_defs):
-                            _label = _rebound_header_label if _col_name == "סיווג ריבאונד" else _col_name
+                            if _col_name == "סיווג ריבאונד":
+                                _label = _rebound_header_label
+                            elif _col_name == "שם":
+                                _label = "מניה"
+                            else:
+                                _label = _col_name
                             _hc.markdown(
                                 f'<div style="font-weight:600; font-size:0.85rem; border-bottom:1px solid '
                                 f'rgba(128,128,128,0.3); padding-bottom:4px;">{_label}</div>',
@@ -2788,7 +2793,15 @@ with _tab_slot_today.container():
                                 for _rc, (_col_name, _fmt) in zip(_row_cols, _col_defs):
                                     _val = _row[_col_name]
                                     if _col_name == "שם":
-                                        if _rc.button(str(_val), key=f"open_alert_btn_{_rid}", use_container_width=True):
+                                        # עיגול צבע סיווג הריבאונד לצד השם, מימין - ה-emoji
+                                        # ראשון במחרוזת מוצג הכי ימני ב-RTL (9.9.2026, בקשה
+                                        # מפורשת). אותה מוסכמה כמו _REBOUND_TIER_EMOJI בכל
+                                        # מקום אחר בקובץ הזה.
+                                        _tier_raw = _row.get("סיווג ריבאונד")
+                                        _tier_letter = _tier_raw.split("-")[0] if pd.notna(_tier_raw) else None
+                                        _tier_badge = _REBOUND_TIER_EMOJI.get(_tier_letter, "")
+                                        _name_label = f"{_tier_badge} {_val}" if _tier_badge else str(_val)
+                                        if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", use_container_width=True):
                                             st.session_state["open_alert_id"] = None if _is_selected else _rid
                                             st.rerun(scope="fragment")
                                         continue
