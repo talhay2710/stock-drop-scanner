@@ -621,6 +621,20 @@ CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
 @st.cache_data(ttl=60)
+def _last_close_before(hist: pd.Series, target_date) -> float | None:
+    """הסגירה היומית האחרונה *לפני* target_date - לא לפי מיקום קבוע (.iloc[-1]/-2)
+    כי _get_index_history_raw (period יומי) כן כוללת שורה ל"היום" כשהמסחר
+    פעיל כרגע, עם מחיר *חי מתעדכן*, לא סגירה סופית - .iloc[-1] יכול להיות
+    "היום" או "אתמול" תלוי אם השוק פתוח, אז חיפוש לפי תאריך אמיתי הוא הדרך
+    היחידה האמינה (9.9.2026, באג נמצא בפועל: כשהשוק פתוח .iloc[-1] היה
+    בעצם המחיר החי של היום עצמו, לא סגירת אתמול - האחוז נתקע קרוב ל-0%
+    כי הנקודה שהודבקה כ'סגירה קודמת' זהה כמעט למחיר הנוכחי)."""
+    if hist.empty:
+        return None
+    earlier = hist[hist.index.map(lambda ts: ts.date() < target_date)]
+    return float(earlier.iloc[-1]) if not earlier.empty else None
+
+
 def get_index_intraday_sparkline(index_key: str, trading_open: bool = True) -> tuple[list, str | None]:
     """נקודות המסחר התוך-יומי - מטמון קצר (דקה, לא 5 כמו הגרסה ההיסטורית) כי
     זה "מסחר נוכחי" ואמור להיות רענן ממש. התווית היא שעת הנקודה האחרונה
@@ -636,15 +650,9 @@ def get_index_intraday_sparkline(index_key: str, trading_open: bool = True) -> t
     # האחוז שמחושב מהנקודה הראשונה כאן (ר' render_index_card/הרכיב ב-JS,
     # (last-first)/first) חייב להיות ביחס לסגירה *הקודמת* - המוסכמה הפיננסית
     # הרגילה (כמו בגוגל/יאהו פייננס) - לא ביחס לבר התוך-יומי הראשון של היום.
-    # בלי זה, "מסחר פעיל" הראה בפועל שינוי מאז פתיחת המסחר של היום, לא מאז
-    # אתמול - יכול להיתקע קרוב ל-0% שעות אם המדד פתח בפער ואז נסחר שטוח,
-    # למרות שהגרף עצמו ממשיך לזוז ונראה כאילו "קורה משהו" (9.9.2026, בעקבות
-    # תלונה שהאחוז נשאר על 0% כל היום).
-    _prev_close_hist = _get_index_history_raw(index_key)
-    if not _prev_close_hist.empty:
-        _prev_close = float(_prev_close_hist.iloc[-1])
-        if prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
-            prices = [_prev_close] + prices
+    _prev_close = _last_close_before(_get_index_history_raw(index_key), hist.index[-1].date())
+    if _prev_close is not None and prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
+        prices = [_prev_close] + prices
     return prices, _as_of
 
 
@@ -661,15 +669,11 @@ def get_index_last_completed_sparkline(index_key: str) -> tuple[list, str | None
         return [], None
     _as_of = hist.index[-1].strftime("%d/%m")
     prices = hist.tolist()
-    # אותה מוסכמה כמו get_index_intraday_sparkline - האחוז ביחס לסגירה *לפני*
-    # היום המושלם הזה, לא לבר התוך-יומי הראשון שלו. _get_index_history_raw
-    # לא כולל את היום הנוכחי (בעיצומו) כשהמסחר פעיל, אז .iloc[-1] שלה הוא
-    # כבר הסגירה של היום המושלם עצמו - הסגירה *שלפניו* היא .iloc[-2].
-    _prev_close_hist = _get_index_history_raw(index_key)
-    if len(_prev_close_hist) >= 2:
-        _prev_close = float(_prev_close_hist.iloc[-2])
-        if prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
-            prices = [_prev_close] + prices
+    # הסגירה *לפני* היום המושלם הזה עצמו (לא לפני "היום" הנוכחי) - ר' הערה
+    # ב-_last_close_before למה חיפוש לפי תאריך, לא .iloc[-2] קבוע.
+    _prev_close = _last_close_before(_get_index_history_raw(index_key), hist.index[-1].date())
+    if _prev_close is not None and prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
+        prices = [_prev_close] + prices
     return prices, _as_of
 
 
