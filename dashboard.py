@@ -2708,6 +2708,13 @@ with _tab_slot_today.container():
                                 width: 100%;
                             }
                             div[class*="st-key-alert_row_"] button p { font-size: 0.85rem !important; }
+                            /* אותו border-bottom כמו שאר התאים בשורה (ר' _rc.markdown למטה) -
+                            כך שגם עמודת ה"שם" (כפתור, לא div רגיל) מקבלת אותו קו מפריד
+                            בין שורות כמו כל שאר הטבלה (9.9.2026, בקשה שהטבלה תיראה
+                            "כמו קודם" - הגרסה הקודמת של הטבלה, בלי לגעת בפתיחה עצמה). */
+                            div[class*="st-key-alert_row_"] div[data-testid="stButton"] {
+                                padding:6px 10px; border-bottom:1px solid rgba(128,128,128,0.15);
+                            }
                             </style>
                             """,
                             unsafe_allow_html=True,
@@ -2754,7 +2761,8 @@ with _tab_slot_today.container():
                                         _color_style = f"color:{POS_COLOR if _val >= 0 else NEG_COLOR}; font-weight:600;"
                                     _rc.markdown(
                                         f'<div style="font-size:0.85rem; {_color_style} overflow:hidden; '
-                                        f'text-overflow:ellipsis; white-space:nowrap;">{_text}</div>',
+                                        f'text-overflow:ellipsis; white-space:nowrap; padding:6px 10px; '
+                                        f'border-bottom:1px solid rgba(128,128,128,0.15);">{_text}</div>',
                                         unsafe_allow_html=True,
                                     )
                                 if _is_selected:
