@@ -461,6 +461,31 @@ def fetch_index_intraday(index: str) -> pd.Series:
         return pd.Series(dtype=float)
 
 
+def fetch_index_last_completed_intraday(index: str) -> pd.Series:
+    """נקודות תוך-יומיות (5 דק') של יום המסחר האחרון *שהושלם* - גם כשהשוק
+    פתוח כרגע ו-fetch_index_intraday (period="1d") כבר מחזירה את היום הנוכחי
+    (בעיצומו). לאפשרות "יום המסחר האחרון" בסליידר בזמן שהמסחר פעיל, כדי
+    שגם שם יוצג הגרף התוך-יומי האמיתי של אתמול, לא רק קו שטוח של סגירה מול
+    סגירה (9.9.2026, בקשה מפורשת). period="5d" ואז לוקחים את התאריך
+    השני-מהסוף (לא האחרון - זה עשוי להיות היום הנוכחי, בעיצומו)."""
+    proxy = INDEX_PROXY_TICKER.get(index.upper())
+    if not proxy:
+        return pd.Series(dtype=float)
+    try:
+        hist = yf.Ticker(proxy).history(period="5d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
+        closes = hist["Close"].dropna()
+        if closes.empty:
+            return pd.Series(dtype=float)
+        dates = sorted(set(ts.date() for ts in closes.index))
+        if len(dates) < 2:
+            return pd.Series(dtype=float)
+        target_date = dates[-2]
+        return closes[closes.index.map(lambda ts: ts.date() == target_date)]
+    except Exception as e:
+        logger.warning("נכשלה שליפת יום המסחר האחרון שהושלם (%s): %s", proxy, e)
+        return pd.Series(dtype=float)
+
+
 MARKET_REGIME_LABELS = {
     "bull_calm": "🟢 שוק עולה, רגוע",
     "bull_volatile": "🟡 שוק עולה, תנודתי",

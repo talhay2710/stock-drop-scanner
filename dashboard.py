@@ -648,6 +648,31 @@ def get_index_intraday_sparkline(index_key: str, trading_open: bool = True) -> t
     return prices, _as_of
 
 
+@st.cache_data(ttl=60)
+def get_index_last_completed_sparkline(index_key: str) -> tuple[list, str | None]:
+    """נקודות תוך-יומיות של יום המסחר האחרון *שהושלם* - בשימוש רק כשהמסחר
+    פעיל כרגע (get_index_intraday_sparkline כבר תפוסה ב"מסחר פעיל", שהוא
+    היום הנוכחי בעיצומו, לא היום שלפניו). כדי שגם אפשרות "יום המסחר האחרון"
+    בסליידר תראה גרף תוך-יומי אמיתי, לא קו שטוח של סגירה מול סגירה
+    (9.9.2026, בקשה מפורשת: "מסחר פעיל... והחלק הבא אחריו... יום המסחר
+    האחרון... עם נתונים של יום המסחר האחרון")."""
+    hist = market_data.fetch_index_last_completed_intraday(index_key)
+    if hist.empty:
+        return [], None
+    _as_of = hist.index[-1].strftime("%d/%m")
+    prices = hist.tolist()
+    # אותה מוסכמה כמו get_index_intraday_sparkline - האחוז ביחס לסגירה *לפני*
+    # היום המושלם הזה, לא לבר התוך-יומי הראשון שלו. _get_index_history_raw
+    # לא כולל את היום הנוכחי (בעיצומו) כשהמסחר פעיל, אז .iloc[-1] שלה הוא
+    # כבר הסגירה של היום המושלם עצמו - הסגירה *שלפניו* היא .iloc[-2].
+    _prev_close_hist = _get_index_history_raw(index_key)
+    if len(_prev_close_hist) >= 2:
+        _prev_close = float(_prev_close_hist.iloc[-2])
+        if prices[0] and abs(_prev_close - prices[0]) / prices[0] > 0.0001:
+            prices = [_prev_close] + prices
+    return prices, _as_of
+
+
 @st.cache_data(ttl=300)
 def _get_index_history_raw(index_key: str) -> pd.Series:
     """שליפת ה-4 חודשים הגולמית בלבד, ממוטמנת בנפרד לפי index_key בלבד (לא
@@ -762,6 +787,12 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             for _d in _options:
                 if _d == 0:
                     _prices, _as_of = get_index_intraday_sparkline(index_key, trading_open)
+                elif _d == 1 and trading_open:
+                    # כשהמסחר פעיל, "0" כבר תפוס ב"מסחר פעיל" (היום הנוכחי,
+                    # בעיצומו) - "1" צריך את הגרף התוך-יומי האמיתי של היום
+                    # *שלפניו* (המסחר האחרון שהושלם), לא קו שטוח סגירה-מול-
+                    # סגירה (9.9.2026, בקשה מפורשת).
+                    _prices, _as_of = get_index_last_completed_sparkline(index_key)
                 else:
                     _prices, _as_of = get_index_sparkline(index_key, _d)
                 _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
