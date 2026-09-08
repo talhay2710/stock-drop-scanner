@@ -98,7 +98,7 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
         logger.warning("מדלג על fetch_universe_daily_changes - circuit-breaker פתוח")
         return pd.DataFrame()
     try:
-        data = _call_with_hard_timeout(lambda: yf.download(
+        data = yf.download(
             tickers=tickers,
             period=history_period,
             interval="1d",
@@ -107,7 +107,7 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             auto_adjust=False,
             progress=False,
             timeout=_YF_TIMEOUT_SECONDS,
-        ), timeout_seconds=_BATCH_HARD_TIMEOUT_SECONDS)
+        )
         _report_circuit_success()
     except Exception as e:
         _report_circuit_failure()
@@ -284,28 +284,15 @@ def _circuit_is_open() -> bool:
     return time.monotonic() < _circuit_open_until
 
 
-# executor משותף אחד ל-fn() בתוך _with_retry (לא executor חדש בכל קריאה -
-# מיותר) - קורא ל-fn() בת'רד נפרד עם timeout אמיתי על ה-*קריאה* עצמה, לא
-# רק על ה-timeout= שמועבר ל-yfinance. חיוני כי yfinance 1.6.0 משתמש
-# ב-curl_cffi (לא requests רגיל) שלא בהכרח מכבד את socket.setdefaulttimeout
-# הגלובלי - וגם קריאות .info/.get_info() (fetch_current_price וכו') לא
-# חושפות פרמטר timeout ליfinance בכלל. בלי ה-thread timeout הזה, קריאה
-# תקועה בפועל יכולה עדיין להקפיא ריצה שלמה במשך דקות (נמדד בפועל 9.9.2026 -
-# מעל 6 דקות על ריצה אחת, גם אחרי הוספת timeout= ל-.history()/.download()).
-# ה-thread הרקע לא נהרג בפועל (פייתון לא יודע להרוג thread) - פשוט ממשיך
-# לרוץ ברקע ונזרק בסוף, זה בסדר: לא מצטבר בלי גבול כי כל קריאה חוסמת לכל
-# היותר לזמן ה-timeout שלה בעצמה מתישהו.
-_fn_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf_call")
-_HARD_TIMEOUT_SECONDS = _YF_TIMEOUT_SECONDS + 2  # מרווח קטן מעל timeout= הפנימי של yfinance עצמו
-# באצ'ים גדולים (fetch_universe_daily_changes/fetch_latest_prices - עשרות/מאות
-# טיקרים בקריאה אחת) לגיטימי שייקחו יותר זמן גם במצב בריא לגמרי - timeout קצר
-# מדי כאן היה גורם ל"אין נתון" תמידי על יקום גדול, לא רק כשיאהו באמת תקוע.
-_BATCH_HARD_TIMEOUT_SECONDS = 30
-
-
-def _call_with_hard_timeout(fn, timeout_seconds: float | None = None):
-    future = _fn_executor.submit(fn)
-    return future.result(timeout=timeout_seconds or _HARD_TIMEOUT_SECONDS)
+# נוסה כאן קודם: עטיפת fn() ב-ThreadPoolExecutor + future.result(timeout=...)
+# בשביל hard timeout אמיתי גם על .info/.get_info() (שלא חושפות timeout=
+# משלהן ליfinance). הוסר (9.9.2026) - קרס בפועל באתר הציבורי (RuntimeError
+# בתוך streamlit/runtime/caching/cache_utils.py, כנראה קונפליקט עם המנגנון
+# הפנימי של Streamlit ל-context/locking סביב @st.cache_data כשקוראים לו
+# מתוך thread חיצוני) - נבדק רק מקומית (Python 3.12), לא בענן (Python 3.14
+# שם), ולא היה אמור להיכנס לייצור בלי אימות שם קודם. timeout= (ליfinance,
+# ר' _YF_TIMEOUT_SECONDS) + socket.setdefaulttimeout + circuit breaker
+# נשארים - מגינים על רוב המקרים בלי הסיכון של קריאה מ-thread זר.
 
 
 def _report_circuit_success() -> None:
@@ -338,7 +325,7 @@ def _with_retry(fn, description: str):
     last_err = None
     for attempt in range(1, attempts + 1):
         try:
-            result = _call_with_hard_timeout(fn)
+            result = fn()
             _report_circuit_success()
             return result
         except Exception as e:
@@ -623,11 +610,11 @@ def fetch_latest_prices(tickers: list[str]) -> dict[str, float]:
         logger.warning("מדלג על fetch_latest_prices - circuit-breaker פתוח")
         return {}
     try:
-        data = _call_with_hard_timeout(lambda: yf.download(
+        data = yf.download(
             tickers=tickers, period="2d", interval="1d",
             group_by="ticker", threads=True, auto_adjust=False, progress=False,
             timeout=_YF_TIMEOUT_SECONDS,
-        ), timeout_seconds=_BATCH_HARD_TIMEOUT_SECONDS)
+        )
         _report_circuit_success()
     except Exception as e:
         _report_circuit_failure()
