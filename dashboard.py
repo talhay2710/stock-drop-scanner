@@ -763,7 +763,10 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                 _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
                 if _d == 1 and _as_of:
                     _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})"
-                elif _d == 0 and _as_of:
+                elif _d == 0 and _as_of and not trading_open:
+                    # רק כשהשוק סגור מוסיפים תאריך - "מסחר אחרון (07/09)".
+                    # כשהמסחר פעיל בפועל עכשיו, "מסחר פעיל" מספיק בלי תוספת
+                    # (9.9.2026, בעקבות תלונה שהשעה בסוגריים לא התבקשה).
                     _labels[str(_d)] = f"{_fmt_day_option(_d)} ({_as_of})"
                 else:
                     _labels[str(_d)] = _fmt_day_option(_d)
