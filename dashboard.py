@@ -3399,7 +3399,7 @@ with _tab_slot_portfolio.container():
                 )
 
                 card_html = f"""
-                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
                       <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
@@ -3408,7 +3408,7 @@ with _tab_slot_portfolio.container():
                       </div>
                       {daily_badge_html}
                     </div>
-                    <div style="display:flex; align-items:center; gap:16px; margin-top:8px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:8px;">
                       {hero_html}
                       {spark_html}
                     </div>
