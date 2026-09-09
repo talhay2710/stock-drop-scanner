@@ -3392,19 +3392,15 @@ with _tab_slot_portfolio.container():
 
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
-                # ארבעת התאים האחרונים בגריד (סקטור/% מהתיק/ימים מוחזק/נטו)
-                # בסגנון פיל עם מסגרת/רקע (לא label+value כמו שאר הגריד) ובלי
-                # כותרת נפרדת מעל - במיקום הנוכחי (חלק מאותו גריד), אבל
-                # בפורמט הקודם שכבר אהבת (9.9.2026, "במסגרות שהיו קודם וללא
-                # כותרות. במיקום הנוכחי אבל בפורמט הקודמת").
-                meta_pill_style = (
-                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
-                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px; '
-                    f'justify-self:start; width:fit-content;'
-                )
-                sector_cell = (
-                    f'<span style="{meta_pill_style}"><span style="display:inline-block; width:6px; height:6px; '
-                    f'border-radius:50%; background:{sector_color};"></span>{sector_label}</span>'
+                # סקטור/% מהתיק/מוחזק - שורה משלהם מעל כפתור המכירה, באותו רוחב
+                # בדיוק (העמודה האמצעית מתוך [1,2,1], אותה חלוקה כמו הכפתור
+                # עצמו) - לא בתוך card_html, כדי שתתאים בדיוק לקצוות הכפתור
+                # (9.9.2026, "באותו קו של ההתחלה והסוף שלו").
+                meta_line_html = (
+                    f'<div style="text-align:center; font-size:0.68rem; color:{NEUTRAL_COLOR}; opacity:0.75;">'
+                    f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
+                    f'background:{sector_color}; margin-inline-end:3px;"></span>{sector_label} · '
+                    f'{row.get("portfolio_pct", 0):.0f}% מהתיק · מוחזק {row["days_held"]} ימים</div>'
                 )
 
                 card_html = f"""
@@ -3433,13 +3429,6 @@ with _tab_slot_portfolio.container():
                            <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:5px;">
-                        {sector_cell}
-                        <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                        <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
-                      </div>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
@@ -3472,6 +3461,11 @@ with _tab_slot_portfolio.container():
                     )
                     sell_key = f"confirm_sell_{row['id']}"
                     if not st.session_state.get(sell_key):
+                        # אותה חלוקת עמודות [1,2,1] בדיוק כמו שורת הכפתור מתחת -
+                        # כך שהשורה הזו מתחילה ומסתיימת באותו קו בדיוק כמו הכפתור.
+                        _, meta_col, _ = st.columns([1, 2, 1])
+                        with meta_col:
+                            st.markdown(meta_line_html, unsafe_allow_html=True)
                         _, btn_col, _ = st.columns([1, 2, 1])
                         with btn_col:
                             if st.button("💰 מכירה - סגירת פוזיציה", key=f"sell_holding_{row['id']}", width='stretch'):
