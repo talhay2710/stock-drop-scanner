@@ -206,14 +206,23 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
         # ל-fetch_current_price. בלי retry כאן, יום כמו 18.8.2026 (Yahoo
         # rate-limited) היה משאיר את כל הסריקה על נתונים ישנים בלי סיבה טובה.
         def _do():
-            info = yf.Ticker(row["ticker"]).info
-            price, prev = info.get("regularMarketPrice"), info.get("regularMarketPreviousClose")
-            ts = info.get("regularMarketTime")
-            if price is None or prev is None or not ts or not prev:
+            # .history(), לא .info כמו קודם (9.9.2026) - .info לא חושפת timeout
+            # ל-yfinance בכלל ומתגלה כלא אמינה (401/תקיעות, ר' _YF_TIMEOUT_SECONDS
+            # למעלה) - זו בדיוק הסיבה ש-fetch_current_price כבר עבר לזה. price+prev
+            # כבר לא מגיעים מובטחים-מזווגים מציטוט אחד (כמו ב-.info) - במקום זה
+            # בודקים במפורש שהזוג עקבי (יום מסחר אחד בערך ביניהם, לא "חור"),
+            # שזו בדיוק הבעיה שהבדיקה המקורית עם .info נועדה למנוע (ר' הערה למטה).
+            hist = yf.Ticker(row["ticker"]).history(period="5d", interval="1d", timeout=_YF_TIMEOUT_SECONDS)
+            closes = hist["Close"].dropna()
+            if len(closes) < 2:
+                return None
+            price, prev = float(closes.iloc[-1]), float(closes.iloc[-2])
+            price_date, prev_date = closes.index[-1].date(), closes.index[-2].date()
+            if (price_date - prev_date).days > 4:  # פער אמיתי ("חור") - לא זוג עקבי, מדלגים
                 return None
             is_il = _is_israeli_ticker(row["ticker"])
             spec = MARKET_HOURS["IL" if is_il else "US"]
-            close_date = dt.datetime.fromtimestamp(ts, tz=ZoneInfo(spec["tz"])).date()
+            close_date = price_date
             # אותה בדיקה בדיוק כמו ב-fetch_current_price: אם השוק פתוח עכשיו
             # בפועל, "ציטוט חי" שעדיין לא נושא תאריך של היום ממש הוא לא באמת
             # תיקון-טריות - הוא רק מחליף נתון ישן (יומיים אחורה) בנתון ישן
