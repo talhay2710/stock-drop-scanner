@@ -3269,7 +3269,6 @@ with _tab_slot_portfolio.container():
                 current, pnl, pnl_pct, net_pnl = row["current"], row["pnl"], row["pnl_pct"], row["net_pnl"]
                 is_il = market_data._is_israeli_ticker(row["ticker"])
 
-                net_cell = ""
                 if current is None or net_pnl is None:
                     color = CLOSED_COLOR
                     hero_html = (
@@ -3278,19 +3277,15 @@ with _tab_slot_portfolio.container():
                     )
                 else:
                     color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
+                    # נטו חוזרת מתחת למספר הגדול עצמו (לא בגריד למטה) - "מתחת
+                    # לזה תשים את הנטו" (9.9.2026).
                     hero_html = (
                         f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
                         f'{_signed_num(pnl)} {ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-                    )
-                    # נטו יושבת בגריד הנתונים (מיד אחרי "עלות") ולא ליד הכותרת -
-                    # שתיהן סכומי כסף כוללים (בשונה משערי מניה/כמות), אז הקיבוץ
-                    # הגיוני, וזה גם משאיר את הכותרת עם מספר אחד בלבד (9.9.2026,
-                    # בעקבות "אולי אחרי האחוז מהתיק או אחרי הכמות").
-                    net_cell = (
-                        f'<div style="font-size:0.64rem; opacity:0.45;">רווח/הפסד נטו</div>'
-                        f'<div style="font-size:0.82rem; font-weight:700;">{_signed_num(net_pnl)} {ccy_symbol}</div>'
+                        f'<div style="font-size:0.72rem; opacity:0.6; margin-top:2px;">'
+                        f'נטו: {_signed_num(net_pnl)} {ccy_symbol}</div>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
@@ -3418,11 +3413,10 @@ with _tab_slot_portfolio.container():
                       {spark_html}
                     </div>
                     {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px 8px; margin-top:10px;
+                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px 8px; margin-top:10px;
                                 padding-top:8px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
-                      <div>{net_cell}</div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
                            <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
