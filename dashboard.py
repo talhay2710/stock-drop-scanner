@@ -521,7 +521,7 @@ with st.container(key="nav_tabs_row"):
     for _nav_col, (_nav_key, _nav_label) in zip(_nav_cols, _TAB_DEFS):
         with _nav_col:
             if st.button(
-                _nav_label, key=f"navtab_{_nav_key}", use_container_width=True,
+                _nav_label, key=f"navtab_{_nav_key}", width='stretch',
                 type="primary" if st.session_state.active_tab == _nav_key else "secondary",
             ):
                 st.session_state.active_tab = None if st.session_state.active_tab == _nav_key else _nav_key
@@ -1775,7 +1775,7 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
-        if st.button("🔍 סריקת שווקים ידנית", key="sidebar_scan_button", use_container_width=True):
+        if st.button("🔍 סריקת שווקים ידנית", key="sidebar_scan_button", width='stretch'):
             # קריאה ישירה ממצב הווידג'טים הנוכחי, לא סומכים על זה שהשמירה האוטומטית
             # כבר הספיקה "להתיישב" ב-cfg לפני הלחיצה על סריקה (כדי לא לסרוק מדד ישן)
             cfg["indices"] = st.session_state.get("settings_indices") or cfg.get("indices")
@@ -2815,7 +2815,7 @@ with _tab_slot_today.container():
                                         if len(_name_text) > 22:
                                             _name_text = _name_text[:21] + "…"
                                         _name_label = f"{_tier_badge} {_name_text}" if _tier_badge else _name_text
-                                        if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", use_container_width=True):
+                                        if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", width='stretch'):
                                             st.session_state["open_alert_id"] = None if _is_selected else _rid
                                             st.rerun(scope="fragment")
                                         continue
@@ -3331,7 +3331,7 @@ with _tab_slot_portfolio.container():
                     if not st.session_state.get(sell_key):
                         _, btn_col, _ = st.columns([1, 2, 1])
                         with btn_col:
-                            if st.button("💰 מכירה - סגירת פוזיציה", key=f"sell_holding_{row['id']}", use_container_width=True):
+                            if st.button("💰 מכירה - סגירת פוזיציה", key=f"sell_holding_{row['id']}", width='stretch'):
                                 st.session_state[sell_key] = True
                                 st.rerun()
                     else:
@@ -3355,7 +3355,7 @@ with _tab_slot_portfolio.container():
                         )
                         cc1, cc2 = st.columns(2)
                         with cc1:
-                            if st.button("✅ אישור מכירה", key=f"confirm_sell_btn_{row['id']}", use_container_width=True):
+                            if st.button("✅ אישור מכירה", key=f"confirm_sell_btn_{row['id']}", width='stretch'):
                                 exit_at = dt.datetime.combine(exit_date, dt.datetime.now().time()).isoformat(timespec="seconds")
                                 entry_at = row["bought_at"]
                                 try:
@@ -3388,7 +3388,7 @@ with _tab_slot_portfolio.container():
                                 load_alerts.clear()
                                 st.rerun()
                         with cc2:
-                            if st.button("❌ ביטול", key=f"cancel_sell_btn_{row['id']}", use_container_width=True):
+                            if st.button("❌ ביטול", key=f"cancel_sell_btn_{row['id']}", width='stretch'):
                                 st.session_state.pop(sell_key, None)
                                 st.rerun()
 
@@ -3794,7 +3794,7 @@ with st.container(border=True, key="market_panel"):
                     # יותר מפעם אחת (9.9.2026, "איפה הגרף?").
                     st.caption("אין כרגע נתוני מחיר להצגת הגרף - ינסה שוב ברענון הבא.")
                     return
-                st.altair_chart(_build_pnl_bar_chart(_rows), use_container_width=True)
+                st.altair_chart(_build_pnl_bar_chart(_rows), width='stretch')
 
         _render_pnl_chart()
 
@@ -3822,7 +3822,7 @@ with st.container(border=True, key="market_panel"):
                 _port_color = POS_COLOR if _comp_df[_port_col].iloc[-1] >= 0 else NEG_COLOR
                 st.altair_chart(
                     _build_comparison_chart(_comp_df, _port_col, _bench_col, _port_color),
-                    use_container_width=True,
+                    width='stretch',
                 )
 
         _render_comparison_chart()
