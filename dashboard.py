@@ -1500,7 +1500,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         _today_icon = "📈" if today_pct >= 0 else "📉"
         today_line = (
             f'<div style="text-align:center; font-size:0.75rem; font-weight:600; color:{_today_color}; '
-            f'margin-top:4px;">{_today_icon} שינוי היום: {_signed_num(today_pct, 1, "%")} '
+            f'margin-top:4px;">{_today_icon} שינוי יומי: {_signed_num(today_pct, 1, "%")} '
             f'({_signed_num(today_change)} {ccy_symbol})</div>'
         )
     # הכותרת כאן חייבת להיות בדיוק אותה שורה/גובה כמו כותרת הסקטור (לא כותרת
