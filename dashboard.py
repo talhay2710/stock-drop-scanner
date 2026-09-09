@@ -1396,11 +1396,15 @@ def _stacked_bar_html(rows: list[dict], height: int = 20, gap_pct: float = 0.6, 
 
 
 def _mini_donut_svg(rows: list[dict], center_count: int | None = None,
-                     size: int = 54, stroke: int = 12, gap: float = 1.8) -> str:
+                     size: int = 54, stroke: int = 12, gap: float = 1.8,
+                     fill_height: bool = False) -> str:
     """דונאט זעיר - לשילוב במשבצת סיכום קומפקטית, לצד מקרא טקסטואלי מלא (לא
     רק hover) שמראה כל שם וכל אחוז בפועל, בלי לתפוס את כל רוחב המשבצת.
     center_count - מספר (למשל כמות אחזקות) בחור הדונאט; מסובב 90 מעלות נגד
-    כיוון סיבוב ה-SVG כולו (-90) כדי שהטקסט יישאר זקוף, לא יורש את הסיבוב."""
+    כיוון סיבוב ה-SVG כולו (-90) כדי שהטקסט יישאר זקוף, לא יורש את הסיבוב.
+    fill_height - height:100% (+aspect-ratio 1:1) במקום width/height קבועים
+    בפיקסלים, כדי שהעוגה תימתח בדיוק לגובה המכולה שלה (9.9.2026, "שיתחיל
+    ויסתיים באותו הקו בדיוק" - צריך גובה שנקבע דינמית ע"י flex, לא ניחוש)."""
     r = (size - stroke) / 2
     cx = cy = size / 2
     circumference = 2 * 3.14159265 * r
@@ -1424,9 +1428,13 @@ def _mini_donut_svg(rows: list[dict], center_count: int | None = None,
             f'transform="rotate(90 {cx} {cy})" font-size="16" font-weight="700" '
             f'fill="{NEUTRAL_COLOR}">{center_count}</text>'
         )
+    size_style = (
+        "height:100%; width:auto; aspect-ratio:1/1;" if fill_height
+        else f"width:{size}px; height:{size}px;"
+    )
     return (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" '
-        f'style="transform:rotate(-90deg); flex-shrink:0;">{"".join(segments)}{center_text}</svg>'
+        f'<svg viewBox="0 0 {size} {size}" '
+        f'style="{size_style} transform:rotate(-90deg); flex-shrink:0;">{"".join(segments)}{center_text}</svg>'
     )
 
 
@@ -1521,7 +1529,11 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
 
     sector_side = ""
     if sector_rows:
-        donut = _mini_donut_svg(sector_rows, size=100, stroke=20)
+        # size=110 - נמדד בפועל (getBoundingClientRect) שהשורה עם העוגה, אחרי
+        # ה-flex:1 על sector_side, נמתחת בדיוק לאותו גובה כמו תוכן status_side
+        # (110.5px, שני הצדדים תוכן קבוע ב-CSS ולא תלוי בנתונים) - עוגה בגודל
+        # הזה בדיוק (לא קטן ממנו) נוגעת בקו העליון והתחתון בלי מרווח (9.9.2026).
+        donut = _mini_donut_svg(sector_rows, size=110, stroke=20)
         legend_items = "".join(
             f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
             f'text-overflow:ellipsis; font-size:12.5px; font-weight:700; line-height:17px; opacity:0.9;">'
@@ -1535,11 +1547,17 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
             f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:right;">'
             f'התפלגות לפי סקטור</div>'
         )
+        # sector_side עצמו flex-column, והשורה עם העוגה flex:1 - כדי שהעוגה
+        # (fill_height=True) תימתח בדיוק לגובה שנשאר אחרי הכותרת, שבתורו נקבע
+        # ע"י ה-stretch של השורה החיצונית מול status_side (אותו גובה כותרת
+        # בדיוק בשני הצדדים) - כך שהעוגה מתחילה ומסתיימת באותו קו בדיוק
+        # (9.9.2026, בקשה מפורשת, לא רק "יותר גדול").
         sector_side = (
-            f'<div style="flex:1; min-width:170px; border-right:1px solid {NEUTRAL_COLOR}22; padding-right:16px;">'
+            f'<div style="flex:1; min-width:170px; border-right:1px solid {NEUTRAL_COLOR}22; '
+            f'padding-right:16px; display:flex; flex-direction:column;">'
             f'{sector_title}'
-            f'<div style="display:flex; direction:rtl; align-items:center; justify-content:center; '
-            f'gap:16px; margin-top:6px;">{legend}{donut}</div></div>'
+            f'<div style="flex:1; display:flex; direction:rtl; align-items:center; justify-content:center; '
+            f'gap:16px; margin-top:6px; min-height:0;">{legend}{donut}</div></div>'
         )
 
     count_label = (
