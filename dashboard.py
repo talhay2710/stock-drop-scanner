@@ -3308,12 +3308,20 @@ with _tab_slot_portfolio.container():
                         row["prices"], width=96, height=34, area_fill=True,
                         grad_id=f"spark-grad-{row['id']}",
                     )
-                    # ממוקם absolute במרכז השורה (לא flex רגיל) - כדי שהגרף
-                    # יהיה במרכז הכרטיס באמת, לא תלוי ברוחב המספר הגדול לידו
-                    # (9.9.2026, "את הגרף תמקם במרכז").
+                    # שער ביצוע/נוכחי ממוקמים ישירות מתחת לקצוות הגרף (לא בגריד
+                    # למטה) - x=0 בגרף הוא הנקודה הכי ישנה (ביצוע), x=width הכי
+                    # חדשה (נוכחי), אז התוויות יושבות בדיוק מתחת לנקודה שלהן
+                    # (9.9.2026, "שתמקם את שער הביצוע והנוכחי על הגרף").
                     spark_html = (
                         f'<div style="position:absolute; left:50%; top:50%; '
-                        f'transform:translate(-50%,-50%);">{svg}</div>'
+                        f'transform:translate(-50%,-50%); text-align:center;">'
+                        f'{svg}'
+                        f'<div style="position:relative; width:96px; height:0;">'
+                        f'<span style="position:absolute; left:0; top:2px; font-size:0.58rem; '
+                        f'opacity:0.55; direction:ltr;">{entry_price_text}</span>'
+                        f'<span style="position:absolute; right:0; top:2px; font-size:0.58rem; '
+                        f'font-weight:700; opacity:0.8; direction:ltr;">{current_price_text}</span>'
+                        f'</div></div>'
                     )
 
                 _daily_pct = row.get("daily_pct")
@@ -3392,20 +3400,6 @@ with _tab_slot_portfolio.container():
 
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
-                # ארבעת התאים האחרונים בגריד (סקטור/% מהתיק/ימים מוחזק/נטו)
-                # בסגנון פיל עם מסגרת/רקע (לא label+value כמו שאר הגריד) ובלי
-                # כותרת נפרדת מעל - במיקום הנוכחי (חלק מאותו גריד), אבל
-                # בפורמט הקודם שכבר אהבת (9.9.2026, "במסגרות שהיו קודם וללא
-                # כותרות. במיקום הנוכחי אבל בפורמט הקודמת").
-                meta_pill_style = (
-                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
-                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px; '
-                    f'justify-self:start; width:fit-content;'
-                )
-                sector_cell = (
-                    f'<span style="{meta_pill_style}"><span style="display:inline-block; width:6px; height:6px; '
-                    f'border-radius:50%; background:{sector_color};"></span>{sector_label}</span>'
-                )
 
                 card_html = f"""
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
@@ -3422,26 +3416,26 @@ with _tab_slot_portfolio.container():
                       {spark_html}
                     </div>
                     {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px 8px; margin-top:10px;
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px 8px; margin-top:10px;
                                 padding-top:8px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
                       <div>{net_cell}</div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
                     </div>
-                    <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:5px;">
-                        {sector_cell}
-                        <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                        <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
-                      </div>
-                    </div>
                 """
+                # קו משותף לסקטור/% מהתיק/מוחזק (שמאל) וכפתור המכירה (ימין) -
+                # לא בתוך card_html כי הכפתור הוא widget אמיתי, לא HTML; אותו
+                # רעיון שכבר עבד לגריד, בלי בלוק נפרד משלו (9.9.2026, "תשים
+                # באותו הקו... את כפתור המכירה תזיז ימינה").
+                meta_line_html = (
+                    f'<div style="font-size:0.72rem; color:{NEUTRAL_COLOR}; opacity:0.75; '
+                    f'display:flex; align-items:center; gap:4px; height:100%;">'
+                    f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
+                    f'background:{sector_color};"></span>{sector_label} · '
+                    f'{row.get("portfolio_pct", 0):.0f}% מהתיק · מוחזק {row["days_held"]} ימים</div>'
+                )
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
 
                 with st.container(border=True):
@@ -3472,11 +3466,17 @@ with _tab_slot_portfolio.container():
                     )
                     sell_key = f"confirm_sell_{row['id']}"
                     if not st.session_state.get(sell_key):
-                        _, btn_col, _ = st.columns([1, 2, 1])
+                        # עמודה ראשונה = ימין (העמוד RTL, ר' stHorizontalBlock
+                        # direction:rtl) - הכפתור ימינה, המידע (סקטור/% מהתיק/
+                        # מוחזק) שמאלה, על אותו קו (9.9.2026, "תזיז ימינה...
+                        # תשים באותו הקו מצד שמאל").
+                        btn_col, meta_col = st.columns([1, 2], vertical_alignment="center")
                         with btn_col:
-                            if st.button("💰 מכירה - סגירת פוזיציה", key=f"sell_holding_{row['id']}", width='stretch'):
+                            if st.button("💰 מכירה", key=f"sell_holding_{row['id']}", width='stretch'):
                                 st.session_state[sell_key] = True
                                 st.rerun()
+                        with meta_col:
+                            st.markdown(meta_line_html, unsafe_allow_html=True)
                     else:
                         is_il = market_data._is_israeli_ticker(row["ticker"])
                         st.markdown("**אישור מכירה**")
