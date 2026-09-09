@@ -3410,7 +3410,7 @@ with _tab_slot_portfolio.container():
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
                     </div>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;">
+                    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:12px;">
                       <span style="{chip_style}"><span style="display:inline-block; width:6px; height:6px;
                             border-radius:50%; background:{sector_color};"></span>{sector_label}</span>
                       <span style="{chip_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
@@ -3421,10 +3421,10 @@ with _tab_slot_portfolio.container():
 
                 with st.container(border=True):
                     st.markdown(card_html, unsafe_allow_html=True)
-                    # אותו צבע בדיוק כמו הכרטיס עצמו (ירוק/אדום לפי רווח/הפסד, אותם
-                    # color/bg שכבר חושבו למעלה) - לא אדום קבוע כמו שהיה, שלא שיקף
-                    # מצב אחזקה ברווח.
-                    _sell_r, _sell_g, _sell_b = (int(color.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+                    # אפור נייטרלי (לא ירוק/אדום לפי רווח/הפסד) - הכרטיס כבר עמוס
+                    # באדום/ירוק (פילס, בר, מספרים), כפתור בצבע נוסף "מתחרה" איתם
+                    # במקום להיראות כמו פעולה משנית רגילה (9.9.2026, "לא נראה הכי טוב").
+                    _sell_r, _sell_g, _sell_b = (int(NEUTRAL_COLOR.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
                     # הסלקטור חייב לכלול את row['id'] - בלי זה, "st-key-sell_holding_"
                     # (סוביסטרינג) תפס את הכפתורים של *כל* האחזקות, לא רק של השורה
                     # הזו, ומאחר ש-<style> תגי מוזרקים גלובליים לעמוד, ה-CSS של
@@ -3433,13 +3433,13 @@ with _tab_slot_portfolio.container():
                         f"""
                         <style>
                         div[class*="st-key-sell_holding_{row['id']}"] button {{
-                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08); color: {color};
-                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.35); border-radius: 8px;
+                            background-color: transparent; color: {NEUTRAL_COLOR};
+                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.3); border-radius: 8px;
                             font-weight: 500;
                         }}
                         div[class*="st-key-sell_holding_{row['id']}"] button:hover {{
-                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.16); color: {color};
-                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.5);
+                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08); color: {NEUTRAL_COLOR};
+                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.45);
                         }}
                         </style>
                         """,
