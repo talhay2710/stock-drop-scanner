@@ -70,8 +70,15 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
 
 
 def _build_movers_by_index(cfg) -> dict[str, list[dict]]:
+    # רק ת"א - הדוח נשלח ~10:10-10:45 שעון ישראל, מיד אחרי פתיחת ת"א, אבל
+    # שעות לפני פתיחת ארה"ב (16:30 שעון ישראל). "שינוי היום" למדדי ארה"ב
+    # באותה שעה הוא בהכרח עדיין השינוי של *אתמול* (הסגירה האחרונה הזמינה) -
+    # לא רלוונטי לדוח "תחילת יום", מטעה כאילו זה נתון של היום (9.9.2026,
+    # "זה נכון לאתמול. לא רלוונטי").
     movers_by_index: dict[str, list[dict]] = {}
     for index_name in (cfg.get("indices") or []):
+        if index_name.upper() not in ("TA35", "TA125"):
+            continue
         tickers = constituents.get_constituents(index_name)
         df = market_data.fetch_universe_daily_changes(tickers)
         if df.empty:
@@ -88,9 +95,11 @@ def _build_movers_by_index(cfg) -> dict[str, list[dict]]:
 
 
 def _build_index_changes(cfg) -> dict[str, float | None]:
+    # רק ת"א - ר' הערה ב-_build_movers_by_index למעלה, אותה סיבה בדיוק.
     return {
         index_name: market_data.fetch_index_proxy_change(index_name)
         for index_name in (cfg.get("indices") or [])
+        if index_name.upper() in ("TA35", "TA125")
     }
 
 
