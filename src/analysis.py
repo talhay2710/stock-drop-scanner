@@ -417,7 +417,7 @@ def weighted_rebound_score(overreaction_score: int, quality_score: float | None)
     """הציון המשוקלל הגולמי (0-100) - לב הלוגיקה, בשימוש גם ב-classify_rebound_from_scores
     וגם בדשבורד (להצגת המספר עצמו לצד סיווג ה-A/B/C), כדי שלא יהיו שני מקומות
     עם אותו נוסחה שעלולים לסטות זה מזה."""
-    if quality_score is None:
+    if quality_score is None or quality_score != quality_score:  # != self catches NaN too, not just None
         return float(overreaction_score)
     return REBOUND_OVERREACTION_WEIGHT * overreaction_score + (1 - REBOUND_OVERREACTION_WEIGHT) * quality_score
 
