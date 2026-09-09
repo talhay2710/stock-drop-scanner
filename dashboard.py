@@ -234,14 +234,12 @@ def _sparkline_svg(
         )
     area = ""
     if area_fill:
-        end_x, end_y = coords[-1]
         area_points = f"0,{height} {points} {width},{height}"
         area = (
             f'<defs><linearGradient id="{grad_id}" x1="0" y1="0" x2="0" y2="1">'
             f'<stop offset="0%" stop-color="{color}" stop-opacity="0.22"/>'
             f'<stop offset="100%" stop-color="{color}" stop-opacity="0"/></linearGradient></defs>'
             f'<polygon points="{area_points}" fill="url(#{grad_id})"/>'
-            f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="2.6" fill="{color}"/>'
         )
     size_attrs = f'width="100%" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none"' \
         if responsive else f'width="{width}" height="{height}"'
@@ -3273,7 +3271,7 @@ with _tab_slot_portfolio.container():
                 else:
                     color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
                     hero_html = (
-                        f'<div><span style="font-size:1.5rem; font-weight:800; color:{color};">'
+                        f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
                         f'{_signed_num(pnl)} {ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
@@ -3295,11 +3293,7 @@ with _tab_slot_portfolio.container():
                         row["prices"], width=96, height=34, area_fill=True,
                         grad_id=f"spark-grad-{row['id']}",
                     )
-                    spark_html = (
-                        f'<div style="text-align:center; flex-shrink:0;">{svg}'
-                        f'<div style="font-size:0.62rem; opacity:0.45; margin-top:2px;">'
-                        f'{row["days_held"]} ימים אחרונים</div></div>'
-                    )
+                    spark_html = f'<div style="text-align:center; flex-shrink:0;">{svg}</div>'
 
                 _daily_pct = row.get("daily_pct")
                 if _daily_pct is not None and pd.notna(_daily_pct):
@@ -3385,8 +3379,6 @@ with _tab_slot_portfolio.container():
                 card_html = f"""
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
                       <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
-                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%;
-                              background:{sector_color}; flex-shrink:0;"></span>
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
@@ -3403,17 +3395,17 @@ with _tab_slot_portfolio.container():
                                 padding-top:12px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">ביצוע</div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
                            <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">נוכחי</div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
                            <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
                     </div>
                     <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;">
-                      <span style="{chip_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
                       <span style="{chip_style}"><span style="display:inline-block; width:6px; height:6px;
                             border-radius:50%; background:{sector_color};"></span>{sector_label}</span>
+                      <span style="{chip_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
                       <span style="{chip_style}">מוחזק {row['days_held']} ימים</span>
                     </div>
                 """
