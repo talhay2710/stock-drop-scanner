@@ -3289,10 +3289,8 @@ with _tab_slot_portfolio.container():
                     # הגיוני, וזה גם משאיר את הכותרת עם מספר אחד בלבד (9.9.2026,
                     # בעקבות "אולי אחרי האחוז מהתיק או אחרי הכמות").
                     net_cell = (
-                        f'<span style="font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; '
-                        f'background:{NEUTRAL_BG}; border-radius:20px; padding:3px 9px; display:inline-flex; '
-                        f'align-items:center; justify-self:start; width:fit-content;">'
-                        f'{_signed_num(net_pnl)} {ccy_symbol}</span>'
+                        f'<div style="font-size:0.64rem; opacity:0.45;">רווח/הפסד נטו</div>'
+                        f'<div style="font-size:0.82rem; font-weight:700;">{_signed_num(net_pnl)} {ccy_symbol}</div>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
@@ -3310,7 +3308,13 @@ with _tab_slot_portfolio.container():
                         row["prices"], width=96, height=34, area_fill=True,
                         grad_id=f"spark-grad-{row['id']}",
                     )
-                    spark_html = f'<div style="text-align:center; flex-shrink:0;">{svg}</div>'
+                    # ממוקם absolute במרכז השורה (לא flex רגיל) - כדי שהגרף
+                    # יהיה במרכז הכרטיס באמת, לא תלוי ברוחב המספר הגדול לידו
+                    # (9.9.2026, "את הגרף תמקם במרכז").
+                    spark_html = (
+                        f'<div style="position:absolute; left:50%; top:50%; '
+                        f'transform:translate(-50%,-50%);">{svg}</div>'
+                    )
 
                 _daily_pct = row.get("daily_pct")
                 if _daily_pct is not None and pd.notna(_daily_pct):
@@ -3413,25 +3417,29 @@ with _tab_slot_portfolio.container():
                       </div>
                       {daily_badge_html}
                     </div>
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:8px;">
+                    <div style="position:relative; display:flex; align-items:center; margin-top:8px; min-height:34px;">
                       {hero_html}
                       {spark_html}
                     </div>
                     {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px 8px; margin-top:10px;
+                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px 8px; margin-top:10px;
                                 padding-top:8px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
+                      <div>{net_cell}</div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
                            <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
                            <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
-                      {sector_cell}
-                      <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                      <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
-                      {net_cell}
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:5px;">
+                        {sector_cell}
+                        <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
+                        <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
+                      </div>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
