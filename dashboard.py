@@ -1581,7 +1581,7 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     long_df = df.rename_axis("תאריך").reset_index().melt(id_vars="תאריך", var_name="סדרה", value_name="value")
     long_df["תאריך"] = pd.to_datetime(long_df["תאריך"])
     _tick_dates = sorted(long_df["תאריך"].unique())
-    long_df["תשואה_טקסט"] = long_df["value"].apply(lambda v: _signed_num(v, 2))
+    long_df["תשואה_טקסט"] = long_df["value"].apply(lambda v: _signed_num(v, 2, "%"))
 
     zero_rule = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
         color=_CHART_GRID_COLOR, strokeDash=[3, 3], strokeWidth=1,
@@ -1613,9 +1613,19 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
                          legend=None),
         tooltip=_tooltip,
     )
+    # תווית האחוז הנוכחי בקצה כל קו - כדי לראות את התשואה העדכנית של התיק
+    # ושל המדד במבט אחד, בלי לרחף עם העכבר (9.9.2026, בקשה מפורשת).
+    last_points = long_df.sort_values("תאריך").groupby("סדרה", as_index=False).tail(1)
+    end_labels = alt.Chart(last_points).mark_text(
+        align="left", dx=8, fontSize=11, fontWeight="bold", clip=False,
+    ).encode(
+        x=x_enc, y=y_enc, text="תשואה_טקסט:N",
+        color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
+                         legend=None),
+    )
     return (
-        (zero_rule + line + points)
-        .properties(height=160, padding={"left": 8, "right": 12, "top": 8, "bottom": 8})
+        (zero_rule + line + points + end_labels)
+        .properties(height=160, padding={"left": 8, "right": 34, "top": 8, "bottom": 8})
         .configure_view(strokeWidth=0)
         .configure_axis(domain=False, tickSize=0)
     )
