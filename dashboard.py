@@ -3279,13 +3279,19 @@ with _tab_slot_portfolio.container():
                     color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
                     # נטו חוזרת מתחת למספר הגדול עצמו (לא בגריד למטה) - "מתחת
                     # לזה תשים את הנטו" (9.9.2026).
+                    # עטוף בדיוק ב-div אחד חיצוני - ה-row שקורא ל-hero_html הוא
+                    # display:flex, אז שני ה-div-ים (מספר+נטו) בלי עטיפה משותפת
+                    # הופכים לשני flex items נפרדים שיושבים זה ליד זה, לא זה
+                    # מתחת לזה (9.9.2026, "ברצינות?" - זה מה שקרה בפועל).
                     hero_html = (
+                        f'<div>'
                         f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
                         f'{_signed_num(pnl)} {ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
                         f'<div style="font-size:0.72rem; opacity:0.6; margin-top:2px;">'
                         f'נטו: {_signed_num(net_pnl)} {ccy_symbol}</div>'
+                        f'</div>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
