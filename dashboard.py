@@ -1604,7 +1604,7 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
     # (9.9.2026, "היחס בין שני הכרטיסים... שהנתונים יעמדו באותו הגובה").
     warning_slot = f'<div style="min-height:24px; margin-bottom:6px;">{warning_html}</div>'
     return (
-        f'<div style="margin-top:14px;">{warning_slot}'
+        f'<div style="margin-top:10px;">{warning_slot}'
         f'<div style="position:relative; height:6px; border-radius:4px; background:#e2e5e9; direction:ltr;">'
         f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_pos:.1f}%; '
         f'background:{fill_color}; border-radius:4px;"></div>'
@@ -3284,9 +3284,10 @@ with _tab_slot_portfolio.container():
                     # הגיוני, וזה גם משאיר את הכותרת עם מספר אחד בלבד (9.9.2026,
                     # בעקבות "אולי אחרי האחוז מהתיק או אחרי הכמות").
                     net_cell = (
-                        f'<div><div style="font-size:0.64rem; opacity:0.45;">רווח/הפסד נטו</div>'
-                        f'<div style="font-size:0.82rem; font-weight:700;">'
-                        f'{_signed_num(net_pnl)} {ccy_symbol}</div></div>'
+                        f'<span style="font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; '
+                        f'background:{NEUTRAL_BG}; border-radius:20px; padding:3px 9px; display:inline-flex; '
+                        f'align-items:center; justify-self:start; width:fit-content;">'
+                        f'{_signed_num(net_pnl)} {ccy_symbol}</span>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
@@ -3382,21 +3383,23 @@ with _tab_slot_portfolio.container():
 
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
-                # אחרי כמה ניסיונות (פילס ממורכזים, טקסט צמוד-שמאל, פילס
-                # צמודי-שמאל) שאף אחד מהם לא "ישב" טוב - במקום בלוק נפרד
-                # שתמיד צריך החלטת-מיקום/עיצוב משלו, שלושת הפרטים האלה
-                # (סקטור/% מהתיק/ימים מוחזק) מצטרפים כתאים נוספים לאותו
-                # גריד הנתונים שכבר עובד היטב (עלות/נטו/שערים/כמות) - אותה
-                # שפה ויזואלית בדיוק, בלי בלוק/יישור נפרדים (9.9.2026).
+                # ארבעת התאים האחרונים בגריד (סקטור/% מהתיק/ימים מוחזק/נטו)
+                # בסגנון פיל עם מסגרת/רקע (לא label+value כמו שאר הגריד) ובלי
+                # כותרת נפרדת מעל - במיקום הנוכחי (חלק מאותו גריד), אבל
+                # בפורמט הקודם שכבר אהבת (9.9.2026, "במסגרות שהיו קודם וללא
+                # כותרות. במיקום הנוכחי אבל בפורמט הקודמת").
+                meta_pill_style = (
+                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
+                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px; '
+                    f'justify-self:start; width:fit-content;'
+                )
                 sector_cell = (
-                    f'<div><div style="font-size:0.64rem; opacity:0.45;">סקטור</div>'
-                    f'<div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block; '
-                    f'width:6px; height:6px; border-radius:50%; background:{sector_color}; '
-                    f'margin-inline-end:3px;"></span>{sector_label}</div></div>'
+                    f'<span style="{meta_pill_style}"><span style="display:inline-block; width:6px; height:6px; '
+                    f'border-radius:50%; background:{sector_color};"></span>{sector_label}</span>'
                 )
 
                 card_html = f"""
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                       <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
@@ -3405,16 +3408,15 @@ with _tab_slot_portfolio.container():
                       </div>
                       {daily_badge_html}
                     </div>
-                    <div style="display:flex; align-items:center; gap:16px; margin-top:12px;">
+                    <div style="display:flex; align-items:center; gap:16px; margin-top:8px;">
                       {hero_html}
                       {spark_html}
                     </div>
                     {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px 8px; margin-top:16px;
-                                padding-top:12px; border-top:1px solid {NEUTRAL_COLOR}1F;">
+                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px 8px; margin-top:10px;
+                                padding-top:8px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
-                      {net_cell}
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
                            <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
@@ -3422,10 +3424,9 @@ with _tab_slot_portfolio.container():
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
                       {sector_cell}
-                      <div><div style="font-size:0.64rem; opacity:0.45;">מהתיק</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{row['days_held']} ימים</div></div>
+                      <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
+                      <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
+                      {net_cell}
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
