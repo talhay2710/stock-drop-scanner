@@ -3382,6 +3382,16 @@ with _tab_slot_portfolio.container():
 
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
+                # מסגרת/פיל כמו קודם (לא טקסט חשוף) - ו-align-items:flex-end
+                # (לא text-align:left!) כדי לצמוד לשמאל: יש כלל CSS גלובלי
+                # [data-testid="stMarkdownContainer"] * { text-align:right !important; }
+                # שמנצח כל text-align:left מקומי על כל DIV - align-items הוא
+                # מאפיין אחר לגמרי, לא מושפע מהכלל הזה (9.9.2026, אחרי שגילינו
+                # ש-text-align:left פשוט לא עבד בגלל ה-!important הגלובלי).
+                meta_pill_style = (
+                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
+                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px;'
+                )
 
                 card_html = f"""
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
@@ -3410,12 +3420,11 @@ with _tab_slot_portfolio.container():
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
                     </div>
-                    <div style="text-align:left; margin-top:12px; font-size:0.72rem; color:{NEUTRAL_COLOR};
-                                opacity:0.75; line-height:1.7;">
-                      <div><span style="display:inline-block; width:6px; height:6px; border-radius:50%;
-                            background:{sector_color}; margin-inline-end:4px;"></span>{sector_label}</div>
-                      <div>{row.get('portfolio_pct', 0):.0f}% מהתיק</div>
-                      <div>מוחזק {row['days_held']} ימים</div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px; margin-top:12px;">
+                      <span style="{meta_pill_style}"><span style="display:inline-block; width:6px; height:6px;
+                            border-radius:50%; background:{sector_color};"></span>{sector_label}</span>
+                      <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
+                      <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
