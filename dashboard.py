@@ -3284,12 +3284,12 @@ with _tab_slot_portfolio.container():
                     # הופכים לשני flex items נפרדים שיושבים זה ליד זה, לא זה
                     # מתחת לזה (9.9.2026, "ברצינות?" - זה מה שקרה בפועל).
                     hero_html = (
-                        f'<div>'
+                        f'<div style="text-align:right;">'
                         f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
                         f'{_signed_num(pnl)} {ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-                        f'<div style="font-size:0.72rem; opacity:0.6; margin-top:2px;">'
+                        f'<div style="font-size:0.78rem; font-weight:600; color:{color}; opacity:0.85; margin-top:2px;">'
                         f'נטו: {_signed_num(net_pnl)} {ccy_symbol}</div>'
                         f'</div>'
                     )
@@ -3322,14 +3322,17 @@ with _tab_slot_portfolio.container():
                     _daily_color = POS_COLOR if _daily_pct >= 0 else NEG_COLOR
                     _daily_bg = POS_BG if _daily_pct >= 0 else NEG_BG
                     _daily_icon = "📈" if _daily_pct >= 0 else "📉"
-                    # תאריך מתחת ל"שינוי יומי" רק כשהמסחר של המניה הזו סגור - כשהוא
-                    # פעיל, "שינוי יומי" כבר אומר "עכשיו" בלי צורך בתאריך (2.9.2026).
+                    # תאריך מתחת ל"שינוי יומי" רק כשהמסחר סגור *וגם* התאריך עצמו
+                    # לא היום - אם זה היום, "שינוי יומי" כבר ברור מאליו והתאריך
+                    # רק מבלבל/מיותר; התאריך שימושי רק כשהוא מגלה שהנתון בעצם
+                    # ישן יותר (9.9.2026, "תראה את התאריך... זה גרוע").
                     _daily_date = row.get("daily_pct_date")
                     _daily_date_html = ""
-                    if _daily_date and not is_market_open(row.get("index_name") or ""):
+                    if (_daily_date and not is_market_open(row.get("index_name") or "")
+                            and _daily_date != israel_today()):
                         _daily_date_html = (
                             f'<div style="font-size:0.58rem; font-weight:500; color:{_daily_color}; '
-                            f'opacity:0.7; text-align:center; margin-top:1px;">{_daily_date.strftime("%d/%m")}</div>'
+                            f'opacity:0.7; text-align:center; margin-top:1px;">({_daily_date.strftime("%d/%m")})</div>'
                         )
                     daily_badge_html = (
                         f'<div style="flex-shrink:0;">'
@@ -3394,16 +3397,6 @@ with _tab_slot_portfolio.container():
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
                 # סקטור/% מהתיק/מוחזק - שורה משלהם מעל כפתור המכירה, באותו רוחב
-                # בדיוק (העמודה האמצעית מתוך [1,2,1], אותה חלוקה כמו הכפתור
-                # עצמו) - לא בתוך card_html, כדי שתתאים בדיוק לקצוות הכפתור
-                # (9.9.2026, "באותו קו של ההתחלה והסוף שלו").
-                meta_line_html = (
-                    f'<div style="text-align:center; font-size:0.68rem; color:{NEUTRAL_COLOR}; opacity:0.75;">'
-                    f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
-                    f'background:{sector_color}; margin-inline-end:3px;"></span>{sector_label} · '
-                    f'{row.get("portfolio_pct", 0):.0f}% מהתיק · מוחזק {row["days_held"]} ימים</div>'
-                )
-
                 card_html = f"""
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
                       <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
@@ -3429,6 +3422,14 @@ with _tab_slot_portfolio.container():
                            <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">סקטור</div>
+                           <div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block;
+                                width:6px; height:6px; border-radius:50%; background:{sector_color};
+                                margin-inline-end:3px;"></span>{sector_label}</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">מהתיק</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{row['days_held']} ימים</div></div>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
@@ -3461,11 +3462,6 @@ with _tab_slot_portfolio.container():
                     )
                     sell_key = f"confirm_sell_{row['id']}"
                     if not st.session_state.get(sell_key):
-                        # אותה חלוקת עמודות [1,2,1] בדיוק כמו שורת הכפתור מתחת -
-                        # כך שהשורה הזו מתחילה ומסתיימת באותו קו בדיוק כמו הכפתור.
-                        _, meta_col, _ = st.columns([1, 2, 1])
-                        with meta_col:
-                            st.markdown(meta_line_html, unsafe_allow_html=True)
                         _, btn_col, _ = st.columns([1, 2, 1])
                         with btn_col:
                             if st.button("💰 מכירה - סגירת פוזיציה", key=f"sell_holding_{row['id']}", width='stretch'):
