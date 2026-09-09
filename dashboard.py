@@ -1521,7 +1521,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
 
     sector_side = ""
     if sector_rows:
-        donut = _mini_donut_svg(sector_rows, size=76, stroke=16)
+        donut = _mini_donut_svg(sector_rows, size=100, stroke=20)
         legend_items = "".join(
             f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
             f'text-overflow:ellipsis; font-size:12.5px; font-weight:700; line-height:17px; opacity:0.9;">'
