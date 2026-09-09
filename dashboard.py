@@ -3382,15 +3382,17 @@ with _tab_slot_portfolio.container():
 
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
-                # מסגרת/פיל כמו קודם (לא טקסט חשוף) - ו-align-items:flex-end
-                # (לא text-align:left!) כדי לצמוד לשמאל: יש כלל CSS גלובלי
-                # [data-testid="stMarkdownContainer"] * { text-align:right !important; }
-                # שמנצח כל text-align:left מקומי על כל DIV - align-items הוא
-                # מאפיין אחר לגמרי, לא מושפע מהכלל הזה (9.9.2026, אחרי שגילינו
-                # ש-text-align:left פשוט לא עבד בגלל ה-!important הגלובלי).
-                meta_pill_style = (
-                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
-                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px;'
+                # אחרי כמה ניסיונות (פילס ממורכזים, טקסט צמוד-שמאל, פילס
+                # צמודי-שמאל) שאף אחד מהם לא "ישב" טוב - במקום בלוק נפרד
+                # שתמיד צריך החלטת-מיקום/עיצוב משלו, שלושת הפרטים האלה
+                # (סקטור/% מהתיק/ימים מוחזק) מצטרפים כתאים נוספים לאותו
+                # גריד הנתונים שכבר עובד היטב (עלות/נטו/שערים/כמות) - אותה
+                # שפה ויזואלית בדיוק, בלי בלוק/יישור נפרדים (9.9.2026).
+                sector_cell = (
+                    f'<div><div style="font-size:0.64rem; opacity:0.45;">סקטור</div>'
+                    f'<div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block; '
+                    f'width:6px; height:6px; border-radius:50%; background:{sector_color}; '
+                    f'margin-inline-end:3px;"></span>{sector_label}</div></div>'
                 )
 
                 card_html = f"""
@@ -3403,12 +3405,12 @@ with _tab_slot_portfolio.container():
                       </div>
                       {daily_badge_html}
                     </div>
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:12px;">
+                    <div style="display:flex; align-items:center; gap:16px; margin-top:12px;">
                       {hero_html}
                       {spark_html}
                     </div>
                     {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:16px;
+                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px 8px; margin-top:16px;
                                 padding-top:12px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
@@ -3419,12 +3421,11 @@ with _tab_slot_portfolio.container():
                            <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
-                    </div>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px; margin-top:12px;">
-                      <span style="{meta_pill_style}"><span style="display:inline-block; width:6px; height:6px;
-                            border-radius:50%; background:{sector_color};"></span>{sector_label}</span>
-                      <span style="{meta_pill_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                      <span style="{meta_pill_style}">מוחזק {row['days_held']} ימים</span>
+                      {sector_cell}
+                      <div><div style="font-size:0.64rem; opacity:0.45;">מהתיק</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{row['days_held']} ימים</div></div>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
