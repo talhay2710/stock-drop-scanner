@@ -454,12 +454,13 @@ def fetch_index_intraday(index: str) -> pd.Series:
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
         return pd.Series(dtype=float)
-    try:
+
+    def _do():
         hist = yf.Ticker(proxy).history(period="1d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
         return hist["Close"].dropna()
-    except Exception as e:
-        logger.warning("נכשלה שליפת מסחר תוך-יומי (%s): %s", proxy, e)
-        return pd.Series(dtype=float)
+
+    result = _with_retry(_do, f"מסחר תוך-יומי ({proxy})")
+    return result if result is not None else pd.Series(dtype=float)
 
 
 def fetch_index_last_completed_intraday(index: str) -> pd.Series:
@@ -472,7 +473,8 @@ def fetch_index_last_completed_intraday(index: str) -> pd.Series:
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
         return pd.Series(dtype=float)
-    try:
+
+    def _do():
         hist = yf.Ticker(proxy).history(period="5d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
         closes = hist["Close"].dropna()
         if closes.empty:
@@ -482,9 +484,9 @@ def fetch_index_last_completed_intraday(index: str) -> pd.Series:
             return pd.Series(dtype=float)
         target_date = dates[-2]
         return closes[closes.index.map(lambda ts: ts.date() == target_date)]
-    except Exception as e:
-        logger.warning("נכשלה שליפת יום המסחר האחרון שהושלם (%s): %s", proxy, e)
-        return pd.Series(dtype=float)
+
+    result = _with_retry(_do, f"יום המסחר האחרון שהושלם ({proxy})")
+    return result if result is not None else pd.Series(dtype=float)
 
 
 MARKET_REGIME_LABELS = {
