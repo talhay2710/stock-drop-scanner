@@ -198,6 +198,7 @@ def render_reason_pill(reasons_json: str) -> str:
 
 def _sparkline_svg(
     prices: list, width: int = 140, height: int = 36, show_baseline: bool = False, responsive: bool = False,
+    area_fill: bool = False, grad_id: str = "spark-grad",
 ) -> str:
     """גרף זעיר (sparkline) כ-SVG מוטבע - מציג את מגמת המחיר האחרונה בלי צירים/legend.
     show_baseline (אופציונלי, ברירת מחדל כבוי כדי לא לשנות התנהגות קיימת בכרטיסי
@@ -206,7 +207,11 @@ def _sparkline_svg(
     responsive (אופציונלי, ברירת מחדל כבוי) - ה-width הופך לרזולוציית-ציור
     פנימית בלבד (viewBox), וה-SVG בפועל נמתח ל-100% מרוחב המכיל שלו - כך שהגרף
     ממלא את כל רוחב המשבצת בפועל בלי תלות ברוחב קבוע בפיקסלים (9.9.2026,
-    בעקבות בקשה לגרף רחב/ממורכז יותר בכרטיסי המדדים)."""
+    בעקבות בקשה לגרף רחב/ממורכז יותר בכרטיסי המדדים).
+    area_fill (אופציונלי) - מילוי גרדיאנט שקוף מתחת לקו + נקודת סיום מודגשת
+    (בלי הקו המקווקו של show_baseline) - לכרטיסי אחזקה, אחרי משוב על עיצוב
+    "בלגן" (9.9.2026). grad_id חייב להיות ייחודי לכל SVG בעמוד אחד (אחרת
+    כמה sparklines "חולקות" את אותו גרדיאנט ב-DOM)."""
     if len(prices) < 2:
         return ""
     lo, hi = min(prices), max(prices)
@@ -227,12 +232,23 @@ def _sparkline_svg(
             f'stroke="{color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.35"/>'
             f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="3" fill="{color}"/>'
         )
+    area = ""
+    if area_fill:
+        end_x, end_y = coords[-1]
+        area_points = f"0,{height} {points} {width},{height}"
+        area = (
+            f'<defs><linearGradient id="{grad_id}" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0%" stop-color="{color}" stop-opacity="0.22"/>'
+            f'<stop offset="100%" stop-color="{color}" stop-opacity="0"/></linearGradient></defs>'
+            f'<polygon points="{area_points}" fill="url(#{grad_id})"/>'
+            f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="2.6" fill="{color}"/>'
+        )
     size_attrs = f'width="100%" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none"' \
         if responsive else f'width="{width}" height="{height}"'
     return (
         f'<svg {size_attrs} xmlns="http://www.w3.org/2000/svg">'
-        f'{extra}'
-        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="2" '
+        f'{area}{extra}'
+        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="{1.8 if area_fill else 2}" '
         f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
     )
 
@@ -1573,6 +1589,34 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     )
 
 
+def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: float, current_price: float,
+                           stop_label: str, target_label: str, warning_html: str = "") -> str:
+    """פס מיקום ויזואלי בין סטופ-לוס ליעד (במקום שתי שורות טקסט נפרדות) - קו
+    למחיר הכניסה + נקודה למחיר הנוכחי, כדי שרואים במבט אחד כמה קרוב המחיר
+    לכל צד, לא רק קוראים שני אחוזים. היחס בין הערכים לא תלוי ביחידה (אגורות
+    מול ש"ח מבטלות זו את זו בחלוקה) - אז מקבלים את המחירים הגולמיים, לא את
+    הטקסט המוצג (9.9.2026, redesign כרטיסי אחזקות אחרי משוב "בלגן")."""
+    rng = (target_price - stop_price) or 1.0
+    entry_pos = max(0.0, min(100.0, (entry_price - stop_price) / rng * 100))
+    current_pos = max(0.0, min(100.0, (current_price - stop_price) / rng * 100))
+    fill_color = POS_COLOR if current_price >= entry_price else NEG_COLOR
+    return (
+        f'<div style="margin-top:14px;">{warning_html}'
+        f'<div style="position:relative; height:6px; border-radius:4px; background:#e2e5e9; direction:ltr;">'
+        f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_pos:.1f}%; '
+        f'background:{fill_color}; border-radius:4px;"></div>'
+        f'<div style="position:absolute; left:{entry_pos:.1f}%; top:-3px; width:2px; height:12px; '
+        f'background:{NEUTRAL_COLOR}; opacity:0.55; transform:translateX(-1px);"></div>'
+        f'<div style="position:absolute; left:{current_pos:.1f}%; top:-4px; width:10px; height:10px; '
+        f'border-radius:50%; background:{fill_color}; border:2px solid #fff; '
+        f'box-shadow:0 0 0 1px rgba(0,0,0,0.12); transform:translateX(-5px);"></div>'
+        f'</div>'
+        f'<div style="display:flex; direction:ltr; justify-content:space-between; margin-top:5px; '
+        f'font-size:0.66rem; opacity:0.6;">'
+        f'<span>סטופ <b style="opacity:1;">{stop_label}</b></span>'
+        f'<span>יעד <b style="opacity:1;">{target_label}</b></span>'
+        f'</div></div>'
+    )
 
 
 _SECTOR_LABELS_HE = {
@@ -3211,22 +3255,31 @@ with _tab_slot_portfolio.container():
                 return gain_start_pct + (level + 1) * gain_step_pct
 
             def render_holding_card(row: dict) -> None:
+                # עיצוב מחודש (9.9.2026) - במקום כרטיס עם 4 שורות טקסט צפוף באותו
+                # גודל בערך ("בלגן"), היררכיה ברורה: מספר נטו גדול במרכז, ספארקליין
+                # עם מילוי+נקודת-סיום, פס מיקום ויזואלי בין סטופ-לוס ליעד (במקום
+                # שתי שורות טקסט נפרדות), וגריד נקי לנתונים המשניים. אושר מראש
+                # כמוקאפ (ר' היסטוריית שיחה) לפני המימוש כאן.
                 ccy_symbol = CURRENCY_SYMBOLS.get(row["ccy"], row["ccy"])
                 current, pnl, pnl_pct, net_pnl = row["current"], row["pnl"], row["pnl_pct"], row["net_pnl"]
+                is_il = market_data._is_israeli_ticker(row["ticker"])
+
                 if current is None or net_pnl is None:
-                    color, bg, pnl_text = CLOSED_COLOR, CLOSED_BG, "אין נתון מחיר עדכני"
+                    color = CLOSED_COLOR
+                    hero_html = (
+                        f'<div style="font-size:0.95rem; font-weight:600; color:{color}; opacity:0.8;">'
+                        f'אין נתון מחיר עדכני</div>'
+                    )
                 else:
                     color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
-                    bg = POS_BG if net_pnl >= 0 else NEG_BG
-                    arrow = "▲" if net_pnl >= 0 else "▼"
-                    pnl_text = (
-                        f"{arrow} {_signed_num(pnl)} {ccy_symbol} ({_signed_num(pnl_pct, 1, '%')})  |  "
-                        f"נטו: {_signed_num(net_pnl)} {ccy_symbol}"
+                    hero_html = (
+                        f'<div><span style="font-size:1.5rem; font-weight:800; color:{color};">'
+                        f'{_signed_num(pnl)} {ccy_symbol}</span>'
+                        f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
+                        f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
+                        f'<div style="font-size:0.72rem; opacity:0.6; margin-top:2px;">נטו: {_signed_num(net_pnl)} {ccy_symbol}</div>'
                     )
 
-                svg = _sparkline_svg(row["prices"], width=90, height=32) if row["prices"] else ""
-
-                is_il = market_data._is_israeli_ticker(row["ticker"])
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
                 # ובהודעת הטלגרם - כדי שאפשר יהיה להשוות ישירות למסך הברוקר
                 if is_il:
@@ -3236,9 +3289,22 @@ with _tab_slot_portfolio.container():
                     entry_price_text = f"{row['entry']:,.2f}"
                     current_price_text = f"{current:,.2f}" if current is not None else "—"
 
+                spark_html = ""
+                if row["prices"]:
+                    svg = _sparkline_svg(
+                        row["prices"], width=96, height=34, area_fill=True,
+                        grad_id=f"spark-grad-{row['id']}",
+                    )
+                    spark_html = (
+                        f'<div style="text-align:center; flex-shrink:0;">{svg}'
+                        f'<div style="font-size:0.62rem; opacity:0.45; margin-top:2px;">'
+                        f'{row["days_held"]} ימים אחרונים</div></div>'
+                    )
+
                 _daily_pct = row.get("daily_pct")
                 if _daily_pct is not None and pd.notna(_daily_pct):
                     _daily_color = POS_COLOR if _daily_pct >= 0 else NEG_COLOR
+                    _daily_bg = POS_BG if _daily_pct >= 0 else NEG_BG
                     _daily_icon = "📈" if _daily_pct >= 0 else "📉"
                     # תאריך מתחת ל"שינוי יומי" רק כשהמסחר של המניה הזו סגור - כשהוא
                     # פעיל, "שינוי יומי" כבר אומר "עכשיו" בלי צורך בתאריך (2.9.2026).
@@ -3246,15 +3312,15 @@ with _tab_slot_portfolio.container():
                     _daily_date_html = ""
                     if _daily_date and not is_market_open(row.get("index_name") or ""):
                         _daily_date_html = (
-                            f'<div style="font-size:0.6rem; font-weight:500; color:{_daily_color}; opacity:0.6; margin-top:-2px;">'
-                            f'{_daily_date.strftime("%d/%m")}</div>'
+                            f'<div style="font-size:0.58rem; font-weight:500; color:{_daily_color}; '
+                            f'opacity:0.7; text-align:center; margin-top:1px;">{_daily_date.strftime("%d/%m")}</div>'
                         )
                     daily_badge_html = (
-                        f'<div style="display:flex; flex-direction:column; align-items:flex-end;">'
-                        f'<div style="font-size:1rem; font-weight:700; color:{_daily_color}; '
-                        f'display:flex; align-items:center; gap:4px;">'
+                        f'<div style="flex-shrink:0;">'
+                        f'<div style="display:flex; align-items:center; gap:4px; font-size:0.74rem; font-weight:700; '
+                        f'color:{_daily_color}; background:{_daily_bg}; border-radius:20px; padding:3px 9px;">'
                         f'{_daily_icon} {_signed_num(_daily_pct, 1, "%")}'
-                        f'<span style="font-size:0.7rem; font-weight:500; opacity:0.7;">שינוי יומי</span></div>'
+                        f'<span style="font-weight:500; opacity:0.75; font-size:0.66rem;">שינוי יומי</span></div>'
                         f'{_daily_date_html}</div>'
                     )
                 else:
@@ -3270,72 +3336,85 @@ with _tab_slot_portfolio.container():
                 target_price = live_target_price(row["entry"], stop_price, row.get("forecast_target"))
                 target_price_text = f"{target_price*100:,.0f}" if is_il else f"{target_price:,.2f}"
 
-                if current is None:
-                    target_part, stop_part = "", ""
-                else:
+                range_html = ""
+                if current is not None:
                     distance_pct = (current - stop_price) / stop_price * 100
                     stop_is_warning = current <= stop_price or distance_pct <= cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
-                    if current <= stop_price:
-                        stop_part = (
-                            f'<span style="font-weight:700; color:{NEG_COLOR};">'
-                            f'🛑 חצתה סטופ-לוס ב-{abs(distance_pct):.1f}%</span>'
-                        )
-                    elif stop_is_warning:
-                        stop_part = f'<span style="font-weight:700; color:{NEG_COLOR};">⚠️ קרובה לסטופ {distance_pct:.1f}%</span>'
-                    else:
-                        stop_part = f'<span style="opacity:0.7;">{_STOPLOSS_LABEL}: {stop_price_text}</span>'
-
                     target_distance_pct = (target_price - current) / target_price * 100
                     target_is_warning = (
                         current >= target_price
                         or target_distance_pct <= cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
                     )
-                    if current >= target_price:
-                        target_part = (
-                            f'<span style="font-weight:700; color:{POS_COLOR};">'
-                            f'🎯 עברה את היעד ב-{abs(target_distance_pct):.1f}%</span>'
+                    warning_html = ""
+                    if current <= stop_price:
+                        warning_html = (
+                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
+                            f'font-weight:700; color:{NEG_COLOR}; background:{NEG_BG}; border-radius:6px; '
+                            f'padding:2px 7px; margin-bottom:6px;">🛑 חצתה סטופ-לוס ב-{abs(distance_pct):.1f}%</div>'
+                        )
+                    elif stop_is_warning:
+                        warning_html = (
+                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
+                            f'font-weight:700; color:{NEG_COLOR}; background:{NEG_BG}; border-radius:6px; '
+                            f'padding:2px 7px; margin-bottom:6px;">⚠️ קרוב לסטופ-לוס - {distance_pct:.1f}% נותרו</div>'
+                        )
+                    elif current >= target_price:
+                        warning_html = (
+                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
+                            f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
+                            f'padding:2px 7px; margin-bottom:6px;">🎯 עברה את היעד ב-{abs(target_distance_pct):.1f}%</div>'
                         )
                     elif target_is_warning:
-                        target_part = f'<span style="font-weight:700; color:{POS_COLOR};">🎯 קרובה ליעד {target_distance_pct:.1f}%</span>'
-                    else:
-                        target_part = f'<span style="opacity:0.7;">יעד: {target_price_text}</span>'
+                        warning_html = (
+                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
+                            f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
+                            f'padding:2px 7px; margin-bottom:6px;">🎯 קרוב ליעד - {target_distance_pct:.1f}% נותרו</div>'
+                        )
+                    range_html = _stop_target_bar_html(
+                        stop_price, target_price, row["entry"], current,
+                        stop_price_text, target_price_text, warning_html,
+                    )
 
-                    # כשצד אחד באזהרה (קרוב/חצה) והשני לא - מציגים רק את האזהרה,
-                    # לא את שני הצדדים יחד, כדי לא להטביע את המידע הקריטי בטקסט
-                    # שגרתי ("יעד: X") לידו. אם שניהם באזהרה בו-זמנית (נדיר) - שניהם נשארים.
-                    if stop_is_warning and not target_is_warning:
-                        target_part = ""
-                    elif target_is_warning and not stop_is_warning:
-                        stop_part = ""
+                sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
+                sector_color = row.get("sector_color", NEUTRAL_COLOR)
+                chip_style = (
+                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
+                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px;'
+                )
 
                 card_html = f"""
-                    <div style="border-radius:10px; padding:10px 14px; background:{bg}; margin:-14px -14px 8px -14px;
-                                border-bottom:1px solid {color}44;">
-                      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; min-width:0;">
-                        <div style="display:flex; align-items:baseline; gap:5px; min-width:0; font-size:1.05rem; font-weight:700;" title="{row['name']}">
-                          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">{row['name']}</span>
-                          <span style="opacity:0.55; font-weight:500; font-size:0.9rem; flex-shrink:0;">({row['ticker']})</span>
-                          {'<span style="font-size:0.75rem; font-weight:600; opacity:0.75; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
-                        </div>
-                        {daily_badge_html}
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
+                      <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%;
+                              background:{sector_color}; flex-shrink:0;"></span>
+                        <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
+                              white-space:nowrap; min-width:0;">{row['name']}</span>
+                        <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
+                        {'<span style="font-size:0.68rem; font-weight:600; opacity:0.6; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
                       </div>
-                      <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
-                        {svg}
-                        <div style="font-size:1.1rem; font-weight:700; color:{color};">{pnl_text}</div>
-                      </div>
-                      <div style="font-size:0.8rem; opacity:0.75; margin-top:6px; display:flex; gap:12px; flex-wrap:wrap;">
-                        <span>ע‌לות: {row['invested']:,.0f} {ccy_symbol}</span>
-                        <span>ביצוע: {entry_price_text}</span>
-                        <span>נ‌וכחי: {current_price_text}</span>
-                        <span>כמות: {row['qty']:,.0f}</span>
-                      </div>
-                      <div style="font-size:0.8rem; opacity:0.75; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-                        <span>{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                        <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:6px; height:6px;
-                              border-radius:50%; background:{row.get("sector_color", NEUTRAL_COLOR)}; flex-shrink:0; margin-top:-2px;"></span>{_SECTOR_LABELS_HE.get(row["sector"], row["sector"])}</span>
-                        <span>מוחזק {row['days_held']} ימים</span>
-                        <span style="display:inline-flex; gap:12px; flex-wrap:nowrap;">{target_part}{stop_part}</span>
-                      </div>
+                      {daily_badge_html}
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:12px;">
+                      {hero_html}
+                      {spark_html}
+                    </div>
+                    {range_html}
+                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:16px;
+                                padding-top:12px; border-top:1px solid {NEUTRAL_COLOR}1F;">
+                      <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">ביצוע</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">נוכחי</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
+                           <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;">
+                      <span style="{chip_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
+                      <span style="{chip_style}"><span style="display:inline-block; width:6px; height:6px;
+                            border-radius:50%; background:{sector_color};"></span>{sector_label}</span>
+                      <span style="{chip_style}">מוחזק {row['days_held']} ימים</span>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
@@ -3588,10 +3667,12 @@ with _tab_slot_portfolio.container():
 
                 st.divider()
 
+                # 2 בשורה (במקום 3) - העיצוב המחודש (9.9.2026) גבוה יותר
+                # (פס מיקום ויזואלי + גריד נתונים), 3 צפופים מדי ברוחב הזה.
                 for i, row in enumerate(rows):
-                    if i % 3 == 0:
-                        card_cols = st.columns(3)
-                    with card_cols[i % 3]:
+                    if i % 2 == 0:
+                        card_cols = st.columns(2)
+                    with card_cols[i % 2]:
                         render_holding_card(row)
 
                 st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
