@@ -1590,10 +1590,11 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
 def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: float, current_price: float,
                            stop_label: str, target_label: str, warning_html: str = "") -> str:
     """פס מיקום ויזואלי בין סטופ-לוס ליעד (במקום שתי שורות טקסט נפרדות) - קו
-    למחיר הכניסה + נקודה למחיר הנוכחי, כדי שרואים במבט אחד כמה קרוב המחיר
-    לכל צד, לא רק קוראים שני אחוזים. היחס בין הערכים לא תלוי ביחידה (אגורות
-    מול ש"ח מבטלות זו את זו בחלוקה) - אז מקבלים את המחירים הגולמיים, לא את
-    הטקסט המוצג (9.9.2026, redesign כרטיסי אחזקות אחרי משוב "בלגן")."""
+    למחיר הכניסה, כדי שרואים במבט אחד כמה קרוב המחיר לכל צד, לא רק קוראים
+    שני אחוזים. המיקום הנוכחי מיוצג ע"י קצה המילוי הצבעוני עצמו (בלי נקודה
+    נפרדת עליו - מיותרת, אותו מיקום בדיוק, 9.9.2026 "ביקשתי להסיר את הנקודה").
+    היחס בין הערכים לא תלוי ביחידה (אגורות מול ש"ח מבטלות זו את זו בחלוקה) -
+    אז מקבלים את המחירים הגולמיים, לא את הטקסט המוצג."""
     rng = (target_price - stop_price) or 1.0
     entry_pos = max(0.0, min(100.0, (entry_price - stop_price) / rng * 100))
     current_pos = max(0.0, min(100.0, (current_price - stop_price) / rng * 100))
@@ -1605,9 +1606,6 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
         f'background:{fill_color}; border-radius:4px;"></div>'
         f'<div style="position:absolute; left:{entry_pos:.1f}%; top:-3px; width:2px; height:12px; '
         f'background:{NEUTRAL_COLOR}; opacity:0.55; transform:translateX(-1px);"></div>'
-        f'<div style="position:absolute; left:{current_pos:.1f}%; top:-4px; width:10px; height:10px; '
-        f'border-radius:50%; background:{fill_color}; border:2px solid #fff; '
-        f'box-shadow:0 0 0 1px rgba(0,0,0,0.12); transform:translateX(-5px);"></div>'
         f'</div>'
         f'<div style="display:flex; direction:ltr; justify-content:space-between; margin-top:5px; '
         f'font-size:0.66rem; opacity:0.6;">'
@@ -3262,6 +3260,7 @@ with _tab_slot_portfolio.container():
                 current, pnl, pnl_pct, net_pnl = row["current"], row["pnl"], row["pnl_pct"], row["net_pnl"]
                 is_il = market_data._is_israeli_ticker(row["ticker"])
 
+                net_cell = ""
                 if current is None or net_pnl is None:
                     color = CLOSED_COLOR
                     hero_html = (
@@ -3275,7 +3274,15 @@ with _tab_slot_portfolio.container():
                         f'{_signed_num(pnl)} {ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-                        f'<div style="font-size:0.72rem; opacity:0.6; margin-top:2px;">נטו: {_signed_num(net_pnl)} {ccy_symbol}</div>'
+                    )
+                    # נטו יושבת בגריד הנתונים (מיד אחרי "עלות") ולא ליד הכותרת -
+                    # שתיהן סכומי כסף כוללים (בשונה משערי מניה/כמות), אז הקיבוץ
+                    # הגיוני, וזה גם משאיר את הכותרת עם מספר אחד בלבד (9.9.2026,
+                    # בעקבות "אולי אחרי האחוז מהתיק או אחרי הכמות").
+                    net_cell = (
+                        f'<div><div style="font-size:0.64rem; opacity:0.45;">רווח/הפסד נטו</div>'
+                        f'<div style="font-size:0.82rem; font-weight:700;">'
+                        f'{_signed_num(net_pnl)} {ccy_symbol}</div></div>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
@@ -3391,10 +3398,11 @@ with _tab_slot_portfolio.container():
                       {spark_html}
                     </div>
                     {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:16px;
+                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:16px;
                                 padding-top:12px; border-top:1px solid {NEUTRAL_COLOR}1F;">
                       <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
+                      {net_cell}
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
                            <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
