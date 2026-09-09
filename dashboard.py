@@ -1461,7 +1461,8 @@ def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | Non
 
 
 def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
-                                 holdings_count: int, sector_rows: list[dict] | None = None) -> str:
+                                 holdings_count: int, sector_rows: list[dict] | None = None,
+                                 today_change: float | None = None, today_pct: float | None = None) -> str:
     """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד, ולצידם (כשיש
     יותר מסקטור אחד) דונאט+מקרא התפלגות הסקטורים, הכל באותו כרטיס אחד רחב.
     זו הגרסה שהתקבלה בפועל ("יפה") - אחרי כמה ניסיונות המשך (כותרות נפרדות,
@@ -1493,6 +1494,15 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'{_signed_num(pnl)} {ccy_symbol} '
         f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
     )
+    today_line = ""
+    if today_pct is not None and today_change is not None:
+        _today_color = POS_COLOR if today_pct >= 0 else NEG_COLOR
+        _today_icon = "📈" if today_pct >= 0 else "📉"
+        today_line = (
+            f'<div style="text-align:center; font-size:0.75rem; font-weight:600; color:{_today_color}; '
+            f'margin-top:4px;">{_today_icon} שינוי היום: {_signed_num(today_pct, 1, "%")} '
+            f'({_signed_num(today_change)} {ccy_symbol})</div>'
+        )
     # הכותרת כאן חייבת להיות בדיוק אותה שורה/גובה כמו כותרת הסקטור (לא כותרת
     # אחת משותפת מעל שתי העמודות) - אחרת שתי הכותרות לא מיושרות זו מול זו
     # (9.9.2026, בעקבות משוב מפורש על חוסר-יישור).
@@ -1505,7 +1515,8 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
     status_side = (
         f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center;">'
-        f'{status_title}<div style="width:100%; max-width:230px; margin-top:6px;">{bar}{numbers}{pnl_line}</div></div>'
+        f'{status_title}<div style="width:100%; max-width:230px; margin-top:6px;">'
+        f'{bar}{numbers}{pnl_line}{today_line}</div></div>'
     )
 
     sector_side = ""
@@ -3443,6 +3454,8 @@ with _tab_slot_portfolio.container():
                     # מהקנייה - הבסיס הנכון הוא שער הכניסה, לא סגירת אתמול.
                     daily_pct = None
                     daily_pct_date = None
+                    daily_change_amt = None
+                    daily_baseline_value = None
                     _dr = _daily_data_map.get(r["ticker"])
                     if current is not None and _dr is not None:
                         _prev_close, _prev_close_date = _dr.get("prev_close"), _dr.get("prev_close_date")
@@ -3452,6 +3465,9 @@ with _tab_slot_portfolio.container():
                         if _baseline:
                             daily_pct = (current - _baseline) / _baseline * 100
                             daily_pct_date = _dr.get("last_close_date")
+                            if qty:
+                                daily_change_amt = (current - _baseline) * qty
+                                daily_baseline_value = _baseline * qty
 
                     net_pnl, net_pct = None, None
                     if current is not None and entry:
@@ -3477,6 +3493,8 @@ with _tab_slot_portfolio.container():
                         "is_manual_trade": bool(r.get("is_manual_trade")) if pd.notna(r.get("is_manual_trade")) else False,
                         "daily_pct": daily_pct,
                         "daily_pct_date": daily_pct_date,
+                        "daily_change_amt": daily_change_amt,
+                        "daily_baseline_value": daily_baseline_value,
                         "sector": r.get("sector") or "לא ידוע",
                     })
 
@@ -3490,11 +3508,17 @@ with _tab_slot_portfolio.container():
 
                 by_ccy = {}
                 for row in rows:
-                    by_ccy.setdefault(row["ccy"], {"invested": 0.0, "current_value": 0.0, "pnl": 0.0, "count": 0})
+                    by_ccy.setdefault(row["ccy"], {
+                        "invested": 0.0, "current_value": 0.0, "pnl": 0.0, "count": 0,
+                        "daily_change": 0.0, "daily_baseline": 0.0,
+                    })
                     by_ccy[row["ccy"]]["invested"] += row["invested"]
                     by_ccy[row["ccy"]]["current_value"] += row["current_value"] or 0
                     by_ccy[row["ccy"]]["pnl"] += row["pnl"] or 0
                     by_ccy[row["ccy"]]["count"] += 1
+                    if row["daily_change_amt"] is not None and row["daily_baseline_value"]:
+                        by_ccy[row["ccy"]]["daily_change"] += row["daily_change_amt"]
+                        by_ccy[row["ccy"]]["daily_baseline"] += row["daily_baseline_value"]
 
                 # חשיפה לפי סקטור (לא קשורה להתראה ספציפית) - כדי לראות ריכוז
                 # גם כשאף ירידה בודדת לא מסמנת אותו. מוצגת רק כשיש יותר
@@ -3524,9 +3548,13 @@ with _tab_slot_portfolio.container():
                 cards_html = ""
                 for ccy, agg in by_ccy.items():
                     symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
+                    today_change = today_pct = None
+                    if agg["daily_baseline"]:
+                        today_change = agg["daily_change"]
+                        today_pct = agg["daily_change"] / agg["daily_baseline"] * 100
                     cards_html += _stat_card_portfolio_status(
                         agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
-                        sector_rows=_sector_rows,
+                        sector_rows=_sector_rows, today_change=today_change, today_pct=today_pct,
                     )
                     _sector_rows = None
 
