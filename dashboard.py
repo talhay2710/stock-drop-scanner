@@ -1599,8 +1599,12 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
     entry_pos = max(0.0, min(100.0, (entry_price - stop_price) / rng * 100))
     current_pos = max(0.0, min(100.0, (current_price - stop_price) / rng * 100))
     fill_color = POS_COLOR if current_price >= entry_price else NEG_COLOR
+    # משבצת בגובה קבוע לאזהרה - גם כשאין אזהרה - כדי שהבר ומה שמתחתיו יתחילו
+    # תמיד באותו גובה בדיוק בין כרטיסים זה לצד זה, לא רק בכרטיס שבו יש אזהרה
+    # (9.9.2026, "היחס בין שני הכרטיסים... שהנתונים יעמדו באותו הגובה").
+    warning_slot = f'<div style="min-height:24px; margin-bottom:6px;">{warning_html}</div>'
     return (
-        f'<div style="margin-top:14px;">{warning_html}'
+        f'<div style="margin-top:14px;">{warning_slot}'
         f'<div style="position:relative; height:6px; border-radius:4px; background:#e2e5e9; direction:ltr;">'
         f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_pos:.1f}%; '
         f'background:{fill_color}; border-radius:4px;"></div>'
@@ -3378,10 +3382,6 @@ with _tab_slot_portfolio.container():
 
                 sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
-                chip_style = (
-                    f'font-size:0.68rem; font-weight:600; color:{NEUTRAL_COLOR}; background:{NEUTRAL_BG}; '
-                    f'border-radius:20px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px;'
-                )
 
                 card_html = f"""
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
@@ -3410,11 +3410,12 @@ with _tab_slot_portfolio.container():
                       <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
                     </div>
-                    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:12px;">
-                      <span style="{chip_style}"><span style="display:inline-block; width:6px; height:6px;
-                            border-radius:50%; background:{sector_color};"></span>{sector_label}</span>
-                      <span style="{chip_style}">{row.get('portfolio_pct', 0):.0f}% מהתיק</span>
-                      <span style="{chip_style}">מוחזק {row['days_held']} ימים</span>
+                    <div style="text-align:left; margin-top:12px; font-size:0.72rem; color:{NEUTRAL_COLOR};
+                                opacity:0.75; line-height:1.7;">
+                      <div><span style="display:inline-block; width:6px; height:6px; border-radius:50%;
+                            background:{sector_color}; margin-inline-end:4px;"></span>{sector_label}</div>
+                      <div>{row.get('portfolio_pct', 0):.0f}% מהתיק</div>
+                      <div>מוחזק {row['days_held']} ימים</div>
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
