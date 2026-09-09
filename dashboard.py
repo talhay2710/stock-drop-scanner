@@ -1602,7 +1602,12 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
     # משבצת בגובה קבוע לאזהרה - גם כשאין אזהרה - כדי שהבר ומה שמתחתיו יתחילו
     # תמיד באותו גובה בדיוק בין כרטיסים זה לצד זה, לא רק בכרטיס שבו יש אזהרה
     # (9.9.2026, "היחס בין שני הכרטיסים... שהנתונים יעמדו באותו הגובה").
-    warning_slot = f'<div style="min-height:24px; margin-bottom:6px;">{warning_html}</div>'
+    # display:flex (לא block רגיל) - אחרת הפיל הפנימי (inline-flex) מקבל "strut"
+    # של שורת-טקסט בלתי-נראית מה-line-height של ה-block ההורה, שמוסיף ~2.6px
+    # רק כשיש תוכן - בדיוק הפער השיורי שנמדד בפועל אחרי שני ניסיונות קודמים
+    # (getBoundingClientRect: 25.59px עם אזהרה מול 23px בלי, על אף min-height
+    # זהה) - flex לא סובל מהאפקט הזה, ההשוואה יצאה מדויקת אחריו.
+    warning_slot = f'<div style="display:flex; align-items:center; min-height:23px; margin-bottom:6px;">{warning_html}</div>'
     return (
         f'<div style="margin-top:10px;">{warning_slot}'
         f'<div style="position:relative; height:6px; border-radius:4px; background:#e2e5e9; direction:ltr;">'
@@ -3356,25 +3361,25 @@ with _tab_slot_portfolio.container():
                         warning_html = (
                             f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
                             f'font-weight:700; color:{NEG_COLOR}; background:{NEG_BG}; border-radius:6px; '
-                            f'padding:2px 7px; margin-bottom:6px;">🛑 חצתה סטופ-לוס ב-{abs(distance_pct):.1f}%</div>'
+                            f'padding:2px 7px;">🛑 חצתה סטופ-לוס ב-{abs(distance_pct):.1f}%</div>'
                         )
                     elif stop_is_warning:
                         warning_html = (
                             f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
                             f'font-weight:700; color:{NEG_COLOR}; background:{NEG_BG}; border-radius:6px; '
-                            f'padding:2px 7px; margin-bottom:6px;">⚠️ קרוב לסטופ-לוס - {distance_pct:.1f}% נותרו</div>'
+                            f'padding:2px 7px;">⚠️ קרוב לסטופ-לוס - {distance_pct:.1f}% נותרו</div>'
                         )
                     elif current >= target_price:
                         warning_html = (
                             f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
                             f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
-                            f'padding:2px 7px; margin-bottom:6px;">🎯 עברה את היעד ב-{abs(target_distance_pct):.1f}%</div>'
+                            f'padding:2px 7px;">🎯 עברה את היעד ב-{abs(target_distance_pct):.1f}%</div>'
                         )
                     elif target_is_warning:
                         warning_html = (
                             f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
                             f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
-                            f'padding:2px 7px; margin-bottom:6px;">🎯 קרוב ליעד - {target_distance_pct:.1f}% נותרו</div>'
+                            f'padding:2px 7px;">🎯 קרוב ליעד - {target_distance_pct:.1f}% נותרו</div>'
                         )
                     range_html = _stop_target_bar_html(
                         stop_price, target_price, row["entry"], current,
