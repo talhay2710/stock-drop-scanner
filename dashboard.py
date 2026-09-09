@@ -3445,17 +3445,6 @@ with _tab_slot_portfolio.container():
 
                 rows = []
                 for _, r in holdings.iterrows():
-                    prices = get_sparkline_prices(r["ticker"])
-                    current = _price_map3.get(r["ticker"])
-                    if current is None:
-                        current = prices[-1] if prices else None
-                    entry = r["actual_entry_price"]
-                    qty = r["actual_qty"]
-                    pnl = (current - entry) * qty if (current is not None and entry) else None
-                    pnl_pct = (current / entry - 1) * 100 if (current is not None and entry) else None
-                    ccy = constituents.INDEX_CURRENCY.get(r.get("index_name"), "ILS")
-                    country_code = constituents.INDEX_COUNTRY_CODE.get(r.get("index_name"), "IL")
-
                     days_held = 1
                     bought_date = None
                     if r.get("bought_at"):
@@ -3465,6 +3454,22 @@ with _tab_slot_portfolio.container():
                             days_held = max((dt.date.today() - bought_date).days, 0) + 1
                         except Exception:
                             pass
+
+                    # הגרף הזעיר בכרטיס אחזקה מציג את המגמה *מאז הקנייה* (לא חלון
+                    # קבוע של 15 יום כמו בשאר השימושים ב-get_sparkline_prices) -
+                    # אחרת אחזקה שנקנתה לפני 3 ימים מציגה קו של 15 יום שרובו
+                    # לפני שהיא בכלל הייתה בתיק, מבלבל (9.9.2026, "למה 15 ימים
+                    # ולא מיום הקנייה?"). מינימום 2 (נקודת קנייה + היום) לקו תקין.
+                    prices = get_sparkline_prices(r["ticker"], days=max(days_held, 2))
+                    current = _price_map3.get(r["ticker"])
+                    if current is None:
+                        current = prices[-1] if prices else None
+                    entry = r["actual_entry_price"]
+                    qty = r["actual_qty"]
+                    pnl = (current - entry) * qty if (current is not None and entry) else None
+                    pnl_pct = (current / entry - 1) * 100 if (current is not None and entry) else None
+                    ccy = constituents.INDEX_CURRENCY.get(r.get("index_name"), "ILS")
+                    country_code = constituents.INDEX_COUNTRY_CODE.get(r.get("index_name"), "IL")
 
                     # "שינוי יומי" בכרטיס אחזקה בודדת - אותה בעיה שכבר תוקנה בכרטיס
                     # המצטבר "💼 התיק שלי": אם נקנתה היום (אחרי prev_close), ההשוואה
