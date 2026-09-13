@@ -1492,36 +1492,30 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     (9.9.2026, בעקבות "זה ממש גרוע" על הניסיונות המאוחרים יותר)."""
     pnl_pct = (pnl / invested * 100) if invested else 0.0
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
-    # קנה-המידה מקבל 10% רווח - בלי זה הערך הגדול מבין השניים (עלות/שווי)
-    # תמיד נוגע בדיוק בקצה הימני (100%), אז הסימון האנכי שלו יושב צמוד
-    # לשפה ונראה כמו תקלה, לא כמו סימון מכוון (13.9.2026, "הסלייד עדיין
-    # מוזר לי").
-    scale = max(invested, current_value, 1.0) * 1.1
-    current_bar_pct = max(0.0, min(100.0, current_value / scale * 100))
-    invested_marker_pct = max(0.0, min(100.0, invested / scale * 100))
-    # בר בודד: הרוחב המלא (אפור) הוא קנה-המידה, המילוי הצבעוני הוא השווי
-    # הנוכחי, והסימון האנכי הוא נקודת ההשקעה - כך רואים במבט אחד אם השווי
-    # עבר את ההשקעה (המילוי חורג מהסימון) או עדיין מתחתיה, לא רק לפי הצבע.
-    # תווית "שווי" צמודה לקצה המילוי עצמו - בלי זה אי אפשר לדעת מה המילוי
-    # מייצג בלי להסתכל בנפרד בשורת המספרים למטה (13.9.2026, "קשה להבין
-    # מה המילוי מציג"). ממוקמת מעל הבר (לא בתוכו - 7px גובה, אין מקום
-    # לטקסט), עם min/max כדי שלא תיחתך בקצוות הצרים של הכרטיס.
-    _val_label_pct = max(6.0, min(94.0, current_bar_pct))
+    # בר אחד עם מילוי+סימון (כמה גרסאות, 13.9.2026) התברר בלתי-קריא בלי
+    # קשר לפרטי העיצוב - "קשה להבין מה המילוי מציג", ואז "פעמיים שווי"
+    # (תווית על הבר מתנגשת עם השורה שכבר אמרה "שווי"). נבנה מחדש כשני
+    # פסים נפרדים ומתויגים - עלות ושווי, כל אחד עם התווית שלו צמודה מראש,
+    # לא תלוי בקריאה חוצה-רכיבים ("תעשה את כל זה מחדש וטוב וברור יותר").
+    _bars_scale = max(invested, current_value, 1.0)
+    _cost_bar_pct = max(0.0, min(100.0, invested / _bars_scale * 100))
+    _value_bar_pct = max(0.0, min(100.0, current_value / _bars_scale * 100))
+
+    def _labeled_bar(label: str, value: float, bar_pct: float, bar_color: str) -> str:
+        return (
+            f'<div style="display:flex; align-items:center; gap:6px; margin-top:6px;">'
+            f'<span style="font-size:0.66rem; opacity:0.6; width:28px; flex-shrink:0;">{label}</span>'
+            f'<div style="flex:1; height:6px; background:#e2e5e9; border-radius:3px; direction:ltr;">'
+            f'<div style="height:100%; width:{bar_pct:.1f}%; background:{bar_color}; border-radius:3px;"></div>'
+            f'</div>'
+            f'<span style="font-size:0.7rem; font-weight:700; color:{bar_color}; flex-shrink:0;">{value:,.0f}</span>'
+            f'</div>'
+        )
     bar = (
-        f'<div style="position:relative; height:7px; background:#e2e5e9; border-radius:4px; '
-        f'margin:18px 0 6px 0; direction:ltr;">'
-        f'<div style="position:absolute; left:{_val_label_pct:.1f}%; top:-15px; transform:translateX(-50%); '
-        f'font-size:0.58rem; font-weight:600; color:{color}; white-space:nowrap;">שווי</div>'
-        f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_bar_pct:.1f}%; '
-        f'background:{color}; border-radius:4px;"></div>'
-        f'<div style="position:absolute; left:{invested_marker_pct:.1f}%; top:-2px; width:2px; height:11px; '
-        f'background:#5b6572; opacity:0.6;"></div>'
-        f'</div>'
+        _labeled_bar("עלות", invested, _cost_bar_pct, NEUTRAL_COLOR)
+        + _labeled_bar("שווי", current_value, _value_bar_pct, color)
     )
-    numbers = (
-        f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.7rem; opacity:0.75;">'
-        f'<span>עלות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
-    )
+    numbers = ""
     # ש"ח מוזכר פעם אחת בלבד לכל הכרטיס, אבל ליד הסכומים עצמם (קטן) ולא
     # בכותרת - כך שהוא נשאר קרוב לערך שהוא מתאר, בלי לחזור על עצמו בכל
     # שורה (13.9.2026, "תוריד את הש"ח מהכותרת ותציין ש"ח קטן יותר ליד הסכומים").
@@ -3443,7 +3437,7 @@ with _tab_slot_portfolio.container():
                       <div><div style="font-size:0.64rem; opacity:0.45;">סקטור</div>
                            <div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block;
                                 width:6px; height:6px; border-radius:50%; background:{sector_color};
-                                margin-inline-end:3px;"></span>{sector_label}</div></div>
+                                margin-inline-end:3px; vertical-align:middle; margin-bottom:1px;"></span>{sector_label}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">אחוז מהתיק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
