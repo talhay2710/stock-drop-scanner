@@ -1502,9 +1502,16 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     # בר בודד: הרוחב המלא (אפור) הוא קנה-המידה, המילוי הצבעוני הוא השווי
     # הנוכחי, והסימון האנכי הוא נקודת ההשקעה - כך רואים במבט אחד אם השווי
     # עבר את ההשקעה (המילוי חורג מהסימון) או עדיין מתחתיה, לא רק לפי הצבע.
+    # תווית "שווי" צמודה לקצה המילוי עצמו - בלי זה אי אפשר לדעת מה המילוי
+    # מייצג בלי להסתכל בנפרד בשורת המספרים למטה (13.9.2026, "קשה להבין
+    # מה המילוי מציג"). ממוקמת מעל הבר (לא בתוכו - 7px גובה, אין מקום
+    # לטקסט), עם min/max כדי שלא תיחתך בקצוות הצרים של הכרטיס.
+    _val_label_pct = max(6.0, min(94.0, current_bar_pct))
     bar = (
         f'<div style="position:relative; height:7px; background:#e2e5e9; border-radius:4px; '
-        f'margin:10px 0 6px 0; direction:ltr;">'
+        f'margin:18px 0 6px 0; direction:ltr;">'
+        f'<div style="position:absolute; left:{_val_label_pct:.1f}%; top:-15px; transform:translateX(-50%); '
+        f'font-size:0.58rem; font-weight:600; color:{color}; white-space:nowrap;">שווי</div>'
         f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_bar_pct:.1f}%; '
         f'background:{color}; border-radius:4px;"></div>'
         f'<div style="position:absolute; left:{invested_marker_pct:.1f}%; top:-2px; width:2px; height:11px; '
