@@ -1492,7 +1492,11 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     (9.9.2026, בעקבות "זה ממש גרוע" על הניסיונות המאוחרים יותר)."""
     pnl_pct = (pnl / invested * 100) if invested else 0.0
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
-    scale = max(invested, current_value, 1.0)
+    # קנה-המידה מקבל 10% רווח - בלי זה הערך הגדול מבין השניים (עלות/שווי)
+    # תמיד נוגע בדיוק בקצה הימני (100%), אז הסימון האנכי שלו יושב צמוד
+    # לשפה ונראה כמו תקלה, לא כמו סימון מכוון (13.9.2026, "הסלייד עדיין
+    # מוזר לי").
+    scale = max(invested, current_value, 1.0) * 1.1
     current_bar_pct = max(0.0, min(100.0, current_value / scale * 100))
     invested_marker_pct = max(0.0, min(100.0, invested / scale * 100))
     # בר בודד: הרוחב המלא (אפור) הוא קנה-המידה, המילוי הצבעוני הוא השווי
@@ -1526,6 +1530,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         today_line = (
             f'<div style="text-align:center; font-size:0.75rem; font-weight:600; color:{_today_color}; '
             f'margin-top:4px;">{_today_icon} שינוי יומי: {_signed_num(today_change)} '
+            f'<span style="font-size:0.62rem; opacity:0.7;">{ccy_symbol}</span> '
             f'({_signed_num(today_pct, 1, "%")})</div>'
         )
     # הכותרת כאן חייבת להיות בדיוק אותה שורה/גובה כמו כותרת הסקטור (לא כותרת
@@ -3286,14 +3291,15 @@ with _tab_slot_portfolio.container():
                     # הכותרת יותר (13.9.2026, "תעביר לשורה האחרונה מתחת לכמות").
                     hero_html = (
                         f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
-                        f'{_signed_num(pnl)} {ccy_symbol}</span>'
+                        f'{_signed_num(pnl)}</span> '
+                        f'<span style="font-size:0.7rem; font-weight:600; opacity:0.7; color:{color};">{ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
                     )
                     net_grid_cell = (
-                        f'<div><div style="font-size:0.64rem; opacity:0.45;">נטו</div>'
+                        f'<div><div style="font-size:0.64rem; opacity:0.45;">נטו ({ccy_symbol})</div>'
                         f'<div style="font-size:0.82rem; font-weight:700; color:{color};">'
-                        f'{_signed_num(net_pnl)} {ccy_symbol}</div></div>'
+                        f'{_signed_num(net_pnl)}</div></div>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
