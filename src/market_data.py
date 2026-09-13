@@ -120,6 +120,15 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             # yfinance מחזיר עמודות MultiIndex (עם רמת הטיקר) עם group_by="ticker"
             # תמיד - גם כשמורידים טיקר בודד - אז אין צורך (ואסור) להתייחס לזה כמקרה מיוחד
             sub = data[ticker] if isinstance(data.columns, pd.MultiIndex) else data
+            # שורות עם Volume=0 הן ימים שבהם לא היה מסחר בפועל (חג וכד') שיאהו
+            # עדיין מחזירה עבורם שורה "מלאכותית" (OHLC כולם שווים לסגירה
+            # הקודמת) במקום פשוט לדלג על התאריך - גורם ל"שינוי יומי" שקרי של
+            # 0.0% בדיוק (נמצא בפועל: 13.9.2026, כל שלוש האחזקות הראו 0.0%
+            # בו-זמנית, בלתי אפשרי סטטיסטית - התברר שכולן "נסחרו" ב-11/09
+            # בנפח 0). מסננים את כל השורה (לא רק Close) כדי שהיום האמיתי
+            # הקודם יהיה ה"אתמול" בהשוואה, לא היום-המזויף הזה.
+            if "Volume" in sub.columns:
+                sub = sub[sub["Volume"] != 0]
             closes = sub["Close"].dropna()
             volumes = sub["Volume"].dropna()
             lows = sub["Low"].dropna()
@@ -213,6 +222,10 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             # בודקים במפורש שהזוג עקבי (יום מסחר אחד בערך ביניהם, לא "חור"),
             # שזו בדיוק הבעיה שהבדיקה המקורית עם .info נועדה למנוע (ר' הערה למטה).
             hist = yf.Ticker(row["ticker"]).history(period="5d", interval="1d", timeout=_YF_TIMEOUT_SECONDS)
+            # אותו סינון Volume=0 כמו ב-fetch_universe_daily_changes - יום ללא
+            # מסחר בפועל (חג) שיאהו עדיין מחזירה עבורו שורה מלאכותית (13.9.2026).
+            if "Volume" in hist.columns:
+                hist = hist[hist["Volume"] != 0]
             closes = hist["Close"].dropna()
             if len(closes) < 2:
                 return None
@@ -420,6 +433,12 @@ def fetch_index_proxy_change(index: str) -> float | None:
 
     def _do():
         hist = yf.Ticker(proxy).history(period="5d", timeout=_YF_TIMEOUT_SECONDS)
+        # Volume=0 - יום ללא מסחר בפועל שיאהו מחזירה עבורו שורה מלאכותית
+        # (OHLC=סגירה קודמת) - אותה בעיה שכבר תוקנה ב-fetch_universe_daily_changes
+        # (13.9.2026), לא נתפסת ע"י _drop_isolated_price_outliers כי היא "שקטה"
+        # (שינוי 0%, לא קפיצה).
+        if "Volume" in hist.columns:
+            hist = hist[hist["Volume"] != 0]
         closes = _drop_isolated_price_outliers(hist["Close"].dropna())
         if len(closes) < 2:
             return None
@@ -440,6 +459,8 @@ def fetch_index_history(index: str, period: str) -> pd.Series:
         return pd.Series(dtype=float)
     try:
         hist = yf.Ticker(proxy).history(period=period, timeout=_YF_TIMEOUT_SECONDS)
+        if "Volume" in hist.columns:
+            hist = hist[hist["Volume"] != 0]
         return _drop_isolated_price_outliers(hist["Close"].dropna())
     except Exception as e:
         logger.warning("נכשלה שליפת היסטוריית המדד (%s): %s", proxy, e)
@@ -450,14 +471,23 @@ def fetch_index_intraday(index: str) -> pd.Series:
     """נקודות מחיר תוך-יומיות (5 דק') של יום המסחר הנוכחי בלבד - ל"מסחר נוכחי"
     בגרף הזעיר (2.9.2026), בניגוד ל-fetch_index_history שהיא סגירות יומיות
     (יום אחד = נקודה אחת, לא שימושי כשרוצים לראות את המגמה *בתוך* יום המסחר
-    הנוכחי עצמו). period="1d" מחזיר רק את הנתונים מאז תחילת המסחר היום."""
+    הנוכחי עצמו).
+    period="1d" (לא "2d") עם interval="5m" נכשל עקבית ("possibly delisted")
+    על טיקרי הפרוקסי הישראליים (TA35.TA/TCH-F2.TA) - נבדק ישירות מול yfinance,
+    לא תלוי-זמן/transient (13.9.2026). period="2d" עובד תקין; מסננים בעצמנו
+    לתאריך האחרון שמופיע בנתונים (היום, או יום המסחר האחרון אם היום עוד לא
+    התחיל) - אותה טכניקה כמו fetch_index_last_completed_intraday למטה."""
     proxy = INDEX_PROXY_TICKER.get(index.upper())
     if not proxy:
         return pd.Series(dtype=float)
 
     def _do():
-        hist = yf.Ticker(proxy).history(period="1d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
-        return hist["Close"].dropna()
+        hist = yf.Ticker(proxy).history(period="2d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
+        closes = hist["Close"].dropna()
+        if closes.empty:
+            return closes
+        last_date = closes.index[-1].date()
+        return closes[closes.index.map(lambda ts: ts.date() == last_date)]
 
     result = _with_retry(_do, f"מסחר תוך-יומי ({proxy})")
     return result if result is not None else pd.Series(dtype=float)

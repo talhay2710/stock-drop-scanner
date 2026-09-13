@@ -3327,20 +3327,23 @@ with _tab_slot_portfolio.container():
                     # רק מבלבל/מיותר; התאריך שימושי רק כשהוא מגלה שהנתון בעצם
                     # ישן יותר (9.9.2026, "תראה את התאריך... זה גרוע").
                     _daily_date = row.get("daily_pct_date")
-                    _daily_date_html = ""
+                    _daily_date_inline = ""
                     if (_daily_date and not is_market_open(row.get("index_name") or "")
                             and _daily_date != israel_today()):
-                        _daily_date_html = (
-                            f'<div style="font-size:0.58rem; font-weight:500; color:{_daily_color}; '
-                            f'opacity:0.7; text-align:center; margin-top:1px;">({_daily_date.strftime("%d/%m")})</div>'
+                        # התאריך בתוך הפיל עצמו (לא שורה צפה מתחתיו) - חלק
+                        # מאותו רכיב, לא אלמנט מרחף נפרד (13.9.2026, "התאריך
+                        # נראה רע ממש").
+                        _daily_date_inline = (
+                            f'<span style="font-weight:500; opacity:0.6; font-size:0.62rem;">'
+                            f'({_daily_date.strftime("%d/%m")})</span>'
                         )
                     daily_badge_html = (
-                        f'<div style="flex-shrink:0;">'
                         f'<div style="display:flex; align-items:center; gap:4px; font-size:0.74rem; font-weight:700; '
-                        f'color:{_daily_color}; background:{_daily_bg}; border-radius:20px; padding:3px 9px;">'
+                        f'color:{_daily_color}; background:{_daily_bg}; border-radius:20px; padding:3px 9px; '
+                        f'flex-shrink:0;">'
                         f'{_daily_icon} {_signed_num(_daily_pct, 1, "%")}'
-                        f'<span style="font-weight:500; opacity:0.75; font-size:0.66rem;">שינוי יומי</span></div>'
-                        f'{_daily_date_html}</div>'
+                        f'<span style="font-weight:500; opacity:0.75; font-size:0.66rem;">שינוי יומי</span>'
+                        f'{_daily_date_inline}</div>'
                     )
                 else:
                     daily_badge_html = ""
@@ -3426,7 +3429,7 @@ with _tab_slot_portfolio.container():
                            <div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block;
                                 width:6px; height:6px; border-radius:50%; background:{sector_color};
                                 margin-inline-end:3px;"></span>{sector_label}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">מהתיק</div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">חלק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['days_held']} ימים</div></div>
