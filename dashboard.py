@@ -1511,9 +1511,12 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.7rem; opacity:0.75;">'
         f'<span>עלות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
     )
+    # ש"ח מוזכר פעם אחת בלבד לכל הכרטיס, אבל ליד הסכומים עצמם (קטן) ולא
+    # בכותרת - כך שהוא נשאר קרוב לערך שהוא מתאר, בלי לחזור על עצמו בכל
+    # שורה (13.9.2026, "תוריד את הש"ח מהכותרת ותציין ש"ח קטן יותר ליד הסכומים").
     pnl_line = (
         f'<div style="text-align:center; font-size:1.5rem; font-weight:700; color:{color}; margin-top:8px;">'
-        f'{_signed_num(pnl)} {ccy_symbol} '
+        f'{_signed_num(pnl)} <span style="font-size:0.7rem; font-weight:600; opacity:0.7;">{ccy_symbol}</span> '
         f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
     )
     today_line = ""
@@ -1522,15 +1525,16 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         _today_icon = "📈" if today_pct >= 0 else "📉"
         today_line = (
             f'<div style="text-align:center; font-size:0.75rem; font-weight:600; color:{_today_color}; '
-            f'margin-top:4px;">{_today_icon} שינוי יומי: {_signed_num(today_change)} {ccy_symbol} '
+            f'margin-top:4px;">{_today_icon} שינוי יומי: {_signed_num(today_change)} '
             f'({_signed_num(today_pct, 1, "%")})</div>'
         )
     # הכותרת כאן חייבת להיות בדיוק אותה שורה/גובה כמו כותרת הסקטור (לא כותרת
     # אחת משותפת מעל שתי העמודות) - אחרת שתי הכותרות לא מיושרות זו מול זו
-    # (9.9.2026, בעקבות משוב מפורש על חוסר-יישור).
+    # (9.9.2026, בעקבות משוב מפורש על חוסר-יישור). בלי (ש"ח) - עבר לשורת
+    # הסכום (13.9.2026).
     status_title = (
         f'<div style="width:100%; font-size:0.8rem; font-weight:600; opacity:0.75; text-align:right;">'
-        f'מצב תיק ({ccy_symbol})</div>'
+        f'מצב תיק</div>'
     )
     # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
     # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
@@ -3269,6 +3273,7 @@ with _tab_slot_portfolio.container():
                 current, pnl, pnl_pct, net_pnl = row["current"], row["pnl"], row["pnl_pct"], row["net_pnl"]
                 is_il = market_data._is_israeli_ticker(row["ticker"])
 
+                net_grid_cell = ""
                 if current is None or net_pnl is None:
                     color = CLOSED_COLOR
                     hero_html = (
@@ -3277,21 +3282,18 @@ with _tab_slot_portfolio.container():
                     )
                 else:
                     color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
-                    # נטו חוזרת מתחת למספר הגדול עצמו (לא בגריד למטה) - "מתחת
-                    # לזה תשים את הנטו" (9.9.2026).
-                    # עטוף בדיוק ב-div אחד חיצוני - ה-row שקורא ל-hero_html הוא
-                    # display:flex, אז שני ה-div-ים (מספר+נטו) בלי עטיפה משותפת
-                    # הופכים לשני flex items נפרדים שיושבים זה ליד זה, לא זה
-                    # מתחת לזה (9.9.2026, "ברצינות?" - זה מה שקרה בפועל).
+                    # נטו עברה לגריד (השורה האחרונה, מתחת ל"כמות") - לא ליד
+                    # הכותרת יותר (13.9.2026, "תעביר לשורה האחרונה מתחת לכמות").
                     hero_html = (
-                        f'<div style="text-align:right;">'
                         f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
                         f'{_signed_num(pnl)} {ccy_symbol}</span>'
                         f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
                         f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-                        f'<div style="font-size:0.78rem; font-weight:600; color:{color}; opacity:0.85; margin-top:2px;">'
-                        f'נטו: {_signed_num(net_pnl)} {ccy_symbol}</div>'
-                        f'</div>'
+                    )
+                    net_grid_cell = (
+                        f'<div><div style="font-size:0.64rem; opacity:0.45;">נטו</div>'
+                        f'<div style="font-size:0.82rem; font-weight:700; color:{color};">'
+                        f'{_signed_num(net_pnl)} {ccy_symbol}</div></div>'
                     )
 
                 # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
@@ -3429,10 +3431,11 @@ with _tab_slot_portfolio.container():
                            <div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block;
                                 width:6px; height:6px; border-radius:50%; background:{sector_color};
                                 margin-inline-end:3px;"></span>{sector_label}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">חלק</div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">אחוז מהתיק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row['days_held']} ימים</div></div>
+                      {net_grid_cell}
                     </div>
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
