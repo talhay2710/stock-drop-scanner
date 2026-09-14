@@ -1761,9 +1761,11 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         color=_CHART_GRID_COLOR, strokeDash=[3, 3], strokeWidth=1,
     ).encode(y="y:Q")
 
-    # ציר שעות (לא תאריכים) - הגרף מציג את יום המסחר הנוכחי בלבד (תוך-יומי),
-    # אז "values" מפורש לכל נקודה (כמו בגרסה היומית הקודמת) היה יוצר עשרות
-    # תוויות צפופות מדי; משאירים ל-Vega לבחור טיקים "עגולים" (שעה שלמה) לבד.
+    # ציר שעות (לא תאריכים) - הגרף מציג את יום המסחר הנוכחי בלבד (תוך-יומי).
+    # tickCount כאובייקט {"interval":"minute","step":30} קרס בפועל בגרסת
+    # Vega-Lite המצורפת ל-Streamlit כאן (שגיאת JS "reading 'every'" - נבדק
+    # בפועל, לא רק בתיאוריה). חוזרים לברירת המחדל של Vega לבחור טיקים
+    # "עגולים" לבד - היחידה שעובדת בפועל בגרסה הזו (14.9.2026).
     x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
                    axis=alt.Axis(format="%H:%M", title=None, grid=False,
                                   labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
