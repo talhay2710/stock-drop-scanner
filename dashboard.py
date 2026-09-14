@@ -1906,29 +1906,16 @@ with st.sidebar:
             key="settings_multi_day_enabled", on_change=_autosave_settings,
         )
 
-    with st.container(key="scan_button_box", border=True):
-        # מעצבים את הכפתור עצמו (שקוף, בלי מילוי כחול) כדי שיתאים ויזואלית
-        # לכותרות ה-expander-ים האחרים בסיידבר - אותה תיבה עם מסגרת, אותו
-        # משקל/גודל טקסט/padding. עדיין כפתור אמיתי (לא מתקפל), לא expander מזויף.
+        # הכפתור עבר לתוך אותו כרטיס כמו ההגדרות שהוא בעצם מפעיל (14.9.2026,
+        # "את כפתור הסריקה הידנית לדעתי צריך למקום במקום אחר... בתוך כרטיס
+        # הגדרות סריקה עצמו") - במקום תיבה נפרדת משלו כמו קודם. עיצוב מונוכרומטי
+        # עדין (לא כחול מלא) כי "קצת בולט מדי" עם המילוי הכחול המלא.
         st.markdown(
             """
             <style>
-            div[class*="st-key-scan_button_box"] { padding: 0 !important; gap: 0 !important; }
-            div[class*="st-key-scan_button_box"] [data-testid="stElementContainer"]:has(style) {
-                display: none;
-            }
-            div[class*="st-key-scan_button_box"] button {
-                background-color: transparent !important; border: none !important;
-                box-shadow: none !important; font-weight: 400 !important;
-                font-size: 14px !important; padding: 4px 12px !important; width: 100%;
-                text-align: right !important; justify-content: flex-start !important;
-                color: inherit !important;
-            }
-            div[class*="st-key-scan_button_box"] button p {
-                font-weight: 400 !important; font-size: 14px !important; color: inherit !important;
-            }
-            div[class*="st-key-scan_button_box"] button > div {
-                justify-content: flex-start !important;
+            div[class*="st-key-sidebar_scan_button"] button {
+                background-color: rgba(120,120,120,0.07) !important;
+                font-weight: 600 !important; font-size: 13px !important;
             }
             </style>
             """,
