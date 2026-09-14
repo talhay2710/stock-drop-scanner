@@ -1122,9 +1122,13 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
 
 
 def _compute_portfolio_history(holdings_df: pd.DataFrame):
-    """מנרמל את התיק ואת פרוקסי המדד הדומיננטי (לפי איזה index_name הכי הרבה
-    כסף מושקע בו) לתשואה % החל מתאריך הקנייה של האחזקה הראשונה, לצורך השוואה
-    ישירה בגרף. מחזיר None אם אין מספיק נתונים."""
+    """שינוי % *יומי* (לא תשואה מצטברת מאז הקנייה, 14.9.2026 - "אולי כדאי
+    שיהיה יומי?") של התיק מול פרוקסי המדד הדומיננטי (לפי איזה index_name הכי
+    הרבה כסף מושקע בו), לצורך השוואה ישירה בגרף. כל יום עומד בפני עצמו - כמה
+    התיק זז היום מול כמה המדד זז היום - בלי הצטברות שדורשת להבין "מאז מתי"
+    ו"ממוצע משוקלל מצטבר", ובלי התלות המבלבלת בהחזקות חדשות שמצטרפות באמצע
+    (הגרסה הקודמת, המצטברת, נשארה בלתי-ברורה גם אחרי כמה ניסיונות הסבר).
+    מחזיר None אם אין מספיק נתונים."""
     if holdings_df.empty:
         return None
 
@@ -1172,10 +1176,12 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
     if daily_df.empty:
         return None
 
-    # תשואת % מנורמלת = ממוצע משוקלל (לפי הסכום שהושקע) של אחוז הרווח/הפסד של
-    # *כל אחזקה בנפרד* מול מחיר הכניסה שלה - לא נרמול שווי כולל, כי שווי כולל
-    # קופץ כשמצטרפת אחזקה חדשה (הון טרי) וזו לא "תשואה", רק עוד כסף שהוכנס.
-    weighted_return_by_date: dict = {}
+    # שינוי % יומי מנורמל = ממוצע משוקלל (לפי הסכום שהושקע) של אחוז השינוי
+    # היומי של *כל אחזקה בנפרד* (מחיר מול סגירת היום הקודם) - לא תשואה
+    # מצטברת. כל יום מחושב מול הסגירה שלפניו בלבד, כולל יום הקנייה עצמו (אם
+    # יש נתון מהיום שלפניו בהיסטוריה) - כך שכל אחזקה תורמת לממוצע רק מהיום
+    # שבו כבר הייתה בתיק, בלי לגרור שינויים מלפני הקנייה.
+    weighted_daily_by_date: dict = {}
     weight_by_date: dict = {}
     for _, r in relevant_holdings.iterrows():
         match = daily_df[daily_df["ticker"] == r["ticker"]]
@@ -1193,30 +1199,44 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         if not qty or not entry:
             continue
         invested = entry * qty
-        for ts, price in hist.items():
-            d = ts.date() if hasattr(ts, "date") else ts
-            if d < bought_date:
+        dated_hist = sorted(
+            ((ts.date() if hasattr(ts, "date") else ts, price) for ts, price in hist.items()),
+            key=lambda x: x[0],
+        )
+        for i in range(1, len(dated_hist)):
+            d, price = dated_hist[i]
+            _, prev_price = dated_hist[i - 1]
+            if d < bought_date or not prev_price:
                 continue
-            holding_return_pct = (price / entry - 1) * 100
-            weighted_return_by_date[d] = weighted_return_by_date.get(d, 0.0) + holding_return_pct * invested
+            daily_pct = (price - prev_price) / prev_price * 100
+            weighted_daily_by_date[d] = weighted_daily_by_date.get(d, 0.0) + daily_pct * invested
             weight_by_date[d] = weight_by_date.get(d, 0.0) + invested
 
-    if not weighted_return_by_date:
+    if not weighted_daily_by_date:
         return None
 
-    portfolio_return_pct = pd.Series({
-        d: weighted_return_by_date[d] / weight_by_date[d] for d in weighted_return_by_date
+    portfolio_daily_pct = pd.Series({
+        d: weighted_daily_by_date[d] / weight_by_date[d] for d in weighted_daily_by_date
     }).sort_index()
 
     comparison_df = None
     benchmark_hist = market_data.fetch_index_history(dominant_index, period)
     if benchmark_hist is not None and not benchmark_hist.empty:
-        bench_by_date = {(ts.date() if hasattr(ts, "date") else ts): price for ts, price in benchmark_hist.items()}
-        common_dates = sorted(d for d in portfolio_return_pct.index if d in bench_by_date)
+        bench_dated = sorted(
+            ((ts.date() if hasattr(ts, "date") else ts, price) for ts, price in benchmark_hist.items()),
+            key=lambda x: x[0],
+        )
+        bench_daily_by_date = {}
+        for i in range(1, len(bench_dated)):
+            d, price = bench_dated[i]
+            _, prev_price = bench_dated[i - 1]
+            if not prev_price:
+                continue
+            bench_daily_by_date[d] = (price - prev_price) / prev_price * 100
+        common_dates = sorted(d for d in portfolio_daily_pct.index if d in bench_daily_by_date)
         if len(common_dates) >= 2:
-            port_pct = portfolio_return_pct.loc[common_dates]
-            bench_c = pd.Series({d: bench_by_date[d] for d in common_dates})
-            bench_pct = (bench_c / bench_c.iloc[0] - 1) * 100
+            port_pct = portfolio_daily_pct.loc[common_dates]
+            bench_pct = pd.Series({d: bench_daily_by_date[d] for d in common_dates})
             comparison_df = pd.DataFrame({
                 "התיק שלי": port_pct,
                 INDEX_LABELS.get(dominant_index, dominant_index): bench_pct,
@@ -1697,7 +1717,7 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     _tooltip = [
         alt.Tooltip("תאריך:T", title="תאריך", format="%d/%m/%Y"),
         alt.Tooltip("סדרה:N", title=""),
-        alt.Tooltip("תשואה_טקסט:N", title="תשואה"),
+        alt.Tooltip("תשואה_טקסט:N", title="שינוי יומי"),
     ]
     # בלי mark_circle על כל נקודה (היה קודם) - עם ~20 תאריכים זה יוצר המון
     # נקודות על שני הקווים, "נראה קצת מסורבל" (14.9.2026). הקו עצמו נושא
@@ -3989,7 +4009,7 @@ with st.container(border=True, key="market_panel"):
             _comp_df = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
-                st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
+                st.image(render_text_image("שינוי יומי מול מדד", ACCENT_COLOR, font_size=15))
                 if _comp_df is None:
                     # לא מדלגים בשקט - _compute_portfolio_history מחזירה None גם
                     # כשאין מספיק נתונים וגם כשנפילה של יאהו (fetch_universe_
