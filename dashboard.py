@@ -1960,171 +1960,137 @@ with st.sidebar:
                 results = run_scan(cfg)
             st.success(f"הסתיים - {len(results)} התראות חדשות")
 
-    # מאחדים את 4 ה-expander-ים הבאים לרשימה אחת רציפה (קווי הפרדה, לא 4
-    # קופסאות נפרדות עם רווח ביניהן) - 14.9.2026, לפי מוקאפ שאושר.
-    # הגרסה הראשונה השתמשה ב-:first-of-type/:last-of-type ו-:has() - שתיהן
-    # התבררו שבורות בפועל: :first-of-type/:last-of-type לא עשו מה שהתכוונתי
-    # (כל expander עטוף ב-wrapper יחיד משלו, אז כל אחד הוא גם "ראשון" וגם
-    # "אחרון" מבחינת CSS - כולם קיבלו עיגול מלא בטעות), ו-:has() כנראה לא
-    # נתמך בדפדפן של המשתמש בפועל (עבד אצלי, לא אצלו - "אני במקומי, וזה
-    # עדיין נראה כמו ששלחתי לך"). הגרסה הזו לא תלויה באף אחד מהשניים - key=
-    # מפורש על כל expander, וסלקטורים קשיחים/צאצא-ישיר בלבד (נתמכים בכל דפדפן).
-    st.markdown(
-        """
-        <style>
-        div[class*="st-key-exp_investment"] details,
-        div[class*="st-key-exp_holdings_alert"] details,
-        div[class*="st-key-exp_fees"] details,
-        div[class*="st-key-exp_message_types"] details {
-            border-radius: 0;
-        }
-        div[class*="st-key-exp_investment"] details {
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
-        }
-        div[class*="st-key-exp_message_types"] details {
-            border-bottom-left-radius: 10px;
-            border-bottom-right-radius: 10px;
-        }
-        div[class*="st-key-exp_holdings_alert"],
-        div[class*="st-key-exp_fees"],
-        div[class*="st-key-exp_message_types"] {
-            margin-top: -13.8px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.expander("💵 השקעה וסיכון", key="exp_investment"):
-        st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
-        st.markdown("**סכום השקעה מינימלי**")
-        ps1, ps2 = st.columns(2)
-        ps1.number_input(
-            'ש"ח', min_value=0.0, step=500.0, format="%.0f",
-            value=float(cfg.get("position_size", {}).get("ILS", 10000)),
-            key="settings_position_ils", on_change=_autosave_position,
-        )
-        ps2.number_input(
-            "$", min_value=0.0, step=500.0, format="%.0f",
-            value=float(cfg.get("position_size", {}).get("USD", 10000)),
-            key="settings_position_usd", on_change=_autosave_position,
-        )
-        st.markdown("**תקרת השקעה מקסימלית**")
-        mx1, mx2 = st.columns(2)
-        mx1.number_input(
-            'ש"ח', min_value=0.0, step=500.0, format="%.0f",
-            value=float(cfg.get("max_position_size", {}).get("ILS", 30000)),
-            key="settings_max_position_ils", on_change=_autosave_position,
-        )
-        mx2.number_input(
-            "$", min_value=0.0, step=500.0, format="%.0f",
-            value=float(cfg.get("max_position_size", {}).get("USD", 30000)),
-            key="settings_max_position_usd", on_change=_autosave_position,
-        )
-        st.markdown("**שווי התיק הכולל**")
-        _account_size_conn = store.get_conn(db_path(cfg))
-        try:
-            _account_size_by_ccy = compute_holdings_value_by_currency(
-                _account_size_conn, price_fetcher=get_current_price,
+    with st.container(border=True):
+        with st.expander("💵 השקעה וסיכון", key="exp_investment"):
+            st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
+            st.markdown("**סכום השקעה מינימלי**")
+            ps1, ps2 = st.columns(2)
+            ps1.number_input(
+                'ש"ח', min_value=0.0, step=500.0, format="%.0f",
+                value=float(cfg.get("position_size", {}).get("ILS", 10000)),
+                key="settings_position_ils", on_change=_autosave_position,
             )
-        finally:
-            _account_size_conn.close()
-        as1, as2 = st.columns(2)
-        as1.number_input(
-            'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, format="%.0f",
-            key="preview_account_ils",
-        )
-        as2.number_input(
-            "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, format="%.0f",
-            key="preview_account_usd",
-        )
-        st.markdown(
-            "**סיכון לעסקה**",
-            help="סכום לסיכון בעסקה בודדת - קובע את גודל הפוזיציה בהתאם לסטופ-לוס",
-        )
-        rp1, rp2, rp3 = st.columns(3)
-        rp1.number_input(
-            "% מהתיק", min_value=0.1, max_value=10.0, step=0.05,
-            value=float(cfg.get("risk_pct_per_trade", 0.75)),
-            key="settings_risk_pct", on_change=_autosave_position,
-        )
-        # נגזרת חיה: אחוז הסיכון (מה-widget, גם לפני שהשמירה/רענון הושלמו) כפול
-        # שווי התיק בכל מטבע - כדי שהמשתמש יראה מייד כמה כסף בפועל הוא מסכן,
-        # לא רק את האחוז המופשט.
-        _risk_pct_live = float(st.session_state.get("settings_risk_pct", cfg.get("risk_pct_per_trade", 0.75)))
-        rp2.number_input(
-            'ש"ח', value=_account_size_by_ccy.get("ILS", 0.0) * _risk_pct_live / 100.0,
-            disabled=True, format="%.0f", key="preview_risk_amount_ils",
-        )
-        rp3.number_input(
-            "$", value=_account_size_by_ccy.get("USD", 0.0) * _risk_pct_live / 100.0,
-            disabled=True, format="%.0f", key="preview_risk_amount_usd",
-        )
-
-    with st.expander("📈 התראת אחזקות", key="exp_holdings_alert"):
-        st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
-        st.markdown("**סף עלייה ראשוני (%)**")
-        st.number_input(
-            "סף עלייה ראשוני", min_value=0.5, max_value=50.0, step=0.5,
-            value=float(cfg.get("holdings_gain_alert_start_pct", 2.0)), label_visibility="collapsed",
-            key="settings_gain_start", on_change=_autosave_holdings_alerts,
-        )
-        st.markdown("**כל עלייה נוספת (%)**")
-        st.number_input(
-            "מדרגת עלייה", min_value=0.5, max_value=50.0, step=0.5,
-            value=float(cfg.get("holdings_gain_alert_step_pct", 1.0)), label_visibility="collapsed",
-            key="settings_gain_step", on_change=_autosave_holdings_alerts,
-        )
-        st.markdown("**מרחק אזהרת סטופ-לוס (%)**")
-        st.number_input(
-            "מרחק אזהרת סטופ", min_value=0.0, max_value=20.0, step=0.5,
-            value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
-            key="settings_stop_warn", on_change=_autosave_holdings_alerts,
-        )
-        st.markdown("**מרחק אזהרת יעד (%)**")
-        st.number_input(
-            "מרחק אזהרת יעד", min_value=0.0, max_value=20.0, step=0.5,
-            value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
-            key="settings_target_warn", on_change=_autosave_holdings_alerts,
-        )
-
-    with st.expander("💰 עמלות ומיסים", key="exp_fees"):
-        for country, prefix, ccy_symbol in (("IL", "fees_il_", 'ש"ח'), ("US", "fees_us_", "$")):
-            st.markdown(f"**{'ישראל' if country == 'IL' else 'ארה\"ב'}**")
-            col_a, col_b = st.columns(2)
-            col_a.number_input(
-                "עמלה (%)", min_value=0.0, max_value=5.0, step=0.05,
-                value=float(cfg["fees"][country]["commission_pct"]),
-                key=f"{prefix}commission_pct", on_change=_autosave_fees,
+            ps2.number_input(
+                "$", min_value=0.0, step=500.0, format="%.0f",
+                value=float(cfg.get("position_size", {}).get("USD", 10000)),
+                key="settings_position_usd", on_change=_autosave_position,
             )
-            col_b.number_input(
-                f"מינימום ({ccy_symbol})", min_value=0.0, step=1.0,
-                value=float(cfg["fees"][country]["commission_min"]),
-                key=f"{prefix}commission_min", on_change=_autosave_fees,
+            st.markdown("**תקרת השקעה מקסימלית**")
+            mx1, mx2 = st.columns(2)
+            mx1.number_input(
+                'ש"ח', min_value=0.0, step=500.0, format="%.0f",
+                value=float(cfg.get("max_position_size", {}).get("ILS", 30000)),
+                key="settings_max_position_ils", on_change=_autosave_position,
             )
-            col_c, col_d = st.columns(2)
-            col_c.number_input(
-                "מס רווח הון (%)", min_value=0.0, max_value=50.0, step=1.0,
-                value=float(cfg["fees"][country]["capital_gains_tax_pct"]),
-                key=f"{prefix}tax_pct", on_change=_autosave_fees,
+            mx2.number_input(
+                "$", min_value=0.0, step=500.0, format="%.0f",
+                value=float(cfg.get("max_position_size", {}).get("USD", 30000)),
+                key="settings_max_position_usd", on_change=_autosave_position,
             )
-            col_d.number_input(
-                "דמי ניהול (%)", min_value=0.0, max_value=10.0, step=0.05,
-                value=float(cfg["fees"][country]["management_fee_annual_pct"]),
-                key=f"{prefix}mgmt_pct", on_change=_autosave_fees,
+            st.markdown("**שווי התיק הכולל**")
+            _account_size_conn = store.get_conn(db_path(cfg))
+            try:
+                _account_size_by_ccy = compute_holdings_value_by_currency(
+                    _account_size_conn, price_fetcher=get_current_price,
+                )
+            finally:
+                _account_size_conn.close()
+            as1, as2 = st.columns(2)
+            as1.number_input(
+                'ש"ח', value=float(_account_size_by_ccy.get("ILS", 0.0)), disabled=True, format="%.0f",
+                key="preview_account_ils",
+            )
+            as2.number_input(
+                "$", value=float(_account_size_by_ccy.get("USD", 0.0)), disabled=True, format="%.0f",
+                key="preview_account_usd",
+            )
+            st.markdown(
+                "**סיכון לעסקה**",
+                help="סכום לסיכון בעסקה בודדת - קובע את גודל הפוזיציה בהתאם לסטופ-לוס",
+            )
+            rp1, rp2, rp3 = st.columns(3)
+            rp1.number_input(
+                "% מהתיק", min_value=0.1, max_value=10.0, step=0.05,
+                value=float(cfg.get("risk_pct_per_trade", 0.75)),
+                key="settings_risk_pct", on_change=_autosave_position,
+            )
+            # נגזרת חיה: אחוז הסיכון (מה-widget, גם לפני שהשמירה/רענון הושלמו) כפול
+            # שווי התיק בכל מטבע - כדי שהמשתמש יראה מייד כמה כסף בפועל הוא מסכן,
+            # לא רק את האחוז המופשט.
+            _risk_pct_live = float(st.session_state.get("settings_risk_pct", cfg.get("risk_pct_per_trade", 0.75)))
+            rp2.number_input(
+                'ש"ח', value=_account_size_by_ccy.get("ILS", 0.0) * _risk_pct_live / 100.0,
+                disabled=True, format="%.0f", key="preview_risk_amount_ils",
+            )
+            rp3.number_input(
+                "$", value=_account_size_by_ccy.get("USD", 0.0) * _risk_pct_live / 100.0,
+                disabled=True, format="%.0f", key="preview_risk_amount_usd",
             )
 
-    with st.expander("🔔 סוגי התראה", key="exp_message_types"):
-        _saved_msg_types = cfg.get("telegram_message_types", {})
-        for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
-            st.checkbox(
-                _mt_label, value=bool(_saved_msg_types.get(_mt_key, True)),
-                key=f"settings_msgtype_{_mt_key}", on_change=_autosave_message_types,
+        with st.expander("📈 התראת אחזקות", key="exp_holdings_alert"):
+            st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
+            st.markdown("**סף עלייה ראשוני (%)**")
+            st.number_input(
+                "סף עלייה ראשוני", min_value=0.5, max_value=50.0, step=0.5,
+                value=float(cfg.get("holdings_gain_alert_start_pct", 2.0)), label_visibility="collapsed",
+                key="settings_gain_start", on_change=_autosave_holdings_alerts,
             )
+            st.markdown("**כל עלייה נוספת (%)**")
+            st.number_input(
+                "מדרגת עלייה", min_value=0.5, max_value=50.0, step=0.5,
+                value=float(cfg.get("holdings_gain_alert_step_pct", 1.0)), label_visibility="collapsed",
+                key="settings_gain_step", on_change=_autosave_holdings_alerts,
+            )
+            st.markdown("**מרחק אזהרת סטופ-לוס (%)**")
+            st.number_input(
+                "מרחק אזהרת סטופ", min_value=0.0, max_value=20.0, step=0.5,
+                value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
+                key="settings_stop_warn", on_change=_autosave_holdings_alerts,
+            )
+            st.markdown("**מרחק אזהרת יעד (%)**")
+            st.number_input(
+                "מרחק אזהרת יעד", min_value=0.0, max_value=20.0, step=0.5,
+                value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
+                key="settings_target_warn", on_change=_autosave_holdings_alerts,
+            )
+
+        with st.expander("💰 עמלות ומיסים", key="exp_fees"):
+            for country, prefix, ccy_symbol in (("IL", "fees_il_", 'ש"ח'), ("US", "fees_us_", "$")):
+                st.markdown(f"**{'ישראל' if country == 'IL' else 'ארה\"ב'}**")
+                col_a, col_b = st.columns(2)
+                col_a.number_input(
+                    "עמלה (%)", min_value=0.0, max_value=5.0, step=0.05,
+                    value=float(cfg["fees"][country]["commission_pct"]),
+                    key=f"{prefix}commission_pct", on_change=_autosave_fees,
+                )
+                col_b.number_input(
+                    f"מינימום ({ccy_symbol})", min_value=0.0, step=1.0,
+                    value=float(cfg["fees"][country]["commission_min"]),
+                    key=f"{prefix}commission_min", on_change=_autosave_fees,
+                )
+                col_c, col_d = st.columns(2)
+                col_c.number_input(
+                    "מס רווח הון (%)", min_value=0.0, max_value=50.0, step=1.0,
+                    value=float(cfg["fees"][country]["capital_gains_tax_pct"]),
+                    key=f"{prefix}tax_pct", on_change=_autosave_fees,
+                )
+                col_d.number_input(
+                    "דמי ניהול (%)", min_value=0.0, max_value=10.0, step=0.05,
+                    value=float(cfg["fees"][country]["management_fee_annual_pct"]),
+                    key=f"{prefix}mgmt_pct", on_change=_autosave_fees,
+                )
+
+        with st.expander("🔔 סוגי התראה", key="exp_message_types"):
+            _saved_msg_types = cfg.get("telegram_message_types", {})
+            for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
+                st.checkbox(
+                    _mt_label, value=bool(_saved_msg_types.get(_mt_key, True)),
+                    key=f"settings_msgtype_{_mt_key}", on_change=_autosave_message_types,
+                )
 
     st.markdown(
         '<b style="display:inline-block; margin-top:14px;">'
-        '<span style="display:inline-block;">📢</span> ערוצי התראה</b>',
+        '<span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
         unsafe_allow_html=True,
     )
     ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
