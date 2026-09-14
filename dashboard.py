@@ -1121,38 +1121,69 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     return portfolio_summary, today_summary, value_summary, proximity_summary
 
 
+def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_index: str,
+                                   intraday: dict, bench_hist: pd.Series):
+    """ממוצע משוקלל (לפי סכום ההשקעה) של % השינוי התוך-יומי - כל אחזקה ביחס
+    למחיר הפתיחה *שלה* באותו יום (הנקודה התוך-יומית הראשונה הזמינה), כך
+    שהגרף מתחיל מ-0% עבור כל האחזקות יחד בתחילת יום המסחר. מחזיר None אם
+    אין לפחות 2 נקודות זמן משותפות לתיק ולמדד (לא מספיק לצייר קו)."""
+    if not intraday:
+        return None
+    weighted_by_ts: dict = {}
+    weight_by_ts: dict = {}
+    for _, r in relevant_holdings.iterrows():
+        closes = intraday.get(r["ticker"])
+        if closes is None or closes.empty:
+            continue
+        qty = r.get("actual_qty")
+        entry = r.get("actual_entry_price")
+        if not qty or not entry:
+            continue
+        invested = entry * qty
+        day_open = float(closes.iloc[0])
+        if not day_open:
+            continue
+        for ts, price in closes.items():
+            bucket = ts.floor("5min")
+            pct = (float(price) - day_open) / day_open * 100
+            weighted_by_ts[bucket] = weighted_by_ts.get(bucket, 0.0) + pct * invested
+            weight_by_ts[bucket] = weight_by_ts.get(bucket, 0.0) + invested
+    if not weighted_by_ts:
+        return None
+    portfolio_pct = pd.Series({
+        t: weighted_by_ts[t] / weight_by_ts[t] for t in weighted_by_ts
+    }).sort_index()
+
+    if bench_hist is None or bench_hist.empty:
+        return None
+    bench_open = float(bench_hist.iloc[0])
+    if not bench_open:
+        return None
+    bench_pct = pd.Series({
+        ts.floor("5min"): (float(price) - bench_open) / bench_open * 100
+        for ts, price in bench_hist.items()
+    }).sort_index()
+    common_ts = sorted(t for t in portfolio_pct.index if t in bench_pct.index)
+    if len(common_ts) < 2:
+        return None
+    return pd.DataFrame({
+        "התיק שלי": portfolio_pct.loc[common_ts],
+        INDEX_LABELS.get(dominant_index, dominant_index): bench_pct.loc[common_ts],
+    })
+
+
 def _compute_portfolio_history(holdings_df: pd.DataFrame):
-    """שינוי % *יומי* (לא תשואה מצטברת מאז הקנייה, 14.9.2026 - "אולי כדאי
-    שיהיה יומי?") של התיק מול פרוקסי המדד הדומיננטי (לפי איזה index_name הכי
-    הרבה כסף מושקע בו), לצורך השוואה ישירה בגרף. כל יום עומד בפני עצמו - כמה
-    התיק זז היום מול כמה המדד זז היום - בלי הצטברות שדורשת להבין "מאז מתי"
-    ו"ממוצע משוקלל מצטבר", ובלי התלות המבלבלת בהחזקות חדשות שמצטרפות באמצע
-    (הגרסה הקודמת, המצטברת, נשארה בלתי-ברורה גם אחרי כמה ניסיונות הסבר).
-    מחזיר None אם אין מספיק נתונים."""
+    """שינוי % *תוך-יומי* (לא תשואה מצטברת מאז הקנייה, ולא שינוי יומי לפי
+    ימי-לוח - 14.9.2026, "במקום תאריכים שעות") של התיק מול פרוקסי המדד
+    הדומיננטי (לפי איזה index_name הכי הרבה כסף מושקע בו), לאורך שעות יום
+    המסחר. כל נקודה = % שינוי ביחס למחיר הפתיחה של אותו יום, ממוצע משוקלל
+    (לפי סכום ההשקעה) על כל האחזקות הרלוונטיות.
+    מנסים קודם את היום הנוכחי; אם עדיין אין בו מספיק נקודות (למשל דקות
+    ספורות אחרי פתיחת המסחר) נופלים על יום המסחר האחרון *שהושלם* - "תמיד
+    חייב להיות מוצג גרף. תמיד" (14.9.2026). מחזיר None רק אם גם זה נכשל
+    (אין בכלל נתונים, למשל תקלת יאהו מלאה)."""
     if holdings_df.empty:
         return None
-
-    bought_dates = []
-    for _, r in holdings_df.iterrows():
-        try:
-            bought_dates.append(dt.datetime.fromisoformat(r["bought_at"]).date())
-        except Exception:
-            continue
-    if not bought_dates:
-        return None
-    earliest_bought = min(bought_dates)
-    days_span = (dt.date.today() - earliest_bought).days
-
-    if days_span <= 5:
-        period = "1mo"
-    elif days_span <= 25:
-        period = "3mo"
-    elif days_span <= 150:
-        period = "6mo"
-    elif days_span <= 300:
-        period = "1y"
-    else:
-        period = "2y"
 
     _idx_invested = {}
     for _, r in holdings_df.iterrows():
@@ -1172,77 +1203,21 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
     if relevant_holdings.empty:
         return None
 
-    daily_df = market_data.fetch_universe_daily_changes(relevant_holdings["ticker"].tolist(), history_period=period)
-    if daily_df.empty:
-        return None
+    tickers = relevant_holdings["ticker"].tolist()
 
-    # שינוי % יומי מנורמל = ממוצע משוקלל (לפי הסכום שהושקע) של אחוז השינוי
-    # היומי של *כל אחזקה בנפרד* (מחיר מול סגירת היום הקודם) - לא תשואה
-    # מצטברת. כל יום מחושב מול הסגירה שלפניו בלבד, כולל יום הקנייה עצמו (אם
-    # יש נתון מהיום שלפניו בהיסטוריה) - כך שכל אחזקה תורמת לממוצע רק מהיום
-    # שבו כבר הייתה בתיק, בלי לגרור שינויים מלפני הקנייה.
-    weighted_daily_by_date: dict = {}
-    weight_by_date: dict = {}
-    for _, r in relevant_holdings.iterrows():
-        match = daily_df[daily_df["ticker"] == r["ticker"]]
-        if match.empty:
-            continue
-        hist = match.iloc[0]["history"]
-        if hist is None or hist.empty:
-            continue
-        try:
-            bought_date = dt.datetime.fromisoformat(r["bought_at"]).date()
-        except Exception:
-            continue
-        qty = r.get("actual_qty")
-        entry = r.get("actual_entry_price")
-        if not qty or not entry:
-            continue
-        invested = entry * qty
-        dated_hist = sorted(
-            ((ts.date() if hasattr(ts, "date") else ts, price) for ts, price in hist.items()),
-            key=lambda x: x[0],
-        )
-        for i in range(1, len(dated_hist)):
-            d, price = dated_hist[i]
-            _, prev_price = dated_hist[i - 1]
-            if d < bought_date or not prev_price:
-                continue
-            daily_pct = (price - prev_price) / prev_price * 100
-            weighted_daily_by_date[d] = weighted_daily_by_date.get(d, 0.0) + daily_pct * invested
-            weight_by_date[d] = weight_by_date.get(d, 0.0) + invested
+    comparison_df = _build_intraday_comparison_df(
+        relevant_holdings, dominant_index,
+        market_data.fetch_universe_intraday_changes(tickers),
+        market_data.fetch_index_intraday(dominant_index),
+    )
+    if comparison_df is not None:
+        return comparison_df
 
-    if not weighted_daily_by_date:
-        return None
-
-    portfolio_daily_pct = pd.Series({
-        d: weighted_daily_by_date[d] / weight_by_date[d] for d in weighted_daily_by_date
-    }).sort_index()
-
-    comparison_df = None
-    benchmark_hist = market_data.fetch_index_history(dominant_index, period)
-    if benchmark_hist is not None and not benchmark_hist.empty:
-        bench_dated = sorted(
-            ((ts.date() if hasattr(ts, "date") else ts, price) for ts, price in benchmark_hist.items()),
-            key=lambda x: x[0],
-        )
-        bench_daily_by_date = {}
-        for i in range(1, len(bench_dated)):
-            d, price = bench_dated[i]
-            _, prev_price = bench_dated[i - 1]
-            if not prev_price:
-                continue
-            bench_daily_by_date[d] = (price - prev_price) / prev_price * 100
-        common_dates = sorted(d for d in portfolio_daily_pct.index if d in bench_daily_by_date)
-        if len(common_dates) >= 2:
-            port_pct = portfolio_daily_pct.loc[common_dates]
-            bench_pct = pd.Series({d: bench_daily_by_date[d] for d in common_dates})
-            comparison_df = pd.DataFrame({
-                "התיק שלי": port_pct,
-                INDEX_LABELS.get(dominant_index, dominant_index): bench_pct,
-            })
-
-    return comparison_df
+    return _build_intraday_comparison_df(
+        relevant_holdings, dominant_index,
+        market_data.fetch_universe_last_completed_intraday_changes(tickers),
+        market_data.fetch_index_last_completed_intraday(dominant_index),
+    )
 
 
 _CHART_GRID_COLOR = "#E8EBEF"
@@ -1695,19 +1670,22 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     # את "תשואה_טקסט" - זה מה שגרם לטולטיפ להציג מספר עם 11 ספרות וסימן הפוך.
     long_df = df.rename_axis("תאריך").reset_index().melt(id_vars="תאריך", var_name="סדרה", value_name="value")
     long_df["תאריך"] = pd.to_datetime(long_df["תאריך"])
-    _tick_dates = sorted(long_df["תאריך"].unique())
     long_df["תשואה_טקסט"] = long_df["value"].apply(lambda v: _signed_num(v, 2, "%"))
 
     zero_rule = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
         color=_CHART_GRID_COLOR, strokeDash=[3, 3], strokeWidth=1,
     ).encode(y="y:Q")
 
+    # ציר שעות (לא תאריכים) - הגרף מציג את יום המסחר הנוכחי בלבד (תוך-יומי),
+    # אז "values" מפורש לכל נקודה (כמו בגרסה היומית הקודמת) היה יוצר עשרות
+    # תוויות צפופות מדי; משאירים ל-Vega לבחור טיקים "עגולים" (שעה שלמה) לבד.
     x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
-                   axis=alt.Axis(format="%d/%m", title=None, grid=False, values=_tick_dates,
+                   axis=alt.Axis(format="%H:%M", title=None, grid=False,
                                   labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
-    y_enc = alt.Y("value:Q", scale=alt.Scale(padding=8),
-                   axis=alt.Axis(title=None, grid=True, gridColor=_CHART_GRID_COLOR,
-                                  gridDash=[2, 3], labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
+    _y_scale = alt.Scale(padding=8)
+    _y_axis = alt.Axis(title=None, grid=True, gridColor=_CHART_GRID_COLOR,
+                        gridDash=[2, 3], labelColor=_CHART_LABEL_COLOR, labelFontSize=10)
+    y_enc = alt.Y("value:Q", scale=_y_scale, axis=_y_axis)
     color_enc = alt.Color(
         "סדרה:N",
         scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
@@ -1715,9 +1693,9 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
                            labelColor=_CHART_LABEL_COLOR, labelFontSize=11, symbolType="stroke"),
     )
     _tooltip = [
-        alt.Tooltip("תאריך:T", title="תאריך", format="%d/%m/%Y"),
+        alt.Tooltip("תאריך:T", title="שעה", format="%H:%M"),
         alt.Tooltip("סדרה:N", title=""),
-        alt.Tooltip("תשואה_טקסט:N", title="שינוי יומי"),
+        alt.Tooltip("תשואה_טקסט:N", title="שינוי מתחילת היום"),
     ]
     # בלי mark_circle על כל נקודה (היה קודם) - עם ~20 תאריכים זה יוצר המון
     # נקודות על שני הקווים, "נראה קצת מסורבל" (14.9.2026). הקו עצמו נושא
@@ -1727,7 +1705,21 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     )
     # תווית האחוז הנוכחי בקצה כל קו - כדי לראות את התשואה העדכנית של התיק
     # ושל המדד במבט אחד, בלי לרחף עם העכבר (9.9.2026, בקשה מפורשת).
-    last_points = long_df.sort_values("תאריך").groupby("סדרה", as_index=False).tail(1)
+    last_points = long_df.sort_values("תאריך").groupby("סדרה", as_index=False).tail(1).reset_index(drop=True)
+    # שינוי יומי (לא מצטבר) - שני הקווים נוטים לגמור קרובים זה לזה סביב 0,
+    # אז התוויות בקצה חופפות ("עולה אחד על השני", 14.9.2026). מרחיקים אותן
+    # אנכית (label_y, רק לטקסט - הנקודה עצמה נשארת במקום המדויק) כשההפרש
+    # בין שתי הערכים קטן מדי ביחס לטווח הגרף.
+    last_points["label_y"] = last_points["value"]
+    if len(last_points) == 2:
+        _y_span = (long_df["value"].max() - long_df["value"].min()) or 1.0
+        _min_gap = _y_span * 0.09
+        v0, v1 = last_points.loc[0, "value"], last_points.loc[1, "value"]
+        if abs(v0 - v1) < _min_gap:
+            _mid = (v0 + v1) / 2
+            hi_idx, lo_idx = (0, 1) if v0 >= v1 else (1, 0)
+            last_points.loc[hi_idx, "label_y"] = _mid + _min_gap / 2
+            last_points.loc[lo_idx, "label_y"] = _mid - _min_gap / 2
     # נקודת קצה בודדת (לא לאורך כל הקו) - רק לסמן היכן הקו מסתיים, ליד התווית.
     end_dots = alt.Chart(last_points).mark_circle(size=34, clip=False).encode(
         x=x_enc, y=y_enc,
@@ -1737,7 +1729,7 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     end_labels = alt.Chart(last_points).mark_text(
         align="left", dx=8, fontSize=11, fontWeight="bold", clip=False,
     ).encode(
-        x=x_enc, y=y_enc, text="תשואה_טקסט:N",
+        x=x_enc, y=alt.Y("label_y:Q", scale=_y_scale, axis=_y_axis), text="תשואה_טקסט:N",
         color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
                          legend=None),
     )
@@ -4009,7 +4001,7 @@ with st.container(border=True, key="market_panel"):
             _comp_df = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
-                st.image(render_text_image("שינוי יומי מול מדד", ACCENT_COLOR, font_size=15))
+                st.image(render_text_image("תשואה יומית - תיק מול מדד", ACCENT_COLOR, font_size=15))
                 if _comp_df is None:
                     # לא מדלגים בשקט - _compute_portfolio_history מחזירה None גם
                     # כשאין מספיק נתונים וגם כשנפילה של יאהו (fetch_universe_

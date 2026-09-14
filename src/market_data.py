@@ -493,6 +493,64 @@ def fetch_index_intraday(index: str) -> pd.Series:
     return result if result is not None else pd.Series(dtype=float)
 
 
+def fetch_universe_intraday_changes(tickers: list[str]) -> dict[str, pd.Series]:
+    """מחיר תוך-יומי (5 דק') של יום המסחר האחרון (היום, או האחרון שהושלם אם
+    השוק סגור) לכל טיקר - לגרף השוואת שינוי תוך-יומי תיק מול מדד (ציר שעות,
+    לא תאריכים - 14.9.2026, "במקום תאריכים שעות"). אותה טכניקה כמו
+    fetch_index_intraday: period="2d" (לא "1d" שנכשל על טיקרים ישראליים) +
+    סינון Volume=0 (יום-מסחר מזויף) + סינון לתאריך האחרון שמופיע בנתונים."""
+    result: dict[str, pd.Series] = {}
+    for ticker in tickers:
+        try:
+            hist = yf.Ticker(ticker).history(period="2d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
+            if "Volume" in hist.columns:
+                hist = hist[hist["Volume"] != 0]
+            closes = hist["Close"].dropna()
+            if closes.empty:
+                continue
+            last_date = closes.index[-1].date()
+            closes = closes[closes.index.map(lambda ts: ts.date() == last_date)]
+            if _is_israeli_ticker(ticker):
+                closes = closes / 100.0
+            if not closes.empty:
+                result[ticker] = closes
+        except Exception as e:
+            logger.debug("דילוג על תוך-יומי %s: %s", ticker, e)
+            continue
+    return result
+
+
+def fetch_universe_last_completed_intraday_changes(tickers: list[str]) -> dict[str, pd.Series]:
+    """כמו fetch_universe_intraday_changes, אבל יום המסחר האחרון *שהושלם*
+    (לא היום הנוכחי) - לגיבוי כשהיום עוד לא הצטברו מספיק נקודות (למשל דקות
+    ספורות אחרי פתיחת המסחר) כדי שגרף ההשוואה תמיד יציג משהו, במקום "אין
+    מספיק נתונים" (14.9.2026, "תמיד חייב להיות מוצג גרף. תמיד."). אותה
+    טכניקה כמו fetch_index_last_completed_intraday: period="5d", התאריך
+    השני-מהסוף (לא האחרון - זה עשוי להיות היום הנוכחי, בעיצומו)."""
+    result: dict[str, pd.Series] = {}
+    for ticker in tickers:
+        try:
+            hist = yf.Ticker(ticker).history(period="5d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
+            if "Volume" in hist.columns:
+                hist = hist[hist["Volume"] != 0]
+            closes = hist["Close"].dropna()
+            if closes.empty:
+                continue
+            dates = sorted(set(ts.date() for ts in closes.index))
+            if len(dates) < 2:
+                continue
+            target_date = dates[-2]
+            closes = closes[closes.index.map(lambda ts: ts.date() == target_date)]
+            if _is_israeli_ticker(ticker):
+                closes = closes / 100.0
+            if not closes.empty:
+                result[ticker] = closes
+        except Exception as e:
+            logger.debug("דילוג על תוך-יומי (יום קודם) %s: %s", ticker, e)
+            continue
+    return result
+
+
 def fetch_index_last_completed_intraday(index: str) -> pd.Series:
     """נקודות תוך-יומיות (5 דק') של יום המסחר האחרון *שהושלם* - גם כשהשוק
     פתוח כרגע ו-fetch_index_intraday (period="1d") כבר מחזירה את היום הנוכחי
