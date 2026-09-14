@@ -1762,12 +1762,19 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     ).encode(y="y:Q")
 
     # ציר שעות (לא תאריכים) - הגרף מציג את יום המסחר הנוכחי בלבד (תוך-יומי).
-    # tickCount כאובייקט {"interval":"minute","step":30} קרס בפועל בגרסת
-    # Vega-Lite המצורפת ל-Streamlit כאן (שגיאת JS "reading 'every'" - נבדק
-    # בפועל, לא רק בתיאוריה). חוזרים לברירת המחדל של Vega לבחור טיקים
-    # "עגולים" לבד - היחידה שעובדת בפועל בגרסה הזו (14.9.2026).
+    # tickCount כאובייקט {"interval":"minute","step":30} קרס בפועל (שגיאת JS
+    # "reading 'every'", נבדק בפועל) - הפעם tickCount כמספר שלם רגיל (נתמך
+    # ליבתית ב-Vega-Lite, לא אובייקט interval מיוחד), מחושב כך שייצא קרוב
+    # ל-30 דק' בין טיק לטיק לפי טווח היום בפועל (14.9.2026, "אני רוצה שזה
+    # יהיה חצי שעה").
+    # tickCount הוא רק "רמז" ל-Vega, לא ערך מדויק - בפועל הוא עיגל ל-60 דק'
+    # במקום 30 (נבדק בפועל). "values" מפורש עם רשימת שעות עגולות כל 30 דק'
+    # הוא היחיד שבאמת קובע את זה במדויק.
+    _tick_start = long_df["תאריך"].min().floor("30min")
+    _tick_end = long_df["תאריך"].max().ceil("30min")
+    _tick_values = pd.date_range(_tick_start, _tick_end, freq="30min").tolist()
     x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
-                   axis=alt.Axis(format="%H:%M", title=None, grid=False,
+                   axis=alt.Axis(format="%H:%M", title=None, grid=False, values=_tick_values,
                                   labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
     _y_scale = alt.Scale(padding=8)
     _y_axis = alt.Axis(title=None, grid=True, gridColor=_CHART_GRID_COLOR,
