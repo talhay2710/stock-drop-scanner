@@ -1736,39 +1736,18 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     line = alt.Chart(long_df).mark_line(interpolate="monotone", strokeWidth=2.5, clip=False).encode(
         x=x_enc, y=y_enc, color=color_enc, tooltip=_tooltip,
     )
-    # תווית האחוז הנוכחי בקצה כל קו - כדי לראות את התשואה העדכנית של התיק
-    # ושל המדד במבט אחד, בלי לרחף עם העכבר (9.9.2026, בקשה מפורשת).
+    # נקודת קצה בודדת (לא לאורך כל הקו) - רק לסמן היכן הקו מסתיים. בלי תווית
+    # אחוז ליד הנקודה (14.9.2026, "אפשר לוותר על סימון האחוזים כי זה גם ככה
+    # כתוב למעלה ומייצר כפל") - האחוז העדכני כבר מופיע בתג "שינוי יומי".
     last_points = long_df.sort_values("תאריך").groupby("סדרה", as_index=False).tail(1).reset_index(drop=True)
-    # שינוי יומי (לא מצטבר) - שני הקווים נוטים לגמור קרובים זה לזה סביב 0,
-    # אז התוויות בקצה חופפות ("עולה אחד על השני", 14.9.2026). מרחיקים אותן
-    # אנכית (label_y, רק לטקסט - הנקודה עצמה נשארת במקום המדויק) כשההפרש
-    # בין שתי הערכים קטן מדי ביחס לטווח הגרף.
-    last_points["label_y"] = last_points["value"]
-    if len(last_points) == 2:
-        _y_span = (long_df["value"].max() - long_df["value"].min()) or 1.0
-        _min_gap = _y_span * 0.09
-        v0, v1 = last_points.loc[0, "value"], last_points.loc[1, "value"]
-        if abs(v0 - v1) < _min_gap:
-            _mid = (v0 + v1) / 2
-            hi_idx, lo_idx = (0, 1) if v0 >= v1 else (1, 0)
-            last_points.loc[hi_idx, "label_y"] = _mid + _min_gap / 2
-            last_points.loc[lo_idx, "label_y"] = _mid - _min_gap / 2
-    # נקודת קצה בודדת (לא לאורך כל הקו) - רק לסמן היכן הקו מסתיים, ליד התווית.
     end_dots = alt.Chart(last_points).mark_circle(size=34, clip=False).encode(
-        x=x_enc, y=y_enc,
-        color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
-                         legend=None),
-    )
-    end_labels = alt.Chart(last_points).mark_text(
-        align="left", dx=8, fontSize=11, fontWeight="bold", clip=False,
-    ).encode(
-        x=x_enc, y=alt.Y("label_y:Q", scale=_y_scale, axis=_y_axis), text="תשואה_טקסט:N",
+        x=x_enc, y=y_enc, tooltip=_tooltip,
         color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
                          legend=None),
     )
     return (
-        (zero_rule + line + end_dots + end_labels)
-        .properties(height=160, padding={"left": 8, "right": 34, "top": 8, "bottom": 8})
+        (zero_rule + line + end_dots)
+        .properties(height=160, padding={"left": 8, "right": 10, "top": 8, "bottom": 8})
         .configure_view(strokeWidth=0)
         .configure_axis(domain=False, tickSize=0)
     )
