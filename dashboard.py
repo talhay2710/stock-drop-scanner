@@ -1706,7 +1706,7 @@ def _breakdown_rows(agg: dict) -> list[dict]:
     return items
 
 
-def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, port_color: str) -> alt.Chart:
+def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, port_color: str, bench_color: str) -> alt.Chart:
     """גרף תשואת התיק מול המדד - שני קווים עם legend קבוע בתחתית (בשטח משלו,
     לא חופף לצירי הזמן כמו ב-st.line_chart המובנה), וקו אפס מקווקו לייחוס."""
     # value_name="value" (לא "תשואה") בכוונה - כשגם שם השדה הגולמי וגם הכותרת
@@ -1733,7 +1733,7 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     y_enc = alt.Y("value:Q", scale=_y_scale, axis=_y_axis)
     color_enc = alt.Color(
         "סדרה:N",
-        scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
+        scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, bench_color]),
         legend=alt.Legend(title=None, orient="bottom", direction="horizontal",
                            labelColor=_CHART_LABEL_COLOR, labelFontSize=11, symbolType="stroke"),
     )
@@ -4039,7 +4039,7 @@ with st.container(border=True, key="market_panel"):
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
                 st.altair_chart(
-                    _build_comparison_chart(_comp_df, _port_col, _bench_col, PORTFOLIO_LINE_COLOR),
+                    _build_comparison_chart(_comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR),
                     width='stretch',
                 )
                 # ה-caption עם ההסבר (14.9.2026) הוסר שוב - עשה את שתי המשבצות
