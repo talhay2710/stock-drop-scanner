@@ -516,13 +516,13 @@ st.markdown(
     [data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] svg {
         fill: #3B6EA5 !important;
     }
-    /* כפתורי הניקוי/פתיחה של המדדים "צפים" באמצע (align-items:center
-    שממרכז אותם מול הגובה המלא של כל התגיות שנגללות לשתי שורות) - במקום
-    זה מיישרים את כל השורה לשורה הראשונה (14.9.2026, "משהו שם לא מסתדר לי
-    בויזואל"). role="group"+data-rac הוא ה-div המשותף (יציב, לא class עם
-    hash) שעוטף גם את תגית התגיות וגם את שני הכפתורים. */
-    [data-testid="stSidebar"] [data-testid="stMultiSelect"] [role="group"][data-rac] {
-        align-items: flex-start !important;
+    /* כפתורי הניקוי/פתיחה של המדדים "צפים" באמצע - נמדד בפועל
+    (getBoundingClientRect): align-items:flex-start על ה-parent המשותף לא
+    השפיע בכלל, כי לכפתורים עצמם יש align-self מפורש משלהם שדורס את זה.
+    מיישרים את הכפתורים עצמם (14.9.2026, "משהו שם לא מסתדר לי בויזואל"). */
+    [data-testid="stSidebar"] [data-testid="stMultiSelect"] button[aria-label*="Clear"],
+    [data-testid="stSidebar"] [data-testid="stMultiSelect"] button[aria-label*="Open"] {
+        align-self: flex-start !important;
     }
     /* Streamlit's slider (react-aria, לא BaseWeb - הסלקטורים הישנים לא תפסו
        כלום, ר' commit): הטרק ממוקם ב-left:X% שכן מתחשב ב-RTL (מתהפך ל-100-X%
