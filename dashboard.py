@@ -3315,7 +3315,13 @@ with _tab_slot_portfolio.container():
                         f'אין נתון מחיר עדכני</div>'
                     )
                 else:
-                    color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
+                    # שני צבעים נפרדים בכוונה - הפער יכול להיות אמיתי (רווח
+                    # ברוטו קטן שנבלע כולו בעמלה+מס, נטו שלילי) - הכותרת הגדולה
+                    # מציגה ברוטו (pnl/pnl_pct) אז הצבע שלה חייב להתבסס על הסימן
+                    # של ברוטו, לא של נטו, אחרת מספר חיובי מוצג באדום (14.9.2026,
+                    # "כל מה שאדום אמור להיות ירוק בכרטיס הזה עכשיו").
+                    color = POS_COLOR if pnl >= 0 else NEG_COLOR
+                    net_color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
                     # נטו עברה לגריד (השורה האחרונה, מתחת ל"כמות") - לא ליד
                     # הכותרת יותר (13.9.2026, "תעביר לשורה האחרונה מתחת לכמות").
                     hero_html = (
@@ -3327,7 +3333,7 @@ with _tab_slot_portfolio.container():
                     )
                     net_grid_cell = (
                         f'<div><div style="font-size:0.64rem; opacity:0.45;">נטו ({ccy_symbol})</div>'
-                        f'<div style="font-size:0.82rem; font-weight:700; color:{color};">'
+                        f'<div style="font-size:0.82rem; font-weight:700; color:{net_color};">'
                         f'{_signed_num(net_pnl)}</div></div>'
                     )
 
