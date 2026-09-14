@@ -1869,7 +1869,18 @@ def _autosave_channels():
 with st.sidebar:
     current_indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
 
-    with st.container(border=True):
+    with st.container(border=True, key="scan_settings_card"):
+        st.markdown(
+            """
+            <style>
+            div[class*="st-key-scan_settings_card"] {
+                border-radius: 10px;
+                border-right: 3px solid #3B6EA5;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         st.markdown("**📊 מדדים לסריקה**")
         st.multiselect(
             "בחר מדד/ים לסריקה", ALL_INDICES, default=current_indices, label_visibility="collapsed",
