@@ -354,6 +354,15 @@ st.markdown(
         width: 300px;
         overflow: hidden;
     }
+    /* ידית הגרירה לשינוי רוחב הסיידבר (הפס הדק האנכי בקצה) - אין לה
+    data-testid יציב בגרסת Streamlit הזו, אז מזהים אותה לפי cursor:col-resize
+    שהיא היחידה שנושאת (14.9.2026, "הסרגל של למעלה/למטה בבר סייד... אפשר
+    להסיר אותו"). ממילא הרוחב קבוע (300px, למעלה) אז לגרירה אין תועלת אמיתית.
+    שים לב: מזהה עצם הידית (class מבוסס-hash של Streamlit) עלול להשתנות
+    בעדכון Streamlit עתידי - אם זה יחזור להופיע, זה כנראה למה. */
+    [data-testid="stSidebar"] > div > div:only-child:not([data-testid]) {
+        display: none;
+    }
     /* בלי overflow:hidden כאן, כשה-JS של Streamlit מכווץ את הסיידבר (מסך צר/
     מובייל - aria-expanded="false", width:0 + transform), התוכן הפנימי שלו
     (שמניח 300px רוחב) ממשיך "לדלוף" ונראה כפס טקסט אנכי דחוס בקצה המסך -
