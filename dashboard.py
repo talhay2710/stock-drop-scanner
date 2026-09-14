@@ -354,6 +354,17 @@ st.markdown(
         width: 300px;
         overflow: hidden;
     }
+    /* Streamlit עובר בעצמו ל"מצב מובייל" (עמודות נערמות זו מתחת לזו במקום
+    זו לצד זו) כשהחלון הכולל צר - שבר את שורות "value + יחידה" (%/ימים)
+    בסיידבר, שאמורות תמיד להישאר צמודות זו לזו באותה שורה בלי קשר לרוחב
+    החלון (הסיידבר עצמו קבוע 300px ממילא, "מובייל" לא רלוונטי כאן -
+    14.9.2026, "מה עם זה למשל" עם צילום שהראה % ו-ימים נופלים לשורה נפרדת). */
+    [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stColumn"] {
+        min-width: 0 !important;
+    }
     /* ידית הגרירה לשינוי רוחב הסיידבר (הפס הדק בקצה) - אין לה data-testid
     יציב בגרסת Streamlit הזו, אז מזהים אותה לפי cursor:col-resize שהיא
     היחידה שנושאת. ממילא הרוחב קבוע (300px, למעלה) אז לגרירה אין תועלת
