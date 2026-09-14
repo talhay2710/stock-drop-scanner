@@ -1961,37 +1961,41 @@ with st.sidebar:
             st.success(f"הסתיים - {len(results)} התראות חדשות")
 
     # מאחדים את 4 ה-expander-ים הבאים לרשימה אחת רציפה (קווי הפרדה, לא 4
-    # קופסאות נפרדות עם רווח ביניהן) - 14.9.2026, לפי מוקאפ שאושר. אין עוד
-    # st.expander בסיידבר חוץ מה-4 האלה, אז מותר לטרגט את כולם לפי
-    # [data-testid="stSidebar"] [data-testid="stExpander"] בלי צורך במיכל
-    # ייעודי. ה-gap בין הפריטים בסיידבר (12.8px, נמדד) מגיע מ-flex gap על
-    # ה-stVerticalBlock המשותף לכל הסיידבר - לא ניתן לאפס אותו גלובלית בלי
-    # לשבור את הרווח מסביב לשאר הרכיבים, אז סוגרים אותו רק בין expander
-    # לexpander (לא לפני הראשון/אחרי האחרון) עם margin-top שלילי על ה-wrapper
-    # שבא מיד אחרי wrapper אחר שגם הוא expander (יחס :has, לא nth-child קשיח).
+    # קופסאות נפרדות עם רווח ביניהן) - 14.9.2026, לפי מוקאפ שאושר.
+    # הגרסה הראשונה השתמשה ב-:first-of-type/:last-of-type ו-:has() - שתיהן
+    # התבררו שבורות בפועל: :first-of-type/:last-of-type לא עשו מה שהתכוונתי
+    # (כל expander עטוף ב-wrapper יחיד משלו, אז כל אחד הוא גם "ראשון" וגם
+    # "אחרון" מבחינת CSS - כולם קיבלו עיגול מלא בטעות), ו-:has() כנראה לא
+    # נתמך בדפדפן של המשתמש בפועל (עבד אצלי, לא אצלו - "אני במקומי, וזה
+    # עדיין נראה כמו ששלחתי לך"). הגרסה הזו לא תלויה באף אחד מהשניים - key=
+    # מפורש על כל expander, וסלקטורים קשיחים/צאצא-ישיר בלבד (נתמכים בכל דפדפן).
     st.markdown(
         """
         <style>
-        [data-testid="stSidebar"] [data-testid="stExpander"] details {
+        div[class*="st-key-exp_investment"] details,
+        div[class*="st-key-exp_holdings_alert"] details,
+        div[class*="st-key-exp_fees"] details,
+        div[class*="st-key-exp_message_types"] details {
             border-radius: 0;
         }
-        [data-testid="stSidebar"] [data-testid="stExpander"]:first-of-type details {
+        div[class*="st-key-exp_investment"] details {
             border-top-left-radius: 10px;
             border-top-right-radius: 10px;
         }
-        [data-testid="stSidebar"] [data-testid="stExpander"]:last-of-type details {
+        div[class*="st-key-exp_message_types"] details {
             border-bottom-left-radius: 10px;
             border-bottom-right-radius: 10px;
         }
-        [data-testid="stSidebar"] [data-testid="stLayoutWrapper"]:has(> [data-testid="stExpander"])
-            + [data-testid="stLayoutWrapper"]:has(> [data-testid="stExpander"]) {
+        div[class*="st-key-exp_holdings_alert"],
+        div[class*="st-key-exp_fees"],
+        div[class*="st-key-exp_message_types"] {
             margin-top: -13.8px;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    with st.expander("💵 השקעה וסיכון"):
+    with st.expander("💵 השקעה וסיכון", key="exp_investment"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
         st.markdown("**סכום השקעה מינימלי**")
         ps1, ps2 = st.columns(2)
@@ -2057,7 +2061,7 @@ with st.sidebar:
             disabled=True, format="%.0f", key="preview_risk_amount_usd",
         )
 
-    with st.expander("📈 התראת אחזקות"):
+    with st.expander("📈 התראת אחזקות", key="exp_holdings_alert"):
         st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
         st.markdown("**סף עלייה ראשוני (%)**")
         st.number_input(
@@ -2084,7 +2088,7 @@ with st.sidebar:
             key="settings_target_warn", on_change=_autosave_holdings_alerts,
         )
 
-    with st.expander("💰 עמלות ומיסים"):
+    with st.expander("💰 עמלות ומיסים", key="exp_fees"):
         for country, prefix, ccy_symbol in (("IL", "fees_il_", 'ש"ח'), ("US", "fees_us_", "$")):
             st.markdown(f"**{'ישראל' if country == 'IL' else 'ארה\"ב'}**")
             col_a, col_b = st.columns(2)
@@ -2110,7 +2114,7 @@ with st.sidebar:
                 key=f"{prefix}mgmt_pct", on_change=_autosave_fees,
             )
 
-    with st.expander("🔔 סוגי התראה"):
+    with st.expander("🔔 סוגי התראה", key="exp_message_types"):
         _saved_msg_types = cfg.get("telegram_message_types", {})
         for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
             st.checkbox(
