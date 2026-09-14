@@ -4034,7 +4034,7 @@ with st.container(border=True, key="market_panel"):
             _comp_df, _comp_as_of = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
-                _comp_title = "תשואה יומית של התיק מול מדד"
+                _comp_title = "תשואה מול מדד (יומי)"
                 if _comp_as_of:
                     _comp_title += f" (יום המסחר האחרון, {_comp_as_of})"
                 st.image(render_text_image(_comp_title, ACCENT_COLOR, font_size=15))
