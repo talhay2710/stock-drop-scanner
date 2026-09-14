@@ -38,6 +38,27 @@ def _is_israeli_ticker(ticker: str) -> bool:
 _CLOSED_WEEKDAYS = {5, 6}  # Mon=0..Sun=6: שבת=5, ראשון=6 - מ-5.1.2026 זהה לת"א ולארה"ב (ר' market_hours.py)
 
 
+def _drop_phantom_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """מסננת רק שורות-מסחר *מזויפות* אמיתיות (חג - כל ה-OHLC שווים לסגירה
+    הקודמת, Volume=0), לא כל שורה עם Volume=0. בהתחלה (13.9.2026) הסינון היה
+    גורף (Volume != 0 בלבד) - התברר (14.9.2026) שזה מוחק גם את שורת *היום
+    הנוכחי* כשהמסחר עדיין פעיל ויאהו עוד לא מילאה נפח לה (Volume=0 זמנית),
+    למרות שה-OHLC שלה כן משקפים תנועת מחיר תוך-יומית אמיתית (Open!=Close,
+    High!=Low) - זה בדיוק מה שגרם ל"שינוי יומי" להיתקע על השוואת אתמול-שלשום
+    במקום היום-מול-אתמול (נמצא בפועל: TA35.TA, "הנתון כאן לא תואם את הנתונים
+    בכרטיסי המדדים"). ההבדל: שורת-חג אמיתית שטוחה לגמרי (O=H=L=C), שורת
+    "היום עדיין לא נסגר" לא."""
+    if "Volume" not in df.columns or df.empty:
+        return df
+    is_phantom = (
+        (df["Volume"] == 0)
+        & (df["Open"] == df["Close"])
+        & (df["High"] == df["Low"])
+        & (df["Open"] == df["High"])
+    )
+    return df[~is_phantom]
+
+
 def _expected_last_close_date(as_of: dt.date) -> dt.date:
     """יום המסחר האחרון שכבר אמור להיות זמין נכון ל-as_of (לא כולל as_of עצמו).
     לא לוקח בחשבון חגים ספציפיים - הערכה גסה שנועדה לתפוס פערי נתונים אמיתיים
@@ -127,8 +148,7 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             # בו-זמנית, בלתי אפשרי סטטיסטית - התברר שכולן "נסחרו" ב-11/09
             # בנפח 0). מסננים את כל השורה (לא רק Close) כדי שהיום האמיתי
             # הקודם יהיה ה"אתמול" בהשוואה, לא היום-המזויף הזה.
-            if "Volume" in sub.columns:
-                sub = sub[sub["Volume"] != 0]
+            sub = _drop_phantom_rows(sub)
             closes = sub["Close"].dropna()
             volumes = sub["Volume"].dropna()
             lows = sub["Low"].dropna()
@@ -222,10 +242,9 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             # בודקים במפורש שהזוג עקבי (יום מסחר אחד בערך ביניהם, לא "חור"),
             # שזו בדיוק הבעיה שהבדיקה המקורית עם .info נועדה למנוע (ר' הערה למטה).
             hist = yf.Ticker(row["ticker"]).history(period="5d", interval="1d", timeout=_YF_TIMEOUT_SECONDS)
-            # אותו סינון Volume=0 כמו ב-fetch_universe_daily_changes - יום ללא
+            # אותו סינון פאנטום כמו ב-fetch_universe_daily_changes - יום ללא
             # מסחר בפועל (חג) שיאהו עדיין מחזירה עבורו שורה מלאכותית (13.9.2026).
-            if "Volume" in hist.columns:
-                hist = hist[hist["Volume"] != 0]
+            hist = _drop_phantom_rows(hist)
             closes = hist["Close"].dropna()
             if len(closes) < 2:
                 return None
@@ -433,12 +452,13 @@ def fetch_index_proxy_change(index: str) -> float | None:
 
     def _do():
         hist = yf.Ticker(proxy).history(period="5d", timeout=_YF_TIMEOUT_SECONDS)
-        # Volume=0 - יום ללא מסחר בפועל שיאהו מחזירה עבורו שורה מלאכותית
-        # (OHLC=סגירה קודמת) - אותה בעיה שכבר תוקנה ב-fetch_universe_daily_changes
+        # יום ללא מסחר בפועל (חג) שיאהו מחזירה עבורו שורה מלאכותית (OHLC=סגירה
+        # קודמת) - אותה בעיה שכבר תוקנה ב-fetch_universe_daily_changes
         # (13.9.2026), לא נתפסת ע"י _drop_isolated_price_outliers כי היא "שקטה"
-        # (שינוי 0%, לא קפיצה).
-        if "Volume" in hist.columns:
-            hist = hist[hist["Volume"] != 0]
+        # (שינוי 0%, לא קפיצה). _drop_phantom_rows (לא "Volume!=0" גורף) - כדי
+        # לא למחוק גם את שורת *היום* בעודו במסחר (Volume=0 זמני, אבל OHLC
+        # אמיתי) - ר' הערה שם.
+        hist = _drop_phantom_rows(hist)
         closes = _drop_isolated_price_outliers(hist["Close"].dropna())
         if len(closes) < 2:
             return None
@@ -459,8 +479,7 @@ def fetch_index_history(index: str, period: str) -> pd.Series:
         return pd.Series(dtype=float)
     try:
         hist = yf.Ticker(proxy).history(period=period, timeout=_YF_TIMEOUT_SECONDS)
-        if "Volume" in hist.columns:
-            hist = hist[hist["Volume"] != 0]
+        hist = _drop_phantom_rows(hist)
         return _drop_isolated_price_outliers(hist["Close"].dropna())
     except Exception as e:
         logger.warning("נכשלה שליפת היסטוריית המדד (%s): %s", proxy, e)
@@ -503,8 +522,7 @@ def fetch_universe_intraday_changes(tickers: list[str]) -> dict[str, pd.Series]:
     for ticker in tickers:
         try:
             hist = yf.Ticker(ticker).history(period="2d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
-            if "Volume" in hist.columns:
-                hist = hist[hist["Volume"] != 0]
+            hist = _drop_phantom_rows(hist)
             closes = hist["Close"].dropna()
             if closes.empty:
                 continue
@@ -531,8 +549,7 @@ def fetch_universe_last_completed_intraday_changes(tickers: list[str]) -> dict[s
     for ticker in tickers:
         try:
             hist = yf.Ticker(ticker).history(period="5d", interval="5m", timeout=_YF_TIMEOUT_SECONDS)
-            if "Volume" in hist.columns:
-                hist = hist[hist["Volume"] != 0]
+            hist = _drop_phantom_rows(hist)
             closes = hist["Close"].dropna()
             if closes.empty:
                 continue

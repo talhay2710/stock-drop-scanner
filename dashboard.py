@@ -1122,13 +1122,26 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
 
 
 def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_index: str,
-                                   intraday: dict, bench_hist: pd.Series):
+                                   intraday: dict, bench_hist: pd.Series,
+                                   daily_hist_by_ticker: dict, bench_daily_hist: pd.Series):
     """ממוצע משוקלל (לפי סכום ההשקעה) של % השינוי התוך-יומי - כל אחזקה ביחס
-    למחיר הפתיחה *שלה* באותו יום (הנקודה התוך-יומית הראשונה הזמינה), כך
-    שהגרף מתחיל מ-0% עבור כל האחזקות יחד בתחילת יום המסחר. מחזיר None אם
-    אין לפחות 2 נקודות זמן משותפות לתיק ולמדד (לא מספיק לצייר קו)."""
+    ל*סגירת יום המסחר הקודם* שלה (לא ביחס לנקודה התוך-יומית הראשונה של אותו
+    יום!) - אותה נקודת ייחוס בדיוק כמו תג "שינוי יומי" בכרטיסי האחזקות
+    וכרטיסי המדדים (14.9.2026, "הנתון כאן לא תואם את הנתונים בכרטיסי
+    המדדים" - הגרסה הקודמת התחילה מ-0% ביחס למחיר הפתיחה שלה, לא ביחס
+    לסגירה הקודמת, אז לא הייתה יכולה להתאים). מחזיר None אם אין לפחות 2
+    נקודות זמן משותפות לתיק ולמדד (לא מספיק לצייר קו)."""
     if not intraday:
         return None
+    session_date = bench_hist.index[0].date() if bench_hist is not None and not bench_hist.empty else None
+    if session_date is None:
+        for closes in intraday.values():
+            if closes is not None and not closes.empty:
+                session_date = closes.index[0].date()
+                break
+    if session_date is None:
+        return None
+
     weighted_by_ts: dict = {}
     weight_by_ts: dict = {}
     for _, r in relevant_holdings.iterrows():
@@ -1140,12 +1153,13 @@ def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_inde
         if not qty or not entry:
             continue
         invested = entry * qty
-        day_open = float(closes.iloc[0])
-        if not day_open:
+        daily_hist = daily_hist_by_ticker.get(r["ticker"])
+        prev_close = _last_close_before(daily_hist, session_date) if daily_hist is not None else None
+        if not prev_close:
             continue
         for ts, price in closes.items():
             bucket = ts.floor("5min")
-            pct = (float(price) - day_open) / day_open * 100
+            pct = (float(price) - prev_close) / prev_close * 100
             weighted_by_ts[bucket] = weighted_by_ts.get(bucket, 0.0) + pct * invested
             weight_by_ts[bucket] = weight_by_ts.get(bucket, 0.0) + invested
     if not weighted_by_ts:
@@ -1156,11 +1170,11 @@ def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_inde
 
     if bench_hist is None or bench_hist.empty:
         return None
-    bench_open = float(bench_hist.iloc[0])
-    if not bench_open:
+    bench_prev_close = _last_close_before(bench_daily_hist, session_date) if bench_daily_hist is not None else None
+    if not bench_prev_close:
         return None
     bench_pct = pd.Series({
-        ts.floor("5min"): (float(price) - bench_open) / bench_open * 100
+        ts.floor("5min"): (float(price) - bench_prev_close) / bench_prev_close * 100
         for ts, price in bench_hist.items()
     }).sort_index()
     common_ts = sorted(t for t in portfolio_pct.index if t in bench_pct.index)
@@ -1211,10 +1225,20 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
 
     tickers = relevant_holdings["ticker"].tolist()
 
+    # סגירות יומיות (לא תוך-יומיות) - לנקודת הייחוס "סגירת יום המסחר הקודם"
+    # שממנה נמדד השינוי %, אותו מקור בדיוק כמו תג "שינוי יומי" בכרטיסי
+    # האחזקות/המדדים, כדי שהאחוזים בגרף באמת יתאימו להם.
+    _daily_df = market_data.fetch_universe_daily_changes(tickers)
+    daily_hist_by_ticker = {
+        row["ticker"]: row["history"] for _, row in _daily_df.iterrows()
+    } if not _daily_df.empty else {}
+    bench_daily_hist = _get_index_history_raw(dominant_index)
+
     comparison_df = _build_intraday_comparison_df(
         relevant_holdings, dominant_index,
         market_data.fetch_universe_intraday_changes(tickers),
         market_data.fetch_index_intraday(dominant_index),
+        daily_hist_by_ticker, bench_daily_hist,
     )
     if comparison_df is not None:
         return comparison_df, None
@@ -1223,6 +1247,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         relevant_holdings, dominant_index,
         market_data.fetch_universe_last_completed_intraday_changes(tickers),
         market_data.fetch_index_last_completed_intraday(dominant_index),
+        daily_hist_by_ticker, bench_daily_hist,
     )
     as_of_label = comparison_df.index[-1].strftime("%d/%m") if comparison_df is not None else None
     return comparison_df, as_of_label
