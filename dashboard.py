@@ -1916,6 +1916,7 @@ with st.sidebar:
             key="settings_indices", on_change=_autosave_settings,
         )
         st.markdown("**📉 ירידה יומית להתראה**")
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
         tc1, tc2 = st.columns([5, 1])
         tc1.number_input(
             "אחוז ירידה שמפעיל התראה", min_value=0.5, max_value=50.0,
@@ -1925,6 +1926,7 @@ with st.sidebar:
         tc2.markdown("<div style='padding-top:10px;'>%</div>", unsafe_allow_html=True)
 
         st.markdown("**📉 ירידה מצטברת**")
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
         dc1, dc2 = st.columns([5, 1])
         dc1.number_input(
             "מספר ימים לירידה מצטברת", min_value=2, max_value=10, step=1,
@@ -1933,12 +1935,6 @@ with st.sidebar:
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
         dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
-        # הפרדה עדינה מאוד בין שתי השורות (ימים / %) בתוך "ירידה מצטברת" -
-        # לא בתוך התיבות הלבנות עצמן (14.9.2026, "התכוונתי בין שתי השורות").
-        st.markdown(
-            "<div style='border-top:1px solid rgba(0,0,0,0.06); margin:6px 0;'></div>",
-            unsafe_allow_html=True,
-        )
         mc1, mc2 = st.columns([5, 1])
         mc1.number_input(
             "אחוז ירידה מצטברת שמפעיל התראה", min_value=0.5, max_value=50.0,
