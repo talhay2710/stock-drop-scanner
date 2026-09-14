@@ -1888,6 +1888,12 @@ with st.sidebar:
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
             }
+            /* צמצום הרווח מעל "מדדים לסריקה" - היה 29px (15px padding +
+            עוד ~14px ריווח פנימי של הפסקה הראשונה), 14.9.2026 "תצמצם רווח
+            כאן". */
+            div[class*="st-key-scan_settings_card"] [data-testid="stVerticalBlock"] > div:first-child {
+                margin-top: -14px;
+            }
             </style>
             """,
             unsafe_allow_html=True,
@@ -1935,15 +1941,21 @@ with st.sidebar:
         st.markdown(
             """
             <style>
-            /* flex-start - נמדד ישירות (getBoundingClientRect): לכפתור יש
-            direction:rtl אמיתי, אז flex-start = ימין (התחלה ב-RTL), בדיוק
-            איפה שהאייקון/טקסט של ה-expander-ים למטה מתחילים. flex-end היה
-            הפוך (שמאל, מתחת לחץ) - נבדק ישירות ותוקן (14.9.2026). */
+            /* בלי מילוי אפור/מסגרת - "לא מדבר בשפה של הסייד בר... תחשוב
+            על אלמנט אחר" (14.9.2026). במקום להיראות כמו כפתור נפרד, נראה
+            עכשיו כמו עוד שורה ברשימה (טקסט+אייקון שקוף, בדיוק כמו כותרות
+            ה-expander-ים למטה) - עם hover עדין בלבד כרמז שזו פעולה לחיצה.
+            flex-start = ימין (direction:rtl אמיתי על הכפתור, נבדק ישירות). */
             div[class*="st-key-sidebar_scan_button"] button {
-                background-color: rgba(120,120,120,0.07) !important;
+                background-color: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
                 font-weight: 600 !important; font-size: 13px !important;
                 justify-content: flex-start !important;
                 padding-right: 34px !important;
+            }
+            div[class*="st-key-sidebar_scan_button"] button:hover {
+                background-color: rgba(120,120,120,0.07) !important;
             }
             div[class*="st-key-sidebar_scan_button"] button > div {
                 justify-content: flex-start !important;
@@ -1976,6 +1988,11 @@ with st.sidebar:
             div[class*="st-key-exp_group_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
+            }
+            /* צמצום הרווח מעל הפריט הראשון (14.9.2026, "וכאן" - אותה בעיה
+            כמו בכרטיס ההגדרות למעלה). */
+            div[class*="st-key-exp_group_card"] [data-testid="stVerticalBlock"] > div:first-child {
+                margin-top: -14px;
             }
             /* צמצום המרווח בין הפריטים המתקפלים - לא להדביק לגמרי (14.9.2026,
             "אתה יכול לצמצם אותם קצת, לא חייב להצמיד"), רק לקרב. נמדד: המרווח
@@ -2116,20 +2133,35 @@ with st.sidebar:
                     key=f"settings_msgtype_{_mt_key}", on_change=_autosave_message_types,
                 )
 
-    st.markdown(
-        '<b style="display:inline-block; margin-top:14px;">'
-        '<span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
-        unsafe_allow_html=True,
-    )
-    ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
-    ch1.checkbox(
-        "טלגרם", value=bool(cfg.get("telegram", {}).get("enabled", True)),
-        key="settings_telegram_enabled", on_change=_autosave_channels,
-    )
-    ch2.checkbox(
-        "דסקטופ", value=bool(cfg.get("desktop_notifications", {}).get("enabled", True)),
-        key="settings_desktop_enabled", on_change=_autosave_channels,
-    )
+    with st.container(border=True, key="channels_card"):
+        st.markdown(
+            """
+            <style>
+            div[class*="st-key-channels_card"] {
+                border-radius: 10px;
+                border-right: 3px solid #3B6EA5;
+            }
+            div[class*="st-key-channels_card"] [data-testid="stVerticalBlock"] > div:first-child {
+                margin-top: -14px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<b style="display:inline-block;">'
+            '<span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
+            unsafe_allow_html=True,
+        )
+        ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
+        ch1.checkbox(
+            "טלגרם", value=bool(cfg.get("telegram", {}).get("enabled", True)),
+            key="settings_telegram_enabled", on_change=_autosave_channels,
+        )
+        ch2.checkbox(
+            "דסקטופ", value=bool(cfg.get("desktop_notifications", {}).get("enabled", True)),
+            key="settings_desktop_enabled", on_change=_autosave_channels,
+        )
 
 
 
