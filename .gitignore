@@ -12,3 +12,7 @@ scanner.log
 __pycache__/
 *.pyc
 .streamlit/
+
+# מצב מקומי של desktop_notify_watcher.py (איזו התראה/סיכום כבר הוצג
+# כ-toast במחשב הזה) - ספציפי למכונה, לא משהו לשתף
+.desktop_notify_state.json
