@@ -1699,18 +1699,21 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         alt.Tooltip("סדרה:N", title=""),
         alt.Tooltip("תשואה_טקסט:N", title="תשואה"),
     ]
+    # בלי mark_circle על כל נקודה (היה קודם) - עם ~20 תאריכים זה יוצר המון
+    # נקודות על שני הקווים, "נראה קצת מסורבל" (14.9.2026). הקו עצמו נושא
+    # tooltip בעצמו (hover על הקו, לא רק על נקודה ממש) אז אין אובדן אינטראקציה.
     line = alt.Chart(long_df).mark_line(interpolate="monotone", strokeWidth=2.5, clip=False).encode(
         x=x_enc, y=y_enc, color=color_enc, tooltip=_tooltip,
-    )
-    points = alt.Chart(long_df).mark_circle(size=40, clip=False).encode(
-        x=x_enc, y=y_enc,
-        color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
-                         legend=None),
-        tooltip=_tooltip,
     )
     # תווית האחוז הנוכחי בקצה כל קו - כדי לראות את התשואה העדכנית של התיק
     # ושל המדד במבט אחד, בלי לרחף עם העכבר (9.9.2026, בקשה מפורשת).
     last_points = long_df.sort_values("תאריך").groupby("סדרה", as_index=False).tail(1)
+    # נקודת קצה בודדת (לא לאורך כל הקו) - רק לסמן היכן הקו מסתיים, ליד התווית.
+    end_dots = alt.Chart(last_points).mark_circle(size=34, clip=False).encode(
+        x=x_enc, y=y_enc,
+        color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
+                         legend=None),
+    )
     end_labels = alt.Chart(last_points).mark_text(
         align="left", dx=8, fontSize=11, fontWeight="bold", clip=False,
     ).encode(
@@ -1719,7 +1722,7 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
                          legend=None),
     )
     return (
-        (zero_rule + line + points + end_labels)
+        (zero_rule + line + end_dots + end_labels)
         .properties(height=160, padding={"left": 8, "right": 34, "top": 8, "bottom": 8})
         .configure_view(strokeWidth=0)
         .configure_axis(domain=False, tickSize=0)
