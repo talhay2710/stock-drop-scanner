@@ -1938,6 +1938,10 @@ with st.sidebar:
             div[class*="st-key-sidebar_scan_button"] button {
                 background-color: rgba(120,120,120,0.07) !important;
                 font-weight: 600 !important; font-size: 13px !important;
+                justify-content: flex-start !important;
+            }
+            div[class*="st-key-sidebar_scan_button"] button > div {
+                justify-content: flex-start !important;
             }
             </style>
             """,
