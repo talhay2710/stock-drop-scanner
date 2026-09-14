@@ -1938,6 +1938,37 @@ with st.sidebar:
                 results = run_scan(cfg)
             st.success(f"הסתיים - {len(results)} התראות חדשות")
 
+    # מאחדים את 4 ה-expander-ים הבאים לרשימה אחת רציפה (קווי הפרדה, לא 4
+    # קופסאות נפרדות עם רווח ביניהן) - 14.9.2026, לפי מוקאפ שאושר. אין עוד
+    # st.expander בסיידבר חוץ מה-4 האלה, אז מותר לטרגט את כולם לפי
+    # [data-testid="stSidebar"] [data-testid="stExpander"] בלי צורך במיכל
+    # ייעודי. ה-gap בין הפריטים בסיידבר (12.8px, נמדד) מגיע מ-flex gap על
+    # ה-stVerticalBlock המשותף לכל הסיידבר - לא ניתן לאפס אותו גלובלית בלי
+    # לשבור את הרווח מסביב לשאר הרכיבים, אז סוגרים אותו רק בין expander
+    # לexpander (לא לפני הראשון/אחרי האחרון) עם margin-top שלילי על ה-wrapper
+    # שבא מיד אחרי wrapper אחר שגם הוא expander (יחס :has, לא nth-child קשיח).
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] [data-testid="stExpander"] details {
+            border-radius: 0;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"]:first-of-type details {
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"]:last-of-type details {
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+        }
+        [data-testid="stSidebar"] [data-testid="stLayoutWrapper"]:has(> [data-testid="stExpander"])
+            + [data-testid="stLayoutWrapper"]:has(> [data-testid="stExpander"]) {
+            margin-top: -13.8px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     with st.expander("💵 השקעה וסיכון"):
         st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
         st.markdown("**סכום השקעה מינימלי**")
