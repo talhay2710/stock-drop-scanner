@@ -1736,17 +1736,11 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     line = alt.Chart(long_df).mark_line(interpolate="monotone", strokeWidth=2.5, clip=False).encode(
         x=x_enc, y=y_enc, color=color_enc, tooltip=_tooltip,
     )
-    # נקודת קצה בודדת (לא לאורך כל הקו) - רק לסמן היכן הקו מסתיים. בלי תווית
-    # אחוז ליד הנקודה (14.9.2026, "אפשר לוותר על סימון האחוזים כי זה גם ככה
-    # כתוב למעלה ומייצר כפל") - האחוז העדכני כבר מופיע בתג "שינוי יומי".
-    last_points = long_df.sort_values("תאריך").groupby("סדרה", as_index=False).tail(1).reset_index(drop=True)
-    end_dots = alt.Chart(last_points).mark_circle(size=34, clip=False).encode(
-        x=x_enc, y=y_enc, tooltip=_tooltip,
-        color=alt.Color("סדרה:N", scale=alt.Scale(domain=[port_col, bench_col], range=[port_color, NEUTRAL_COLOR]),
-                         legend=None),
-    )
+    # בלי נקודת קצה ובלי תווית אחוז ליד הקו (14.9.2026, "אפשר לוותר על
+    # סימון האחוזים... אפשר לוותר על הנקודות") - האחוז העדכני כבר מופיע
+    # בתג "שינוי יומי" מעל הגרף, אז הקו עצמו מספיק.
     return (
-        (zero_rule + line + end_dots)
+        (zero_rule + line)
         .properties(height=160, padding={"left": 8, "right": 10, "top": 8, "bottom": 8})
         .configure_view(strokeWidth=0)
         .configure_axis(domain=False, tickSize=0)
@@ -4026,9 +4020,8 @@ with st.container(border=True, key="market_panel"):
                     st.caption("אין כרגע מספיק נתונים להשוואה מול מדד - ינסה שוב ברענון הבא.")
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
-                _port_color = POS_COLOR if _comp_df[_port_col].iloc[-1] >= 0 else NEG_COLOR
                 st.altair_chart(
-                    _build_comparison_chart(_comp_df, _port_col, _bench_col, _port_color),
+                    _build_comparison_chart(_comp_df, _port_col, _bench_col, ACCENT_COLOR),
                     width='stretch',
                 )
                 # ה-caption עם ההסבר (14.9.2026) הוסר שוב - עשה את שתי המשבצות
