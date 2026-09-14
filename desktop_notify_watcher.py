@@ -44,7 +44,12 @@ _SUMMARY_TOAST = {
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=ROOT_DIR, capture_output=True, text=True, timeout=30)
+    # CREATE_NO_WINDOW - בלעדיו, כל תת-תהליך קונסולה (git.exe) פותח לעצמו
+    # חלון חדש משלו גם כש-pythonw.exe עצמו (ההורה) בלי קונסולה בכלל - זה
+    # ה"חלון שחור קופץ לשנייה" (14.9.2026, נצפה בפועל אחרי רישום המשימה).
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    return subprocess.run(cmd, cwd=ROOT_DIR, capture_output=True, text=True, timeout=30,
+                           creationflags=creationflags)
 
 
 def _git_pull_safely() -> None:
