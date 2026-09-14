@@ -1492,30 +1492,37 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
     (9.9.2026, בעקבות "זה ממש גרוע" על הניסיונות המאוחרים יותר)."""
     pnl_pct = (pnl / invested * 100) if invested else 0.0
     color = POS_COLOR if pnl >= 0 else NEG_COLOR
-    # בר אחד עם מילוי+סימון (כמה גרסאות, 13.9.2026) התברר בלתי-קריא בלי
-    # קשר לפרטי העיצוב - "קשה להבין מה המילוי מציג", ואז "פעמיים שווי"
-    # (תווית על הבר מתנגשת עם השורה שכבר אמרה "שווי"). נבנה מחדש כשני
-    # פסים נפרדים ומתויגים - עלות ושווי, כל אחד עם התווית שלו צמודה מראש,
-    # לא תלוי בקריאה חוצה-רכיבים ("תעשה את כל זה מחדש וטוב וברור יותר").
-    _bars_scale = max(invested, current_value, 1.0)
-    _cost_bar_pct = max(0.0, min(100.0, invested / _bars_scale * 100))
-    _value_bar_pct = max(0.0, min(100.0, current_value / _bars_scale * 100))
-
-    def _labeled_bar(label: str, value: float, bar_pct: float, bar_color: str) -> str:
-        return (
-            f'<div style="display:flex; align-items:center; gap:6px; margin-top:6px;">'
-            f'<span style="font-size:0.66rem; opacity:0.6; width:28px; flex-shrink:0;">{label}</span>'
-            f'<div style="flex:1; height:6px; background:#e2e5e9; border-radius:3px; direction:ltr;">'
-            f'<div style="height:100%; width:{bar_pct:.1f}%; background:{bar_color}; border-radius:3px;"></div>'
-            f'</div>'
-            f'<span style="font-size:0.7rem; font-weight:700; color:{bar_color}; flex-shrink:0;">{value:,.0f}</span>'
-            f'</div>'
+    # כמה גרסאות קודמות (13.9.2026) נכשלו: מילוי+סימון על בר אחד - לא ברור
+    # מה המילוי מייצג; שני פסים נפרדים (עלות/שווי) - "לא מת על הגרף הזה".
+    # גרסה שלישית: פס אחד ממורכז באפס (=עלות, נקודת השבירה) שממלא ימינה
+    # (רווח, ירוק) או שמאלה (הפסד, אדום) - אותו % שכבר מוצג במספר הגדול
+    # למטה, לא צריך להשוות שני ערכים בעצמו. cap ב-20% כדי שגם רווח/הפסד
+    # קיצוני לא "יגלוש" מעבר לחצי הבר. סימון נקודת העלות (המרכז) בולט
+    # (3px, לא 1px) לפי בקשה מפורשת - "סימון יותר בולט של נקודת העלות".
+    _gauge_cap = 20.0
+    _gauge_half_pct = max(0.0, min(50.0, abs(pnl_pct) / _gauge_cap * 50.0))
+    if pnl_pct >= 0:
+        _gauge_fill = (
+            f'<div style="position:absolute; right:50%; top:0; height:100%; width:{_gauge_half_pct:.1f}%; '
+            f'background:{color}; border-radius:0 4px 4px 0;"></div>'
+        )
+    else:
+        _gauge_fill = (
+            f'<div style="position:absolute; left:50%; top:0; height:100%; width:{_gauge_half_pct:.1f}%; '
+            f'background:{color}; border-radius:4px 0 0 4px; transform:translateX(-100%);"></div>'
         )
     bar = (
-        _labeled_bar("עלות", invested, _cost_bar_pct, NEUTRAL_COLOR)
-        + _labeled_bar("שווי", current_value, _value_bar_pct, color)
+        f'<div style="position:relative; height:8px; background:#e2e5e9; border-radius:4px; '
+        f'margin:14px 0 4px 0; direction:ltr;">'
+        f'{_gauge_fill}'
+        f'<div style="position:absolute; left:50%; top:-3px; width:3px; height:14px; '
+        f'background:{NEUTRAL_COLOR}; opacity:0.75; border-radius:1.5px; transform:translateX(-50%);"></div>'
+        f'</div>'
     )
-    numbers = ""
+    numbers = (
+        f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.68rem; opacity:0.6;">'
+        f'<span>עלות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
+    )
     # ש"ח מוזכר פעם אחת בלבד לכל הכרטיס, אבל ליד הסכומים עצמם (קטן) ולא
     # בכותרת - כך שהוא נשאר קרוב לערך שהוא מתאר, בלי לחזור על עצמו בכל
     # שורה (13.9.2026, "תוריד את הש"ח מהכותרת ותציין ש"ח קטן יותר ליד הסכומים").
