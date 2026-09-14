@@ -1935,10 +1935,15 @@ with st.sidebar:
         st.markdown(
             """
             <style>
+            /* flex-start - נמדד ישירות (getBoundingClientRect): לכפתור יש
+            direction:rtl אמיתי, אז flex-start = ימין (התחלה ב-RTL), בדיוק
+            איפה שהאייקון/טקסט של ה-expander-ים למטה מתחילים. flex-end היה
+            הפוך (שמאל, מתחת לחץ) - נבדק ישירות ותוקן (14.9.2026). */
             div[class*="st-key-sidebar_scan_button"] button {
                 background-color: rgba(120,120,120,0.07) !important;
                 font-weight: 600 !important; font-size: 13px !important;
                 justify-content: flex-start !important;
+                padding-right: 34px !important;
             }
             div[class*="st-key-sidebar_scan_button"] button > div {
                 justify-content: flex-start !important;
@@ -1964,7 +1969,26 @@ with st.sidebar:
                 results = run_scan(cfg)
             st.success(f"הסתיים - {len(results)} התראות חדשות")
 
-    with st.container(border=True):
+    with st.container(border=True, key="exp_group_card"):
+        st.markdown(
+            """
+            <style>
+            div[class*="st-key-exp_group_card"] {
+                border-radius: 10px;
+                border-right: 3px solid #3B6EA5;
+            }
+            /* צמצום המרווח בין הפריטים המתקפלים - לא להדביק לגמרי (14.9.2026,
+            "אתה יכול לצמצם אותם קצת, לא חייב להצמיד"), רק לקרב. נמדד: המרווח
+            המקורי כ-13px - מצמצמים לכ-6px, לא ל-0. */
+            div[class*="st-key-exp_holdings_alert"],
+            div[class*="st-key-exp_fees"],
+            div[class*="st-key-exp_message_types"] {
+                margin-top: -7px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         with st.expander("💵 השקעה וסיכון", key="exp_investment"):
             st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
             st.markdown("**סכום השקעה מינימלי**")
