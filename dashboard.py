@@ -1887,6 +1887,10 @@ def _autosave_channels():
 
 with st.sidebar:
     current_indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
+    # מסודר לפי סדר קבוע (ALL_INDICES) - לא לפי סדר הבחירה ההיסטורי - כדי
+    # ש-NASDAQ100 יהיה תמיד ליד SP500 (שניהם דולר) ו-TA35 ליד TA125 (שניהם
+    # שקל), לא מפוזרים (14.9.2026, "הנאסד״ק יוכל להיות לצד הS&P").
+    current_indices = [i for i in ALL_INDICES if i in current_indices]
 
     with st.container(border=True, key="scan_settings_card"):
         st.markdown(
@@ -1944,39 +1948,41 @@ with st.sidebar:
 
         # הכפתור עבר לתוך אותו כרטיס כמו ההגדרות שהוא בעצם מפעיל (14.9.2026,
         # "את כפתור הסריקה הידנית לדעתי צריך למקום במקום אחר... בתוך כרטיס
-        # הגדרות סריקה עצמו") - במקום תיבה נפרדת משלו כמו קודם. עיצוב מונוכרומטי
-        # עדין (לא כחול מלא) כי "קצת בולט מדי" עם המילוי הכחול המלא.
+        # הגדרות סריקה עצמו") - במקום תיבה נפרדת משלו כמו קודם.
+        # "תחשוב על משהו מקורי. תשתגע!" (14.9.2026, אחרי כמה ניסיונות עדינים
+        # מדי) - "קו סריקה" אנימטיבי שזז לאורך הכפתור בלולאה, כמו רדאר/סורק
+        # אמיתי - קשור ישירות למה שהכפתור בפועל עושה, לא רק עוד גוון צבע.
         st.markdown(
             """
             <style>
-            /* חיקוי מדויק של שורת expander (טקסט רגיל, justify-content:
-            space-between, בלי מילוי) עם חץ הרצה "▶" בצד השני במקום חץ-קיפול -
-            כך שזו עוד שורה ברשימה שמפעילה פעולה, לא קופסת-כפתור נפרדת
-            (14.9.2026, "אני רוצה אלמנט אחר"). */
+            @keyframes scan-sweep {
+                0% { background-position: 200% 0; }
+                100% { background-position: -200% 0; }
+            }
             div[class*="st-key-sidebar_scan_button"] button {
-                background-color: transparent !important;
-                border: none !important;
+                background: linear-gradient(
+                    90deg,
+                    rgba(59,110,165,0.05) 0%,
+                    rgba(59,110,165,0.05) 40%,
+                    rgba(59,110,165,0.35) 50%,
+                    rgba(59,110,165,0.05) 60%,
+                    rgba(59,110,165,0.05) 100%
+                ) !important;
+                background-size: 300% 100% !important;
+                animation: scan-sweep 3.5s linear infinite !important;
+                border: 1px solid rgba(59,110,165,0.25) !important;
                 box-shadow: none !important;
-                font-weight: 400 !important; font-size: 14px !important;
-                justify-content: space-between !important;
-                padding: 4px 12px !important;
-                color: inherit !important;
+                font-weight: 600 !important; font-size: 13px !important;
+                justify-content: center !important;
+                padding: 7px 12px !important;
+                color: #3B6EA5 !important;
             }
             div[class*="st-key-sidebar_scan_button"] button p {
-                color: inherit !important;
+                color: #3B6EA5 !important;
             }
             div[class*="st-key-sidebar_scan_button"] button:hover {
-                background-color: rgba(120,120,120,0.07) !important;
-            }
-            div[class*="st-key-sidebar_scan_button"] button > div {
-                justify-content: space-between !important;
-                width: 100%;
-            }
-            div[class*="st-key-sidebar_scan_button"] button::after {
-                content: "▶";
-                font-size: 10px;
-                color: #3B6EA5;
-                margin-inline-start: 8px;
+                animation-duration: 1.2s !important;
+                border-color: rgba(59,110,165,0.5) !important;
             }
             </style>
             """,
