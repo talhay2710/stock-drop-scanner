@@ -122,6 +122,10 @@ NEG_BG = "rgba(204, 47, 60, 0.10)"
 NEUTRAL_COLOR = "#3B4A5A"
 NEUTRAL_BG = "rgba(120,120,120,0.07)"
 ACCENT_COLOR = "#3B6EA5"
+# צבע ייעודי לקו "התיק שלי" בגרף השוואה מול מדד - לא ACCENT_COLOR (משמש
+# לכותרת) ולא NEUTRAL_COLOR (משמש לקו המדד) כי שניהם גוני כחול קרובים מדי,
+# קשה להבדיל ביניהם (14.9.2026, "אולי צבע אחר שלא קשור לכותרת?").
+PORTFOLIO_LINE_COLOR = "#8756B5"
 CURRENCY_SYMBOLS = {"ILS": 'ש"ח', "USD": "$"}
 
 # אייקון עיגול-שאלה שמחקה את ה-help= הטבעי של Streamlit (עיגול אפור עדין) -
@@ -4033,7 +4037,7 @@ with st.container(border=True, key="market_panel"):
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
                 st.altair_chart(
-                    _build_comparison_chart(_comp_df, _port_col, _bench_col, ACCENT_COLOR),
+                    _build_comparison_chart(_comp_df, _port_col, _bench_col, PORTFOLIO_LINE_COLOR),
                     width='stretch',
                 )
                 # ה-caption עם ההסבר (14.9.2026) הוסר שוב - עשה את שתי המשבצות
