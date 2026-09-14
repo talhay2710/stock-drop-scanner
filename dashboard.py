@@ -198,7 +198,7 @@ def render_reason_pill(reasons_json: str) -> str:
 
 def _sparkline_svg(
     prices: list, width: int = 140, height: int = 36, show_baseline: bool = False, responsive: bool = False,
-    area_fill: bool = False, grad_id: str = "spark-grad",
+    area_fill: bool = False, grad_id: str = "spark-grad", color: str | None = None,
 ) -> str:
     """גרף זעיר (sparkline) כ-SVG מוטבע - מציג את מגמת המחיר האחרונה בלי צירים/legend.
     show_baseline (אופציונלי, ברירת מחדל כבוי כדי לא לשנות התנהגות קיימת בכרטיסי
@@ -222,7 +222,13 @@ def _sparkline_svg(
         for i, p in enumerate(prices)
     ]
     points = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
-    color = POS_COLOR if prices[-1] >= prices[0] else NEG_COLOR
+    # color יכול להגיע חיצונית (14.9.2026, "גם הגרף צריך להיות ירוק אם הברוטו
+    # בפלוס") - כדי שכרטיס אחזקה יצבע את הגרף לפי סימן הרווח/הפסד הברוטו
+    # (pnl, אותו מקור כמו המספר הגדול), לא לפי מגמת המחיר הפנימית של הגרף
+    # עצמו (prices[-1] מול prices[0]) שיכולה לחלוק לרוב, אבל לא תמיד, מהסימן
+    # של pnl - למשל שער נוכחי חי (current) שכבר זז מאז נקודת prices[-1].
+    if color is None:
+        color = POS_COLOR if prices[-1] >= prices[0] else NEG_COLOR
     extra = ""
     if show_baseline:
         _, base_y = coords[0]
@@ -3350,7 +3356,7 @@ with _tab_slot_portfolio.container():
                 if row["prices"]:
                     svg = _sparkline_svg(
                         row["prices"], width=96, height=34, area_fill=True,
-                        grad_id=f"spark-grad-{row['id']}",
+                        grad_id=f"spark-grad-{row['id']}", color=color,
                     )
                     # ממוקם absolute במרכז השורה (לא flex רגיל) - כדי שהגרף
                     # יהיה במרכז הכרטיס באמת, לא תלוי ברוחב המספר הגדול לידו
