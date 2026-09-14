@@ -1180,10 +1180,16 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
     (לפי סכום ההשקעה) על כל האחזקות הרלוונטיות.
     מנסים קודם את היום הנוכחי; אם עדיין אין בו מספיק נקודות (למשל דקות
     ספורות אחרי פתיחת המסחר) נופלים על יום המסחר האחרון *שהושלם* - "תמיד
-    חייב להיות מוצג גרף. תמיד" (14.9.2026). מחזיר None רק אם גם זה נכשל
-    (אין בכלל נתונים, למשל תקלת יאהו מלאה)."""
+    חייב להיות מוצג גרף. תמיד" (14.9.2026). מחזיר (None, None) רק אם גם זה
+    נכשל (אין בכלל נתונים, למשל תקלת יאהו מלאה).
+
+    מחזיר (df, as_of_label): as_of_label הוא None כשמוצג היום הנוכחי (הציר
+    "נכון" לשעון האמיתי), או "DD/MM" כשמוצג יום מסחר קודם - כדי שהתצוגה
+    תבהיר את זה בפירוש (לא רק "יש ציר עד 17:00" בלי הקשר, שנראה כאילו יש
+    נתונים "מהעתיד" ביחס לשעה האמיתית עכשיו - 14.9.2026, "לא הגיוני, שעכשיו
+    מוצג 17:00"). אותה מוסכמה בדיוק כמו get_index_last_completed_sparkline."""
     if holdings_df.empty:
-        return None
+        return None, None
 
     _idx_invested = {}
     for _, r in holdings_df.iterrows():
@@ -1193,7 +1199,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
             continue
         _idx_invested[idx] = _idx_invested.get(idx, 0.0) + entry * qty
     if not _idx_invested:
-        return None
+        return None, None
     dominant_index = max(_idx_invested, key=_idx_invested.get)
     dominant_ccy = constituents.INDEX_CURRENCY.get(dominant_index, "ILS")
 
@@ -1201,7 +1207,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         holdings_df["index_name"].apply(lambda i: constituents.INDEX_CURRENCY.get(i, "ILS") == dominant_ccy)
     ]
     if relevant_holdings.empty:
-        return None
+        return None, None
 
     tickers = relevant_holdings["ticker"].tolist()
 
@@ -1211,13 +1217,15 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         market_data.fetch_index_intraday(dominant_index),
     )
     if comparison_df is not None:
-        return comparison_df
+        return comparison_df, None
 
-    return _build_intraday_comparison_df(
+    comparison_df = _build_intraday_comparison_df(
         relevant_holdings, dominant_index,
         market_data.fetch_universe_last_completed_intraday_changes(tickers),
         market_data.fetch_index_last_completed_intraday(dominant_index),
     )
+    as_of_label = comparison_df.index[-1].strftime("%d/%m") if comparison_df is not None else None
+    return comparison_df, as_of_label
 
 
 _CHART_GRID_COLOR = "#E8EBEF"
@@ -3998,10 +4006,13 @@ with st.container(border=True, key="market_panel"):
             _holdings = _load_fresh_holdings()
             if _holdings.empty:
                 return
-            _comp_df = _compute_portfolio_history(_holdings)
+            _comp_df, _comp_as_of = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
-                st.image(render_text_image("תשואה יומית - תיק מול מדד", ACCENT_COLOR, font_size=15))
+                _comp_title = "תשואה יומית של התיק מול מדד"
+                if _comp_as_of:
+                    _comp_title += f" (יום המסחר האחרון, {_comp_as_of})"
+                st.image(render_text_image(_comp_title, ACCENT_COLOR, font_size=15))
                 if _comp_df is None:
                     # לא מדלגים בשקט - _compute_portfolio_history מחזירה None גם
                     # כשאין מספיק נתונים וגם כשנפילה של יאהו (fetch_universe_
@@ -4018,7 +4029,10 @@ with st.container(border=True, key="market_panel"):
                 )
                 # ה-caption עם ההסבר (14.9.2026) הוסר שוב - עשה את שתי המשבצות
                 # (הגרף הזה מול "רווח/הפסד לפי אחזקה") בגבהים שונים, "תשווה את
-                # הגודל של הגרפים ותסיר את המשפט".
+                # הגודל של הגרפים ותסיר את המשפט". התאריך "יום המסחר האחרון"
+                # (14.9.2026, גל שני) נכנס בתוך הכותרת עצמה (לא caption נפרד)
+                # בדיוק כדי לא לשבור שוב את השוויון בגובה - "לא הגיוני, שעכשיו
+                # מוצג 17:00" חייב הבהרה, אבל לא עוד שורה נפרדת.
 
         _render_comparison_chart()
 
