@@ -516,6 +516,14 @@ st.markdown(
     [data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] svg {
         fill: #3B6EA5 !important;
     }
+    /* כפתורי הניקוי/פתיחה של המדדים "צפים" באמצע (align-items:center
+    שממרכז אותם מול הגובה המלא של כל התגיות שנגללות לשתי שורות) - במקום
+    זה מיישרים את כל השורה לשורה הראשונה (14.9.2026, "משהו שם לא מסתדר לי
+    בויזואל"). role="group"+data-rac הוא ה-div המשותף (יציב, לא class עם
+    hash) שעוטף גם את תגית התגיות וגם את שני הכפתורים. */
+    [data-testid="stSidebar"] [data-testid="stMultiSelect"] [role="group"][data-rac] {
+        align-items: flex-start !important;
+    }
     /* Streamlit's slider (react-aria, לא BaseWeb - הסלקטורים הישנים לא תפסו
        כלום, ר' commit): הטרק ממוקם ב-left:X% שכן מתחשב ב-RTL (מתהפך ל-100-X%
        עבור ערכים נמוכים), אבל ה-gradient שצובע את החלק "מלא" תמיד מצייר
@@ -1941,24 +1949,34 @@ with st.sidebar:
         st.markdown(
             """
             <style>
-            /* בלי מילוי אפור/מסגרת - "לא מדבר בשפה של הסייד בר... תחשוב
-            על אלמנט אחר" (14.9.2026). במקום להיראות כמו כפתור נפרד, נראה
-            עכשיו כמו עוד שורה ברשימה (טקסט+אייקון שקוף, בדיוק כמו כותרות
-            ה-expander-ים למטה) - עם hover עדין בלבד כרמז שזו פעולה לחיצה.
-            flex-start = ימין (direction:rtl אמיתי על הכפתור, נבדק ישירות). */
+            /* חיקוי מדויק של שורת expander (טקסט רגיל, justify-content:
+            space-between, בלי מילוי) עם חץ הרצה "▶" בצד השני במקום חץ-קיפול -
+            כך שזו עוד שורה ברשימה שמפעילה פעולה, לא קופסת-כפתור נפרדת
+            (14.9.2026, "אני רוצה אלמנט אחר"). */
             div[class*="st-key-sidebar_scan_button"] button {
                 background-color: transparent !important;
                 border: none !important;
                 box-shadow: none !important;
-                font-weight: 600 !important; font-size: 13px !important;
-                justify-content: flex-start !important;
-                padding-right: 34px !important;
+                font-weight: 400 !important; font-size: 14px !important;
+                justify-content: space-between !important;
+                padding: 4px 12px !important;
+                color: inherit !important;
+            }
+            div[class*="st-key-sidebar_scan_button"] button p {
+                color: inherit !important;
             }
             div[class*="st-key-sidebar_scan_button"] button:hover {
                 background-color: rgba(120,120,120,0.07) !important;
             }
             div[class*="st-key-sidebar_scan_button"] button > div {
-                justify-content: flex-start !important;
+                justify-content: space-between !important;
+                width: 100%;
+            }
+            div[class*="st-key-sidebar_scan_button"] button::after {
+                content: "▶";
+                font-size: 10px;
+                color: #3B6EA5;
+                margin-inline-start: 8px;
             }
             </style>
             """,
