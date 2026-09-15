@@ -600,22 +600,6 @@ if "active_tab" not in st.session_state:
     st.session_state.active_tab = None
 
 with st.container(key="nav_tabs_row"):
-    # הדגשת הכותרות של הטאבים - עד עכשיו רק צבע הרקע הבהיר סימן את הטאב
-    # הפעיל, הטקסט עצמו לא היה שונה מהטאבים הלא-פעילים (15.9.2026, "קצת
-    # בולטות לכותרות של הטאבים"). bold לכולם, ועוד יותר עבה לפעיל.
-    st.markdown(
-        """
-        <style>
-        div[class*="st-key-nav_tabs_row"] button p {
-            font-weight: 600 !important;
-        }
-        div[class*="st-key-nav_tabs_row"] button[kind="primary"] p {
-            font-weight: 700 !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
     _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
     for _nav_col, (_nav_key, _nav_label) in zip(_nav_cols, _TAB_DEFS):
         with _nav_col:
