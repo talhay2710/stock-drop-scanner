@@ -599,6 +599,44 @@ _TAB_DEFS = [
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = None
 
+# ה-<style> מוזרק *מחוץ* ל-container של שורת הטאבים בכוונה, לא כאלמנט-בן
+# בתוכו - נמדד בפועל (15.9.2026): הוספת אלמנט markdown כאחד מילדי ה-flex
+# row (לפני העמודות) גרמה למסגרת "להתרחב" בגובה, גם כשה-CSS עצמו לא נגע
+# ב-layout (למשל box-shadow בלבד) - כנראה שינוי בחישוב flex-wrap של השורה.
+# הסלקטור מבוסס class ועובד מכל מקום בעמוד, אז אין צורך שהוא יהיה בפנים.
+# ::before/::after עם position:absolute לא משפיעים על ה-layout/גודל של
+# ההורה (מוסרים מה-flow הרגיל) - זה מה שמבטיח שהמסגרת לא תשתנה בגודל הפעם.
+st.markdown(
+    """
+    <style>
+    div[class*="st-key-nav_tabs_row"] {
+        position: relative;
+    }
+    div[class*="st-key-nav_tabs_row"]::before,
+    div[class*="st-key-nav_tabs_row"]::after {
+        content: "";
+        position: absolute;
+        top: -6px;
+        bottom: -6px;
+        width: 10px;
+        border: 2px solid #3B6EA5;
+        border-radius: 8px;
+        pointer-events: none;
+    }
+    div[class*="st-key-nav_tabs_row"]::before {
+        left: -10px;
+        border-left: 2px solid #3B6EA5;
+        border-right: none;
+    }
+    div[class*="st-key-nav_tabs_row"]::after {
+        right: -10px;
+        border-right: 2px solid #3B6EA5;
+        border-left: none;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 with st.container(key="nav_tabs_row"):
     _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
     for _nav_col, (_nav_key, _nav_label) in zip(_nav_cols, _TAB_DEFS):
