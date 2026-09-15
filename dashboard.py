@@ -1847,10 +1847,16 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         # גדול"). x=16/y=75 נגזרו מהמדידה בפועל של שתי התוויות (־1 במרכז
         # ~362px, 10:00 במרכז ~398px, בהתאמה ליחס ~1:1 מול ערכי value) - בפינה
         # שביניהן, לא בשורה של אחת מהן.
+        # חד-משמעי לבסוף (15.9.2026): "יומי" מיושר *מתחת* ל-1 (לא באותה שורה
+        # כמוה), והתאריך באותו הגובה בדיוק של 10:00 - לא "פינה" מופשטת. y=65
+        # ממקם את "יומי" צמוד מתחת ל-1 (נמדד: ~3px מתחתיה), lineHeight=19
+        # (לא 10-12 כקודם) ממקם את שורת התאריך בדיוק בגובה 10:00 (נמדד: הפרש
+        # של כ-0px בין שתי השורות למקורות שלהן, לא "רווח גדול" - זה בדיוק
+        # המרחק הטבעי בין שתי השורות עצמן).
         date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי\n{date_label}"]})).mark_text(
             align="left", baseline="top", dx=0, dy=0, fontSize=9, lineBreak="\n",
-            lineHeight=10, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value(-10), y=alt.value(65), text="label:N")
+            lineHeight=19, color=_CHART_LABEL_COLOR,
+        ).encode(x=alt.value(0), y=alt.value(65), text="label:N")
         layers = layers + date_layer
     return (
         layers
