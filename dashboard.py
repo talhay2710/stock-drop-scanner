@@ -1186,13 +1186,16 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             if _current is None:
                 continue
             _name = _r.get("company_name") or _r["ticker"]
-            _pnl_pct = (_current / _entry - 1) * 100
             _stop_price = get_or_backfill_stop_price(_r, _entry)
-            _stop_pct = (_stop_price / _entry - 1) * 100
             _target_price = live_target_price(_entry, _stop_price, _r.get("target_base"))
-            _target_pct = (_target_price / _entry - 1) * 100
-            _gap_target = _target_pct - _pnl_pct
-            _gap_stop = _pnl_pct - _stop_pct
+            # יחסית למחיר הסף עצמו (סטופ/יעד), לא הפרש-נקודות-אחוז יחסית
+            # לכניסה - בדיוק כמו בכרטיס האחזקה הבודדת (distance_pct/
+            # target_distance_pct, למטה) כדי ששני הכרטיסים יראו אותו מספר.
+            # ההפרש בין שתי השיטות גדל ככל שהמרחק כניסה-סטופ גדול יותר (למשל
+            # עם סטופ 2.5x ATR רחב) - נמצא בפועל: 15.9.2026, "בכרטיס המניה
+            # כתוב שחצתה ב-2% ובכרטיס 'התיק שלי' כתוב 1.6%".
+            _gap_target = (_target_price - _current) / _target_price * 100
+            _gap_stop = (_current - _stop_price) / _stop_price * 100
             if _best is None or _gap_target < _best[0]:
                 _best = (_gap_target, _name, True)
             if _gap_stop < _best[0]:
