@@ -1830,24 +1830,32 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     # סימון האחוזים... אפשר לוותר על הנקודות") - האחוז העדכני כבר מופיע
     # בתג "שינוי יומי" מעל הגרף, אז הקו עצמו מספיק.
     layers = zero_rule + line
+    _total_height = 160
+    _bottom_padding = 8
     if date_label:
-        # התאריך ("יום המסחר האחרון") היה בעבר בתוך כותרת הגרף עצמה (14.9.2026),
-        # כי caption נפרד מתחת לגרף שבר את השוויון בגובה מול "רווח/הפסד לפי
-        # אחזקה". עכשיו בפינה השמאלית-תחתונה של הגרף עצמו (מתחת למספרי ציר
-        # ה-Y, משמאל ל-legend) - x/y דרך alt.value (לא encoding על נתון) כדי
-        # שהמיקום יהיה פיקסלי קבוע בתוך שטח הגרף, לא תלוי בטווח הערכים
-        # (15.9.2026, "תכתוב תאריך משמאל לתיק שלי ומתחת למספרים בציר האנכי").
-        # שתי שורות - "יומי" ואז התאריך (15.9.2026, "אפשר לכתוב: יומי \n
-        # תאריך") - lineBreak מפורש כי לא כל גרסת Vega-Lite מפצלת \n כברירת
-        # מחדל בלי זה.
-        date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי\n{date_label}"]})).mark_text(
-            align="left", baseline="top", dx=2, dy=6, fontSize=10, lineBreak="\n",
-            lineHeight=12, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value(0), y=alt.value(160), text="label:N")
-        layers = layers + date_layer
+        # בפינה השמאלית-תחתונה *של אזור השרטוט עצמו* (בין ציר ה-Y התחתון
+        # לציר ה-X, כמו שהמשתמש הראה - "אולי בין אלה" עם צילום של "-1" מול
+        # "10:00") - לא מתחת לגרף/ל-legend. שתי גרסאות קודמות נכשלו בפועל:
+        # (1) גובה קבוע ללא padding נוסף - הטקסט נחתך מחוץ ל-SVG לגמרי; (2)
+        # padding-תחתון מוגדל - הטקסט כן נראה, אבל מתחת ל-legend כולו, לא
+        # בפינת השרטוט ("לא טוב", 15.9.2026). אין שינוי גובה/padding בכלל
+        # הפעם - הטקסט חי *בתוך* שטח השרטוט הפנימי (144px, אחרי ה-padding
+        # הקבוע 8+8), קרוב לקצה התחתון שלו אבל לא מעבר לו.
+        # שתי שורות נפרדות (לא בלוק דו-שורתי אחד) - "יומי" מיושר לאותה שורה
+        # כמו תווית "-1" (ציר Y), והתאריך מיושר לאותה שורה כמו "10:00" (ציר
+        # X) - כפי שביקש המשתמש במפורש (15.9.2026, "תעשה שהתאריך יהיה באותו
+        # קו של ה10:00 ושהטקסט יהיה מיושר עם ה-1"). ערכי ה-y נמדדו בפועל מול
+        # מיקומי התוויות עצמן (getBoundingClientRect), לא ניחוש.
+        _line1 = alt.Chart(pd.DataFrame({"label": ["יומי"]})).mark_text(
+            align="left", baseline="middle", dx=2, fontSize=10, color=_CHART_LABEL_COLOR,
+        ).encode(x=alt.value(0), y=alt.value(56), text="label:N")
+        _line2 = alt.Chart(pd.DataFrame({"label": [date_label]})).mark_text(
+            align="left", baseline="middle", dx=2, fontSize=10, color=_CHART_LABEL_COLOR,
+        ).encode(x=alt.value(0), y=alt.value(91), text="label:N")
+        layers = layers + _line1 + _line2
     return (
         layers
-        .properties(height=160, padding={"left": 8, "right": 10, "top": 8, "bottom": 8})
+        .properties(height=_total_height, padding={"left": 8, "right": 10, "top": 8, "bottom": _bottom_padding})
         .configure_view(strokeWidth=0)
         .configure_axis(domain=False, tickSize=0)
     )
