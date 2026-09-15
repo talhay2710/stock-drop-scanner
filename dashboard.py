@@ -2236,7 +2236,7 @@ def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
     df["company_name"] = df["טיקר"].map(name_map).fillna("")
     df["index_name"] = index_name
     column_order = ["שער", "שינוי מצטבר (%)", "שינוי יומי (%)", "טיקר", "company_name",
-                     "last_close_date", "is_stale", "index_name"]
+                     "last_close_date", "is_stale", "index_name", "prev_close_gap", "prev_close_date"]
     return df[column_order]
 
 
@@ -2250,13 +2250,14 @@ def _color_pct(val):
 def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: dict | None = None,
                  color_columns: set | None = None, color_fns: dict | None = None,
                  max_height: int | None = None, truncate_columns: dict | None = None,
-                 wrap_headers: bool = True) -> str:
+                 wrap_headers: bool = True, row_formatters: dict | None = None) -> str:
     """טבלת HTML פשוטה, בסדר עמודות טבעי (מימין לשמאל, כמו שכתוב כאן) - תחליף ל-
     st.dataframe בטבלאות שמציגות טיקרים/טקסט עברי. st.dataframe מצייר הכל על
     canvas תמיד משמאל לימין ומתעלם לגמרי מ-CSS, מה שגורם לחיתוך טקסט ולעמודות
     שנעלמות כשהטבלה צרה (למשל שתי טבלאות זו לצד זו) - אין דרך לתקן את זה ב-CSS
     כי אין DOM/CSS אמיתי בתוך ה-canvas. ראו גם את טבלת יומן העסקאות שכבר בנויה כך."""
     formatters = formatters or {}
+    row_formatters = row_formatters or {}
     color_columns = color_columns or set()
     color_fns = color_fns or {}
     truncate_columns = truncate_columns or {}
@@ -2282,7 +2283,12 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
         cells = []
         for col, _ in columns:
             raw = r[col]
-            text = formatters[col](raw) if col in formatters else ("" if pd.isna(raw) else str(raw))
+            if col in row_formatters:
+                text = row_formatters[col](raw, r)
+            elif col in formatters:
+                text = formatters[col](raw)
+            else:
+                text = "" if pd.isna(raw) else str(raw)
             style = ("padding:6px 10px; text-align:right; white-space:nowrap; "
                      "border-bottom:1px solid rgba(128,128,128,0.15);")
             if col in color_fns and pd.notna(raw):
@@ -2477,21 +2483,41 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
     # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
     sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
+    # כשיש פער אמיתי בין ימי מסחר (market_data.prev_close_gap - ר' הערה שם),
+    # "שינוי יומי" בעצם משווה מול סגירה ישנה יותר מיום מסחר אחד. אין מקום
+    # לאייקון/טולטיפ בעמודה הצרה הזו (58px, נבדק בפועל - אייקון נוסף פשוט
+    # נחתך מחוץ לתא ע"י overflow:hidden), אז מוסיפים כוכבית קטנה בתוך הטקסט
+    # עצמו והסבר אחד מעל הטבלה כולה (כמו כיתוב "נכון לסגירת מסחר..." הקיים
+    # כבר למטה) - 15.9.2026, בעקבות "הנתון שגוי".
+    _gap_dates = sorted({
+        row["prev_close_date"] for _, row in sub_df.iterrows()
+        if row.get("prev_close_gap") and pd.notna(row.get("prev_close_date"))
+    })
+
+    def _daily_pct_cell(v, row):
+        text = _signed_num(v, 1, "%")
+        if row.get("prev_close_gap"):
+            text += "*"
+        return text
+
     st.markdown(
         _html_table(
             sub_df,
             [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
              ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")],
             formatters={
-                "שינוי יומי (%)": lambda v: _signed_num(v, 1, "%"),
                 "שינוי מצטבר (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
             },
+            row_formatters={"שינוי יומי (%)": _daily_pct_cell},
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
             truncate_columns={"שם_וטיקר": 169, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58},
             max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
         ),
         unsafe_allow_html=True,
     )
+    if _gap_dates:
+        _gap_dates_text = ", ".join(d.strftime("%d/%m") for d in _gap_dates)
+        st.caption(f"* מושווה מול סגירת {_gap_dates_text} - חסר יום מסחר לפחות אחד במקור הנתונים")
 
 
 def _outcome_color_hex(label: str) -> str:
