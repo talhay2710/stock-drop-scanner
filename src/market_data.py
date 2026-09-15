@@ -181,6 +181,18 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             else:
                 intraday_recovery_pct = None
 
+            _last_close_date = closes.index[-1].date()
+            _prev_close_date = closes.index[-2].date()
+            # True אם prev_close הוא ישן יותר מיום המסחר שאמור היה להיות ממש
+            # לפני last_close_date (למשל yfinance מדלג על יום מסחר אמיתי, לא
+            # רק סוף שבוע/חג) - "שינוי יומי" שמחושב נגדו בעצם פורש כמה ימי
+            # מסחר, לא אחד, ומנופח בהתאם (נמצא בפועל: 15.9.2026, NICE.TA
+            # הראתה "+6.8% שינוי יומי" כש-yfinance דילגה על 14/09 - יום מסחר
+            # אמיתי בת"א - וההשוואה בפועל הייתה מול 10/09). לא מזהה חגים
+            # ספציפיים (כמו _expected_last_close_date) - גם פער אמיתי בגלל חג
+            # ידגל כאן, וזה בכוונה: עדיף להראות את התאריך תמיד כשההשוואה היא
+            # לא ל"אתמול" הרגיל, מאשר להטעות.
+            _prev_close_gap = _prev_close_date < _expected_last_close_date(_last_close_date)
             rows.append({
                 "ticker": ticker,
                 "last_close": last_close,
@@ -189,8 +201,9 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
                 # תאריך הסגירה האחרונה שבפועל התקבלה - כדי שמי שצריך לוודא "טריות"
                 # (למשל התראת עלייה באחזקה, שלא כדאי שתשווה מול סגירה מלפני הקנייה)
                 # יוכל לבדוק בעצמו, בלי להסתיר את המחיר האחרון הידוע משאר האפליקציה
-                "last_close_date": closes.index[-1].date(),
-                "prev_close_date": closes.index[-2].date(),
+                "last_close_date": _last_close_date,
+                "prev_close_date": _prev_close_date,
+                "prev_close_gap": _prev_close_gap,
                 "last_low": last_low_today,
                 "last_high": last_high,
                 "last_open": float(opens.iloc[-1]) if len(opens) else None,

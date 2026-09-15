@@ -1087,6 +1087,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
         _daily_df = market_data.fetch_universe_daily_changes(holdings_df["ticker"].tolist())
         _today_by_ccy = {}
         _today_max_close_date = None
+        _today_gap_baseline_dates = []
         # fetch_universe_daily_changes מחזיר DataFrame ריק-לגמרי (בלי אף עמודה,
         # כולל "ticker") אם אף טיקר לא הצליח להישלף באותו סבב (למשל Yahoo
         # חסם/rate-limit זמני) - אינדוקס לפי "ticker" על עמודה שלא קיימת קורס
@@ -1119,8 +1120,13 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             if _bought_date and _last_close_date and _bought_date >= _last_close_date:
                 continue
             _baseline = _prev_close
-            if _bought_date and _prev_close_date and _bought_date >= _prev_close_date and _r.get("actual_entry_price"):
+            _using_entry_baseline2 = bool(
+                _bought_date and _prev_close_date and _bought_date >= _prev_close_date and _r.get("actual_entry_price")
+            )
+            if _using_entry_baseline2:
                 _baseline = _r["actual_entry_price"]
+            elif _row_data.get("prev_close_gap") and _prev_close_date:
+                _today_gap_baseline_dates.append(_prev_close_date)
             _ccy2 = constituents.INDEX_CURRENCY.get(_r.get("index_name"), "ILS")
             _agg2 = _today_by_ccy.setdefault(_ccy2, {"prev_value": 0.0, "change": 0.0})
             _agg2["prev_value"] += _baseline * _qty
@@ -1133,10 +1139,15 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _today_pct = (_dom2["change"] / _dom2["prev_value"] * 100) if _dom2["prev_value"] else 0.0
             # התאריך בסוגריים רלוונטי רק כשהמסחר סגור (מבהיר שזה מהסגירה
             # האחרונה, לא "עכשיו") - כשהמסחר פתוח "היום" חד-משמעי בלי צורך
-            # בתאריך (9.9.2026, בעקבות בקשת המשתמש).
+            # בתאריך (9.9.2026, בעקבות בקשת המשתמש). חריג: פער אמיתי בין ימי
+            # מסחר (ר' market_data._prev_close_gap, 15.9.2026 "הנתון שגוי") -
+            # אז מציגים תמיד את תאריך הבסיס, גם כשהשוק פתוח, כי אחרת "שינוי
+            # יומי" נראה כמו יום מסחר אחד כשהוא בעצם כמה.
             _today_label = "שינוי יומי"
             _dom_index_hint = "TA35" if _dom_ccy2 == "ILS" else "NASDAQ100"
-            if _today_max_close_date and not is_market_open(_dom_index_hint):
+            if _today_gap_baseline_dates:
+                _today_label += f" (מ-{min(_today_gap_baseline_dates).strftime('%d/%m')})"
+            elif _today_max_close_date and not is_market_open(_dom_index_hint):
                 _today_label += f" ({_today_max_close_date.strftime('%d/%m')})"
             today_summary = (
                 _today_label, _dom2["change"], _today_pct, CURRENCY_SYMBOLS.get(_dom_ccy2, _dom_ccy2)
@@ -3508,7 +3519,16 @@ with _tab_slot_portfolio.container():
                     # ישן יותר (9.9.2026, "תראה את התאריך... זה גרוע").
                     _daily_date = row.get("daily_pct_date")
                     _daily_date_inline = ""
-                    if (_daily_date and not is_market_open(row.get("index_name") or "")
+                    if row.get("daily_pct_gap") and row.get("daily_pct_baseline_date"):
+                        # פער אמיתי בין ימי המסחר (ר' market_data._prev_close_gap) -
+                        # מציגים את תאריך הבסיס תמיד, גם כשהשוק פתוח עכשיו,
+                        # אחרת "שינוי יומי" מטעה (נראה כמו יום מסחר אחד כשזה
+                        # בעצם כמה, 15.9.2026 "הנתון שגוי").
+                        _daily_date_inline = (
+                            f'<span style="font-weight:500; opacity:0.6; font-size:0.62rem;">'
+                            f'(מ-{row["daily_pct_baseline_date"].strftime("%d/%m")})</span>'
+                        )
+                    elif (_daily_date and not is_market_open(row.get("index_name") or "")
                             and _daily_date != israel_today()):
                         # התאריך בתוך הפיל עצמו (לא שורה צפה מתחתיו) - חלק
                         # מאותו רכיב, לא אלמנט מרחף נפרד (13.9.2026, "התאריך
@@ -3757,11 +3777,16 @@ with _tab_slot_portfolio.container():
                     daily_pct_date = None
                     daily_change_amt = None
                     daily_baseline_value = None
+                    daily_pct_baseline_date = None
+                    daily_pct_gap = False
                     _dr = _daily_data_map.get(r["ticker"])
                     if current is not None and _dr is not None:
                         _prev_close, _prev_close_date = _dr.get("prev_close"), _dr.get("prev_close_date")
                         _baseline = _prev_close
-                        if bought_date and _prev_close_date and bought_date >= _prev_close_date and entry:
+                        _using_entry_baseline = bool(
+                            bought_date and _prev_close_date and bought_date >= _prev_close_date and entry
+                        )
+                        if _using_entry_baseline:
                             _baseline = entry
                         if _baseline:
                             daily_pct = (current - _baseline) / _baseline * 100
@@ -3769,6 +3794,16 @@ with _tab_slot_portfolio.container():
                             if qty:
                                 daily_change_amt = (current - _baseline) * qty
                                 daily_baseline_value = _baseline * qty
+                            # דגל "פער" רק כשהבסיס בפועל הוא prev_close (לא מחיר
+                            # כניסה) - ר' market_data._prev_close_gap: יום מסחר
+                            # אמיתי חסר בהיסטוריה (לא רק סופ"ש/חג), אז "שינוי
+                            # יומי" בעצם פורש כמה ימי מסחר (15.9.2026, "הנתון
+                            # שגוי" - NICE.TA הראתה שינוי יומי מנופח כי prev_close
+                            # היה מ-10/09 בזמן ש-14/09 היה יום מסחר אמיתי שחסר
+                            # ב-yfinance).
+                            if not _using_entry_baseline:
+                                daily_pct_baseline_date = _prev_close_date
+                                daily_pct_gap = bool(_dr.get("prev_close_gap"))
 
                     net_pnl, net_pct = None, None
                     if current is not None and entry:
@@ -3794,6 +3829,8 @@ with _tab_slot_portfolio.container():
                         "is_manual_trade": bool(r.get("is_manual_trade")) if pd.notna(r.get("is_manual_trade")) else False,
                         "daily_pct": daily_pct,
                         "daily_pct_date": daily_pct_date,
+                        "daily_pct_baseline_date": daily_pct_baseline_date,
+                        "daily_pct_gap": daily_pct_gap,
                         "daily_change_amt": daily_change_amt,
                         "daily_baseline_value": daily_baseline_value,
                         "sector": r.get("sector") or "לא ידוע",
