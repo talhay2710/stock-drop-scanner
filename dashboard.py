@@ -1939,14 +1939,6 @@ with st.sidebar:
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
         dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
-        # margin:2px לבד לא מספיק - יש עוד gap של הסיידבר (12.8px, נמדד) לפני
-        # ואחרי כל אלמנט, אז המרווח הנראה בפועל היה ~30px למרות ה-margin
-        # הקטן (15.9.2026, "עשית כאן הפוך ממה שביקשתי" - קו לא נראה + רווח
-        # גדול, במקום קו נראה + כמעט צמוד). margin שלילי מקזז את ה-gap הזה.
-        st.markdown(
-            "<div style='border-top:1px solid rgba(0,0,0,0.12); margin:-10px 0;'></div>",
-            unsafe_allow_html=True,
-        )
         mc1, mc2 = st.columns([5, 1])
         mc1.number_input(
             "אחוז ירידה מצטברת שמפעיל התראה", min_value=0.5, max_value=50.0,
