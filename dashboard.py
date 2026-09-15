@@ -2067,6 +2067,7 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
+        st.markdown("**🎛️ הגדרות מתקדמות**")
         with st.expander("💵 השקעה וסיכון", key="exp_investment"):
             st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
             st.markdown("**סכום השקעה מינימלי**")
