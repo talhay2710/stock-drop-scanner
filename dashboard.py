@@ -1774,7 +1774,8 @@ def _breakdown_rows(agg: dict) -> list[dict]:
     return items
 
 
-def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, port_color: str, bench_color: str) -> alt.Chart:
+def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, port_color: str, bench_color: str,
+                             date_label: str | None = None) -> alt.Chart:
     """גרף תשואת התיק מול המדד - שני קווים עם legend קבוע בתחתית (בשטח משלו,
     לא חופף לצירי הזמן כמו ב-st.line_chart המובנה), וקו אפס מקווקו לייחוס."""
     # value_name="value" (לא "תשואה") בכוונה - כשגם שם השדה הגולמי וגם הכותרת
@@ -1828,8 +1829,20 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     # בלי נקודת קצה ובלי תווית אחוז ליד הקו (14.9.2026, "אפשר לוותר על
     # סימון האחוזים... אפשר לוותר על הנקודות") - האחוז העדכני כבר מופיע
     # בתג "שינוי יומי" מעל הגרף, אז הקו עצמו מספיק.
+    layers = zero_rule + line
+    if date_label:
+        # התאריך ("יום המסחר האחרון") היה בעבר בתוך כותרת הגרף עצמה (14.9.2026),
+        # כי caption נפרד מתחת לגרף שבר את השוויון בגובה מול "רווח/הפסד לפי
+        # אחזקה". עכשיו בפינה השמאלית-תחתונה של הגרף עצמו (מתחת למספרי ציר
+        # ה-Y, משמאל ל-legend) - x/y דרך alt.value (לא encoding על נתון) כדי
+        # שהמיקום יהיה פיקסלי קבוע בתוך שטח הגרף, לא תלוי בטווח הערכים
+        # (15.9.2026, "תכתוב תאריך משמאל לתיק שלי ומתחת למספרים בציר האנכי").
+        date_layer = alt.Chart(pd.DataFrame({"label": [date_label]})).mark_text(
+            align="left", baseline="top", dx=2, dy=6, fontSize=10, color=_CHART_LABEL_COLOR,
+        ).encode(x=alt.value(0), y=alt.value(160), text="label:N")
+        layers = layers + date_layer
     return (
-        (zero_rule + line)
+        layers
         .properties(height=160, padding={"left": 8, "right": 10, "top": 8, "bottom": 8})
         .configure_view(strokeWidth=0)
         .configure_axis(domain=False, tickSize=0)
@@ -4227,10 +4240,7 @@ with st.container(border=True, key="market_panel"):
             _comp_df, _comp_as_of = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
-                _comp_title = "תשואה מול מדד (יומי)"
-                if _comp_as_of:
-                    _comp_title += f" (יום המסחר האחרון, {_comp_as_of})"
-                st.image(render_text_image(_comp_title, ACCENT_COLOR, font_size=15))
+                st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
                 if _comp_df is None:
                     # לא מדלגים בשקט - _compute_portfolio_history מחזירה None גם
                     # כשאין מספיק נתונים וגם כשנפילה של יאהו (fetch_universe_
@@ -4241,7 +4251,10 @@ with st.container(border=True, key="market_panel"):
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
                 st.altair_chart(
-                    _build_comparison_chart(_comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR),
+                    _build_comparison_chart(
+                        _comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR,
+                        date_label=_comp_as_of,
+                    ),
                     width='stretch',
                 )
                 # ה-caption עם ההסבר (14.9.2026) הוסר שוב - עשה את שתי המשבצות
