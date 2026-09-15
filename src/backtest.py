@@ -71,13 +71,51 @@ def _scaled_window_days(entry_limit: float | None, target: float | None, base_wi
     return min(MAX_WINDOW_DAYS, max(base_window_days, scaled))
 
 
+def _fetch_batched_histories(tickers: list[str], start: dt.date, end: dt.date) -> dict[str, pd.DataFrame]:
+    """שולף High/Low עבור כל הטיקרים בקריאת yf.download אחת מרובת-טיקרים,
+    במקום קריאה נפרדת לכל התראה ב-_outcome_for_alert - עם 685 התראות (351
+    טיקרים ייחודיים) זה היה עד 685 קריאות רשת רצופות (threads=False), גורם
+    לטאב 'ביצועי אסטרטגיה' להיתקע/להציג outcome ישן (15.9.2026, "הוא מתקע
+    להיפתח"). מפתח: טיקר -> DataFrame עם High/Low, כבר מומר לש"ח למניות
+    ת"א - בדיוק כמו שה-caller (_outcome_for_alert) ציפה שיהיה מוכן לו."""
+    if not tickers:
+        return {}
+    try:
+        data = yf.download(
+            tickers=tickers, start=start.isoformat(), end=(end + dt.timedelta(days=1)).isoformat(),
+            interval="1d", group_by="ticker", threads=True, auto_adjust=False, progress=False,
+        )
+    except Exception as e:
+        logger.warning("נכשלה שליפת היסטוריה מרובת-טיקרים לבקטסט (%d טיקרים): %s", len(tickers), e)
+        return {}
+    result: dict[str, pd.DataFrame] = {}
+    for ticker in tickers:
+        try:
+            sub = data[ticker] if isinstance(data.columns, pd.MultiIndex) else data
+        except KeyError:
+            continue
+        if sub.empty or "High" not in sub.columns:
+            continue
+        highs, lows = sub["High"], sub["Low"]
+        if _is_israeli_ticker(ticker):  # מניות ת"א מדווחות באגורות - ממירים לש"ח כמו בשאר האפליקציה
+            highs, lows = highs / 100.0, lows / 100.0
+        result[ticker] = pd.DataFrame({"High": highs, "Low": lows}).dropna()
+    return result
+
+
 def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss: float,
                         window_days: int = 10, entry_limit: float | None = None,
-                        actual_entry_price: float | None = None, actual_entry_date: str | None = None) -> str:
+                        actual_entry_price: float | None = None, actual_entry_date: str | None = None,
+                        hist_df: pd.DataFrame | None = None) -> str:
     """אם actual_entry_price/actual_entry_date מסופקים (עסקה שבאמת מומשה) -
     בודקים יעד/סטופ מרגע הכניסה האמיתי, לא מרגע ההתראה - אחרת תנודה חדה באותו
     יום של ההתראה עצמה (לפני שהייתה הזדמנות ריאלית להיכנס) יכולה להיספר כהצלחה
-    שלא באמת הייתה שייכת לעסקה שנפתחה בפועל."""
+    שלא באמת הייתה שייכת לעסקה שנפתחה בפועל.
+
+    hist_df - היסטוריית High/Low מוכנה מראש (מ-_fetch_batched_histories), כבר
+    מומרת למטבע הנכון. כשניתן, לא נעשית שום קריאת רשת כאן בכלל. None משאיר
+    את ההתנהגות הישנה (קריאת yf.download בודדת) - נשמר לתאימות עם קוד/בדיקות
+    שעדיין קוראים לפונקציה הזו ישירות בלי batching."""
     entry_ts = actual_entry_date if (actual_entry_price and actual_entry_date) else scan_ts
     try:
         scan_date = dt.datetime.fromisoformat(entry_ts).date()
@@ -93,26 +131,34 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
     if start >= dt.date.today():
         return PENDING
 
-    try:
-        hist = yf.download(
-            ticker, start=start.isoformat(), end=(end + dt.timedelta(days=1)).isoformat(),
-            interval="1d", progress=False, auto_adjust=False, threads=False,
-        )
-    except Exception as e:
-        logger.debug("נכשלה שליפת היסטוריה עבור %s: %s", ticker, e)
-        return NO_DATA
+    if hist_df is not None:
+        mask = (hist_df.index.date >= start) & (hist_df.index.date <= end)
+        hist_slice = hist_df.loc[mask]
+        if hist_slice.empty:
+            return NO_DATA
+        highs, lows = hist_slice["High"], hist_slice["Low"]
+    else:
+        try:
+            hist = yf.download(
+                ticker, start=start.isoformat(), end=(end + dt.timedelta(days=1)).isoformat(),
+                interval="1d", progress=False, auto_adjust=False, threads=False,
+            )
+        except Exception as e:
+            logger.debug("נכשלה שליפת היסטוריה עבור %s: %s", ticker, e)
+            return NO_DATA
 
-    if hist.empty:
-        return NO_DATA
+        if hist.empty:
+            return NO_DATA
 
-    highs, lows = hist["High"], hist["Low"]
-    if hasattr(highs, "columns"):  # yfinance עשוי להחזיר multiindex גם למניה בודדת
-        highs, lows = highs.iloc[:, 0], lows.iloc[:, 0]
+        highs, lows = hist["High"], hist["Low"]
+        if hasattr(highs, "columns"):  # yfinance עשוי להחזיר multiindex גם למניה בודדת
+            highs, lows = highs.iloc[:, 0], lows.iloc[:, 0]
 
-    if _is_israeli_ticker(ticker):  # מניות ת"א מדווחות באגורות - ממירים לש"ח כמו בשאר האפליקציה
-        highs, lows = highs / 100.0, lows / 100.0
+        if _is_israeli_ticker(ticker):  # מניות ת"א מדווחות באגורות - ממירים לש"ח כמו בשאר האפליקציה
+            highs, lows = highs / 100.0, lows / 100.0
 
-    highs, lows = highs.dropna(), lows.dropna()
+        highs, lows = highs.dropna(), lows.dropna()
+
     if actual_entry_price and actual_entry_date:
         # נר יומי לא אומר באיזו שעה בתוך היום נכנסנו בפועל - תנודה חדה שקרתה
         # באותו יום (אולי לפני שהייתה הזדמנות ריאלית להיכנס) לא אמורה להיספר
@@ -133,16 +179,34 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
 
 
 def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10) -> pd.DataFrame:
-    """מקבל DataFrame גולמי מטבלת alerts (SELECT *), ומחזיר אותו עם עמודת 'outcome' נוספת."""
+    """מקבל DataFrame גולמי מטבלת alerts (SELECT *), ומחזיר אותו עם עמודת 'outcome' נוספת.
+    שולף היסטוריית מחירים לכל הטיקרים בקריאה אחת מרובת-טיקרים (ר' _fetch_batched_histories)
+    לפני הלולאה, במקום קריאת רשת נפרדת לכל שורה - זה מה שהפך את הטאב מתקוע
+    (יכול היה לקחת מאות קריאות רצופות) למהיר."""
     if alerts_df.empty:
         return alerts_df
     df = alerts_df.copy()
+
+    entry_dates = []
+    for _, row in df.iterrows():
+        entry_ts = row.get("bought_at") if (row.get("bought") == 1 and row.get("actual_entry_price")) else row.get("scan_ts")
+        try:
+            entry_dates.append(dt.datetime.fromisoformat(entry_ts).date())
+        except Exception:
+            continue
+    unique_tickers = [t for t in df["ticker"].dropna().unique().tolist() if t]
+    if entry_dates and unique_tickers:
+        histories = _fetch_batched_histories(unique_tickers, min(entry_dates), dt.date.today())
+    else:
+        histories = {}
+
     df["outcome"] = [
         _outcome_for_alert(
             row["ticker"], row["scan_ts"], row["target_base"], row["stop_loss"], window_days,
             entry_limit=row.get("entry_limit"),
             actual_entry_price=(row.get("actual_entry_price") if row.get("bought") == 1 else None),
             actual_entry_date=(row.get("bought_at") if row.get("bought") == 1 else None),
+            hist_df=histories.get(row["ticker"]),
         )
         for _, row in df.iterrows()
     ]
