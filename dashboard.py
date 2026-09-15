@@ -1832,24 +1832,17 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     layers = zero_rule + line
     _total_height = 160
     _bottom_padding = 8
-    if date_label:
-        # שורה אחת, בקצה הימני של הגרף, באותו קו (גובה) כמו שורת ה-legend
-        # למטה ("התיק שלי" / "ת\"א 35") - אחרי כמה ניסיונות שלא הצליחו בפינה
-        # השמאלית-תחתונה, המשתמש ביקש כיוון אחר לגמרי (15.9.2026, "בוא נמקם
-        # את זה בשורה אחת... בקצה הימני של הגרף, בקו של התיק שלי והמדד").
-        # align="right" עם x בקצה הימני של ה-SVG (340 פחות ה-padding הימני)
-        # כדי שהטקסט "יגדל" שמאלה מהקצה, לא יחרוג ממנו. y נמדד בפועל מול
-        # שורת ה-legend (128 יחסית לראש ה-SVG).
-        # x קבוע (298) היה נכון רק ברוחב שבו נבדק - הגרף רץ עם width='stretch'
-        # (בלי width מפורש ב-Altair), אז הרוחב האמיתי משתנה לפי חלון הדפדפן
-        # בפועל; אצל המשתמש (חלון רחב יותר מדפדפן הבדיקה שלי) x קבוע נחת
-        # הרחק משמאל לקצה האמיתי ("אמרתי קצה ימני של הגרף", 15.9.2026).
-        # {"expr": "width - 5"} נצמד לקצה הימני האמיתי של אזור השרטוט בכל
-        # רוחב, לא לערך שנמדד פעם אחת.
-        date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי {date_label}"]})).mark_text(
-            align="right", baseline="top", fontSize=11, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value({"expr": "width - 5"}), y=alt.value(121), text="label:N")
-        layers = layers + date_layer
+    # תג "תוך-יומי" מוצג תמיד, בקצה הימני של הגרף באותו קו כמו שורת ה-legend
+    # למטה ("התיק שלי" / "ת\"א 35", 15.9.2026). התאריך עצמו מצטרף רק כש-
+    # date_label ניתן (המסחר לא פעיל - fallback ליום מסחר קודם, לא היום
+    # הנוכחי) - "ותאריך רק כשהמסחר לא פעיל". {"expr": "width - 5"} נצמד
+    # לקצה הימני האמיתי בכל רוחב חלון בפועל (לא ערך פיקסלי קבוע שנמדד פעם
+    # אחת - זה נכשל בעבר ב"אמרתי קצה ימני של הגרף").
+    _intraday_text = "תוך-יומי" + (f" {date_label}" if date_label else "")
+    _intraday_layer = alt.Chart(pd.DataFrame({"label": [_intraday_text]})).mark_text(
+        align="right", baseline="top", fontSize=11, color=_CHART_LABEL_COLOR,
+    ).encode(x=alt.value({"expr": "width - 5"}), y=alt.value(121), text="label:N")
+    layers = layers + _intraday_layer
     return (
         layers
         .properties(height=_total_height, padding={"left": 8, "right": 10, "top": 8, "bottom": _bottom_padding})
@@ -4259,14 +4252,14 @@ with st.container(border=True, key="market_panel"):
                     st.caption("אין כרגע מספיק נתונים להשוואה מול מדד - ינסה שוב ברענון הבא.")
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
-                # תמיד מציגים תאריך בפינת הגרף (לא רק ב-fallback) - "ככה נדע
-                # שזה יומי" (15.9.2026): כשמוצג היום הנוכחי (_comp_as_of=None)
-                # כותבים את תאריך היום עצמו במקום.
-                _comp_date_label = _comp_as_of or israel_today().strftime("%d/%m")
+                # "שינוי יומי" מוצג תמיד; התאריך עצמו רק כשהמסחר לא פעיל
+                # (_comp_as_of לא None - fallback ליום מסחר קודם) - חזרה
+                # לסמנטיקה המקורית של _compute_portfolio_history אחרי ניסיון
+                # קצר להציג תמיד (15.9.2026, "ותאריך רק כשהמסחר לא פעיל").
                 st.altair_chart(
                     _build_comparison_chart(
                         _comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR,
-                        date_label=_comp_date_label,
+                        date_label=_comp_as_of,
                     ),
                     width='stretch',
                 )
