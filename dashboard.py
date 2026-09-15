@@ -418,6 +418,7 @@ st.markdown(
     div[class*="st-key-nav_tabs_row"] {
         border: 1px solid rgba(128,128,128,0.3);
         border-right: 3px solid #3B6EA5;
+        border-left: 3px solid #3B6EA5;
         border-radius: 12px;
         padding: 8px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.06);
