@@ -1841,18 +1841,17 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         # בפינת השרטוט ("לא טוב", 15.9.2026). אין שינוי גובה/padding בכלל
         # הפעם - הטקסט חי *בתוך* שטח השרטוט הפנימי (144px, אחרי ה-padding
         # הקבוע 8+8), קרוב לקצה התחתון שלו אבל לא מעבר לו.
-        # שתי שורות נפרדות (לא בלוק דו-שורתי אחד) - "יומי" מיושר לאותה שורה
-        # כמו תווית "-1" (ציר Y), והתאריך מיושר לאותה שורה כמו "10:00" (ציר
-        # X) - כפי שביקש המשתמש במפורש (15.9.2026, "תעשה שהתאריך יהיה באותו
-        # קו של ה10:00 ושהטקסט יהיה מיושר עם ה-1"). ערכי ה-y נמדדו בפועל מול
-        # מיקומי התוויות עצמן (getBoundingClientRect), לא ניחוש.
-        _line1 = alt.Chart(pd.DataFrame({"label": ["יומי"]})).mark_text(
-            align="left", baseline="middle", dx=2, fontSize=10, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value(0), y=alt.value(56), text="label:N")
-        _line2 = alt.Chart(pd.DataFrame({"label": [date_label]})).mark_text(
-            align="left", baseline="middle", dx=2, fontSize=10, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value(0), y=alt.value(91), text="label:N")
-        layers = layers + _line1 + _line2
+        # לא שתי שורות מפוזרות - צמודות זו לזו, ממש בפינה בנקודת החיבור של
+        # תוויות "-1" (ציר Y) ו-"10:00" (ציר X) (15.9.2026, אחרי כמה ניסיונות:
+        # "ז\"א, ימוקמו ממש בפינה, בנקודת החיבור של ה-1 ושל ה10:00", "בלי רווח
+        # גדול"). x=16/y=75 נגזרו מהמדידה בפועל של שתי התוויות (־1 במרכז
+        # ~362px, 10:00 במרכז ~398px, בהתאמה ליחס ~1:1 מול ערכי value) - בפינה
+        # שביניהן, לא בשורה של אחת מהן.
+        date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי\n{date_label}"]})).mark_text(
+            align="left", baseline="top", dx=0, dy=0, fontSize=9, lineBreak="\n",
+            lineHeight=10, color=_CHART_LABEL_COLOR,
+        ).encode(x=alt.value(-10), y=alt.value(65), text="label:N")
+        layers = layers + date_layer
     return (
         layers
         .properties(height=_total_height, padding={"left": 8, "right": 10, "top": 8, "bottom": _bottom_padding})
