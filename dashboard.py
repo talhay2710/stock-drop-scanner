@@ -1910,6 +1910,14 @@ with st.sidebar:
                 border-right: 3px solid #3B6EA5;
                 padding-top: 0px !important;
             }
+            /* הכלל הגלובלי של הסיידבר (שורה ~438) קובע gap:0.8rem!important
+            עם ספציפיות (0,2,0) - חייב selector עם ספציפיות שווה/גבוהה יותר
+            כדי לגבור עליו, לא מספיק רק !important (15.9.2026, "אתה פועל
+            הפוך ממה שביקשתי" - ה-gap רק גדל כי כל div מרווח שהוספתי הוא
+            flex item נוסף עם gap משלו משני צדדיו). */
+            div[data-testid="stVerticalBlock"][class*="st-key-scan_settings_card"] {
+                gap: 4px !important;
+            }
             </style>
             """,
             unsafe_allow_html=True,
@@ -2022,6 +2030,9 @@ with st.sidebar:
             div[class*="st-key-exp_fees"],
             div[class*="st-key-exp_message_types"] {
                 margin-top: -7px;
+            }
+            div[data-testid="stVerticalBlock"][class*="st-key-exp_group_card"] {
+                gap: 4px !important;
             }
             </style>
             """,
@@ -2162,6 +2173,9 @@ with st.sidebar:
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
                 padding-top: 0px !important;
+            }
+            div[data-testid="stVerticalBlock"][class*="st-key-channels_card"] {
+                gap: 4px !important;
             }
             </style>
             """,
