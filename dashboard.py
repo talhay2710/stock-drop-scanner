@@ -1837,8 +1837,12 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         # ה-Y, משמאל ל-legend) - x/y דרך alt.value (לא encoding על נתון) כדי
         # שהמיקום יהיה פיקסלי קבוע בתוך שטח הגרף, לא תלוי בטווח הערכים
         # (15.9.2026, "תכתוב תאריך משמאל לתיק שלי ומתחת למספרים בציר האנכי").
-        date_layer = alt.Chart(pd.DataFrame({"label": [date_label]})).mark_text(
-            align="left", baseline="top", dx=2, dy=6, fontSize=10, color=_CHART_LABEL_COLOR,
+        # שתי שורות - "יומי" ואז התאריך (15.9.2026, "אפשר לכתוב: יומי \n
+        # תאריך") - lineBreak מפורש כי לא כל גרסת Vega-Lite מפצלת \n כברירת
+        # מחדל בלי זה.
+        date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי\n{date_label}"]})).mark_text(
+            align="left", baseline="top", dx=2, dy=6, fontSize=10, lineBreak="\n",
+            lineHeight=12, color=_CHART_LABEL_COLOR,
         ).encode(x=alt.value(0), y=alt.value(160), text="label:N")
         layers = layers + date_layer
     return (
@@ -4250,10 +4254,14 @@ with st.container(border=True, key="market_panel"):
                     st.caption("אין כרגע מספיק נתונים להשוואה מול מדד - ינסה שוב ברענון הבא.")
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
+                # תמיד מציגים תאריך בפינת הגרף (לא רק ב-fallback) - "ככה נדע
+                # שזה יומי" (15.9.2026): כשמוצג היום הנוכחי (_comp_as_of=None)
+                # כותבים את תאריך היום עצמו במקום.
+                _comp_date_label = _comp_as_of or israel_today().strftime("%d/%m")
                 st.altair_chart(
                     _build_comparison_chart(
                         _comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR,
-                        date_label=_comp_as_of,
+                        date_label=_comp_date_label,
                     ),
                     width='stretch',
                 )
