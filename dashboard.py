@@ -1927,7 +1927,7 @@ with st.sidebar:
             "בחר מדד/ים לסריקה", ALL_INDICES, default=current_indices, label_visibility="collapsed",
             key="settings_indices", on_change=_autosave_settings,
         )
-        st.markdown("**📉 ירידה יומית להתראה**")
+        st.markdown("<div style='font-weight:700; margin-top:6px;'>📉 ירידה יומית להתראה</div>", unsafe_allow_html=True)
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
         tc1, tc2 = st.columns([5, 1])
         tc1.number_input(
