@@ -1,4 +1,4 @@
-# רשימת מניות מדד ת"א 35 - מאומת מול אתר הבורסה (TASE, 21/08/2026) + Yahoo Finance
+# רשימת מניות מדד ת"א 35 - מאומת מול אתר הבורסה (TASE, 15/09/2026) + Yahoo Finance
 # (חיפוש לפי ISIN מדויק, לא לפי שם) - יש לוודא/לעדכן מדי רבעון כי הרכב המדד משתנה:
 # https://market.tase.co.il/he/market_data/index/142/components
 # עמודה yahoo_ticker היא הטיקר כפי שמופיע ב-Yahoo Finance (סיומת .TA)
@@ -7,38 +7,38 @@
 # דולרים) - הסורק מניח שכל מניה ישראלית מתומחרת באגורות ונסחרת בשעות ת"א, מה שלא נכון
 # לגביה. עד שתתווסף תמיכה במניה זרה בתוך מדד ישראלי, היא מדולגת.
 symbol,name,yahoo_ticker
-TEVA,טבע,TEVA.TA
-POLI,בנק הפועלים,POLI.TA
-LUMI,בנק לאומי,LUMI.TA
-ESLT,אלביט מערכות,ESLT.TA
-TSEM,טאואר סמיקונדקטור,TSEM.TA
-DSCT,בנק דיסקונט,DSCT.TA
-PHOE,הפניקס אחזקות,PHOE.TA
-NVMI,נובה,NVMI.TA
-MZTF,בנק מזרחי טפחות,MZTF.TA
-ENLT,אנלייט אנרגיה,ENLT.TA
-HARL,הראל השקעות,HARL.TA
-BEZQ,בזק,BEZQ.TA
-ORA,אורמת טכנולוגיות,ORA.TA
-NICE,נייס,NICE.TA
-CLIS,כלל עסקי ביטוח,CLIS.TA
-OPCE,או.פי.סי אנרגיה,OPCE.TA
 AZRG,עזריאלי קבוצה,AZRG.TA
-NXSN,נקסט ויז'ן,NXSN.TA
-NVPT,נאוויטס פטרוליום,NVPT.TA
-CAMT,קמטק,CAMT.TA
-FIBI,הבינלאומי,FIBI.TA
-ICL,איי סי אל,ICL.TA
+BEZQ,בזק,BEZQ.TA
 BIG,ביג מרכזי קניות,BIG.TA
-MGOR,מגה אור החזקות,MGOR.TA
-MGDL,מגדל ביטוח,MGDL.TA
-MMHD,מנורה מבטחים החזקות,MMHD.TA
-TASE,הבורסה לניירות ערך,TASE.TA
-MLSR,מליסרון,MLSR.TA
-NWMD,ניו-מד אנרגיה,NWMD.TA
-SAE,שופרסל,SAE.TA
-DLEKG,דלק קבוצה,DLEKG.TA
-STRS,שטראוס גרופ,STRS.TA
-SPEN,שפיר הנדסה,SPEN.TA
-KEN,קנון החזקות,KEN.TA
+CAMT,קמטק,CAMT.TA
+CLIS,כלל עסקי ביטוח,CLIS.TA
 DIMRI,דמרי בנין,DIMRI.TA
+DLEKG,דלק קבוצה,DLEKG.TA
+DSCT,בנק דיסקונט,DSCT.TA
+ENLT,אנלייט אנרגיה,ENLT.TA
+ESLT,אלביט מערכות,ESLT.TA
+FIBI,הבינלאומי,FIBI.TA
+HARL,הראל השקעות,HARL.TA
+ICL,איי סי אל,ICL.TA
+KEN,קנון החזקות,KEN.TA
+LUMI,בנק לאומי,LUMI.TA
+MGDL,מגדל ביטוח,MGDL.TA
+MGOR,מגה אור החזקות,MGOR.TA
+MLSR,מליסרון,MLSR.TA
+MMHD,מנורה מבטחים החזקות,MMHD.TA
+MZTF,בנק מזרחי טפחות,MZTF.TA
+NICE,נייס,NICE.TA
+NVMI,נובה,NVMI.TA
+NVPT,נאוויטס פטרוליום,NVPT.TA
+NWMD,ניו-מד אנרגיה,NWMD.TA
+NXSN,נקסט ויז'ן,NXSN.TA
+OPCE,או.פי.סי אנרגיה,OPCE.TA
+ORA,אורמת טכנולוגיות,ORA.TA
+PHOE,הפניקס אחזקות,PHOE.TA
+POLI,בנק הפועלים,POLI.TA
+SAE,שופרסל,SAE.TA
+SPEN,שפיר הנדסה,SPEN.TA
+STRS,שטראוס גרופ,STRS.TA
+TASE,הבורסה לניירות ערך,TASE.TA
+TEVA,טבע,TEVA.TA
+TSEM,טאואר סמיקונדקטור,TSEM.TA

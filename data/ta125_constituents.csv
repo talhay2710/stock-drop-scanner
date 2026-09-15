@@ -1,101 +1,133 @@
-# רשימת מניות מדד ת"א 125 - מאומת מול אתר הבורסה (TASE, 21/08/2026) + Yahoo Finance
+# רשימת מניות מדד ת"א 125 - מאומת מול אתר הבורסה (TASE, 15/09/2026) + Yahoo Finance
 # (חיפוש לפי ISIN מדויק, לא לפי שם) - יש לוודא/לעדכן מדי רבעון כי הרכב המדד משתנה:
-# https://market.tase.co.il/he/market_data/index/166/components
+# https://market.tase.co.il/he/market_data/index/137/components
 # עמודה yahoo_ticker היא הטיקר כפי שמופיע ב-Yahoo Finance (סיומת .TA)
+# הערה: מזהה המדד השתנה - היה 166, עכשיו 137 (התגלה 15.9.2026, ה-URL הישן
+# הצביע על מדד אחר לגמרי, "תל-דיב"). ת"א 125 כן כולל את כל 35 מניות ת"א-35
+# בתוכו (מוודא: אין אף סימבול מ-ta35_constituents.csv שחסר כאן).
 symbol,name,yahoo_ticker
-AYAL,איילון,AYAL.TA
-MTRX,מטריקס,MTRX.TA
-DLEKG,דלק קבוצה,DLEKG.TA
-PAZ,פז אנרגיה,PAZ.TA
-ILDC,הכשרת הישוב,ILDC.TA
-HARL,הראל השקעות,HARL.TA
-NWMD,ניו-מד אנרג יהש,NWMD.TA
-ICL,איי.סי.אל,ICL.TA
-DSCT,דיסקונט א,DSCT.TA
-HIPR,הייפר גלובל,HIPR.TA
-TLSY,טלסיס,TLSY.TA
-AMOT,אמות,AMOT.TA
-POLP,פולירם,POLP.TA
-LUMI,לאומי,LUMI.TA
-FIBIH,פיבי,FIBIH.TA
-ENOG,אנרג'יאן,ENOG.TA
-POLI,פועלים,POLI.TA
-ORL,בזן,ORL.TA
-IDIN,איידיאיי ביטוח,IDIN.TA
-BEZQ,בזק,BEZQ.TA
-PHOE,הפניקס,PHOE.TA
-PTBL,נכסים ובנין,PTBL.TA
-DIFI,מימון ישיר,DIFI.TA
-DELG,דלתא גליל,DELG.TA
-MZTF,מזרחי טפחות,MZTF.TA
-TMRP,תמר פטרוליום,TMRP.TA
-MMHD,מנורה מב החז,MMHD.TA
-RIT1,ריט 1,RIT1.TA
-HLMS,הולמס פלייס,HLMS.TA
-ALTF,אלטשולר שחם פנ,ALTF.TA
-ONE,וואן טכנולוגיות,ONE.TA
-STRS,שטראוס,STRS.TA
-NVLG,נובולוג,NVLG.TA
-ISCD,ישראכרט,ISCD.TA
-ISRA,ישראמקו יהש,ISRA.TA
-RATI,רציו יהש,RATI.TA
-FIBI,בינלאומי,FIBI.TA
-AFRE,אפריקה מגורים,AFRE.TA
-RMLI,רמי לוי,RMLI.TA
-GVYM,גב ים,GVYM.TA
-ISTA,איסתא,ISTA.TA
-BLSR,רבוע נדלן,BLSR.TA
-MAXO,מקס סטוק,MAXO.TA
-YHNF,יוחננוף,YHNF.TA
-ALHE,אלוני חץ,ALHE.TA
-AUDC,אודיוקודס,AUDC.TA
-SLARL,סלע נדלן,SLARL.TA
-DIPL,דיפלומט אחזקות,DIPL.TA
-INRM,אינרום,INRM.TA
-PCBT,פיסיבי טכנ,PCBT.TA
-DIMRI,דמרי,DIMRI.TA
-MLSR,מליסרון,MLSR.TA
-KEN,קנון,KEN.TA
-PLSN,פלסאון תעשיות,PLSN.TA
-FOX,פוקס,FOX.TA
-TTAM,טיב טעם,TTAM.TA
-PLRM,פלרם,PLRM.TA
-SAE,שופרסל,SAE.TA
-NAWI,נאוי,NAWI.TA
-MNRT,מניבים ריט,MNRT.TA
-ISRS,ישרס,ISRS.TA
-DANE,דנאל,DANE.TA
-MNIF,מניף,MNIF.TA
-DLTI,דלתא מותגים,DLTI.TA
-DRAL,דור אלון,DRAL.TA
-WILC,ויליפוד אינטרנש,WILC.TA
-AZRG,עזריאלי קבוצה,AZRG.TA
-ARD,ארד,ARD.TA
 ACKR,קבוצת אקרשטיין,ACKR.TA
-CDEV,כהן פיתוח,CDEV.TA
-ATRY,אטראו שוקי הון,ATRY.TA
-SHVA,שירותי בנק אוטו,SHVA.TA
-ENRG,אנרג'יקס,ENRG.TA
-CRSM,קרסו מוטורס,CRSM.TA
-LAHAV,להב,LAHAV.TA
-MDTR,מגדלי תיכון,MDTR.TA
-NTML,נטו מלינדה,NTML.TA
-IBI,איביאי בית השק,IBI.TA
-MRIN,מור השקעות,MRIN.TA
-DLEA,דלק רכב,DLEA.TA
-KSTN,קיסטון אינפרא,KSTN.TA
-MTAV,מיטב השקעות,MTAV.TA
-MISH,מבטח שמיר,MISH.TA
-FBRT,פמס,FBRT.TA
-ASHO,עשות,ASHO.TA
-GCT,ג'י סיטי,GCT.TA
-ORON,אורון קבוצה,ORON.TA
-LUZN,לוזון קבוצה,LUZN.TA
-DNYA,דניה סיבוס,DNYA.TA
-MGOR,מגה אור,MGOR.TA
-KARE,קרדן נדלן,KARE.TA
-RMON,רימון,RMON.TA
-QLTU,קווליטאו,QLTU.TA
-ROTS,רוטשטיין,ROTS.TA
-RTLS,ריטיילורס,RTLS.TA
+ACRO,אקרו,ACRO.TA
+AFPR,אפי נכסים,AFPR.TA
+AFRE,אפריקה מגורים,AFRE.TA
+ALHE,אלוני חץ,ALHE.TA
+AMOT,אמות,AMOT.TA
+AMPA,אמפא,AMPA.TA
+AMRM,עמרם,AMRM.TA
+ARGO,ארגו פרופרטיז,ARGO.TA
+ARPT,ארפורט סיטי,ARPT.TA
 ARYT,ארית תעשיות,ARYT.TA
+ASHG,אשטרום קבוצה,ASHG.TA
+AURA,אאורה,AURA.TA
+AYAL,איילון,AYAL.TA
+AZRG,עזריאלי קבוצה,AZRG.TA
+AZRM,אזורים,AZRM.TA
+BEZQ,בזק,BEZQ.TA
+BIG,ביג מרכזי קניות,BIG.TA
+BLSR,רבוע נדלן,BLSR.TA
+BSEN,בית שמש,BSEN.TA
+CAMT,קמטק,CAMT.TA
+CEL,סלקום,CEL.TA
+CLIS,כלל עסקי ביטוח,CLIS.TA
+CRSM,קרסו מוטורס,CRSM.TA
+DANE,דנאל,DANE.TA
+DELG,דלתא גליל,DELG.TA
+DIMRI,דמרי בנין,DIMRI.TA
+DLEKG,דלק קבוצה,DLEKG.TA
+DLTI,דלתא מותגים,DLTI.TA
+DNYA,דניה סיבוס,DNYA.TA
+DORL,דוראל אנרגיה,DORL.TA
+DSCT,בנק דיסקונט,DSCT.TA
+ECNR,אקונרג'י,ECNR.TA
+ELAL,אל על,ELAL.TA
+ELCO,אלקו,ELCO.TA
+ELCRE,אלקטרה נדלן,ELCRE.TA
+ELTR,אלקטרה,ELTR.TA
+ENLT,אנלייט אנרגיה,ENLT.TA
+ENOG,אנרג'יאן,ENOG.TA
+ENRG,אנרג'יקס,ENRG.TA
+EQTL,אקויטל,EQTL.TA
+ESLT,אלביט מערכות,ESLT.TA
+FIBI,הבינלאומי,FIBI.TA
+FIBIH,פיבי,FIBIH.TA
+FORTY,פורמולה מערכות,FORTY.TA
+FOX,פוקס,FOX.TA
+FTAL,פתאל החזקות,FTAL.TA
+GILT,גילת,GILT.TA
+GNRS,ג'נריישן קפיטל,GNRS.TA
+GVYM,גב ים,GVYM.TA
+HARL,הראל השקעות,HARL.TA
+HLAN,חילן,HLAN.TA
+IBI,איביאי בית השק,IBI.TA
+ICL,איי סי אל,ICL.TA
+IDIN,איידיאיי ביטוח,IDIN.TA
+IES,אייאיאס,IES.TA
+ILCO,חברה לישראל,ILCO.TA
+INRM,אינרום,INRM.TA
+ISCD,ישראכרט,ISCD.TA
+ISCN,ישראל קנדה,ISCN.TA
+ISHI,מספנות ישראל,ISHI.TA
+ISRA,ישראמקו יהש,ISRA.TA
+ISRO,ישרוטל,ISRO.TA
+ISRS,ישרס,ISRS.TA
+KEN,קנון החזקות,KEN.TA
+KSTN,קיסטון אינפרא,KSTN.TA
+LAHAV,להב,LAHAV.TA
+LAPD,לפידות קפיטל,LAPD.TA
+LUMI,בנק לאומי,LUMI.TA
+MAXO,מקס סטוק,MAXO.TA
+MGDL,מגדל ביטוח,MGDL.TA
+MGOR,מגה אור החזקות,MGOR.TA
+MISH,מבטח שמיר,MISH.TA
+MLSR,מליסרון,MLSR.TA
+MMHD,מנורה מבטחים החזקות,MMHD.TA
+MRIN,מור השקעות,MRIN.TA
+MSKE,משק אנרגיה,MSKE.TA
+MTAV,מיטב השקעות,MTAV.TA
+MTRX,מטריקס,MTRX.TA
+MVNE,מבנה,MVNE.TA
+MZTF,בנק מזרחי טפחות,MZTF.TA
+NICE,נייס,NICE.TA
+NOFR,נופר אנרג'י,NOFR.TA
+NTML,נטו מלינדה,NTML.TA
+NVMI,נובה,NVMI.TA
+NVPT,נאוויטס פטרוליום,NVPT.TA
+NWMD,ניו-מד אנרגיה,NWMD.TA
+NXSN,נקסט ויז'ן,NXSN.TA
+NYAX,נאייקס,NYAX.TA
+ONE,וואן טכנולוגיות,ONE.TA
+OPCE,או.פי.סי אנרגיה,OPCE.TA
+OPK,אופקו הלת',OPK.TA
+ORA,אורמת טכנולוגיות,ORA.TA
+ORL,בזן,ORL.TA
+PAZ,פז אנרגיה,PAZ.TA
+PHOE,הפניקס אחזקות,PHOE.TA
+POLI,בנק הפועלים,POLI.TA
+PRSK,פרשקובסקי,PRSK.TA
+PRTC,פריורטק,PRTC.TA
+PTBL,נכסים ובנין,PTBL.TA
+PTNR,פרטנר,PTNR.TA
+QLTU,קווליטאו,QLTU.TA
+RATI,רציו יהש,RATI.TA
+RIT1,ריט 1,RIT1.TA
+RMLI,רמי לוי,RMLI.TA
+RMON,רימון,RMON.TA
+RPOL,אר פי אופטיקל,RPOL.TA
+SAE,שופרסל,SAE.TA
+SBEN,שוב אנרגיה,SBEN.TA
+SCOP,סקופ,SCOP.TA
+SKBN,שיכון ובינוי,SKBN.TA
+SLARL,סלע נדלן,SLARL.TA
+SMT,סאמיט,SMT.TA
+SPEN,שפיר הנדסה,SPEN.TA
+STRS,שטראוס גרופ,STRS.TA
+TASE,הבורסה לניירות ערך,TASE.TA
+TEVA,טבע,TEVA.TA
+TMRP,תמר פטרוליום,TMRP.TA
+TRPZ,תורפז,TRPZ.TA
+TSEM,טאואר סמיקונדקטור,TSEM.TA
+UNMI,יוניברסל מוטורס,UNMI.TA
+VILR,וילאר,VILR.TA
+VRDS,ורידיס,VRDS.TA
+WESR,ווישור גלובלטק,WESR.TA
+YHNF,יוחננוף,YHNF.TA
