@@ -141,12 +141,29 @@ _HELP_ICON_SVG = (
 
 
 def _help_icon_span(tooltip_text: str) -> str:
-    """<span> עם האייקון + טולטיפ - onclick (לא רק title) כי הובר לבד לא עובד
-    במגע (טאבלט/מובייל)."""
-    _tip_js = tooltip_text.replace("'", "\\'")
+    """<span> עם האייקון + טולטיפ. היה מבוסס onclick="alert(...)" כי הובר לבד
+    לא עובד במגע (טאבלט/מובייל) - אבל התברר (15.9.2026, ר' [[project_sidebar_css_specificity_gotchas]]-
+    סוג דומה של "הקוד אמור לעבוד") ש-Streamlit מנקה בשקט את ה-onclick מתוך
+    unsafe_allow_html, אז בפועל לא הוצג שום דבר במגע - גרוע מכלום. עובר
+    ל-CSS-בלבד: tabindex הופך את ה-span לבר-מיקוד, כך שהקשה במגע מפעילה
+    :focus בדיוק כמו :hover בעכבר, בלי תלות ב-JS שיכול להיחסם."""
     return (
-        f'<span title="{tooltip_text}" onclick="alert(\'{_tip_js}\')" '
-        f'style="cursor:help; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
+        f'<span tabindex="0" title="{tooltip_text}" class="_ddhelp" '
+        f'style="position:relative; cursor:help; color:rgba(49,51,63,0.6); outline:none;">'
+        f'{_HELP_ICON_SVG}'
+        f'<span class="_ddhelp_bubble" style="position:absolute; bottom:135%; right:50%; '
+        f'transform:translateX(50%); background:#333; color:#fff; padding:6px 10px; '
+        f'border-radius:6px; font-size:0.72rem; font-weight:400; white-space:pre-line; '
+        f'width:max-content; max-width:220px; visibility:hidden; opacity:0; '
+        f'z-index:1000; text-align:center; pointer-events:none;">'
+        f'{tooltip_text}</span>'
+        # !important הכרחי - inline style="visibility:hidden" על הבועה עצמה
+        # מנצח תמיד כלל רגיל ב-stylesheet, לא משנה הספציפיות של ה-selector
+        # (15.9.2026, נמצא בפועל: :focus תאם ב-DOM, הכלל היה רשום ב-CSSOM,
+        # ועדיין לא הוצג - ר' [[project_sidebar_css_specificity_gotchas]]).
+        f'<style>._ddhelp:hover ._ddhelp_bubble, ._ddhelp:focus ._ddhelp_bubble '
+        f'{{visibility:visible !important; opacity:1 !important;}}</style>'
+        f'</span>'
     )
 
 
@@ -2560,13 +2577,9 @@ with _tab_slot_movers.container():
                 # ▾ עם טולטיפ בהובר/לחיצה (כמו בעמודת "סיווג ריבאונד" בטבלת ההתראות),
                 # במקום להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
                 # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
-                # title=... לבד (הובר בלבד) לא עובד במגע (טאבלט/מובייל) - אין hover.
-                # onclick עם alert עובד בלחיצה/הקשה בכל מכשיר, בלי תלות ב-hover.
-                _movers_tip_text = f"שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים\\nכולל השינוי היומי"
+                # _help_icon_span (למעלה) - CSS-בלבד, עובד גם בהקשה במגע וגם בהובר.
                 _movers_cumulative_label = (
-                    f'מצטבר <span title="שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים&#10;כולל השינוי היומי" '
-                    f'onclick="alert(\'{_movers_tip_text}\')" '
-                    f'style="cursor:help; color:rgba(49,51,63,0.6);">{_HELP_ICON_SVG}</span>'
+                    f'מצטבר {_help_icon_span(f"שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים" + chr(10) + "כולל השינוי היומי")}'
                 )
 
                 def _render(sub_df: pd.DataFrame) -> None:
