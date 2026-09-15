@@ -1908,12 +1908,7 @@ with st.sidebar:
             div[class*="st-key-scan_settings_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
-            }
-            /* צמצום הרווח מעל "מדדים לסריקה" - היה 29px (15px padding +
-            עוד ~14px ריווח פנימי של הפסקה הראשונה), 14.9.2026 "תצמצם רווח
-            כאן". */
-            div[class*="st-key-scan_settings_card"] [data-testid="stVerticalBlock"] > div:first-child {
-                margin-top: -14px;
+                padding-top: 6px !important;
             }
             </style>
             """,
@@ -1944,9 +1939,13 @@ with st.sidebar:
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
         dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
-        # הפרדה בלי קו נראה בכלל - רק רווח (15.9.2026, "הפרדה עדינה יותר.
-        # ובלי הקו שבתמונה" - הגרסה הקודמת עם border-top הייתה בולטת מדי).
-        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        # קו ממש עדין, כמעט צמוד (15.9.2026, "אני רוצה קו ממש עדין ביניהם.
+        # תצמצם את הרווח, כמעט תצמיד") - opacity נמוך יותר מהניסיון הקודם,
+        # ומרווח מינימלי (2px) במקום 6-8.
+        st.markdown(
+            "<div style='border-top:1px solid rgba(0,0,0,0.04); margin:2px 0;'></div>",
+            unsafe_allow_html=True,
+        )
         mc1, mc2 = st.columns([5, 1])
         mc1.number_input(
             "אחוז ירידה מצטברת שמפעיל התראה", min_value=0.5, max_value=50.0,
@@ -2021,11 +2020,7 @@ with st.sidebar:
             div[class*="st-key-exp_group_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
-            }
-            /* צמצום הרווח מעל הפריט הראשון (14.9.2026, "וכאן" - אותה בעיה
-            כמו בכרטיס ההגדרות למעלה). */
-            div[class*="st-key-exp_group_card"] [data-testid="stVerticalBlock"] > div:first-child {
-                margin-top: -14px;
+                padding-top: 6px !important;
             }
             /* צמצום המרווח בין הפריטים המתקפלים - לא להדביק לגמרי (14.9.2026,
             "אתה יכול לצמצם אותם קצת, לא חייב להצמיד"), רק לקרב. נמדד: המרווח
@@ -2173,9 +2168,7 @@ with st.sidebar:
             div[class*="st-key-channels_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
-            }
-            div[class*="st-key-channels_card"] [data-testid="stVerticalBlock"] > div:first-child {
-                margin-top: -14px;
+                padding-top: 6px !important;
             }
             </style>
             """,
