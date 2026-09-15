@@ -1853,10 +1853,13 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         # (לא 10-12 כקודם) ממקם את שורת התאריך בדיוק בגובה 10:00 (נמדד: הפרש
         # של כ-0px בין שתי השורות למקורות שלהן, לא "רווח גדול" - זה בדיוק
         # המרחק הטבעי בין שתי השורות עצמן).
+        # x=-25 מתקן היסט אופקי שנמדד בפועל: ב-x=0 "יומי" התחיל ב-165px בעוד
+        # ש"-1" מתחיל ב-139.5px - כ-25px מדי ימינה, לא ממש מתחת לספרות עצמן
+        # (15.9.2026, "תעשה בדיוק מה שאמרתי כבר").
         date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי\n{date_label}"]})).mark_text(
             align="left", baseline="top", dx=0, dy=0, fontSize=9, lineBreak="\n",
             lineHeight=19, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value(0), y=alt.value(65), text="label:N")
+        ).encode(x=alt.value(-25), y=alt.value(65), text="label:N")
         layers = layers + date_layer
     return (
         layers
