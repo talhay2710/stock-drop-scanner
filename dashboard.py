@@ -1402,7 +1402,12 @@ def _build_pnl_bar_chart(rows: list[dict]) -> alt.Chart:
     # ואין הבדל ויזואלי ביניהן. קו שחור דק נפרד, בדיוק על מיקום הסטופ, ורק
     # כשהוא באמת נחצה - שכבה אחרונה (מצוירת מעל הכל) כדי שלעולם לא תיעלם.
     crossed_df = df[df["pnl_pct"] <= df["stop_pct"]].copy()
-    crossed_df["x_text"] = crossed_df["stop_pct"].apply(lambda v: _signed_num(v, 2))
+    # x_text כאן היה stop_pct (מיקום הסטופ יחסית לכניסה) בטעות - זה נכון בתור
+    # "איפה הסטופ", לא בתור "כמה המחיר חצה אותו", שני דברים שונים שנעלמים
+    # להיות זהים רק כשהכניסה=הסטופ. אותה משפחת באג שכבר תוקנה היום בכרטיס
+    # "התיק שלי" (15.9.2026, "בדיקה יסודית של כל אלמנט") - כאן stop_cross_pct
+    # (יחסית למחיר הסטופ עצמו) הוא הנכון.
+    crossed_df["x_text"] = crossed_df["stop_cross_pct"].apply(lambda v: _signed_num(v, 2))
     stop_crossed = alt.Chart(crossed_df).mark_tick(
         color="black", thickness=2, size=20, opacity=1.0,
     ).encode(
@@ -4221,6 +4226,10 @@ with st.container(border=True, key="market_panel"):
                     "pnl_pct": (current / entry - 1) * 100,
                     "stop_pct": (stop_price / entry - 1) * 100,
                     "target_pct": (target_price / entry - 1) * 100,
+                    # ליחס "חצתה סטופ ב-X%" בטולטיפ - צריך יחסית למחיר הסטופ
+                    # עצמו, לא ל-stop_pct (יחסית לכניסה, זה נכון רק בתור "מיקום
+                    # הסטופ עצמו", לא בתור "כמה חצתה אותו", ר' 15.9.2026).
+                    "stop_cross_pct": (current - stop_price) / stop_price * 100,
                     "value": current * qty,
                 })
             st.divider()
