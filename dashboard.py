@@ -1908,7 +1908,7 @@ with st.sidebar:
             div[class*="st-key-scan_settings_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
-                padding-top: 6px !important;
+                padding-top: 0px !important;
             }
             </style>
             """,
@@ -1939,11 +1939,12 @@ with st.sidebar:
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
         dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
-        # קו ממש עדין, כמעט צמוד (15.9.2026, "אני רוצה קו ממש עדין ביניהם.
-        # תצמצם את הרווח, כמעט תצמיד") - opacity נמוך יותר מהניסיון הקודם,
-        # ומרווח מינימלי (2px) במקום 6-8.
+        # margin:2px לבד לא מספיק - יש עוד gap של הסיידבר (12.8px, נמדד) לפני
+        # ואחרי כל אלמנט, אז המרווח הנראה בפועל היה ~30px למרות ה-margin
+        # הקטן (15.9.2026, "עשית כאן הפוך ממה שביקשתי" - קו לא נראה + רווח
+        # גדול, במקום קו נראה + כמעט צמוד). margin שלילי מקזז את ה-gap הזה.
         st.markdown(
-            "<div style='border-top:1px solid rgba(0,0,0,0.04); margin:2px 0;'></div>",
+            "<div style='border-top:1px solid rgba(0,0,0,0.12); margin:-10px 0;'></div>",
             unsafe_allow_html=True,
         )
         mc1, mc2 = st.columns([5, 1])
@@ -2020,7 +2021,7 @@ with st.sidebar:
             div[class*="st-key-exp_group_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
-                padding-top: 6px !important;
+                padding-top: 0px !important;
             }
             /* צמצום המרווח בין הפריטים המתקפלים - לא להדביק לגמרי (14.9.2026,
             "אתה יכול לצמצם אותם קצת, לא חייב להצמיד"), רק לקרב. נמדד: המרווח
@@ -2168,7 +2169,7 @@ with st.sidebar:
             div[class*="st-key-channels_card"] {
                 border-radius: 10px;
                 border-right: 3px solid #3B6EA5;
-                padding-top: 6px !important;
+                padding-top: 0px !important;
             }
             </style>
             """,
