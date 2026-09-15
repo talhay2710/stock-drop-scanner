@@ -1944,6 +1944,12 @@ with st.sidebar:
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
         dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
+        # הפרדה עדינה מאוד בין שורת "ימים" לשורת "%" (15.9.2026, "תיצור
+        # הפרדה מאד עדינה בין המשבצת של הימים לבין האחוזים").
+        st.markdown(
+            "<div style='border-top:1px solid rgba(0,0,0,0.06); margin:6px 0;'></div>",
+            unsafe_allow_html=True,
+        )
         mc1, mc2 = st.columns([5, 1])
         mc1.number_input(
             "אחוז ירידה מצטברת שמפעיל התראה", min_value=0.5, max_value=50.0,
