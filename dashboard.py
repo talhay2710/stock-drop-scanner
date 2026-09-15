@@ -1840,12 +1840,15 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
         # align="right" עם x בקצה הימני של ה-SVG (340 פחות ה-padding הימני)
         # כדי שהטקסט "יגדל" שמאלה מהקצה, לא יחרוג ממנו. y נמדד בפועל מול
         # שורת ה-legend (128 יחסית לראש ה-SVG).
-        # x=330 גלש בפועל 24px מעבר לקצה ה-SVG עצמו (נמדד: targetRight=487
-        # מול svgRight=463) - x=298 מכניס את זה בחזרה. y-7 ליישור מדויק יותר
-        # מול שורת ה-legend (נמדד: היסט של 7px).
+        # x קבוע (298) היה נכון רק ברוחב שבו נבדק - הגרף רץ עם width='stretch'
+        # (בלי width מפורש ב-Altair), אז הרוחב האמיתי משתנה לפי חלון הדפדפן
+        # בפועל; אצל המשתמש (חלון רחב יותר מדפדפן הבדיקה שלי) x קבוע נחת
+        # הרחק משמאל לקצה האמיתי ("אמרתי קצה ימני של הגרף", 15.9.2026).
+        # {"expr": "width - 5"} נצמד לקצה הימני האמיתי של אזור השרטוט בכל
+        # רוחב, לא לערך שנמדד פעם אחת.
         date_layer = alt.Chart(pd.DataFrame({"label": [f"יומי {date_label}"]})).mark_text(
-            align="right", baseline="top", dx=-8, fontSize=11, color=_CHART_LABEL_COLOR,
-        ).encode(x=alt.value(298), y=alt.value(121), text="label:N")
+            align="right", baseline="top", fontSize=11, color=_CHART_LABEL_COLOR,
+        ).encode(x=alt.value({"expr": "width - 5"}), y=alt.value(121), text="label:N")
         layers = layers + date_layer
     return (
         layers
