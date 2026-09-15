@@ -2055,7 +2055,7 @@ with st.sidebar:
             /* צמצום המרווח בין הפריטים המתקפלים - לא להדביק לגמרי (14.9.2026,
             "אתה יכול לצמצם אותם קצת, לא חייב להצמיד"), רק לקרב. נמדד: המרווח
             המקורי כ-13px - מצמצמים לכ-6px, לא ל-0. */
-            div[class*="st-key-exp_holdings_alert"],
+            div[class*="st-key-exp_investment"],
             div[class*="st-key-exp_fees"],
             div[class*="st-key-exp_message_types"] {
                 margin-top: -7px;
@@ -2068,6 +2068,33 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
         st.markdown("**⚙️ הגדרות מתקדמות**")
+        with st.expander("📈 מעקב אחזקות", key="exp_holdings_alert"):
+            st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
+            st.markdown("**סף עלייה ראשוני (%)**")
+            st.number_input(
+                "סף עלייה ראשוני", min_value=0.5, max_value=50.0, step=0.5,
+                value=float(cfg.get("holdings_gain_alert_start_pct", 2.0)), label_visibility="collapsed",
+                key="settings_gain_start", on_change=_autosave_holdings_alerts,
+            )
+            st.markdown("**כל עלייה נוספת (%)**")
+            st.number_input(
+                "מדרגת עלייה", min_value=0.5, max_value=50.0, step=0.5,
+                value=float(cfg.get("holdings_gain_alert_step_pct", 1.0)), label_visibility="collapsed",
+                key="settings_gain_step", on_change=_autosave_holdings_alerts,
+            )
+            st.markdown("**מרחק אזהרת סטופ-לוס (%)**")
+            st.number_input(
+                "מרחק אזהרת סטופ", min_value=0.0, max_value=20.0, step=0.5,
+                value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
+                key="settings_stop_warn", on_change=_autosave_holdings_alerts,
+            )
+            st.markdown("**מרחק אזהרת יעד (%)**")
+            st.number_input(
+                "מרחק אזהרת יעד", min_value=0.0, max_value=20.0, step=0.5,
+                value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
+                key="settings_target_warn", on_change=_autosave_holdings_alerts,
+            )
+
         with st.expander("💵 השקעה וסיכון", key="exp_investment"):
             st.caption("קובע את גודל הפוזיציה המוצע ואת חישוב הרווח/הפסד נטו בכל התראה")
             st.markdown("**סכום השקעה מינימלי**")
@@ -2132,33 +2159,6 @@ with st.sidebar:
             rp3.number_input(
                 "$", value=_account_size_by_ccy.get("USD", 0.0) * _risk_pct_live / 100.0,
                 disabled=True, format="%.0f", key="preview_risk_amount_usd",
-            )
-
-        with st.expander("📈 מעקב אחזקות", key="exp_holdings_alert"):
-            st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
-            st.markdown("**סף עלייה ראשוני (%)**")
-            st.number_input(
-                "סף עלייה ראשוני", min_value=0.5, max_value=50.0, step=0.5,
-                value=float(cfg.get("holdings_gain_alert_start_pct", 2.0)), label_visibility="collapsed",
-                key="settings_gain_start", on_change=_autosave_holdings_alerts,
-            )
-            st.markdown("**כל עלייה נוספת (%)**")
-            st.number_input(
-                "מדרגת עלייה", min_value=0.5, max_value=50.0, step=0.5,
-                value=float(cfg.get("holdings_gain_alert_step_pct", 1.0)), label_visibility="collapsed",
-                key="settings_gain_step", on_change=_autosave_holdings_alerts,
-            )
-            st.markdown("**מרחק אזהרת סטופ-לוס (%)**")
-            st.number_input(
-                "מרחק אזהרת סטופ", min_value=0.0, max_value=20.0, step=0.5,
-                value=float(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)), label_visibility="collapsed",
-                key="settings_stop_warn", on_change=_autosave_holdings_alerts,
-            )
-            st.markdown("**מרחק אזהרת יעד (%)**")
-            st.number_input(
-                "מרחק אזהרת יעד", min_value=0.0, max_value=20.0, step=0.5,
-                value=float(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)), label_visibility="collapsed",
-                key="settings_target_warn", on_change=_autosave_holdings_alerts,
             )
 
         with st.expander("💰 עמלות ומיסים", key="exp_fees"):
