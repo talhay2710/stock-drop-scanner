@@ -2134,7 +2134,7 @@ with st.sidebar:
                 disabled=True, format="%.0f", key="preview_risk_amount_usd",
             )
 
-        with st.expander("📈 התראת אחזקות", key="exp_holdings_alert"):
+        with st.expander("📈 מעקב אחזקות", key="exp_holdings_alert"):
             st.caption("מתי לקבל התראת 'עלייה' על אחזקה, ומתי 'קרוב לסטופ-לוס'/'קרוב ליעד'")
             st.markdown("**סף עלייה ראשוני (%)**")
             st.number_input(
