@@ -71,10 +71,18 @@ jobs:
       # בשקט. זה מה שקרה בפועל (20.8.2026): ה-retry שהוספנו קודם דיווח "עובד"
       # אבל בפועל לא הצליח לדחוף אף פעם במשך שעות, וכל ה-state ("כבר התרענו
       # על זה") אבד בכל ריצה - זו הסיבה שהתראות "מתקרבת לסטופ" חזרו על עצמן
-      # שוב ושוב על אותה מניה. הפתרון: בלי merge/rebase בכלל - בכל כשל push,
-      # מסתנכרנים מחדש עם origin ומחילים את הגרסה שלנו של alerts.db מעליו
-      # מחדש (אנחנו תמיד "מנצחים" בהתנגשות על הקובץ הזה - עדיף לאבד כמה
-      # שניות של שינוי מריצה אחרת מאשר לתקוע את כל הסנכרון).
+      # שוב ושוב על אותה מניה. הפתרון: בלי merge/rebase ברמת git בכלל - בכל
+      # כשל push, מסתנכרנים מחדש עם origin וממזגים את הגרסה שלנו מעליו ברמת
+      # SQL (ר' resolve_alerts_db_conflict.py), לא מעתיקים קובץ שלם.
+      #
+      # עד 17.9.2026 המיזוג היה העתקת קובץ מלאה ("אנחנו תמיד מנצחים") - זה
+      # עבד טוב מול ריצת סריקה אחרת (concurrency group ממילא כמעט תמיד מונע
+      # התנגשות כזו), אבל דרס בשקט סגירת פוזיציה אמיתית של המשתמש בדשבורד
+      # (נייס, 17.9.2026 11:50 - ר' resolve_alerts_db_conflict.py לפירוט
+      # מלא) - 14 ריצות רצופות המשיכו לגרור את הגרסה הישנה כי היא הפכה
+      # ל-HEAD החדש. resolve_alerts_db_conflict.py ממזג ברמת טבלה/עמודה:
+      # פעולות משתמש (קנייה/מכירה/התראות מחיר/רשימת מעקב) תמיד נלקחות
+      # מ-origin הטרי, כל השאר (נתוני הסריקה עצמה) נשאר "הבוט מנצח" כמו קודם.
       - name: Commit alerts.db if changed
         run: |
           git config user.name "Stock Scanner Bot"
@@ -89,10 +97,11 @@ jobs:
                 success=1
                 break
               fi
-              echo "Push rejected (attempt $i) - resyncing with origin and retrying..."
+              echo "Push rejected (attempt $i) - resyncing with origin and merging..."
               git fetch origin
               git reset --hard origin/master
-              cp /tmp/alerts_ours.db alerts.db
+              cp alerts.db /tmp/alerts_fresh.db
+              python resolve_alerts_db_conflict.py /tmp/alerts_ours.db /tmp/alerts_fresh.db alerts.db
               git add alerts.db
               git commit -m "Update alerts.db [skip ci]"
             done

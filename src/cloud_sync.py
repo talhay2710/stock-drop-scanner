@@ -4,10 +4,12 @@
 רגילה כמו שמירת הגדרה או פתיחת פוזיציה."""
 import logging
 import os
+import shutil
 import subprocess
 
 import yaml
 
+from . import db_merge
 from .config import ROOT_DIR, CONFIG_PATH, CONFIG_EXAMPLE_PATH
 
 logger = logging.getLogger(__name__)
@@ -94,7 +96,16 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     לא רק את alerts.db. reset --soft מזיז רק את מצביע ה-HEAD, לא נוגע כלל
     ב-working tree/אינדקס - בטוח לחלוטין מבחינת קבצים אחרים שנמצאים באמצע
     עריכה, וה-commit שלנו (עם alerts.db העדכני שלנו, כבר staged מהניסיון
-    הקודם) פשוט נוצר מחדש מעל origin/master הטרי."""
+    הקודם) פשוט נוצר מחדש מעל origin/master הטרי.
+
+    כשinclude_db=True: אחרי ה-reset --soft, לפני recommit, ממזגים את alerts.db
+    ברמת עמודה/טבלה מול origin הטרי (ר' resolve_alerts_db_conflict.py) במקום
+    סתם לדחוף מחדש את הקובץ המקומי כמו שהוא - כדי לא לדרוס בשקט נתוני סריקה
+    חדשים (התראות/דגלי דה-דופ) שהבוט הספיק לכתוב ל-origin בין ה-push הראשון
+    שנדחה לבין הניסיון הזה. זה הכיוון ההפוך בדיוק מהמיזוג ב-scan.yml (שם
+    origin הוא 'בעלות המשתמש' וממוזג מעל גרסת הבוט) - כאן origin הוא 'בסיס'
+    (נתוני סריקה עדכניים) והעותק המקומי הוא 'בעלות המשתמש' (הפעולה שהמשתמש
+    זה עתה ביצע בדשבורד) שממוזגת מעליו."""
     _git = ["git", "-C", ROOT_DIR]
     paths = ["config.example.yaml", "alerts.db"] if include_db else ["config.example.yaml"]
     try:
@@ -123,8 +134,27 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
                 "push נדחה (ניסיון %d/%d) - מסתנכרן מחדש עם origin: %s",
                 attempt, _MAX_PUSH_ATTEMPTS, push.stderr.decode("utf-8", "replace").strip(),
             )
+            alerts_path = os.path.join(ROOT_DIR, "alerts.db")
+            user_data_copy = None
+            if include_db and os.path.exists(alerts_path):
+                # שומרים עותק של הגרסה המקומית (עם פעולת המשתמש) *לפני* ה-reset -
+                # reset --soft לא נוגע ב-working tree, אז הקובץ בדיסק כרגע הוא
+                # עדיין הגרסה המקומית, לא origin - צריך להוציא את origin הטרי
+                # במפורש דרך git show, לא לסמוך על ה-working tree אחרי ה-reset.
+                user_data_copy = alerts_path + ".local_user_data"
+                shutil.copy(alerts_path, user_data_copy)
             _git_run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+            if user_data_copy is not None:
+                fresh_copy = alerts_path + ".origin_fresh"
+                with open(fresh_copy, "wb") as f:
+                    show = _git_run(_git + ["show", "origin/master:alerts.db"], check=True, capture_output=True, timeout=15)
+                    f.write(show.stdout)
+                db_merge.merge(fresh_copy, user_data_copy, alerts_path)
+                os.remove(user_data_copy)
+                os.remove(fresh_copy)
             _git_run(_git + ["reset", "--soft", "origin/master"], check=True, capture_output=True, timeout=15)
+            if user_data_copy is not None:
+                _git_run(_git + ["add", "alerts.db"], check=True, capture_output=True, timeout=15)
             _git_run(_git + ["commit", "-m", msg, "--"] + paths, check=True, capture_output=True, timeout=15)
 
         logger.warning("סנכרון לענן נכשל (%s): push נדחה %d פעמים ברציפות", reason, _MAX_PUSH_ATTEMPTS)
