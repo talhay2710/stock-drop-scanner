@@ -1282,13 +1282,17 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
     חייב להיות מוצג גרף. תמיד" (14.9.2026). מחזיר (None, None) רק אם גם זה
     נכשל (אין בכלל נתונים, למשל תקלת יאהו מלאה).
 
-    מחזיר (df, as_of_label): as_of_label הוא None כשמוצג היום הנוכחי (הציר
-    "נכון" לשעון האמיתי), או "DD/MM" כשמוצג יום מסחר קודם - כדי שהתצוגה
-    תבהיר את זה בפירוש (לא רק "יש ציר עד 17:00" בלי הקשר, שנראה כאילו יש
-    נתונים "מהעתיד" ביחס לשעה האמיתית עכשיו - 14.9.2026, "לא הגיוני, שעכשיו
-    מוצג 17:00"). אותה מוסכמה בדיוק כמו get_index_last_completed_sparkline."""
+    מחזיר (df, as_of_label, dominant_index): as_of_label הוא None כשמוצג היום
+    הנוכחי (הציר "נכון" לשעון האמיתי), או "DD/MM" כשמוצג יום מסחר קודם - כדי
+    שהתצוגה תבהיר את זה בפירוש (לא רק "יש ציר עד 17:00" בלי הקשר, שנראה כאילו
+    יש נתונים "מהעתיד" ביחס לשעה האמיתית עכשיו - 14.9.2026, "לא הגיוני, שעכשיו
+    מוצג 17:00"). אותה מוסכמה בדיוק כמו get_index_last_completed_sparkline.
+    dominant_index מוחזר בנפרד כדי שה-caller יוכל לבדוק is_market_open בעצמו -
+    גם כש-as_of_label=None (מוצג "היום"), היום עצמו יכול כבר *להסתיים*
+    (המסחר נסגר, אבל עדיין אותו יום קלנדרי) - "תציין תאריך אחרי התוך-יומי
+    כשהמסחר לא פעיל" (17.9.2026) צריך את שני התנאים, לא רק "יום קודם"."""
     if holdings_df.empty:
-        return None, None
+        return None, None, None
 
     _idx_invested = {}
     for _, r in holdings_df.iterrows():
@@ -1298,7 +1302,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
             continue
         _idx_invested[idx] = _idx_invested.get(idx, 0.0) + entry * qty
     if not _idx_invested:
-        return None, None
+        return None, None, None
     dominant_index = max(_idx_invested, key=_idx_invested.get)
     dominant_ccy = constituents.INDEX_CURRENCY.get(dominant_index, "ILS")
 
@@ -1306,7 +1310,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         holdings_df["index_name"].apply(lambda i: constituents.INDEX_CURRENCY.get(i, "ILS") == dominant_ccy)
     ]
     if relevant_holdings.empty:
-        return None, None
+        return None, None, None
 
     tickers = relevant_holdings["ticker"].tolist()
 
@@ -1326,7 +1330,16 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         daily_hist_by_ticker, bench_daily_hist,
     )
     if comparison_df is not None:
-        return comparison_df, None
+        # "היום" כאן זה רק ה-*תאריך האחרון שמופיע בנתונים* (fetch_index_intraday/
+        # fetch_universe_intraday_changes מסננות לזה) - לא בהכרח היום הקלנדרי
+        # האמיתי. יאהו יכול לפגר אחרי פתיחת המסחר בפועל בכמה עשרות דקות (נמצא
+        # בפועל: 17.9.2026, 10:07 בבוקר עם שוק פתוח, fetch_index_intraday
+        # החזירה עדיין את 16.9 בלבד) - בלי הבדיקה הזו זה מוצג כ"תוך-יומי" בלי
+        # תאריך, כאילו זה נתון חי של היום, כשבפועל זה עדיין אתמול.
+        _comp_last_date = comparison_df.index.max().date()
+        if _comp_last_date == israel_today():
+            return comparison_df, None, dominant_index
+        return comparison_df, _comp_last_date.strftime("%d/%m"), dominant_index
 
     comparison_df = _build_intraday_comparison_df(
         relevant_holdings, dominant_index,
@@ -1335,7 +1348,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         daily_hist_by_ticker, bench_daily_hist,
     )
     as_of_label = comparison_df.index[-1].strftime("%d/%m") if comparison_df is not None else None
-    return comparison_df, as_of_label
+    return comparison_df, as_of_label, dominant_index
 
 
 _CHART_GRID_COLOR = "#E8EBEF"
@@ -4253,7 +4266,7 @@ with st.container(border=True, key="market_panel"):
             _holdings = _load_fresh_holdings()
             if _holdings.empty:
                 return
-            _comp_df, _comp_as_of = _compute_portfolio_history(_holdings)
+            _comp_df, _comp_as_of, _comp_dom_index = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
                 st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
@@ -4266,14 +4279,19 @@ with st.container(border=True, key="market_panel"):
                     st.caption("אין כרגע מספיק נתונים להשוואה מול מדד - ינסה שוב ברענון הבא.")
                     return
                 _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
-                # "שינוי יומי" מוצג תמיד; התאריך עצמו רק כשהמסחר לא פעיל
-                # (_comp_as_of לא None - fallback ליום מסחר קודם) - חזרה
-                # לסמנטיקה המקורית של _compute_portfolio_history אחרי ניסיון
-                # קצר להציג תמיד (15.9.2026, "ותאריך רק כשהמסחר לא פעיל").
+                # "תוך-יומי" מוצג תמיד; התאריך מצטרף כשהמסחר לא פעיל - גם
+                # כש-_comp_as_of מצביע על יום מסחר קודם, וגם כשמוצג היום
+                # הנוכחי אבל השוק כבר נסגר (17.9.2026, "כשהמסחר לא פעיל ציין
+                # תאריך אחרי התוך-יומי" - _comp_as_of לבד לא תופס את המקרה
+                # השני, כי הוא None כל עוד "היום" מוצג, בלי קשר אם המסחר
+                # עדיין פעיל בפועל עכשיו).
+                _comp_date_label = _comp_as_of
+                if not _comp_date_label and _comp_dom_index and not is_market_open(_comp_dom_index):
+                    _comp_date_label = israel_today().strftime("%d/%m")
                 st.altair_chart(
                     _build_comparison_chart(
                         _comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR,
-                        date_label=_comp_as_of,
+                        date_label=_comp_date_label,
                     ),
                     width='stretch',
                 )
