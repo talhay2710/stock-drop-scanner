@@ -991,6 +991,30 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
     )
 
 
+def render_exposure_card(at_risk_count: int, total_count: int, at_risk_value: float,
+                          total_value: float, ccy_symbol: str) -> None:
+    """באנר רוחב-מלא (לא כרטיס ברשת) - מוצג רק כש-2+ אחזקות קרובות/חצו סטופ
+    *בו-זמנית* (ר' _compute_portfolio_summaries), כדי לענות על 'כמה % מהתיק
+    בסיכון עכשיו', לא רק מי האחזקה הבודדת הכי דחופה (render_proximity_card,
+    למעלה) - 17.9.2026, בקשת משתמש מפורשת."""
+    _pct_of_portfolio = (at_risk_value / total_value * 100) if total_value else 0.0
+    st.markdown(
+        f"""
+        <div style="border:1px solid {NEG_COLOR}; border-radius:12px; padding:12px 18px;
+                    display:flex; align-items:center; justify-content:space-between; gap:12px;
+                    background:{NEG_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-top:12px;">
+          <div style="font-size:0.95rem; font-weight:700; color:{NEG_COLOR};">
+            ⚠️ {at_risk_count} מתוך {total_count} אחזקות קרובות/חצו סטופ-לוס בו-זמנית
+          </div>
+          <div style="font-size:0.9rem; font-weight:600; color:{NEG_COLOR}; white-space:nowrap;">
+            {_pct_of_portfolio:.0f}% משווי התיק ({at_risk_value:,.0f} {ccy_symbol})
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 DAY_NAMES_HE = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון"]
 
 
@@ -1188,8 +1212,13 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             )
 
     proximity_summary = None
+    exposure_summary = None
     if not holdings_df.empty:
         _best = None  # (gap_pct, name, is_target) - הפער הכי קטן שנמצא עד כה בין המחיר הנוכחי לבין היעד או הסטופ
+        _stop_warn_pct = cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
+        _exposure_by_ccy = {}  # מצטבר לכרטיס "חשיפה לסיכון" - כמה מהתיק קרוב/חצה סטופ *בו-זמנית*,
+        # לא רק האחזקה הבודדת הכי דחופה (proximity_summary למעלה) - ר' 17.9.2026,
+        # "כמה % מהתיק קרוב לסטופ בו-זמנית, לא רק מניה בודדת".
         for _, _r in holdings_df.iterrows():
             _entry, _qty = _r.get("actual_entry_price"), _r.get("actual_qty")
             if not _entry or not _qty:
@@ -1215,10 +1244,34 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
                 _best = (_gap_target, _name, True)
             if _gap_stop < _best[0]:
                 _best = (_gap_stop, _name, False)
+
+            _ccy3 = constituents.INDEX_CURRENCY.get(_r.get("index_name"), "ILS")
+            _exp = _exposure_by_ccy.setdefault(_ccy3, {"total_value": 0.0, "at_risk_value": 0.0,
+                                                         "total_count": 0, "at_risk_count": 0})
+            _holding_value = _current * _qty
+            _exp["total_value"] += _holding_value
+            _exp["total_count"] += 1
+            if _gap_stop <= _stop_warn_pct:
+                _exp["at_risk_value"] += _holding_value
+                _exp["at_risk_count"] += 1
         if _best is not None:
             proximity_summary = (_best[1], _best[0], _best[2])
+        if _exposure_by_ccy:
+            # אותה מוסכמה כמו value_summary/portfolio_summary למעלה - מטבע דומיננטי
+            # לפי שווי כולל, כי אי אפשר לחבר ש"ח ודולר לכרטיס אחד בעל משמעות.
+            _exp_ccy = max(_exposure_by_ccy, key=lambda c: _exposure_by_ccy[c]["total_value"])
+            _exp_agg = _exposure_by_ccy[_exp_ccy]
+            # רק מ-2 אחזקות בו-זמנית ומעלה - עם אחת בלבד זה כבר מוצג ע"י
+            # proximity_summary (הכרטיס "קרוב לסטופ" הקיים), הכרטיס הזה נועד
+            # במפורש לחשוף את המקרה של כמה אחזקות קרובות/חצו יחד.
+            if _exp_agg["at_risk_count"] >= 2:
+                exposure_summary = (
+                    _exp_agg["at_risk_count"], _exp_agg["total_count"],
+                    _exp_agg["at_risk_value"], _exp_agg["total_value"],
+                    CURRENCY_SYMBOLS.get(_exp_ccy, _exp_ccy),
+                )
 
-    return portfolio_summary, today_summary, value_summary, proximity_summary
+    return portfolio_summary, today_summary, value_summary, proximity_summary, exposure_summary
 
 
 def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_index: str,
@@ -4162,7 +4215,7 @@ with st.container(border=True, key="market_panel"):
             with col:
                 render_index_card(INDEX_LABELS[idx], index_changes.get(idx), is_market_open(idx), idx)
 
-        _portfolio_summary, _today_summary, _value_summary, _proximity_summary = _compute_portfolio_summaries(_fresh_holdings_df)
+        _portfolio_summary, _today_summary, _value_summary, _proximity_summary, _exposure_summary = _compute_portfolio_summaries(_fresh_holdings_df)
         if _portfolio_summary:
             with st.container(key="portfolio_header"):
                 st.markdown(
@@ -4192,6 +4245,8 @@ with st.container(border=True, key="market_panel"):
             if _proximity_summary:
                 with _pf_cols[3]:
                     render_proximity_card(*_proximity_summary)
+            if _exposure_summary:
+                render_exposure_card(*_exposure_summary)
 
         # מחמם מראש (בלי להציג כלום) את המטמון של get_all_changes לכל מדדי
         # הסריקה, באותו קצב (60s) שה-ttl שלו - כדי שכשעוברים לטאב "מניות
