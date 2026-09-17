@@ -730,7 +730,13 @@ def get_index_intraday_sparkline(index_key: str, trading_open: bool = True) -> t
     hist = market_data.fetch_index_intraday(index_key)
     if hist.empty:
         return [], None
-    _as_of = hist.index[-1].strftime("%H:%M") if trading_open else hist.index[-1].strftime("%d/%m")
+    # trading_open (is_market_open) לבד לא מספיק כדי להחליט שעה מול תאריך -
+    # יאהו יכול לפגר אחרי פתיחת המסחר בפועל ולהחזיר עדיין את הנתון של אתמול
+    # (נמצא בפועל: 17.9.2026, 10:07 עם שוק פתוח, עדיין 16/09 בנתונים) - אז
+    # השעה לבד ("17:20") הייתה מטעה, נראית כמו "עכשיו". בודקים את התאריך
+    # האמיתי של הנקודה האחרונה, לא רק אם השוק אמור להיות פתוח.
+    _is_actually_today = hist.index[-1].date() == israel_today()
+    _as_of = hist.index[-1].strftime("%H:%M") if (trading_open and _is_actually_today) else hist.index[-1].strftime("%d/%m")
     prices = hist.tolist()
     # האחוז שמחושב מהנקודה הראשונה כאן (ר' render_index_card/הרכיב ב-JS,
     # (last-first)/first) חייב להיות ביחס לסגירה *הקודמת* - המוסכמה הפיננסית
@@ -873,9 +879,17 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             # דקות, לא בכל טעינת עמוד (9.9.2026, בעקבות בקשה לעדכון חי בגרירה).
             _series = {}
             _labels = {}
+            # _is_actually_today (רק ל-_d==0): trading_open לבד לא מבטיח שהנתון
+            # שחזר מ-get_index_intraday_sparkline באמת מהיום - יאהו יכול לפגר
+            # אחרי פתיחת המסחר (17.9.2026, "גם נתוני הכרטיסים לא מעודכנים").
+            # הפונקציה כבר בודקת את זה בעצמה ומחזירה as_of בפורמט תאריך
+            # (DD/MM) כשלא - מזהים את זה כאן לפי הימצאות "/" בלי לשנות את
+            # חתימת הפונקציה.
+            _is_actually_today = True
             for _d in _options:
                 if _d == 0:
                     _prices, _as_of = get_index_intraday_sparkline(index_key, trading_open)
+                    _is_actually_today = bool(_as_of) and "/" not in _as_of
                 elif _d == 1 and trading_open:
                     # כשהמסחר פעיל, "0" כבר תפוס ב"מסחר פעיל" (היום הנוכחי,
                     # בעיצומו) - "1" צריך את הגרף התוך-יומי האמיתי של היום
@@ -886,8 +900,9 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
                     _prices, _as_of = get_index_sparkline(index_key, _d)
                 _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
                 # "יום המסחר האחרון (תאריך)" - _d==1 (רק כשהשוק פתוח, ר' סינון
-                # למעלה) או _d==0 כשהשוק סגור, אף פעם לא שניהם יחד באותה ריצה.
-                if (_d == 1 or (_d == 0 and not trading_open)) and _as_of:
+                # למעלה), או _d==0 כשהשוק סגור *או* כשהנתון בפועל לא מהיום
+                # למרות שהשוק פתוח (יאהו מפגר - ר' _is_actually_today למעלה).
+                if (_d == 1 or (_d == 0 and not (trading_open and _is_actually_today))) and _as_of:
                     _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})"
                 else:
                     _labels[str(_d)] = _fmt_day_option(_d)
