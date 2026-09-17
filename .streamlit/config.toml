@@ -1,0 +1,15 @@
+# fileWatcherType="none" - האתר הציבורי נתקע/דורש reboot שוב ושוב (8.9.2026
+# ואילך). נמצא בפועל בלוגים של Streamlit Cloud (17.9.2026): thread מספר
+# 33547 ואז 33683 (בפרש 5 דקות) - פער של 136 thread-ים - כולם נפתחים דרך
+# self._inotify.read_event (ה-file-watcher של Streamlit שמזהה שינויי קוד
+# ומריץ "Pulling code changes... Updated app!"), עד RuntimeError: can't
+# start new thread ואז MemoryError.
+#
+# הסיבה: scan.yml דוחף עדכון ל-alerts.db (עם [skip ci], שמונע רק re-run
+# של GitHub Actions - לא עוצר את ה-git-polling של Streamlit Cloud עצמו)
+# כל ~5 דקות. כל push כזה גורם ל-Streamlit Cloud "לזהות שינוי קוד" ולהריץ
+# מחדש את מנגנון ה-watch, בלי לנקות thread קודם - דליפת thread-ים שמצטברת
+# עד קריסה תוך כמה שעות. fileWatcherType="none" מכבה את המנגנון הזה לגמרי -
+# לא רלוונטי בפריסת production ממילא (אין למי "לערוך קוד חי" על השרת).
+[server]
+fileWatcherType = "none"

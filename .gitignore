@@ -11,7 +11,10 @@ scanner.log
 # קבצים שנוצרים אוטומטית, לא רלוונטיים ל-git
 __pycache__/
 *.pyc
-.streamlit/
+# רק credentials.toml (מקומי-למכונה, נוצר אוטומטית) - לא כל התיקייה, כי
+# config.toml כן צריך להידחף (fileWatcherType, ר' הערה שם - חלק מתיקון
+# ה-thread leak בענן, 17.9.2026).
+.streamlit/credentials.toml
 
 # מצב מקומי של desktop_notify_watcher.py (איזו התראה/סיכום כבר הוצג
 # כ-toast במחשב הזה) - ספציפי למכונה, לא משהו לשתף
