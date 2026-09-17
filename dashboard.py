@@ -2612,9 +2612,13 @@ with _tab_slot_movers.container():
             משתנים שחושבו פעם אחת מחוץ ל-fragment) כדי שכל הפעלה עצמאית שלו תביא
             ערכים טריים בפועל."""
             scanning_indices = cfg.get("indices") or ALL_INDICES
-            _default_idx = ALL_INDICES.index(scanning_indices[0]) if scanning_indices[0] in ALL_INDICES else 0
+            # ברירת מחדל קבועה ת"א 35 (לא המדד הראשון ברשימת הסריקה בסיידבר -
+            # זה גרם ל-S&P500 "להיתקע" כברירת מחדל, תלוי בסדר שם). key= כדי
+            # שבחירה ידנית באותו session תישמר גם כשעוברים בין טאבים וחוזרים.
+            _default_idx = ALL_INDICES.index("TA35")
             movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
-                                         index=_default_idx, format_func=lambda i: INDEX_LABELS[i])
+                                         index=_default_idx, format_func=lambda i: INDEX_LABELS[i],
+                                         key="movers_index_select")
             if movers_index not in scanning_indices:
                 st.caption(f"⚠ שים לב: {INDEX_LABELS[movers_index]} לא נמצא כרגע ברשימת המדדים שנסרקים להתראות (בסיידבר) - זו צפייה בלבד.")
 
