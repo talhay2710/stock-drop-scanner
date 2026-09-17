@@ -78,7 +78,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
-from src.strategy import ATR_STOP_MULTIPLIER, live_target_price
+from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now
 
@@ -1209,8 +1209,8 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             # ההפרש בין שתי השיטות גדל ככל שהמרחק כניסה-סטופ גדול יותר (למשל
             # עם סטופ 2.5x ATR רחב) - נמצא בפועל: 15.9.2026, "בכרטיס המניה
             # כתוב שחצתה ב-2% ובכרטיס 'התיק שלי' כתוב 1.6%".
-            _gap_target = (_target_price - _current) / _target_price * 100
-            _gap_stop = (_current - _stop_price) / _stop_price * 100
+            _gap_target = target_distance_pct(_current, _target_price)
+            _gap_stop = stop_distance_pct(_current, _stop_price)
             if _best is None or _gap_target < _best[0]:
                 _best = (_gap_target, _name, True)
             if _gap_stop < _best[0]:
@@ -3653,12 +3653,12 @@ with _tab_slot_portfolio.container():
 
                 range_html = ""
                 if current is not None:
-                    distance_pct = (current - stop_price) / stop_price * 100
+                    distance_pct = stop_distance_pct(current, stop_price)
                     stop_is_warning = current <= stop_price or distance_pct <= cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
-                    target_distance_pct = (target_price - current) / target_price * 100
+                    _target_distance_pct = target_distance_pct(current, target_price)
                     target_is_warning = (
                         current >= target_price
-                        or target_distance_pct <= cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
+                        or _target_distance_pct <= cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
                     )
                     warning_html = ""
                     if current <= stop_price:
@@ -3677,13 +3677,13 @@ with _tab_slot_portfolio.container():
                         warning_html = (
                             f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
                             f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
-                            f'padding:2px 7px;">🎯 עברה את היעד ב-{abs(target_distance_pct):.1f}%</div>'
+                            f'padding:2px 7px;">🎯 עברה את היעד ב-{abs(_target_distance_pct):.1f}%</div>'
                         )
                     elif target_is_warning:
                         warning_html = (
                             f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
                             f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
-                            f'padding:2px 7px;">🎯 קרוב ליעד - {target_distance_pct:.1f}% נותרו</div>'
+                            f'padding:2px 7px;">🎯 קרוב ליעד - {_target_distance_pct:.1f}% נותרו</div>'
                         )
                     range_html = _stop_target_bar_html(
                         stop_price, target_price, row["entry"], current,
@@ -4257,7 +4257,7 @@ with st.container(border=True, key="market_panel"):
                     # ליחס "חצתה סטופ ב-X%" בטולטיפ - צריך יחסית למחיר הסטופ
                     # עצמו, לא ל-stop_pct (יחסית לכניסה, זה נכון רק בתור "מיקום
                     # הסטופ עצמו", לא בתור "כמה חצתה אותו", ר' 15.9.2026).
-                    "stop_cross_pct": (current - stop_price) / stop_price * 100,
+                    "stop_cross_pct": stop_distance_pct(current, stop_price),
                     "value": current * qty,
                 })
             st.divider()

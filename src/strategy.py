@@ -57,6 +57,23 @@ def live_target_price(entry: float, stop_price: float, target_base: float | None
         return target_base
     return target_from_stop(entry, stop_price)
 
+
+def stop_distance_pct(current: float, stop_price: float) -> float:
+    """כמה % המחיר הנוכחי מעל/מתחת לסטופ-לוס, *יחסית למחיר הסטופ עצמו*
+    (לא יחסית לכניסה - שני דברים שונים ששווים רק כשהכניסה=הסטופ במקרה).
+    מקור אמת יחיד - במקום 3+ מימושים נפרדים שהתפצלו בפועל (15.9.2026:
+    כרטיס 'התיק שלי' הראה 1.6% וכרטיס האחזקה עצמה הראה 2.0% לאותה אחזקה
+    באותו רגע, וגרף רווח/הפסד הציג בטולטיפ מספר שלישי לא-קשור בכלל).
+    שלילי = כבר חצתה את הסטופ."""
+    return (current - stop_price) / stop_price * 100
+
+
+def target_distance_pct(current: float, target_price: float) -> float:
+    """כמו stop_distance_pct, ליעד: כמה % המחיר הנוכחי מתחת ליעד, יחסית
+    ליעד עצמו. שלילי = כבר עברה את היעד."""
+    return (target_price - current) / target_price * 100
+
+
 # ספי נזילות (נפח מסחר ממוצע יומי בערך $/₪) לצורך מרווח נוסף בלימיט הכניסה.
 # אין מקור נתונים חינמי ואמין ל-bid/ask spread אמיתי (בטח לא היסטורית), ולכן
 # זהו פרוקסי מבוסס נפח מסחר - לא מדד spread מדויק, אבל נפח נמוך מתאם בפועל

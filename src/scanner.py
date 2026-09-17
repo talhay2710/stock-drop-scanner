@@ -259,7 +259,7 @@ def _check_stop_proximity(cfg: dict, conn, h: dict, display_name: str, entry: fl
     הודעה) רק כשהמחיר מתרחק בבירור בחזרה למעלה."""
     warn_pct = abs(cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT))
     stop_price = h.get("holding_stop_price") or (entry * STOP_LOSS_FACTOR)
-    distance_pct = (current - stop_price) / stop_price * 100
+    distance_pct = strategy_mod.stop_distance_pct(current, stop_price)
     was_active = bool(h.get("stop_alert_active"))
 
     if distance_pct > warn_pct:
@@ -297,7 +297,7 @@ def _check_target_proximity(cfg: dict, conn, h: dict, display_name: str, entry: 
     warn_pct = abs(cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT))
     stop_price = h.get("holding_stop_price") or (entry * STOP_LOSS_FACTOR)
     target_price = strategy_mod.live_target_price(entry, stop_price, h.get("target_base"))
-    distance_pct = (target_price - current) / target_price * 100
+    distance_pct = strategy_mod.target_distance_pct(current, target_price)
     was_active = bool(h.get("target_alert_active"))
 
     if distance_pct > warn_pct:
