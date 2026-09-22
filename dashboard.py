@@ -1204,7 +1204,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             _today_label = "שינוי יומי"
             _dom_index_hint = "TA35" if _dom_ccy2 == "ILS" else "NASDAQ100"
             if _today_gap_baseline_dates:
-                _today_label += f" (מ-{min(_today_gap_baseline_dates).strftime('%d/%m')})"
+                _today_label += f" ({min(_today_gap_baseline_dates).strftime('%d/%m')})"
             elif _today_max_close_date and not is_market_open(_dom_index_hint):
                 _today_label += f" ({_today_max_close_date.strftime('%d/%m')})"
             today_summary = (
