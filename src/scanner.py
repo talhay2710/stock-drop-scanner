@@ -547,6 +547,18 @@ def _scan_one_index(
     # השוואה בין שני ימים ישנים יותר. סורקים כאלה עלולים לגרום להתראות שגויות
     # (או להחמיץ ירידה אמיתית של אתמול) - מדלגים עליהם לגמרי במקום להתריע על נתון לא אמין.
     _stale_mask = df.apply(lambda r: market_data.is_data_stale(r["last_close_date"], r["ticker"]), axis=1)
+    # is_data_stale בודק רק את הסגירה *האחרונה* (last_close_date) - לא תופס את
+    # המקרה שבו הסגירה האחרונה טרייה (למשל מחיר חי באמצע יום מסחר פעיל) אבל
+    # ה-*בסיס* להשוואה (prev_close, "אתמול") עצמו ישן מדי, כי yfinance דילגה על
+    # יום/ימי מסחר אמיתיים - בדיוק אותו באג שכבר תועד בתצוגה (15.9.2026,
+    # market_data._prev_close_gap) אבל מעולם לא חובר לכאן, ללוגיקת ההתראה
+    # עצמה. נמצא בפועל: 22.9.2026, כל TA35 הראה prev_close_date=17/09 (5 ימים
+    # אחורה, כולל 2 ימי מסחר אמיתיים ב-20-21/09 שנעלמו לגמרי מ-yfinance) בזמן
+    # שהמסחר פעיל וה-last_close_date היה "היום" ממש - is_data_stale לבדו לא
+    # היה תופס את זה, אז pct_change (וההתראות שמבוססות עליו) היו מחושבים נגד
+    # בסיס בן 5 ימים בלי שום דגל.
+    _gap_mask = df["prev_close_gap"].fillna(False)
+    _stale_mask = _stale_mask | _gap_mask
     _n_stale = int(_stale_mask.sum())
     if _n_stale:
         logger.warning(

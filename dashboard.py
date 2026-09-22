@@ -3279,10 +3279,18 @@ with _tab_slot_today.container():
                 # ממשיכה להראות את שארית יום המסחר הקודם (לא "תקוע" מבחינת
                 # is_data_stale - זה עדיין הסגירה האחרונה התקינה - אבל המשתמש רוצה
                 # שהטבלה תתנהג כמו "התראות היום" ותתאפס, לא תישאר עם נתון מיום קודם).
+                # prev_close_gap - אותה משפחת באג בדיוק, מהכיוון ההפוך: last_close_date
+                # יכול להיות "היום" ממש (לא is_stale בכלל) בזמן שה*בסיס* להשוואה
+                # (prev_close, "אתמול") הוא בעצם ישן בהרבה כי yfinance דילגה על יום/ימי
+                # מסחר - אז "שינוי יומי" הוא בעצם שינוי של כמה ימים, לא קרבה אמיתית
+                # לסף היומי (נמצא בפועל 22.9.2026: כל TA35 עם prev_close מ-17/09,
+                # 5 ימים אחורה, בזמן שה-last_close היה תקין לגמרי - ר' scanner.py
+                # _scan_one_index, אותו תיקון בדיוק חובר גם לסורק עצמו).
                 near_miss_frames.append(idx_df[
                     (idx_df["שינוי יומי (%)"] < -scanning_threshold * 0.8) &
                     (idx_df["שינוי יומי (%)"] >= -scanning_threshold) &
                     (~idx_df["is_stale"]) &
+                    (~idx_df["prev_close_gap"].fillna(False)) &
                     (idx_df["last_close_date"] == israel_today())
                 ])
             near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
