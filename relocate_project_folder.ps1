@@ -3,104 +3,132 @@
 # ושני קבצי .vbs עם נתיב קבוע מוטבע בפנים (run_dashboard_silent.vbs,
 # watchdog_dashboard.vbs).
 #
-# הרצה: קליק ימני על הקובץ -> "Run with PowerShell", או קליק כפול (מתעלה
-# אוטומטית ל-Administrator אם צריך - חלון UAC יופיע, יש לאשר).
+# הרצה: קליק כפול על קיצור הדרך "העברת תיקייה" בדסקטופ (מתעלה אוטומטית
+# ל-Administrator - חלון UAC יופיע, יש לאשר).
 #
 # לפני שמריצים: לסגור את Claude Code לגמרי (לא רק את החלון - גם ממגש המערכת),
 # כי הסשן הזה רץ מתוך התיקייה שהסקריפט מזיז.
+#
+# 22.9.2026: נוסף try/catch + Read-Host בכל מסלול (הצלחה/כישלון) - בניסיון
+# הראשון החלון השחור נסגר אחרי שנייה בלי שום הודעה, כנראה כי שגיאה כלשהי
+# (ErrorActionPreference=Stop) סגרה את הקונסולה מיד בלי לעצור להראות אותה.
 
-$ErrorActionPreference = "Stop"
+Write-Host "=== סקריפט העברת תיקיית הפרויקט ==="
+Write-Host "(אם החלון הזה נסגר מיד בלי הודעה בהמשך - זה עדיין באג; העתק את השגיאה)"
+Write-Host ""
 
-# --- שלב 0: עלייה להרשאות מנהל אם צריך ---
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "מתעלה להרשאות מנהל..."
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    Write-Host "מתעלה להרשאות מנהל (יופיע חלון UAC - יש לאשר)..."
+    try {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    } catch {
+        Write-Host ""
+        Write-Host "ההעלאה להרשאות מנהל נכשלה או בוטלה: $_" -ForegroundColor Red
+        Read-Host "לחץ Enter לסגירה"
+    }
     exit
 }
 
-$OldRoot = "C:\Users\talha\Desktop\claude"
-$NewRoot = "C:\Users\talha\claude"
-$OldProjectPath = "$OldRoot\stock-drop-scanner"
-$NewProjectPath = "$NewRoot\stock-drop-scanner"
+$ErrorActionPreference = "Stop"
+try {
+    $OldRoot = "C:\Users\talha\Desktop\claude"
+    $NewRoot = "C:\Users\talha\claude"
+    $OldProjectPath = "$OldRoot\stock-drop-scanner"
+    $NewProjectPath = "$NewRoot\stock-drop-scanner"
 
-$TaskNames = @(
-    "StockDropScanner", "StockDailySummary", "StockMorningSummary", "StockWeeklyReport",
-    "StockDashboardLauncher", "StockDashboardWatchdog", "StockDesktopNotifyWatcher"
-)
+    $TaskNames = @(
+        "StockDropScanner", "StockDailySummary", "StockMorningSummary", "StockWeeklyReport",
+        "StockDashboardLauncher", "StockDashboardWatchdog", "StockDesktopNotifyWatcher"
+    )
 
-Write-Host "=== שלב 1: עצירת משימות פעילות (כדי לשחרר נעילות קבצים) ==="
-foreach ($name in $TaskNames) {
-    try {
-        Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
-    } catch {}
-}
-# הדשבורד עצמו רץ כתהליך pythonw.exe עצמאי (לא נעצר ע"י Stop-ScheduledTask
-# אם כבר רץ) - סוגרים אותו במפורש כדי שלא יחזיק נעילת קובץ על alerts.db וכו'.
-Get-Process pythonw -ErrorAction SilentlyContinue | Where-Object {
-    (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)").CommandLine -like "*stock-drop-scanner*"
-} | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
+    Write-Host "רץ עם הרשאות מנהל. מתחיל..."
+    Write-Host ""
 
-Write-Host "=== שלב 2: העברת התיקייה ==="
-if (Test-Path $NewRoot) {
-    throw "התיקייה $NewRoot כבר קיימת - עוצר כדי לא לדרוס משהו. בדוק ידנית לפני שמריצים שוב."
-}
-Move-Item -Path $OldRoot -Destination $NewRoot
-Write-Host "הועבר: $OldRoot -> $NewRoot"
-
-Write-Host "=== שלב 3: תיקון 7 המשימות המתוזמנות ==="
-foreach ($name in $TaskNames) {
-    try {
-        $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
-        $action = $task.Actions[0]
-        $newArgs = $action.Arguments -replace [regex]::Escape($OldProjectPath), $NewProjectPath
-        $newWorkDir = $action.WorkingDirectory -replace [regex]::Escape($OldProjectPath), $NewProjectPath
-        $newAction = New-ScheduledTaskAction -Execute $action.Execute -Argument $newArgs -WorkingDirectory $newWorkDir
-        Set-ScheduledTask -TaskName $name -Action $newAction | Out-Null
-        Write-Host "  תוקן: $name"
-    } catch {
-        Write-Warning "  לא נמצאה/נכשלה: $name ($_)"
+    Write-Host "=== שלב 1: עצירת משימות פעילות (כדי לשחרר נעילות קבצים) ==="
+    foreach ($name in $TaskNames) {
+        try {
+            Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+        } catch {}
     }
-}
+    # הדשבורד עצמו רץ כתהליך pythonw.exe עצמאי (לא נעצר ע"י Stop-ScheduledTask
+    # אם כבר רץ) - סוגרים אותו במפורש כדי שלא יחזיק נעילת קובץ על alerts.db וכו'.
+    Get-Process pythonw -ErrorAction SilentlyContinue | Where-Object {
+        (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)").CommandLine -like "*stock-drop-scanner*"
+    } | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Write-Host "  בוצע."
 
-Write-Host "=== שלב 4: תיקון קיצור הדרך בדסקטופ ==="
-$ShortcutPath = "C:\Users\talha\Desktop\סורק.lnk"
-if (Test-Path $ShortcutPath) {
-    $wsh = New-Object -ComObject WScript.Shell
-    $lnk = $wsh.CreateShortcut($ShortcutPath)
-    $lnk.TargetPath = $lnk.TargetPath -replace [regex]::Escape($OldProjectPath), $NewProjectPath
-    $lnk.WorkingDirectory = $lnk.WorkingDirectory -replace [regex]::Escape($OldProjectPath), $NewProjectPath
-    $lnk.IconLocation = $lnk.IconLocation -replace [regex]::Escape($OldProjectPath), $NewProjectPath
-    $lnk.Save()
-    Write-Host "  תוקן: $ShortcutPath"
-} else {
-    Write-Warning "  קיצור הדרך לא נמצא בנתיב הצפוי: $ShortcutPath"
-}
-
-Write-Host "=== שלב 5: תיקון נתיב קבוע בתוך קבצי VBS ==="
-foreach ($vbsName in @("run_dashboard_silent.vbs", "watchdog_dashboard.vbs")) {
-    $vbsPath = Join-Path $NewProjectPath $vbsName
-    if (Test-Path $vbsPath) {
-        (Get-Content $vbsPath -Raw) -replace [regex]::Escape($OldProjectPath), $NewProjectPath |
-            Set-Content $vbsPath -NoNewline
-        Write-Host "  תוקן: $vbsName"
+    Write-Host "=== שלב 2: העברת התיקייה ==="
+    if (Test-Path $NewRoot) {
+        throw "התיקייה $NewRoot כבר קיימת - עוצר כדי לא לדרוס משהו. בדוק ידנית לפני שמריצים שוב."
     }
-}
+    if (-not (Test-Path $OldRoot)) {
+        throw "התיקייה $OldRoot לא נמצאה - אולי כבר הועברה בעבר?"
+    }
+    Move-Item -Path $OldRoot -Destination $NewRoot
+    Write-Host "  הועבר: $OldRoot -> $NewRoot"
 
-Write-Host "=== שלב 6: הפעלה מחדש של המשימות ==="
-foreach ($name in $TaskNames) {
-    try {
-        $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
-        if ($task.State -ne "Disabled") {
-            Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    Write-Host "=== שלב 3: תיקון 7 המשימות המתוזמנות ==="
+    foreach ($name in $TaskNames) {
+        try {
+            $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
+            $action = $task.Actions[0]
+            $newArgs = $action.Arguments -replace [regex]::Escape($OldProjectPath), $NewProjectPath
+            $newWorkDir = $action.WorkingDirectory -replace [regex]::Escape($OldProjectPath), $NewProjectPath
+            $newAction = New-ScheduledTaskAction -Execute $action.Execute -Argument $newArgs -WorkingDirectory $newWorkDir
+            Set-ScheduledTask -TaskName $name -Action $newAction | Out-Null
+            Write-Host "  תוקן: $name"
+        } catch {
+            Write-Warning "  לא נמצאה/נכשלה: $name ($_)"
         }
-    } catch {}
-}
+    }
 
-Write-Host ""
-Write-Host "=== סיום ==="
-Write-Host "התיקייה עברה ל-$NewRoot, כל המשימות/קיצור הדרך/קבצי ה-VBS תוקנו."
-Write-Host "פתח את Claude Code מחדש, מכוון ל-$NewRoot\.claude"
-Write-Host ""
-Read-Host "לחץ Enter לסגירה"
+    Write-Host "=== שלב 4: תיקון קיצור הדרך בדסקטופ ==="
+    $ShortcutPath = "C:\Users\talha\Desktop\סורק.lnk"
+    if (Test-Path $ShortcutPath) {
+        $wsh = New-Object -ComObject WScript.Shell
+        $lnk = $wsh.CreateShortcut($ShortcutPath)
+        $lnk.TargetPath = $lnk.TargetPath -replace [regex]::Escape($OldProjectPath), $NewProjectPath
+        $lnk.WorkingDirectory = $lnk.WorkingDirectory -replace [regex]::Escape($OldProjectPath), $NewProjectPath
+        $lnk.IconLocation = $lnk.IconLocation -replace [regex]::Escape($OldProjectPath), $NewProjectPath
+        $lnk.Save()
+        Write-Host "  תוקן: $ShortcutPath"
+    } else {
+        Write-Warning "  קיצור הדרך לא נמצא בנתיב הצפוי: $ShortcutPath"
+    }
+
+    Write-Host "=== שלב 5: תיקון נתיב קבוע בתוך קבצי VBS ==="
+    foreach ($vbsName in @("run_dashboard_silent.vbs", "watchdog_dashboard.vbs")) {
+        $vbsPath = Join-Path $NewProjectPath $vbsName
+        if (Test-Path $vbsPath) {
+            (Get-Content $vbsPath -Raw) -replace [regex]::Escape($OldProjectPath), $NewProjectPath |
+                Set-Content $vbsPath -NoNewline
+            Write-Host "  תוקן: $vbsName"
+        }
+    }
+
+    Write-Host "=== שלב 6: הפעלה מחדש של המשימות ==="
+    foreach ($name in $TaskNames) {
+        try {
+            $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
+            if ($task.State -ne "Disabled") {
+                Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+            }
+        } catch {}
+    }
+
+    Write-Host ""
+    Write-Host "=== הצלחה ===" -ForegroundColor Green
+    Write-Host "התיקייה עברה ל-$NewRoot, כל המשימות/קיצור הדרך/קבצי ה-VBS תוקנו."
+    Write-Host "פתח את Claude Code מחדש, מכוון ל-$NewRoot\.claude"
+} catch {
+    Write-Host ""
+    Write-Host "=== שגיאה - העברה לא הושלמה ===" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Write-Host ""
+    Write-Host $_.ScriptStackTrace
+} finally {
+    Write-Host ""
+    Read-Host "לחץ Enter לסגירה"
+}
