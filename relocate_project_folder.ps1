@@ -18,7 +18,14 @@
 # PowerShell), ו-Relocate_Folder.bat מוסיף "pause" ברמת ה-batch כרשת ביטחון
 # נוספת שתמיד תשאיר את החלון פתוח, לא משנה מה קורה בפנים.
 
+# רושם תמיד לקובץ log בנוסף למסך - כי גיליתי בפועל (22.9.2026) שהחלון נסגר
+# לפני שהספקתי לקרוא מה כתוב בו, פעמיים. ככה יש תיעוד קבוע של מה שקרה, לא
+# תלוי אם החלון נסגר מהר מדי או שמישהו לוחץ Enter בטעות לפני שרואים.
+$LogPath = "$env:TEMP\relocate_project_folder_log.txt"
+Start-Transcript -Path $LogPath -Append | Out-Null
+
 Write-Host "=== סקריפט העברת תיקיית הפרויקט ==="
+Write-Host "(לוג מלא גם נשמר ב-$LogPath)"
 Write-Host ""
 
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -26,6 +33,7 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
     Write-Host "השגיאה: הסקריפט לא רץ בהרשאות מנהל." -ForegroundColor Red
     Write-Host "קיצור הדרך 'העברת תיקייה' בדסקטופ אמור לבקש הרשאות אוטומטית (UAC)." -ForegroundColor Red
     Write-Host "אם הרצת את הקובץ הזה ישירות (לא דרך קיצור הדרך) - קליק ימני -> Run as administrator." -ForegroundColor Red
+    Stop-Transcript | Out-Null
     Read-Host "לחץ Enter לסגירה"
     exit
 }
@@ -130,5 +138,6 @@ try {
     Write-Host $_.ScriptStackTrace
 } finally {
     Write-Host ""
+    Stop-Transcript | Out-Null
     Read-Host "לחץ Enter לסגירה"
 }
