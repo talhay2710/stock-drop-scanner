@@ -13,7 +13,7 @@
 Dim WshShell, Http, isUp
 
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.CurrentDirectory = "C:\Users\talha\Desktop\claude\stock-drop-scanner"
+WshShell.CurrentDirectory = "C:\Users\talha\claude\stock-drop-scanner"
 
 isUp = False
 On Error Resume Next
