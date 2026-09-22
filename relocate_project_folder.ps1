@@ -3,30 +3,30 @@
 # ושני קבצי .vbs עם נתיב קבוע מוטבע בפנים (run_dashboard_silent.vbs,
 # watchdog_dashboard.vbs).
 #
-# הרצה: קליק כפול על קיצור הדרך "העברת תיקייה" בדסקטופ (מתעלה אוטומטית
-# ל-Administrator - חלון UAC יופיע, יש לאשר).
+# הרצה: קליק כפול על קיצור הדרך "העברת תיקייה" בדסקטופ. קיצור הדרך עצמו
+# מסומן "Run as administrator" (בית הדגל ב-.lnk, לא הרצה-עצמית מתוך הסקריפט) -
+# UAC יופיע לפני שהסקריפט בכלל מתחיל לרוץ.
 #
 # לפני שמריצים: לסגור את Claude Code לגמרי (לא רק את החלון - גם ממגש המערכת),
 # כי הסשן הזה רץ מתוך התיקייה שהסקריפט מזיז.
 #
-# 22.9.2026: נוסף try/catch + Read-Host בכל מסלול (הצלחה/כישלון) - בניסיון
-# הראשון החלון השחור נסגר אחרי שנייה בלי שום הודעה, כנראה כי שגיאה כלשהי
-# (ErrorActionPreference=Stop) סגרה את הקונסולה מיד בלי לעצור להראות אותה.
+# 22.9.2026: שני תיקונים לבאג "חלון שחור נסגר אחרי שנייה בלי הודעה":
+# (1) הניסיון הראשון (try/catch/Read-Host) לא פתר את זה - כנראה כי
+# Start-Process -Verb RunAs לא תמיד זורק חריגה כשה-UAC נדחה/נכשל, אז ה-catch
+# פשוט לא הופעל וה-exit קרה מיד בשקט. (2) הפתרון האמיתי: קיצור הדרך עצמו
+# מסומן כעת "Run as administrator" ישירות (לא בקשת הרשאה עצמית מתוך
+# PowerShell), ו-Relocate_Folder.bat מוסיף "pause" ברמת ה-batch כרשת ביטחון
+# נוספת שתמיד תשאיר את החלון פתוח, לא משנה מה קורה בפנים.
 
 Write-Host "=== סקריפט העברת תיקיית הפרויקט ==="
-Write-Host "(אם החלון הזה נסגר מיד בלי הודעה בהמשך - זה עדיין באג; העתק את השגיאה)"
 Write-Host ""
 
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "מתעלה להרשאות מנהל (יופיע חלון UAC - יש לאשר)..."
-    try {
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    } catch {
-        Write-Host ""
-        Write-Host "ההעלאה להרשאות מנהל נכשלה או בוטלה: $_" -ForegroundColor Red
-        Read-Host "לחץ Enter לסגירה"
-    }
+    Write-Host "השגיאה: הסקריפט לא רץ בהרשאות מנהל." -ForegroundColor Red
+    Write-Host "קיצור הדרך 'העברת תיקייה' בדסקטופ אמור לבקש הרשאות אוטומטית (UAC)." -ForegroundColor Red
+    Write-Host "אם הרצת את הקובץ הזה ישירות (לא דרך קיצור הדרך) - קליק ימני -> Run as administrator." -ForegroundColor Red
+    Read-Host "לחץ Enter לסגירה"
     exit
 }
 
