@@ -1,4 +1,4 @@
-# מעביר את כל תיקיית הפרויקט מ-Desktop\claude ל-C:\Users\talha\claude, ומתקן
+﻿# מעביר את כל תיקיית הפרויקט מ-Desktop\claude ל-C:\Users\talha\claude, ומתקן
 # את כל המקומות שמכילים את הנתיב הישן: 7 משימות מתוזמנות, קיצור הדרך בדסקטופ,
 # ושני קבצי .vbs עם נתיב קבוע מוטבע בפנים (run_dashboard_silent.vbs,
 # watchdog_dashboard.vbs).
