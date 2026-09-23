@@ -2726,41 +2726,21 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
     # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
     sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
-    # כשיש פער אמיתי בין ימי מסחר (market_data.prev_close_gap - ר' הערה שם),
-    # "שינוי יומי" בעצם משווה מול סגירה ישנה יותר מיום מסחר אחד. אין מקום
-    # לאייקון/טולטיפ בעמודה הצרה הזו (58px, נבדק בפועל - אייקון נוסף פשוט
-    # נחתך מחוץ לתא ע"י overflow:hidden), אז מוסיפים כוכבית קטנה בתוך הטקסט
-    # עצמו והסבר אחד מעל הטבלה כולה (כמו כיתוב "נכון לסגירת מסחר..." הקיים
-    # כבר למטה) - 15.9.2026, בעקבות "הנתון שגוי".
-    _gap_dates = sorted({
-        row["prev_close_date"] for _, row in sub_df.iterrows()
-        if row.get("prev_close_gap") and pd.notna(row.get("prev_close_date"))
-    })
-
-    def _daily_pct_cell(v, row):
-        text = _signed_num(v, 1, "%")
-        if row.get("prev_close_gap"):
-            text += "*"
-        return text
-
     st.markdown(
         _html_table(
             sub_df,
             [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
              ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")],
             formatters={
+                "שינוי יומי (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                 "שינוי מצטבר (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
             },
-            row_formatters={"שינוי יומי (%)": _daily_pct_cell},
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
             truncate_columns={"שם_וטיקר": 169, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58},
             max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
         ),
         unsafe_allow_html=True,
     )
-    if _gap_dates:
-        _gap_dates_text = ", ".join(d.strftime("%d/%m") for d in _gap_dates)
-        st.caption(f"* מושווה מול סגירת {_gap_dates_text} - חסר יום מסחר לפחות אחד במקור הנתונים")
 
 
 def _outcome_color_hex(label: str) -> str:
