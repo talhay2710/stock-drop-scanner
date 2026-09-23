@@ -114,6 +114,13 @@ CREATE TABLE IF NOT EXISTS closed_trades (
     is_manual_trade INTEGER DEFAULT 0,
     closed_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS own_daily_closes (
+    ticker TEXT NOT NULL,
+    close_date TEXT NOT NULL,
+    close_price REAL NOT NULL,
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY (ticker, close_date)
+);
 """
 
 
@@ -267,6 +274,34 @@ def unmark_as_bought(conn: sqlite3.Connection, alert_id: int) -> None:
 def update_stop_alert(conn: sqlite3.Connection, alert_id: int, active: bool) -> None:
     conn.execute("UPDATE alerts SET stop_alert_active = ? WHERE id = ?", (1 if active else 0, alert_id))
     conn.commit()
+
+
+def record_own_close(conn: sqlite3.Connection, ticker: str, close_date: str, close_price: float) -> None:
+    """שומר סגירה יומית שנתפסה בעצמנו - ממחיר חי (fetch_current_price, אמין
+    ולא תלוי ב-yf.download בבת אחת) שנשלף *אחרי* שהמסחר נסגר בפועל. מקור אמת
+    עצמאי לגמרי מ-fetch_universe_daily_changes, כדי שלא נהיה תלויים בפער
+    נתונים של yfinance לעמודת prev_close (נמצא בפועל 23.9.2026: פער בן 6
+    ימים רצופים בנתוני הסגירה היומית של yfinance לת"א, בזמן שהמחיר החי
+    per-ticker היה תקין לגמרי) - ברגע שיש לנו רישום עצמי של כמה ימים, אנחנו
+    כבר לא צריכים את yfinance בשביל 'הסגירה הקודמת', רק בשביל המחיר החי."""
+    conn.execute(
+        "INSERT INTO own_daily_closes (ticker, close_date, close_price, recorded_at) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(ticker, close_date) DO UPDATE SET close_price = excluded.close_price, recorded_at = excluded.recorded_at",
+        (ticker, close_date, close_price, dt.datetime.now().isoformat(timespec="seconds")),
+    )
+    conn.commit()
+
+
+def get_last_own_close_before(conn: sqlite3.Connection, ticker: str, before_date: str) -> tuple[str, float] | None:
+    """הסגירה העצמאית האחרונה שנרשמה לפני before_date (ISO, YYYY-MM-DD) -
+    ר' record_own_close. מחזיר (close_date, close_price) או None אם אין כלום."""
+    cur = conn.execute(
+        "SELECT close_date, close_price FROM own_daily_closes WHERE ticker = ? AND close_date < ? "
+        "ORDER BY close_date DESC LIMIT 1",
+        (ticker, before_date),
+    )
+    row = cur.fetchone()
+    return (row[0], row[1]) if row else None
 
 
 def get_bought_holdings(conn: sqlite3.Connection) -> list[dict]:
