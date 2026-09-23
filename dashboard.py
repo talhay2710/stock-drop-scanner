@@ -1346,21 +1346,27 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
     המסחר. כל נקודה = % שינוי ביחס למחיר הפתיחה של אותו יום, ממוצע משוקלל
     (לפי סכום ההשקעה) על כל האחזקות הרלוונטיות.
     מנסים קודם את היום הנוכחי; אם עדיין אין בו מספיק נקודות (למשל דקות
-    ספורות אחרי פתיחת המסחר) נופלים על יום המסחר האחרון *שהושלם* - "תמיד
-    חייב להיות מוצג גרף. תמיד" (14.9.2026). מחזיר (None, None) רק אם גם זה
-    נכשל (אין בכלל נתונים, למשל תקלת יאהו מלאה).
+    ספורות אחרי פתיחת המסחר) נופלים על יום המסחר האחרון *שהושלם*; אם גם זה
+    נכשל (תקלת יאהו ב-intraday עצמו, לא רק בסגירות היומיות - נמצא בפועל
+    23.9.2026, פער נתונים יומי בן 6 ימים) נופלים לרזולוציית יום (ר'
+    _build_daily_comparison_df) - "תמיד חייב להיות מוצג גרף. תמיד" (14.9.2026).
+    מחזיר (None, None, None, False) רק אם גם השלב האחרון הזה נכשל (אין
+    בכלל נתונים, אפילו לא סגירות יומיות).
 
-    מחזיר (df, as_of_label, dominant_index): as_of_label הוא None כשמוצג היום
-    הנוכחי (הציר "נכון" לשעון האמיתי), או "DD/MM" כשמוצג יום מסחר קודם - כדי
-    שהתצוגה תבהיר את זה בפירוש (לא רק "יש ציר עד 17:00" בלי הקשר, שנראה כאילו
-    יש נתונים "מהעתיד" ביחס לשעה האמיתית עכשיו - 14.9.2026, "לא הגיוני, שעכשיו
-    מוצג 17:00"). אותה מוסכמה בדיוק כמו get_index_last_completed_sparkline.
-    dominant_index מוחזר בנפרד כדי שה-caller יוכל לבדוק is_market_open בעצמו -
-    גם כש-as_of_label=None (מוצג "היום"), היום עצמו יכול כבר *להסתיים*
-    (המסחר נסגר, אבל עדיין אותו יום קלנדרי) - "תציין תאריך אחרי התוך-יומי
-    כשהמסחר לא פעיל" (17.9.2026) צריך את שני התנאים, לא רק "יום קודם"."""
+    מחזיר (df, as_of_label, dominant_index, is_daily): as_of_label הוא None
+    כשמוצג היום הנוכחי (הציר "נכון" לשעון האמיתי), או "DD/MM" כשמוצג יום
+    מסחר קודם - כדי שהתצוגה תבהיר את זה בפירוש (לא רק "יש ציר עד 17:00" בלי
+    הקשר, שנראה כאילו יש נתונים "מהעתיד" ביחס לשעה האמיתית עכשיו - 14.9.2026,
+    "לא הגיוני, שעכשיו מוצג 17:00"). אותה מוסכמה בדיוק כמו
+    get_index_last_completed_sparkline. dominant_index מוחזר בנפרד כדי
+    שה-caller יוכל לבדוק is_market_open בעצמו - גם כש-as_of_label=None (מוצג
+    "היום"), היום עצמו יכול כבר *להסתיים* (המסחר נסגר, אבל עדיין אותו יום
+    קלנדרי) - "תציין תאריך אחרי התוך-יומי כשהמסחר לא פעיל" (17.9.2026) צריך
+    את שני התנאים, לא רק "יום קודם". is_daily=True רק בנפילה לרזולוציית-יום -
+    ה-caller צריך את זה כדי להעביר is_daily=True הלאה ל-_build_comparison_chart
+    (ציר תאריכים, לא שעות)."""
     if holdings_df.empty:
-        return None, None, None
+        return None, None, None, False
 
     _idx_invested = {}
     for _, r in holdings_df.iterrows():
@@ -1370,7 +1376,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
             continue
         _idx_invested[idx] = _idx_invested.get(idx, 0.0) + entry * qty
     if not _idx_invested:
-        return None, None, None
+        return None, None, None, False
     dominant_index = max(_idx_invested, key=_idx_invested.get)
     dominant_ccy = constituents.INDEX_CURRENCY.get(dominant_index, "ILS")
 
@@ -1378,7 +1384,7 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         holdings_df["index_name"].apply(lambda i: constituents.INDEX_CURRENCY.get(i, "ILS") == dominant_ccy)
     ]
     if relevant_holdings.empty:
-        return None, None, None
+        return None, None, None, False
 
     tickers = relevant_holdings["ticker"].tolist()
 
@@ -1406,8 +1412,8 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         # תאריך, כאילו זה נתון חי של היום, כשבפועל זה עדיין אתמול.
         _comp_last_date = comparison_df.index.max().date()
         if _comp_last_date == israel_today():
-            return comparison_df, None, dominant_index
-        return comparison_df, _comp_last_date.strftime("%d/%m"), dominant_index
+            return comparison_df, None, dominant_index, False
+        return comparison_df, _comp_last_date.strftime("%d/%m"), dominant_index, False
 
     comparison_df = _build_intraday_comparison_df(
         relevant_holdings, dominant_index,
@@ -1415,8 +1421,81 @@ def _compute_portfolio_history(holdings_df: pd.DataFrame):
         market_data.fetch_index_last_completed_intraday(dominant_index),
         daily_hist_by_ticker, bench_daily_hist,
     )
+    if comparison_df is not None:
+        as_of_label = comparison_df.index[-1].strftime("%d/%m")
+        return comparison_df, as_of_label, dominant_index, False
+
+    # שני ניסיונות התוך-יומי (היום/יום מסחר אחרון) דורשים שני fetch-ים
+    # תוך-יומיים בו-זמנית (אחזקות + מדד) - כשל ממושך של אחד מהם (נמצא בפועל
+    # 23.9.2026, אחרי שפער הנתונים היומי נמשך 6 ימים ברצף) משאיר את הגרף
+    # ריק, למרות שיש בפועל סגירות יומיות תקינות זמינות. נופלים לגרסה גסה
+    # יותר (רזולוציית יום, לא תוך-יומי) שבנויה רק מה-daily history שכבר
+    # שלפנו למעלה - "חייב להיות מוצג גרף. תמיד" (14.9.2026) גובר על דיוק
+    # הרזולוציה.
+    comparison_df = _build_daily_comparison_df(
+        relevant_holdings, dominant_index, daily_hist_by_ticker, bench_daily_hist,
+    )
     as_of_label = comparison_df.index[-1].strftime("%d/%m") if comparison_df is not None else None
-    return comparison_df, as_of_label, dominant_index
+    return comparison_df, as_of_label, dominant_index, True
+
+
+def _build_daily_comparison_df(relevant_holdings: pd.DataFrame, dominant_index: str,
+                                daily_hist_by_ticker: dict, bench_daily_hist: pd.Series,
+                                n_days: int = 10):
+    """נופלים לזה כששני ניסיונות התוך-יומי (_build_intraday_comparison_df,
+    להיום וליום המסחר האחרון) נכשלים - למשל תקלת יאהו ממושכת בנתוני
+    ה-intraday עצמם. בונה השוואה מ*סגירות יומיות* בלבד (לא תוך-יומי) על פני
+    עד n_days ימי המסחר האחרונים שיש להם בפועל נתון - ר' 23.9.2026, "אין
+    מצב שאתה לא מציג נתונים".
+
+    מקבצים לפי .date() (לא לפי ה-Timestamp הגולמי) בכוונה: daily_hist_by_ticker
+    (מ-fetch_universe_daily_changes) מגיע עם אינדקס tz-naive, בעוד
+    bench_daily_hist (מ-fetch_index_history) מגיע tz-aware (Asia/Jerusalem) -
+    נמצא בפועל (23.9.2026) שחיתוך common_ts בין השניים יצא ריק לגמרי בגלל
+    זה למרות שהתאריכים הקלנדריים זהים - שני Timestamp שונים ב-tz לא נחשבים
+    שווים גם כשהם "אותו יום". date() ניטרלי מבחינת tz, פותר את זה."""
+    weighted_by_date: dict = {}
+    weight_by_date: dict = {}
+    for _, r in relevant_holdings.iterrows():
+        hist = daily_hist_by_ticker.get(r["ticker"])
+        qty = r.get("actual_qty")
+        entry = r.get("actual_entry_price")
+        if hist is None or hist.empty or not qty or not entry:
+            continue
+        recent = hist.tail(n_days + 1)
+        if len(recent) < 2:
+            continue
+        invested = entry * qty
+        base = float(recent.iloc[0])
+        for ts, price in recent.items():
+            d = ts.date()
+            pct = (float(price) - base) / base * 100
+            weighted_by_date[d] = weighted_by_date.get(d, 0.0) + pct * invested
+            weight_by_date[d] = weight_by_date.get(d, 0.0) + invested
+    if not weighted_by_date:
+        return None
+    portfolio_pct = pd.Series({
+        pd.Timestamp(d): weighted_by_date[d] / weight_by_date[d] for d in weighted_by_date
+    }).sort_index()
+
+    if bench_daily_hist is None or bench_daily_hist.empty:
+        return None
+    recent_bench = bench_daily_hist.tail(n_days + 1)
+    if len(recent_bench) < 2:
+        return None
+    bench_base = float(recent_bench.iloc[0])
+    bench_pct = pd.Series({
+        pd.Timestamp(ts.date()): (float(price) - bench_base) / bench_base * 100
+        for ts, price in recent_bench.items()
+    }).sort_index()
+
+    common_ts = sorted(t for t in portfolio_pct.index if t in bench_pct.index)
+    if len(common_ts) < 2:
+        return None
+    return pd.DataFrame({
+        "התיק שלי": portfolio_pct.loc[common_ts],
+        INDEX_LABELS.get(dominant_index, dominant_index): bench_pct.loc[common_ts],
+    })
 
 
 _CHART_GRID_COLOR = "#E8EBEF"
@@ -1866,7 +1945,7 @@ def _breakdown_rows(agg: dict) -> list[dict]:
 
 
 def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, port_color: str, bench_color: str,
-                             date_label: str | None = None) -> alt.Chart:
+                             date_label: str | None = None, is_daily: bool = False) -> alt.Chart:
     """גרף תשואת התיק מול המדד - שני קווים עם legend קבוע בתחתית (בשטח משלו,
     לא חופף לצירי הזמן כמו ב-st.line_chart המובנה), וקו אפס מקווקו לייחוס."""
     # value_name="value" (לא "תשואה") בכוונה - כשגם שם השדה הגולמי וגם הכותרת
@@ -1890,12 +1969,20 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     # tickCount הוא רק "רמז" ל-Vega, לא ערך מדויק - בפועל הוא עיגל ל-60 דק'
     # במקום 30 (נבדק בפועל). "values" מפורש עם רשימת שעות עגולות כל 30 דק'
     # הוא היחיד שבאמת קובע את זה במדויק.
-    _tick_start = long_df["תאריך"].min().floor("30min")
-    _tick_end = long_df["תאריך"].max().ceil("30min")
-    _tick_values = pd.date_range(_tick_start, _tick_end, freq="30min").tolist()
-    x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
-                   axis=alt.Axis(format="%H:%M", title=None, grid=False, values=_tick_values,
-                                  labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
+    # is_daily=True (נפילה ל-_build_daily_comparison_df, 23.9.2026) - הציר
+    # פורש כמה ימי מסחר, לא שעות בתוך יום אחד - פורמט שעות כאן היה מציג
+    # "00:00" לכל הנקודות (כולן חצות, כי הן תאריכים יומיים גולמיים).
+    if is_daily:
+        x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
+                       axis=alt.Axis(format="%d/%m", title=None, grid=False,
+                                      labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
+    else:
+        _tick_start = long_df["תאריך"].min().floor("30min")
+        _tick_end = long_df["תאריך"].max().ceil("30min")
+        _tick_values = pd.date_range(_tick_start, _tick_end, freq="30min").tolist()
+        x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
+                       axis=alt.Axis(format="%H:%M", title=None, grid=False, values=_tick_values,
+                                      labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
     _y_scale = alt.Scale(padding=8)
     _y_axis = alt.Axis(title=None, grid=True, gridColor=_CHART_GRID_COLOR,
                         gridDash=[2, 3], labelColor=_CHART_LABEL_COLOR, labelFontSize=10)
@@ -1907,9 +1994,9 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
                            labelColor=_CHART_LABEL_COLOR, labelFontSize=11, symbolType="stroke"),
     )
     _tooltip = [
-        alt.Tooltip("תאריך:T", title="שעה", format="%H:%M"),
+        alt.Tooltip("תאריך:T", title="תאריך" if is_daily else "שעה", format="%d/%m" if is_daily else "%H:%M"),
         alt.Tooltip("סדרה:N", title=""),
-        alt.Tooltip("תשואה_טקסט:N", title="שינוי מתחילת היום"),
+        alt.Tooltip("תשואה_טקסט:N", title="שינוי מצטבר" if is_daily else "שינוי מתחילת היום"),
     ]
     # בלי mark_circle על כל נקודה (היה קודם) - עם ~20 תאריכים זה יוצר המון
     # נקודות על שני הקווים, "נראה קצת מסורבל" (14.9.2026). הקו עצמו נושא
@@ -1929,7 +2016,7 @@ def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, por
     # הנוכחי) - "ותאריך רק כשהמסחר לא פעיל". {"expr": "width - 5"} נצמד
     # לקצה הימני האמיתי בכל רוחב חלון בפועל (לא ערך פיקסלי קבוע שנמדד פעם
     # אחת - זה נכשל בעבר ב"אמרתי קצה ימני של הגרף").
-    _intraday_text = "תוך-יומי" + (f" {date_label}" if date_label else "")
+    _intraday_text = ("יומי" if is_daily else "תוך-יומי") + (f" {date_label}" if date_label else "")
     _intraday_layer = alt.Chart(pd.DataFrame({"label": [_intraday_text]})).mark_text(
         align="right", baseline="top", fontSize=11, color=_CHART_LABEL_COLOR,
     ).encode(x=alt.value({"expr": "width - 5"}), y=alt.value(121), text="label:N")
@@ -4348,7 +4435,7 @@ with st.container(border=True, key="market_panel"):
             _holdings = _load_fresh_holdings()
             if _holdings.empty:
                 return
-            _comp_df, _comp_as_of, _comp_dom_index = _compute_portfolio_history(_holdings)
+            _comp_df, _comp_as_of, _comp_dom_index, _comp_is_daily = _compute_portfolio_history(_holdings)
             st.divider()
             with st.container(border=True, key="chart_card_comparison"):
                 st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
@@ -4373,7 +4460,7 @@ with st.container(border=True, key="market_panel"):
                 st.altair_chart(
                     _build_comparison_chart(
                         _comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR,
-                        date_label=_comp_date_label,
+                        date_label=_comp_date_label, is_daily=_comp_is_daily,
                     ),
                     width='stretch',
                 )
