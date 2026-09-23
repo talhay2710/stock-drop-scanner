@@ -4236,7 +4236,7 @@ with _tab_slot_history.container():
                     return "🎯 הגיע ליעד"
                 if r.get("forecast_stop") is not None and r["exit_price"] <= r["forecast_stop"]:
                     return "🛑 פגע בסטופ"
-                return "↔ נסגר באמצע"
+                return "✋ נמכרה ידנית"
 
             def _fmt_price_date(price: float | None, date_str: str | None, is_il: bool) -> str:
                 if price is None or pd.isna(price):
