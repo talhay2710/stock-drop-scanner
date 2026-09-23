@@ -1144,16 +1144,19 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     if not holdings_df.empty:
         _own_close_conn = store.get_conn(db_path(cfg))
         _today_iso = israel_today().isoformat()
-        for _t in sorted(set(holdings_df["ticker"])):
-            _p = _price_map.get(_t)
-            if _p is None:
-                continue
-            _country = "IL" if market_data._is_israeli_ticker(_t) else "US"
-            # תופסים "סגירה היום" רק אחרי שהמסחר באמת נסגר - אחרת המחיר החי
-            # הוא עדיין תוך-יומי, לא סגירה, ולא יהיה נכון לרשום אותו ככזה
-            # (ר' record_own_close - מקור אמת עצמאי, חייב להיות סגירה אמיתית).
-            if has_closed_today(_country):
-                store.record_own_close(_own_close_conn, _t, _today_iso, _p)
+        try:
+            for _t in sorted(set(holdings_df["ticker"])):
+                _p = _price_map.get(_t)
+                if _p is None:
+                    continue
+                _country = "IL" if market_data._is_israeli_ticker(_t) else "US"
+                # תופסים "סגירה היום" רק אחרי שהמסחר באמת נסגר - אחרת המחיר החי
+                # הוא עדיין תוך-יומי, לא סגירה, ולא יהיה נכון לרשום אותו ככזה
+                # (ר' record_own_close - מקור אמת עצמאי, חייב להיות סגירה אמיתית).
+                if has_closed_today(_country):
+                    store.record_own_close(_own_close_conn, _t, _today_iso, _p)
+        except Exception:
+            pass  # תוסף לא-קריטי (23.9.2026) - כישלון כאן לא אמור להפיל את הדף
 
         _daily_df = market_data.fetch_universe_daily_changes(holdings_df["ticker"].tolist())
         _today_by_ccy = {}
@@ -1200,11 +1203,18 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
                 # yfinance מפגר (prev_close_gap) - לפני שמוותרים ומשתמשים בסגירה
                 # הישנה שלו, בודקים אם יש לנו סגירה עצמאית יותר טרייה שנרשמה
                 # בעצמנו (ר' store.record_own_close, 23.9.2026) - אם כן, זו
-                # מקור אמת עדיף, לא תלוי בפער של yfinance בכלל.
-                _own = store.get_last_own_close_before(_own_close_conn, _r["ticker"], _today_iso)
-                if _own and _own[0] > _prev_close_date.isoformat():
+                # מקור אמת עדיף, לא תלוי בפער של yfinance בכלל. עטוף ב-try
+                # (23.9.2026, בעקבות AttributeError על האתר הציבורי - כנראה
+                # dtype שונה ל-prev_close_date בפועל בענן לעומת מקומי, לא
+                # שוחזר בבדיקה מקומית) - תוסף חדש שלא-קריטי אסור שיפיל את כל
+                # העמוד; כישלון כאן פשוט נופל לאחור להתנהגות הישנה (מסומן כפער).
+                try:
+                    _own = store.get_last_own_close_before(_own_close_conn, _r["ticker"], _today_iso)
+                except Exception:
+                    _own = None
+                if _own and str(_own[0]) > str(_prev_close_date):
                     _baseline = _own[1]
-                    _prev_close_date = dt.date.fromisoformat(_own[0])
+                    _prev_close_date = dt.date.fromisoformat(str(_own[0]))
                 else:
                     _today_gap_baseline_dates.append(_prev_close_date)
             _ccy2 = constituents.INDEX_CURRENCY.get(_r.get("index_name"), "ILS")
@@ -4061,11 +4071,15 @@ with _tab_slot_portfolio.container():
                             # אותו עיקרון בדיוק כמו _compute_portfolio_summaries -
                             # סגירה עצמאית שנרשמה בעצמנו (ר' store.record_own_close)
                             # עדיפה על prev_close המפגר של yfinance, אם יש לנו
-                            # אחת טרייה יותר.
-                            _own = store.get_last_own_close_before(_own_close_conn3, r["ticker"], _today_iso3)
-                            if _own and _own[0] > _prev_close_date.isoformat():
+                            # אחת טרייה יותר. try (23.9.2026, ר' הערה מקבילה
+                            # למעלה) - תוסף לא-קריטי אסור שיפיל את כל העמוד.
+                            try:
+                                _own = store.get_last_own_close_before(_own_close_conn3, r["ticker"], _today_iso3)
+                            except Exception:
+                                _own = None
+                            if _own and str(_own[0]) > str(_prev_close_date):
                                 _baseline = _own[1]
-                                _prev_close_date = dt.date.fromisoformat(_own[0])
+                                _prev_close_date = dt.date.fromisoformat(str(_own[0]))
                         if _baseline:
                             daily_pct = (current - _baseline) / _baseline * 100
                             daily_pct_date = _dr.get("last_close_date")
