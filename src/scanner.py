@@ -14,7 +14,7 @@ from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
 from .config import db_path
-from .market_hours import is_market_open, israel_today, israel_now
+from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +187,21 @@ def check_holdings_gains(cfg: dict, conn) -> None:
     # עצמו יהיה איכשהו ישן יותר מהכניסה שלך
     price_df = market_data.fetch_universe_daily_changes(tickers)
     close_date_map = dict(zip(price_df["ticker"], price_df["last_close_date"])) if not price_df.empty else {}
+
+    # תופסים סגירה יומית בעצמנו (מהמחיר החי per-ticker, לא תלוי בפער של
+    # yfinance ב-fetch_universe_daily_changes - ר' src/store.py:record_own_close,
+    # 23.9.2026) בכל סבב סריקה - כאן, לא רק בדשבורד, כי הסריקה רצה כל 5 דקות
+    # לפי לו"ז קבוע (cron-job.org) בלי תלות בכך שמישהו פותח את הדשבורד ממש
+    # סביב שעת הסגירה. חייב לרוץ *לפני* ה-is_market_open filter למטה (זה
+    # מדלג על החזקות כשהשוק סגור - בדיוק כשצריך לתפוס את הסגירה).
+    _today_iso_close = israel_today().isoformat()
+    for h in holdings:
+        _current_for_close = price_map.get(h["ticker"])
+        if _current_for_close is None:
+            continue
+        _country_for_close = constituents.INDEX_COUNTRY_CODE.get(h.get("index_name"), "IL")
+        if has_closed_today(_country_for_close):
+            store_mod.record_own_close(conn, h["ticker"], _today_iso_close, _current_for_close)
 
     for h in holdings:
         if h.get("index_name") and not is_market_open(h["index_name"]):
