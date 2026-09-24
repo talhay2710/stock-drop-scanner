@@ -117,6 +117,20 @@ def get_il_name_map(index: str) -> dict:
         return {}
 
 
+def get_tase_symbol_map() -> dict:
+    """מיפוי טיקר -> סימול המסחר האמיתי בבורסה (data/tase_symbols.csv) - הסימול
+    ש-Yahoo/הדשבורד מציגים לא תמיד תואם למה שמוצג באתר הבנק/הבורסה עצמה
+    (24.9.2026, "יש לנו פער בשמות המניות בינך לבין אתר הבנק שלי" - למשל
+    קווליטאו/QLTU.TA מופיעה בבנק כ'קלטו'). נאסף ידנית מדי פעם - ר' הערת
+    הכותרת בקובץ עצמו."""
+    path = os.path.join(DATA_DIR, "tase_symbols.csv")
+    try:
+        df = pd.read_csv(path, comment="#")
+        return dict(zip(df["yahoo_ticker"], df["tase_symbol"]))
+    except Exception:
+        return {}
+
+
 def get_constituents(index: str) -> list[str]:
     """מחזיר רשימת טיקרים (בפורמט Yahoo Finance) עבור המדד המבוקש.
 
