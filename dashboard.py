@@ -2752,8 +2752,11 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     נוכחי) - משותפת בין הטאב ההוא לבין 'קרוב לסף התראה' בטאב ההתראות, ששניהם
     מציגים בדיוק אותה צורת נתונים (פלט של get_all_changes)."""
     sub_df = sub_df.copy()
+    # בלי "(טיקר)" - הטור הזה ממילא צר מדי כדי שהוא ייראה (24.9.2026, "אפשר
+    # לוותר על הטיקר במניות המובילות. גם ככה לא רואים אותו") - מספר ני"ע
+    # (עמודה נפרדת, למטה) הוא המזהה החד-משמעי עכשיו, השם מקבל את כל הרוחב.
     sub_df["שם_וטיקר"] = sub_df.apply(
-        lambda r: f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"], axis=1
+        lambda r: r["company_name"] if r["company_name"] else r["טיקר"], axis=1
     )
     # עמודת מספר ני"ע משלה (24.9.2026, "אני רוצה את מספר ני"ע... זה צריך
     # להיות יפה ויזואלית") - לא טקסט חבוי בטולטיפ, עמודה גלויה תמיד כמו
@@ -2774,7 +2777,7 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
                 "מספר ני\"ע": lambda v: f"{v:.0f}" if pd.notna(v) else "—",
             },
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
-            truncate_columns={"שם_וטיקר": 128, "מספר ני\"ע": 88, "שינוי יומי (%)": 58,
+            truncate_columns={"שם_וטיקר": 150, "מספר ני\"ע": 88, "שינוי יומי (%)": 58,
                                "שינוי מצטבר (%)": 58, "שער": 58},
             max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
         ),
