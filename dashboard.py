@@ -183,7 +183,7 @@ def _tase_badge_html(row: dict) -> str:
     if not symbol:
         return ""
     tase_id = row.get("tase_id")
-    id_text = f' · מספר ני"ע: {tase_id}' if pd.notna(tase_id) else ""
+    id_text = f" · מספר ני''ע: {tase_id}" if pd.notna(tase_id) else ""
     return (
         f'<span style="font-size:0.72rem; opacity:0.55; font-weight:500; flex-shrink:0; '
         f'border:1px solid currentColor; border-radius:4px; padding:0 4px;" '
@@ -193,14 +193,15 @@ def _tase_badge_html(row: dict) -> str:
 
 def _tase_plain_text(ticker: str) -> str:
     """כמו _tase_badge_html אבל טקסט רגיל בלי HTML - לתאי טבלה (_html_table)
-    שחותכים לפי רוחב ומציגים title="..." בהובר, מנגנון שלא עובד על טקסט עם
-    תגיות HTML (ר' _html_table, ההערה על "<" בטקסט)."""
-    symbol = constituents.get_tase_symbol_map().get(ticker)
-    if not symbol:
-        return ""
+    שחותכים לפי רוחב ומציגים title="..." בהובר. גרשיים כפולות אמיתיות (") לא
+    יכולות להופיע כאן - הן היו שוברות את תכונת ה-title=".." של הדפדפן ותוחמות
+    אותה מוקדם מדי (נמצא בפועל, 24.9.2026: הטולטיפ נחתך ל"...מספר ני" - שני
+    התווים " חתכו את שאר הטקסט) - משתמשים בגרשיים כפולות-בודדות ('') כמו בכל
+    שאר האתר (למשל "ע''ש"). רק מספר ני''ע, בלי הסימול - (24.9.2026, "בלי
+    ה'בבנק: ובשם' רק מספר ני''ע") - בטבלאות הצפופות האלה (מניות מובילות/
+    התראות) אין מקום לשניהם, והמספר הוא הכי שימושי לחיפוש בבנק."""
     tase_id = constituents.get_tase_security_id_map().get(ticker)
-    id_text = f' · מספר ני"ע: {tase_id}' if pd.notna(tase_id) else ""
-    return f' · בבנק: {symbol}{id_text}'
+    return f" · מספר ני''ע: {tase_id}" if pd.notna(tase_id) else ""
 
 
 def _price_text(value, index_name) -> str:
