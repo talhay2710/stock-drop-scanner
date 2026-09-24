@@ -174,34 +174,21 @@ def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
 
 
 def _tase_badge_html(row: dict) -> str:
-    """תג קטן 'בבנק: X (מס' Y)' ליד טיקר - הסימול/מספר ני"ע האמיתיים בבורסה
+    """'(מספר ני''ע | סימול)' ליד הטיקר - הסימול/מספר ני''ע האמיתיים בבורסה
     לא תמיד תואמים למה שהדשבורד/Yahoo מציגים (24.9.2026, "פער בשמות המניות
     בינך לבין אתר הבנק"). row צריך "tase_symbol" ואופציונלית "tase_id" -
     ר' constituents.get_tase_symbol_map/get_tase_security_id_map. משותף בין
-    כרטיס אחזקה לכרטיס פרטי התראה, כדי שלא יתבדרו זה מזה."""
+    כרטיס אחזקה לכרטיס פרטי התראה, כדי שלא יתבדרו זה מזה. פורמט "(מס' | סימול)"
+    נבחר במפורש ע"י המשתמש (24.9.2026, "משהו כזה למשל: (123456 | DFAGA)")."""
     symbol = row.get("tase_symbol")
     if not symbol:
         return ""
     tase_id = row.get("tase_id")
-    id_text = f" · מספר ני''ע: {tase_id}" if pd.notna(tase_id) else ""
+    inner = f"{tase_id} | {symbol}" if pd.notna(tase_id) else symbol
     return (
-        f'<span style="font-size:0.72rem; opacity:0.55; font-weight:500; flex-shrink:0; '
-        f'border:1px solid currentColor; border-radius:4px; padding:0 4px;" '
-        f'title="הסימול/מספר ני\'\'ע כפי שמוצגים באתר הבנק/הבורסה">בבנק: {symbol}{id_text}</span>'
+        f'<span style="font-size:0.78rem; opacity:0.6; font-weight:500; flex-shrink:0;" '
+        f'title="הסימול/מספר ני\'\'ע כפי שמוצגים באתר הבנק/הבורסה">({inner})</span>'
     )
-
-
-def _tase_plain_text(ticker: str) -> str:
-    """כמו _tase_badge_html אבל טקסט רגיל בלי HTML - לתאי טבלה (_html_table)
-    שחותכים לפי רוחב ומציגים title="..." בהובר. גרשיים כפולות אמיתיות (") לא
-    יכולות להופיע כאן - הן היו שוברות את תכונת ה-title=".." של הדפדפן ותוחמות
-    אותה מוקדם מדי (נמצא בפועל, 24.9.2026: הטולטיפ נחתך ל"...מספר ני" - שני
-    התווים " חתכו את שאר הטקסט) - משתמשים בגרשיים כפולות-בודדות ('') כמו בכל
-    שאר האתר (למשל "ע''ש"). רק מספר ני''ע, בלי הסימול - (24.9.2026, "בלי
-    ה'בבנק: ובשם' רק מספר ני''ע") - בטבלאות הצפופות האלה (מניות מובילות/
-    התראות) אין מקום לשניהם, והמספר הוא הכי שימושי לחיפוש בבנק."""
-    tase_id = constituents.get_tase_security_id_map().get(ticker)
-    return f" · מספר ני''ע: {tase_id}" if pd.notna(tase_id) else ""
 
 
 def _price_text(value, index_name) -> str:
@@ -2766,24 +2753,29 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     מציגים בדיוק אותה צורת נתונים (פלט של get_all_changes)."""
     sub_df = sub_df.copy()
     sub_df["שם_וטיקר"] = sub_df.apply(
-        lambda r: (f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"])
-        + _tase_plain_text(r["טיקר"]),
-        axis=1,
+        lambda r: f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"], axis=1
     )
+    # עמודת מספר ני"ע משלה (24.9.2026, "אני רוצה את מספר ני"ע... זה צריך
+    # להיות יפה ויזואלית") - לא טקסט חבוי בטולטיפ, עמודה גלויה תמיד כמו
+    # שאר הטבלה. ר' constituents.get_tase_security_id_map.
+    _tase_id_map2 = constituents.get_tase_security_id_map()
+    sub_df["מספר ני\"ע"] = sub_df["טיקר"].map(_tase_id_map2)
     # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
     # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
     sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
     st.markdown(
         _html_table(
             sub_df,
-            [("שם_וטיקר", "מניה"), ("שינוי יומי (%)", "שינוי יומי"),
+            [("שם_וטיקר", "מניה"), ("מספר ני\"ע", "מספר ני\"ע"), ("שינוי יומי (%)", "שינוי יומי"),
              ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")],
             formatters={
                 "שינוי יומי (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                 "שינוי מצטבר (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
+                "מספר ני\"ע": lambda v: f"{v:.0f}" if pd.notna(v) else "—",
             },
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
-            truncate_columns={"שם_וטיקר": 169, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58},
+            truncate_columns={"שם_וטיקר": 128, "מספר ני\"ע": 88, "שינוי יומי (%)": 58,
+                               "שינוי מצטבר (%)": 58, "שער": 58},
             max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
         ),
         unsafe_allow_html=True,
@@ -3234,21 +3226,21 @@ with _tab_slot_today.container():
                 })
                 if "שם" not in alerts_display.columns:
                     alerts_display["שם"] = ""
-                # (24.9.2026, "אני רוצה שזה יהיה לצד הטיקר... גם בהתראות") -
-                # מחושב לפני חיתוך ".TA" למטה, כי _tase_plain_text צריך את
-                # הטיקר המלא כמו שהוא ב-tase_symbols.csv.
-                alerts_display["_tase_suffix"] = alerts_display["טיקר"].apply(_tase_plain_text)
+                # מספר ני"ע - עמודה גלויה משלה, לא טקסט חבוי בטולטיפ (24.9.2026,
+                # "אני רוצה את מספר ני"ע... זה צריך להיות יפה ויזואלית... גם
+                # בהתראות"). מחושב לפני חיתוך ".TA" למטה, כי המיפוי לפי טיקר
+                # מלא כמו שהוא ב-tase_symbols.csv.
+                alerts_display["מספר ני\"ע"] = alerts_display["טיקר"].map(constituents.get_tase_security_id_map())
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
                 # "שם (טיקר)" - עמודת טיקר נפרדת בוטלה, אותו פורמט בדיוק כמו
                 # "שם_וטיקר" בטבלת "קרוב לסף" (_render_movers_style_table) -
                 # פינוי עמודה שלמה לרוחב לשאר העמודות הצפופות (9.9.2026,
                 # בקשה מפורשת, אושר שאותו פורמט כבר עובד בלי בעיה במקום אחר).
                 alerts_display["שם"] = alerts_display.apply(
-                    lambda r: (f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"])
-                    + r["_tase_suffix"],
+                    lambda r: f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"],
                     axis=1,
                 )
-                alerts_display = alerts_display[["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי",
+                alerts_display = alerts_display[["id", "שם", "מספר ני\"ע", "שינוי בזמן התראה", "שינוי נוכחי",
                                                   "תגובת יתר", "איכות פונדמנטלית",
                                                   "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
@@ -3338,9 +3330,10 @@ with _tab_slot_today.container():
                             """,
                             unsafe_allow_html=True,
                         )
-                        _col_weights = [2.4, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
+                        _col_weights = [2.2, 0.9, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
                         _col_defs = [
                             ("שם", None),
+                            ("מספר ני\"ע", lambda v: f"{v:.0f}" if pd.notna(v) else "—"),
                             ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
                             ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
                             ("תגובת יתר", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
