@@ -4231,11 +4231,42 @@ with _tab_slot_history.container():
 
             st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
+            # היסטוריית High/Low לכל טיקר עם עסקה סגורה, לבדוק אם המחיר חצה את
+            # הסטופ/היעד *בפועל* בזמן ההחזקה - לא רק איפה שיצאת ממנה. נמצא
+            # בפועל (23.9.2026, "היא בעצם פגעה בסטופ"): טאואר חצתה סטופ כמה
+            # פעמים (1/9, 14-16/9) אבל נמכרה ידנית ב-23/9 אחרי שהתאוששה, במחיר
+            # שבין הסטופ ליעד - "נמכרה ידנית" לבד לא סיפר את הסיפור המלא.
+            _hist_entry_dates = pd.to_datetime(hist_df["entry_at"], errors="coerce")
+            _hist_start = _hist_entry_dates.min()
+            if pd.notna(_hist_start):
+                _closed_trade_histories = backtest._fetch_batched_histories(
+                    sorted(hist_df["ticker"].unique()), _hist_start.date(), dt.date.today(),
+                )
+            else:
+                _closed_trade_histories = {}
+
+            def _crossed_stop_during_hold(r: dict) -> bool:
+                if r.get("forecast_stop") is None:
+                    return False
+                ticker_hist = _closed_trade_histories.get(r["ticker"])
+                if ticker_hist is None or ticker_hist.empty:
+                    return False
+                try:
+                    entry_ts = pd.Timestamp(r["entry_at"]).tz_localize(None)
+                    exit_ts = pd.Timestamp(r["exit_at"]).tz_localize(None)
+                except Exception:
+                    return False
+                idx = ticker_hist.index.tz_localize(None) if ticker_hist.index.tz is not None else ticker_hist.index
+                window = ticker_hist.set_axis(idx)[(idx >= entry_ts) & (idx <= exit_ts)]
+                return bool((window["Low"] <= r["forecast_stop"]).any())
+
             def _forecast_outcome(r: dict) -> str:
                 if r.get("forecast_target") is not None and r["exit_price"] >= r["forecast_target"]:
                     return "🎯 הגיע ליעד"
                 if r.get("forecast_stop") is not None and r["exit_price"] <= r["forecast_stop"]:
                     return "🛑 פגע בסטופ"
+                if _crossed_stop_during_hold(r):
+                    return "↩️ חזרה מסטופ לפני המכירה"
                 return "✋ נמכרה ידנית"
 
             def _fmt_price_date(price: float | None, date_str: str | None, is_il: bool) -> str:
