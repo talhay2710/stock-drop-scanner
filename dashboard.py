@@ -4236,11 +4236,20 @@ with _tab_slot_history.container():
             # בפועל (23.9.2026, "היא בעצם פגעה בסטופ"): טאואר חצתה סטופ כמה
             # פעמים (1/9, 14-16/9) אבל נמכרה ידנית ב-23/9 אחרי שהתאוששה, במחיר
             # שבין הסטופ ליעד - "נמכרה ידנית" לבד לא סיפר את הסיפור המלא.
+            # ttl=3600 (24.9.2026, בעקבות קריסת האתר הציבורי - OSError/RuntimeError
+            # "can't start new thread"): בלי קאשינג, שליפה מרובת-thread (yfinance
+            # threads=True) הייתה רצה מחדש בכל רינדור של הטאב, ומצטברת לדליפת
+            # threads בתהליך הענן ארוך-החיים עד שחסמה גם ThreadPoolExecutor אחר
+            # ותיק (get_current_prices_batch) לגמרי.
+            @st.cache_data(ttl=3600)
+            def _get_closed_trade_histories(tickers: tuple[str, ...], start: str, end: str) -> dict:
+                return backtest._fetch_batched_histories(list(tickers), dt.date.fromisoformat(start), dt.date.fromisoformat(end))
+
             _hist_entry_dates = pd.to_datetime(hist_df["entry_at"], errors="coerce")
             _hist_start = _hist_entry_dates.min()
             if pd.notna(_hist_start):
-                _closed_trade_histories = backtest._fetch_batched_histories(
-                    sorted(hist_df["ticker"].unique()), _hist_start.date(), dt.date.today(),
+                _closed_trade_histories = _get_closed_trade_histories(
+                    tuple(sorted(hist_df["ticker"].unique())), _hist_start.date().isoformat(), dt.date.today().isoformat(),
                 )
             else:
                 _closed_trade_histories = {}
