@@ -2760,25 +2760,34 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     )
     # עמודת מספר ני"ע משלה (24.9.2026, "אני רוצה את מספר ני"ע... זה צריך
     # להיות יפה ויזואלית") - לא טקסט חבוי בטולטיפ, עמודה גלויה תמיד כמו
-    # שאר הטבלה. ר' constituents.get_tase_security_id_map.
+    # שאר הטבלה. ר' constituents.get_tase_security_id_map. רק כשיש בכלל
+    # מניות ישראליות בטבלה - "מספר ני"ע" הוא מושג של הבורסה הישראלית בלבד,
+    # עמודה שלמה של "—" למניות אמריקאיות (24.9.2026, "למה למניות האמריקאיות
+    # את מספר נייר?") היא בלבול מיותר, לא רק חוסר-מידע.
     _tase_id_map2 = constituents.get_tase_security_id_map()
     sub_df["מספר ני\"ע"] = sub_df["טיקר"].map(_tase_id_map2)
+    _show_tase_id_col = sub_df["מספר ני\"ע"].notna().any()
     # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
     # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
     sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
+    _columns = [("שם_וטיקר", "מניה")]
+    if _show_tase_id_col:
+        _columns.append(("מספר ני\"ע", "מספר ני\"ע"))
+    _columns += [("שינוי יומי (%)", "שינוי יומי"), ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")]
+    _truncate = {"שם_וטיקר": 150, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58}
+    if _show_tase_id_col:
+        _truncate["מספר ני\"ע"] = 88
     st.markdown(
         _html_table(
             sub_df,
-            [("שם_וטיקר", "מניה"), ("מספר ני\"ע", "מספר ני\"ע"), ("שינוי יומי (%)", "שינוי יומי"),
-             ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")],
+            _columns,
             formatters={
                 "שינוי יומי (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                 "שינוי מצטבר (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                 "מספר ני\"ע": lambda v: f"{v:.0f}" if pd.notna(v) else "—",
             },
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
-            truncate_columns={"שם_וטיקר": 150, "מספר ני\"ע": 88, "שינוי יומי (%)": 58,
-                               "שינוי מצטבר (%)": 58, "שער": 58},
+            truncate_columns=_truncate,
             max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
         ),
         unsafe_allow_html=True,
@@ -3232,8 +3241,12 @@ with _tab_slot_today.container():
                 # מספר ני"ע - עמודה גלויה משלה, לא טקסט חבוי בטולטיפ (24.9.2026,
                 # "אני רוצה את מספר ני"ע... זה צריך להיות יפה ויזואלית... גם
                 # בהתראות"). מחושב לפני חיתוך ".TA" למטה, כי המיפוי לפי טיקר
-                # מלא כמו שהוא ב-tase_symbols.csv.
+                # מלא כמו שהוא ב-tase_symbols.csv. מושמט כליל ביום שכולו מניות
+                # אמריקאיות - "מספר ני"ע" הוא מושג ישראלי בלבד, עמודת "—" שלמה
+                # היא בלבול מיותר (24.9.2026, "למה למניות האמריקאיות את מספר
+                # נייר?" - אותה הערה בדיוק כמו בטבלת "מניות מובילות").
                 alerts_display["מספר ני\"ע"] = alerts_display["טיקר"].map(constituents.get_tase_security_id_map())
+                _show_tase_id_col2 = alerts_display["מספר ני\"ע"].notna().any()
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
                 # "שם (טיקר)" - עמודת טיקר נפרדת בוטלה, אותו פורמט בדיוק כמו
                 # "שם_וטיקר" בטבלת "קרוב לסף" (_render_movers_style_table) -
@@ -3243,9 +3256,12 @@ with _tab_slot_today.container():
                     lambda r: f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"],
                     axis=1,
                 )
-                alerts_display = alerts_display[["id", "שם", "מספר ני\"ע", "שינוי בזמן התראה", "שינוי נוכחי",
-                                                  "תגובת יתר", "איכות פונדמנטלית",
-                                                  "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]]
+                _base_display_cols = ["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי",
+                                       "תגובת יתר", "איכות פונדמנטלית",
+                                       "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
+                if _show_tase_id_col2:
+                    _base_display_cols.insert(2, "מספר ני\"ע")
+                alerts_display = alerts_display[_base_display_cols]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
                 _rebound_header_label = (
                     f'סיווג ריבאונד {_help_icon_span(f"משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית")}'
@@ -3333,10 +3349,8 @@ with _tab_slot_today.container():
                             """,
                             unsafe_allow_html=True,
                         )
-                        _col_weights = [2.2, 0.9, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
                         _col_defs = [
                             ("שם", None),
-                            ("מספר ני\"ע", lambda v: f"{v:.0f}" if pd.notna(v) else "—"),
                             ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
                             ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
                             ("תגובת יתר", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
@@ -3344,6 +3358,10 @@ with _tab_slot_today.container():
                             ("סיווג ריבאונד", _rebound_cell_text),
                             ("לימיט כניסה", None), ("יעד מכירה", None), ("סטופ-לוס", None),
                         ]
+                        _col_weights = [2.2, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
+                        if _show_tase_id_col2:
+                            _col_defs.insert(1, ("מספר ני\"ע", lambda v: f"{v:.0f}" if pd.notna(v) else "—"))
+                            _col_weights.insert(1, 0.9)
                         _color_cols = {"שינוי בזמן התראה", "שינוי נוכחי"}
                         _header_cols = st.columns(_col_weights)
                         for _hc, (_col_name, _) in zip(_header_cols, _col_defs):
