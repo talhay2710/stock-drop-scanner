@@ -4062,7 +4062,11 @@ with _tab_slot_portfolio.container():
                                 _prev_close_date = dt.date.fromisoformat(str(_own[0]))
                         if _baseline:
                             daily_pct = (current - _baseline) / _baseline * 100
-                            daily_pct_date = _dr.get("last_close_date")
+                            # 24.9.2026 ("הנתון לא נכון", קווליטאו): כשהבסיס הוא מחיר
+                            # הכניסה (נקנתה אחרי prev_close), השינוי הוא מחיר חי מול
+                            # כניסה - לא קשור לשום "תאריך סגירה". תיוג last_close_date
+                            # כאן היה מטעה (מראה "(22/09)" ליד % שמחושב ממש עכשיו).
+                            daily_pct_date = _dr.get("last_close_date") if not _using_entry_baseline else None
                             if qty:
                                 daily_change_amt = (current - _baseline) * qty
                                 daily_baseline_value = _baseline * qty
