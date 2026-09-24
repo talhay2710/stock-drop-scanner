@@ -173,6 +173,24 @@ def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
     return f"‎{value:+,.{decimals}f}{suffix}"
 
 
+def _tase_badge_html(row: dict) -> str:
+    """תג קטן 'בבנק: X (מס' Y)' ליד טיקר - הסימול/מספר ני"ע האמיתיים בבורסה
+    לא תמיד תואמים למה שהדשבורד/Yahoo מציגים (24.9.2026, "פער בשמות המניות
+    בינך לבין אתר הבנק"). row צריך "tase_symbol" ואופציונלית "tase_id" -
+    ר' constituents.get_tase_symbol_map/get_tase_security_id_map. משותף בין
+    כרטיס אחזקה לכרטיס פרטי התראה, כדי שלא יתבדרו זה מזה."""
+    symbol = row.get("tase_symbol")
+    if not symbol:
+        return ""
+    tase_id = row.get("tase_id")
+    id_text = f" (מס' {tase_id})" if pd.notna(tase_id) else ""
+    return (
+        f'<span style="font-size:0.72rem; opacity:0.55; font-weight:500; flex-shrink:0; '
+        f'border:1px solid currentColor; border-radius:4px; padding:0 4px;" '
+        f'title="הסימול/מספר ני\'\'ע כפי שמוצגים באתר הבנק/הבורסה">בבנק: {symbol}{id_text}</span>'
+    )
+
+
 def _price_text(value, index_name) -> str:
     """שער (לא סכום כסף כולל) לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני),
     בדיוק כמו שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py, וכרטיס
@@ -2706,13 +2724,13 @@ def _build_alert_detail_html(r) -> str:
     )
 
     # 24.9.2026 ("פער בשמות המניות בינך לבין אתר הבנק"): הטיקר/שם כאן לא
-    # תמיד תואם למה שמוצג באתר הבנק/הבורסה - ר' constituents.get_tase_symbol_map.
-    _tase_symbol = constituents.get_tase_symbol_map().get(r["ticker"])
-    _tase_symbol_html = (
-        f' <span style="font-size:0.72rem; opacity:0.55; font-weight:500; border:1px solid currentColor; '
-        f'border-radius:4px; padding:0 4px;" title="הסימול כפי שמוצג באתר הבנק/הבורסה">בבנק: {_tase_symbol}</span>'
-        if _tase_symbol else ""
-    )
+    # תמיד תואם למה שמוצג באתר הבנק/הבורסה - ר' _tase_badge_html.
+    _tase_symbol_html = _tase_badge_html({
+        "tase_symbol": constituents.get_tase_symbol_map().get(r["ticker"]),
+        "tase_id": constituents.get_tase_security_id_map().get(r["ticker"]),
+    })
+    if _tase_symbol_html:
+        _tase_symbol_html = " " + _tase_symbol_html
     return (
         f'<div style="text-align:right; direction:rtl; padding:14px 18px;">'
         f'<div style="display:flex; direction:rtl; justify-content:space-between; align-items:center;">'
@@ -3877,7 +3895,7 @@ with _tab_slot_portfolio.container():
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
-                        {f'<span style="font-size:0.72rem; opacity:0.55; font-weight:500; flex-shrink:0; border:1px solid currentColor; border-radius:4px; padding:0 4px;" title="הסימול כפי שמוצג באתר הבנק/הבורסה">בבנק: {row["tase_symbol"]}</span>' if row.get('tase_symbol') else ''}
+                        {_tase_badge_html(row)}
                         {'<span style="font-size:0.68rem; font-weight:600; opacity:0.6; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
                       </div>
                       {daily_badge_html}
@@ -4013,8 +4031,10 @@ with _tab_slot_portfolio.container():
                     _daily_data_map[_dr["ticker"]] = _dr
                 # 24.9.2026 ("פער בשמות המניות בינך לבין אתר הבנק"): הסימול
                 # שמוצג כאן (טיקר Yahoo) לא תמיד תואם למה שמוצג בבנק/בבורסה -
-                # ר' constituents.get_tase_symbol_map.
+                # ר' constituents.get_tase_symbol_map. מספר ני"ע - חיפוש חלופי
+                # שלא תלוי באיות הסימול (24.9.2026, "אולי לפי מספר? זה עבד קודם").
                 _tase_symbol_map = constituents.get_tase_symbol_map()
+                _tase_id_map = constituents.get_tase_security_id_map()
                 _price_map3 = get_current_prices_batch(tuple(sorted(set(holdings["ticker"]))))
                 _own_close_conn3 = store.get_conn(db_path(cfg))
                 _today_iso3 = israel_today().isoformat()
@@ -4111,6 +4131,7 @@ with _tab_slot_portfolio.container():
                     rows.append({
                         "id": int(r["id"]), "name": r.get("company_name") or r["ticker"], "ticker": r["ticker"],
                         "tase_symbol": _tase_symbol_map.get(r["ticker"]),
+                        "tase_id": _tase_id_map.get(r["ticker"]),
                         "entry": entry, "qty": qty, "current": current, "pnl": pnl, "pnl_pct": pnl_pct, "ccy": ccy,
                         "country_code": country_code, "index_name": r.get("index_name"), "bought_at": r.get("bought_at"),
                         "invested": (entry or 0) * (qty or 0),
