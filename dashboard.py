@@ -183,12 +183,24 @@ def _tase_badge_html(row: dict) -> str:
     if not symbol:
         return ""
     tase_id = row.get("tase_id")
-    id_text = f" (מס' {tase_id})" if pd.notna(tase_id) else ""
+    id_text = f' · מספר ני"ע: {tase_id}' if pd.notna(tase_id) else ""
     return (
         f'<span style="font-size:0.72rem; opacity:0.55; font-weight:500; flex-shrink:0; '
         f'border:1px solid currentColor; border-radius:4px; padding:0 4px;" '
         f'title="הסימול/מספר ני\'\'ע כפי שמוצגים באתר הבנק/הבורסה">בבנק: {symbol}{id_text}</span>'
     )
+
+
+def _tase_plain_text(ticker: str) -> str:
+    """כמו _tase_badge_html אבל טקסט רגיל בלי HTML - לתאי טבלה (_html_table)
+    שחותכים לפי רוחב ומציגים title="..." בהובר, מנגנון שלא עובד על טקסט עם
+    תגיות HTML (ר' _html_table, ההערה על "<" בטקסט)."""
+    symbol = constituents.get_tase_symbol_map().get(ticker)
+    if not symbol:
+        return ""
+    tase_id = constituents.get_tase_security_id_map().get(ticker)
+    id_text = f' · מספר ני"ע: {tase_id}' if pd.notna(tase_id) else ""
+    return f' · בבנק: {symbol}{id_text}'
 
 
 def _price_text(value, index_name) -> str:
@@ -2753,7 +2765,9 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     מציגים בדיוק אותה צורת נתונים (פלט של get_all_changes)."""
     sub_df = sub_df.copy()
     sub_df["שם_וטיקר"] = sub_df.apply(
-        lambda r: f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"], axis=1
+        lambda r: (f"{r['company_name']} ({r['טיקר']})" if r["company_name"] else r["טיקר"])
+        + _tase_plain_text(r["טיקר"]),
+        axis=1,
     )
     # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
     # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
@@ -3219,13 +3233,18 @@ with _tab_slot_today.container():
                 })
                 if "שם" not in alerts_display.columns:
                     alerts_display["שם"] = ""
+                # (24.9.2026, "אני רוצה שזה יהיה לצד הטיקר... גם בהתראות") -
+                # מחושב לפני חיתוך ".TA" למטה, כי _tase_plain_text צריך את
+                # הטיקר המלא כמו שהוא ב-tase_symbols.csv.
+                alerts_display["_tase_suffix"] = alerts_display["טיקר"].apply(_tase_plain_text)
                 alerts_display["טיקר"] = alerts_display["טיקר"].str.replace(".TA", "", regex=False)
                 # "שם (טיקר)" - עמודת טיקר נפרדת בוטלה, אותו פורמט בדיוק כמו
                 # "שם_וטיקר" בטבלת "קרוב לסף" (_render_movers_style_table) -
                 # פינוי עמודה שלמה לרוחב לשאר העמודות הצפופות (9.9.2026,
                 # בקשה מפורשת, אושר שאותו פורמט כבר עובד בלי בעיה במקום אחר).
                 alerts_display["שם"] = alerts_display.apply(
-                    lambda r: f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"],
+                    lambda r: (f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"])
+                    + r["_tase_suffix"],
                     axis=1,
                 )
                 alerts_display = alerts_display[["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי",
