@@ -3908,7 +3908,6 @@ with _tab_slot_portfolio.container():
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
-                        {_tase_badge_html(row)}
                         {'<span style="font-size:0.68rem; font-weight:600; opacity:0.6; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
                       </div>
                       {daily_badge_html}
@@ -4042,12 +4041,6 @@ with _tab_slot_portfolio.container():
                 _daily_df2 = market_data.fetch_universe_daily_changes(holdings["ticker"].tolist())
                 for _, _dr in _daily_df2.iterrows():
                     _daily_data_map[_dr["ticker"]] = _dr
-                # 24.9.2026 ("פער בשמות המניות בינך לבין אתר הבנק"): הסימול
-                # שמוצג כאן (טיקר Yahoo) לא תמיד תואם למה שמוצג בבנק/בבורסה -
-                # ר' constituents.get_tase_symbol_map. מספר ני"ע - חיפוש חלופי
-                # שלא תלוי באיות הסימול (24.9.2026, "אולי לפי מספר? זה עבד קודם").
-                _tase_symbol_map = constituents.get_tase_symbol_map()
-                _tase_id_map = constituents.get_tase_security_id_map()
                 _price_map3 = get_current_prices_batch(tuple(sorted(set(holdings["ticker"]))))
                 _own_close_conn3 = store.get_conn(db_path(cfg))
                 _today_iso3 = israel_today().isoformat()
@@ -4143,8 +4136,6 @@ with _tab_slot_portfolio.container():
 
                     rows.append({
                         "id": int(r["id"]), "name": r.get("company_name") or r["ticker"], "ticker": r["ticker"],
-                        "tase_symbol": _tase_symbol_map.get(r["ticker"]),
-                        "tase_id": _tase_id_map.get(r["ticker"]),
                         "entry": entry, "qty": qty, "current": current, "pnl": pnl, "pnl_pct": pnl_pct, "ccy": ccy,
                         "country_code": country_code, "index_name": r.get("index_name"), "bought_at": r.get("bought_at"),
                         "invested": (entry or 0) * (qty or 0),
