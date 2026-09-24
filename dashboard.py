@@ -837,7 +837,13 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
             unsafe_allow_html=True,
         )
 
-        if val is None:
+        # 24.9.2026 ("חלון 'אין נתונים'"): fetch_index_proxy_change (רק % בודד)
+        # יכול להיכשל בזמן שה-sparkline (get_index_sparkline/_last_completed)
+        # עדיין מצליח - יש להם נסיונות-חוזרים ומטמון משלהם. אז גם כש-val הוא
+        # None, מנסים קודם את אותו רינדור עשיר של "יום המסחר האחרון" שמוצג
+        # כרגיל כשהשוק סגור (למשל שבת) - "אין נתונים" רק אם גם זה ריק לגמרי.
+        _prices0, _as_of0 = get_index_intraday_sparkline(index_key, trading_open)
+        if val is None and not _prices0:
             st.markdown(
                 f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label}</div>',
                 unsafe_allow_html=True,
