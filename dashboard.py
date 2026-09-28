@@ -1163,7 +1163,13 @@ def render_market_card(label: str, country: str) -> None:
         </body>
         </html>
         """,
-        height=175,
+        # 28.9.2026, "החלק התחתון... נחתך במובייל": components.html רץ בתוך iframe
+        # בגובה קבוע ב-Python (לא responsive לתוכן שלו) - כשיש close_overrides
+        # (שוק ישראל, יום שישי מקוצר) שורת השעות מכילה שני פריטים; ברוחב מובייל
+        # הם נשברים לשתי שורות (flex-wrap) במקום זו-לצד-זו כמו בדסקטופ - גובה
+        # קבוע אחד (175) שקבע מראש לפי שורת שעות *אחת* חותך את השורה השנייה.
+        # ארה"ב (בלי override) לא מושפע - נשאר באותו גובה כמו קודם.
+        height=195 if overrides else 175,
     )
 
 
@@ -2998,15 +3004,39 @@ with _tab_slot_movers.container():
                             "תשואה (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
                             "ימי מסחר": _wl_days_held,
                         })
+                    # מובייל (28.9.2026, "בדגש על הויזואל"): אותה בעיה בדיוק שהייתה
+                    # בטבלת ההתראות - 6 עמודות ב-st.columns נערמות זו מתחת לזו במסך
+                    # צר, בלי שום קשר ויזואלי בין ערך לכותרת שלו. nowrap+overflow-x:auto
+                    # (הגרסה הראשונה שעבדה לטבלת ההתראות, לפני שדרוג ל"כרטיסים") -
+                    # מספיק כאן כי יש רק 6 עמודות קצרות, לא 9-10 כמו שם.
+                    st.markdown(
+                        """
+                        <style>
+                        @media (max-width: 480px) {
+                            div[class*="st-key-watchlist_header_row"] [data-testid="stHorizontalBlock"],
+                            div[class*="st-key-watchlist_row_"] [data-testid="stHorizontalBlock"] {
+                                flex-wrap: nowrap !important; overflow-x: auto !important;
+                            }
+                            div[class*="st-key-watchlist_header_row"] [data-testid="stColumn"],
+                            div[class*="st-key-watchlist_row_"] [data-testid="stColumn"] {
+                                min-width: 70px !important; flex-shrink: 0 !important;
+                            }
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                     _wl_col_ratios = [3, 1.3, 1.3, 1.3, 1.1, 0.6]
-                    _wl_header_cols = st.columns(_wl_col_ratios)
-                    for _wl_h_col, _wl_h_text in zip(
-                        _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", "ימי מסחר", ""],
-                    ):
-                        with _wl_h_col:
-                            st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
+                    with st.container(key="watchlist_header_row"):
+                        _wl_header_cols = st.columns(_wl_col_ratios)
+                        for _wl_h_col, _wl_h_text in zip(
+                            _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", "ימי מסחר", ""],
+                        ):
+                            with _wl_h_col:
+                                st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
 
                     for _wl_row in _wl_rows:
+                      with st.container(key=f"watchlist_row_{_wl_row['id']}"):
                         _wl_name_col, _wl_entry_col, _wl_daily_col, _wl_yield_col, _wl_days_col, _wl_del_col = (
                             st.columns(_wl_col_ratios)
                         )
