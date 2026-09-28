@@ -3382,6 +3382,15 @@ with _tab_slot_today.container():
                                 div[class*="st-key-alert_row_"] [data-testid="stColumn"] {
                                     min-width: 88px !important; flex-shrink: 0 !important;
                                 }
+                                /* 28.9.2026 (המשך פוליש): גם עם nowrap+scroll, שורה עם עד 10
+                                עמודות דורשת גלילה ארוכה לכל שורה בנפרד - מציק. שלוש העמודות
+                                האחרונות (לימיט כניסה/יעד מכירה/סטופ-לוס) כבר מופיעות בכרטיס
+                                הפרטים המלא בלחיצה על השורה (ר' _build_alert_detail_html) -
+                                מוסתרות מהשורה המכווצת במובייל בלבד, לא אובד מידע. */
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-last-child(-n+3),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-last-child(-n+3) {
+                                    display: none !important;
+                                }
                             }
                             </style>
                             """,
