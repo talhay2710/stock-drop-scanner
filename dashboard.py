@@ -1953,10 +1953,17 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:8px;">'
         f'{holdings_count} אחזקות</div>'
     )
+    # מובייל (28.9.2026, "פוליש מובייל"): status_side ו-sector_side כל אחד עם
+    # min-width:170px משלו (מכוון לדסקטופ, ר' ההערות למעלה) - יחד עם ה-gap
+    # זה 356px מינימום, יותר מרוחב כרטיס במובייל (~315px אחרי padding), אז
+    # sector_side (העוגה) נדחק וגולש שמאלה מחוץ לכרטיס. נערמים אנכית מתחת
+    # ל-480px במקום זה - בלי לגעת בגדלים/יישורים המכווננים לדסקטופ עצמם.
     return (
+        f'<style>@media (max-width:480px) {{ .portfolio-status-row {{ flex-direction:column !important; }} '
+        f'.portfolio-status-row > div {{ min-width:0 !important; width:100% !important; }} }}</style>'
         f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
         f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
+        f'<div class="portfolio-status-row" style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
         f'{count_label}</div>'
     )
 
