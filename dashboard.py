@@ -82,7 +82,7 @@ from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_p
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
-st.set_page_config(page_title="סורק מניות", layout="wide")
+st.set_page_config(page_title="ריבאונד רדאר", layout="wide")
 
 components.html(
     """
@@ -617,18 +617,24 @@ st.markdown(
 )
 
 with st.container(key="main_title_wrap"):
+    # מיתוג מחדש (28.9.2026, "משהו חדשני וקליט" -> "ריבאונד רדאר", "תעשה לי
+    # אותו ממותג יותר") - HTML מותאם במקום st.title הגנרי, כדי לשלוט בגודל/
+    # ריווח-אותיות/צבע כמו לוגו אמיתי, לא כותרת h1 רגילה. תת-כותרת קטנה
+    # ומעומעמת שומרת על ההסבר התפקודי ("סורק ירידות...") בלי לתחרות עם השם.
     st.markdown(
-        # תפוס יותר ייחודי מ-"h1" הגלובלי (שקובע text-align:right !important
-        # לכל האתר, ר' כלל ה-RTL הראשי) - container עם מפתח, כמו בכל מקום
-        # אחר בקובץ הזה, כדי לנצח אותו רק כאן בלי לגעת בשאר הכותרות.
-        """
-        <style>
-        div[class*="st-key-main_title_wrap"] h1 { text-align: center !important; }
-        </style>
+        f"""
+        <div style="text-align:center; padding:6px 0 2px;">
+          <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.01em; color:{ACCENT_COLOR};
+                      line-height:1.25;">
+            🎯 ריבאונד רדאר
+          </div>
+          <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px;">
+            סורק ירידות חדות ואיתותי ריבאונד
+          </div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
-    st.title("📉 סורק מניות - התראות ואסטרטגיית ריבאונד 📈")
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
 _TAB_DEFS = [
