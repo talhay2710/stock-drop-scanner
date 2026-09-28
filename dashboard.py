@@ -441,6 +441,16 @@ st.markdown(
         padding: 8px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
+    /* 28.9.2026, "עדיין לא ממורכז (גובה)": הקונטיינר עצמו (st-key-nav_tabs_row)
+    הוא stVerticalBlock עם שני ילדים - ה-<style> שמוזרק כאן (element בגובה 0,
+    בלתי נראה) ואז שורת הכפתורים. הפער האוטומטי של Streamlit בין אלמנטים
+    (gap:16px, נמדד בפועל) נכנס *בין* שני הילדים - כלומר מעל שורת הכפתורים
+    בלבד, לא מתחתיה - שדוחף אותה ויזואלית למטה בתוך תיבת ה-padding (8px למעלה
+    הופך בפועל ל-24px, 8px למטה נשאר 8px). gap:0 מבטל את הפער הזה מהשורש. */
+    div[class*="st-key-nav_tabs_row"] > [data-testid="stVerticalBlock"],
+    div[class*="st-key-nav_tabs_row"][data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
     div[class*="st-key-navtab_"] button {
         /* 28.9.2026: היה 1.25rem/16px 22px מאז ה-commit הראשון - הפס עצמו
         תמיד היה "מרווח" מבחינת גובה, ה-nowrap (למטה) רק תיקן חוסר-אחידות
