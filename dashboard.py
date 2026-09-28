@@ -620,6 +620,29 @@ if "active_tab" not in st.session_state:
     st.session_state.active_tab = None
 
 with st.container(key="nav_tabs_row"):
+    # מובייל (28.9.2026, "פוליש מובייל"): 5 הכפתורים ב-st.columns נערמים זה
+    # מתחת לזה במסך צר (אין ל-Streamlit breakpoint רספונסיבי לזה) - שורת
+    # ניווט אחת הופכת לחמש שורות ענקיות שתופסות את רוב המסך לפני שמגיעים
+    # לתוכן. nowrap+overflow-x:auto - נשארים שורה אחת אופקית וגוללים.
+    st.markdown(
+        """
+        <style>
+        @media (max-width: 480px) {
+            div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important; overflow-x: auto !important;
+            }
+            div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"] {
+                width: fit-content !important; min-width: fit-content !important; flex: 0 0 auto !important;
+            }
+            div[class*="st-key-nav_tabs_row"] button {
+                white-space: nowrap !important; padding-left: 10px !important; padding-right: 10px !important;
+                font-size: 0.82rem !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
     for _nav_col, (_nav_key, _nav_label) in zip(_nav_cols, _TAB_DEFS):
         with _nav_col:
@@ -3345,6 +3368,21 @@ with _tab_slot_today.container():
                             div[class*="st-key-alert_row_"] div[data-testid="stButton"] button {
                                 min-height: 0 !important; height: auto !important; line-height: 1.4 !important;
                             }
+                            /* מובייל (28.9.2026, "פוליש מובייל"): 9 העמודות ב-st.columns נערמות
+                            זו מתחת לזו במסך צר (Streamlit אין לו responsive breakpoint למקרה
+                            הזה) - כותרות נערמות למעלה ואז כל שורה נערמת בנפרד, בלי שום קשר
+                            ויזואלי בין ערך לכותרת שלו. nowrap+overflow-x:auto במקום זאת -
+                            השורה נשארת שורה אחת (מיושרת מול הכותרת) וגוללים אופקית. */
+                            @media (max-width: 480px) {
+                                div[class*="st-key-alert_header_row"] [data-testid="stHorizontalBlock"],
+                                div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] {
+                                    flex-wrap: nowrap !important; overflow-x: auto !important;
+                                }
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"],
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"] {
+                                    min-width: 88px !important; flex-shrink: 0 !important;
+                                }
+                            }
                             </style>
                             """,
                             unsafe_allow_html=True,
@@ -3363,19 +3401,20 @@ with _tab_slot_today.container():
                             _col_defs.insert(1, ("מספר ני\"ע", lambda v: f"{v:.0f}" if pd.notna(v) else "—"))
                             _col_weights.insert(1, 0.9)
                         _color_cols = {"שינוי בזמן התראה", "שינוי נוכחי"}
-                        _header_cols = st.columns(_col_weights)
-                        for _hc, (_col_name, _) in zip(_header_cols, _col_defs):
-                            if _col_name == "סיווג ריבאונד":
-                                _label = _rebound_header_label
-                            elif _col_name == "שם":
-                                _label = "מניה"
-                            else:
-                                _label = _col_name
-                            _hc.markdown(
-                                f'<div style="font-weight:600; font-size:0.85rem; border-bottom:1px solid '
-                                f'rgba(128,128,128,0.3); padding-bottom:4px;">{_label}</div>',
-                                unsafe_allow_html=True,
-                            )
+                        with st.container(key="alert_header_row"):
+                            _header_cols = st.columns(_col_weights)
+                            for _hc, (_col_name, _) in zip(_header_cols, _col_defs):
+                                if _col_name == "סיווג ריבאונד":
+                                    _label = _rebound_header_label
+                                elif _col_name == "שם":
+                                    _label = "מניה"
+                                else:
+                                    _label = _col_name
+                                _hc.markdown(
+                                    f'<div style="font-weight:600; font-size:0.85rem; border-bottom:1px solid '
+                                    f'rgba(128,128,128,0.3); padding-bottom:4px;">{_label}</div>',
+                                    unsafe_allow_html=True,
+                                )
                         for _, _row in alerts_display.iterrows():
                             _rid = int(_row["id"])
                             _is_selected = st.session_state["open_alert_id"] == _rid
@@ -4412,10 +4451,14 @@ with _tab_slot_history.container():
                 body_rows.append(f"<tr>{row_html}</tr>")
 
             table_html = (
-                f'<table style="width:100%; border-collapse:collapse; direction:rtl; font-size:0.9rem;">'
+                f'<table style="width:100%; border-collapse:collapse; direction:rtl; font-size:0.9rem; '
+                f'white-space:nowrap;">'
                 f'<thead><tr>{header_cells}</tr></thead><tbody>{"".join(body_rows)}</tbody></table>'
             )
-            st.markdown(table_html, unsafe_allow_html=True)
+            # overflow-x:auto (28.9.2026, "פוליש מובייל") - לטבלה הזו, בשונה מ-_html_table,
+            # היה חסר wrapper גלילה אופקית; 9 עמודות במסך צר נדחסות/נשברות באופן מכוער
+            # בלי זה. אותו תיקון בדיוק כמו ב-_html_table (ר' ההערה שם).
+            st.markdown(f'<div style="overflow-x:auto;">{table_html}</div>', unsafe_allow_html=True)
 
 
 with st.container(border=True, key="market_panel"):
