@@ -3341,8 +3341,7 @@ with _tab_slot_today.container():
                         # האפליקציה (כל הטאבים, כל כרטיסי המדדים) על כל קליק על
                         # שורה, לא רק את הפרגמנט הזה (9.9.2026, נמצא בקוד בפועל -
                         # זו הסיבה האמיתית לכך שהגרסה הקודמת של זה הרגישה איטית).
-                        st.markdown(
-                            """
+                        st.markdown("""
                             <style>
                             div[class*="st-key-alert_row_"] button {
                                 background: transparent !important; border: none !important;
@@ -3397,30 +3396,75 @@ with _tab_slot_today.container():
                             div[class*="st-key-alert_row_"] div[data-testid="stButton"] button {
                                 min-height: 0 !important; height: auto !important; line-height: 1.4 !important;
                             }
-                            /* מובייל (28.9.2026, "פוליש מובייל"): 9 העמודות ב-st.columns נערמות
-                            זו מתחת לזו במסך צר (Streamlit אין לו responsive breakpoint למקרה
-                            הזה) - כותרות נערמות למעלה ואז כל שורה נערמת בנפרד, בלי שום קשר
-                            ויזואלי בין ערך לכותרת שלו. nowrap+overflow-x:auto במקום זאת -
-                            השורה נשארת שורה אחת (מיושרת מול הכותרת) וגוללים אופקית. */
-                            @media (max-width: 480px) {
+                            </style>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                        # מובייל (28.9.2026, "פוליש מובייל" -> "כרטיסים"): הגרסה הראשונה
+                        # (nowrap+overflow-x:auto) פתרה את חוסר-הקריאות אבל השאירה גלילה
+                        # אופקית ארוכה לכל שורה בנפרד - "עדיין דורש גלילה". גרסה זו במקום
+                        # זאת עושה flex-wrap אמיתי לכל שורה, עם order+flex-basis לפי עמודה
+                        # (מחושב כאן ב-Python, כי המיקום של כל שדה תלוי אם עמודת "מספר
+                        # ני''ע" קיימת - ר' _show_tase_id_col2) - כך שכל שורת התראה נראית
+                        # ככרטיס: שם+שינוי נוכחי בשורה עליונה, שלושת ציוני האיכות בשורה
+                        # אמצעית, סיווג הריבאונד לבד בשורה תחתונה. הכותרת (alert_header_row)
+                        # מקבלת את אותו טיפול - משמשת כמקרא חד-פעמי במקום תוויות בכל כרטיס.
+                        _offset = 1 if _show_tase_id_col2 else 0
+                        _p_change_at, _p_change_now = 2 + _offset, 3 + _offset
+                        _p_overreact, _p_quality, _p_rebound = 4 + _offset, 5 + _offset, 6 + _offset
+                        _tase_hide_css = (
+                            'div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child(2),\n'
+                            'div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child(2) '
+                            '{ display:none !important; }\n'
+                        ) if _show_tase_id_col2 else ""
+                        # קריאת st.markdown נפרדת (לא concatenation לבלוק הקודם) - Streamlit
+                        # מטפל בכל בלוק <style>...</style> כ-HTML block נפרד; חיבור מחרוזות
+                        # ל-st.markdown אחד הופך בפועל לבלוק קוד מודגש (markdown code-block,
+                        # ר' CommonMark) במקום CSS חי - נמצא בפועל (28.9.2026, ה-CSS הופיע
+                        # כטקסט גולמי על המסך במקום להיות מיושם).
+                        st.markdown(f"""
+                            <style>
+                            @media (max-width: 480px) {{
                                 div[class*="st-key-alert_header_row"] [data-testid="stHorizontalBlock"],
-                                div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] {
-                                    flex-wrap: nowrap !important; overflow-x: auto !important;
-                                }
+                                div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] {{
+                                    flex-wrap: wrap !important; row-gap: 3px !important;
+                                }}
                                 div[class*="st-key-alert_header_row"] [data-testid="stColumn"],
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"] {
-                                    min-width: 88px !important; flex-shrink: 0 !important;
-                                }
-                                /* 28.9.2026 (המשך פוליש): גם עם nowrap+scroll, שורה עם עד 10
-                                עמודות דורשת גלילה ארוכה לכל שורה בנפרד - מציק. שלוש העמודות
-                                האחרונות (לימיט כניסה/יעד מכירה/סטופ-לוס) כבר מופיעות בכרטיס
-                                הפרטים המלא בלחיצה על השורה (ר' _build_alert_detail_html) -
-                                מוסתרות מהשורה המכווצת במובייל בלבד, לא אובד מידע. */
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"] {{
+                                    min-width: 0 !important;
+                                }}
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child(1),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child(1) {{
+                                    order: 1 !important; flex: 1 1 60% !important;
+                                }}
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_now}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_now}) {{
+                                    order: 2 !important; flex: 1 1 38% !important;
+                                }}
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_at}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_at}) {{
+                                    order: 3 !important; flex: 1 1 33% !important;
+                                }}
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_overreact}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_overreact}) {{
+                                    order: 4 !important; flex: 1 1 33% !important;
+                                }}
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_quality}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_quality}) {{
+                                    order: 5 !important; flex: 1 1 34% !important;
+                                }}
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_rebound}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_rebound}) {{
+                                    order: 6 !important; flex: 1 1 100% !important;
+                                }}
+                                {_tase_hide_css}
+                                /* לימיט כניסה/יעד מכירה/סטופ-לוס - כבר בכרטיס הפרטים המלא
+                                בלחיצה על השורה (ר' _build_alert_detail_html), לא אובד מידע. */
                                 div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-last-child(-n+3),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-last-child(-n+3) {
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-last-child(-n+3) {{
                                     display: none !important;
-                                }
-                            }
+                                }}
+                            }}
                             </style>
                             """,
                             unsafe_allow_html=True,
