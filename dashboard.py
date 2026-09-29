@@ -4114,25 +4114,43 @@ with _tab_slot_portfolio.container():
 
                 with st.container(border=True):
                     st.markdown(card_html, unsafe_allow_html=True)
-                    # אפור נייטרלי (לא ירוק/אדום לפי רווח/הפסד) - הכרטיס כבר עמוס
-                    # באדום/ירוק (פילס, בר, מספרים), כפתור בצבע נוסף "מתחרה" איתם
-                    # במקום להיראות כמו פעולה משנית רגילה (9.9.2026, "לא נראה הכי טוב").
-                    _sell_r, _sell_g, _sell_b = (int(NEUTRAL_COLOR.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+                    # אפור נייטרלי כברירת מחדל (לא ירוק/אדום לפי רווח/הפסד גולמי) -
+                    # הכרטיס כבר עמוס באדום/ירוק (פילס, בר, מספרים) לפי רווח/הפסד,
+                    # כפתור בצבע נוסף לפי אותו היגיון "מתחרה" איתם במקום להיראות
+                    # כמו פעולה משנית רגילה (9.9.2026, "לא נראה הכי טוב"). אבל
+                    # קרבה/חציה בפועל של יעד/סטופ (לא רווח/הפסד גולמי) היא איתות
+                    # פעולה אמיתי, לא רק מצב - אז הכפתור כן צובע לפיה (29.9.2026,
+                    # רעיון המשתמש), באותם המשתנים בדיוק שכבר קובעים את התג
+                    # שמעל הבר (warning_html, למעלה) כדי ששניהם תמיד יסכימו.
+                    _sell_color = NEUTRAL_COLOR
+                    if current is not None:
+                        if current <= stop_price or stop_is_warning:
+                            _sell_color = NEG_COLOR
+                        elif current >= target_price or target_is_warning:
+                            _sell_color = POS_COLOR
+                    _sell_r, _sell_g, _sell_b = (int(_sell_color.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
                     # הסלקטור חייב לכלול את row['id'] - בלי זה, "st-key-sell_holding_"
                     # (סוביסטרינג) תפס את הכפתורים של *כל* האחזקות, לא רק של השורה
                     # הזו, ומאחר ש-<style> תגי מוזרקים גלובליים לעמוד, ה-CSS של
                     # האחזקה האחרונה בלולאה "ניצח" וצבע את כל הכפתורים באותו צבע.
+                    # 29.9.2026, "אולי לצבוע אותו בהגעה ליעד/לסטופ?" + "לשנות אותו
+                    # עיצובית... כרגע זה לא נראה טוב" - שני שינויים ביחד: הצבע לפי
+                    # קרבה/חציה בפועל (למעלה), והעיצוב עצמו מקופסה עם מסגרת מלאה
+                    # (שהתחרתה ויזואלית עם שאר הכרטיס הצבעוני) לקישור-טקסט עדין -
+                    # בלי רקע/מסגרת קבועים, רק טקסט צבוע עם קו תחתון מנוקד, אותה
+                    # מוסכמה בדיוק כמו כפתור שם המניה בטבלת ההתראות (ר' alert_row_).
                     st.markdown(
                         f"""
                         <style>
                         div[class*="st-key-sell_holding_{row['id']}"] button {{
-                            background-color: transparent; color: {NEUTRAL_COLOR};
-                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.3); border-radius: 8px;
-                            font-weight: 500;
+                            background-color: transparent !important; border: none !important;
+                            box-shadow: none !important; color: {_sell_color} !important;
+                            text-decoration: underline dotted; text-underline-offset: 3px;
+                            font-weight: 500; font-size: 0.85rem; white-space: nowrap !important;
                         }}
                         div[class*="st-key-sell_holding_{row['id']}"] button:hover {{
-                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08); color: {NEUTRAL_COLOR};
-                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.45);
+                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08) !important;
+                            color: {_sell_color} !important;
                         }}
                         </style>
                         """,
