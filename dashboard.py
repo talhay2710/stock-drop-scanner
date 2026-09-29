@@ -389,6 +389,24 @@ st.markdown(
         width: 300px;
         overflow: hidden;
     }
+    /* תיקון באג נוסף (29.9.2026, אותו דיווח "ביטלת את האפשרות לעלות למעלה
+    ולרדת מטה, יש מידע לא זמין"): פתיחת הסיידבר עצמו (לא expander בתוכו -
+    ר' תיקון stExpanderDetails למטה) עוברת אנימציית CSS transition
+    (transform/min-width/max-width, 300ms) בין מצב מכווץ למצב פתוח - אם
+    ה-transition נתקע (למשל הטאב היה ברקע/לא פעיל כשהיא רצה, אז ה-rAF
+    שמניע אותה קופא), הסיידבר נשאר תקוע ויזואלית במצב מכווץ (width:0,
+    translateX(-300px)) גם ש-aria-expanded כבר "true" - כאילו לא נפתח
+    בכלל, אין מה לגלול. מבטלים את ה-transition לגמרי כדי שהמעבר יקרה
+    מיידית ולא ייתקע באמצע. */
+    [data-testid="stSidebar"] {
+        transition: none !important;
+    }
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        transform: none !important;
+        min-width: 200px !important;
+        max-width: 337.5px !important;
+        width: 300px !important;
+    }
     /* Streamlit עובר בעצמו ל"מצב מובייל" (עמודות נערמות זו מתחת לזו במקום
     זו לצד זו) כשהחלון הכולל צר - שבר את שורות "value + יחידה" (%/ימים)
     בסיידבר, שאמורות תמיד להישאר צמודות זו לזו באותה שורה בלי קשר לרוחב
