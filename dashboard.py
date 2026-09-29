@@ -625,7 +625,13 @@ with st.container(key="main_title_wrap"):
         f"""
         <div style="text-align:center; padding:6px 0 2px;">
           <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.02em; color:{ACCENT_COLOR}; line-height:1.25;">DipRadar</div>
-          <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px;">התראות ואסטרטגיית ריבאונד <span style="display:inline-block; font-size:0.9rem;">📡</span></div>
+          <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px; display:flex; align-items:center; justify-content:center; gap:5px;">
+            <span>התראות ואסטרטגיית ריבאונד</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0;">
+              <polyline points="2,18 9,11 13,15 22,4" fill="none" stroke="{ACCENT_COLOR}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="15,4 22,4 22,11" fill="none" stroke="{ACCENT_COLOR}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
