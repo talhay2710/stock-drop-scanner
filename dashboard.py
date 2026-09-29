@@ -421,6 +421,17 @@ st.markdown(
     [data-testid="stSidebarContent"]::-webkit-scrollbar {
         display: none;
     }
+    /* תיקון באג: כשפותחים expander בסיידבר (למשל "מעקב אחזקות"), Streamlit
+    מאנימץ את הפתיחה ע"י height מפורש + overflow:hidden ב-inline style על
+    ה-<details>, ואמור לחזור ל-height:auto בסיום האנימציה - אבל בפועל זה
+    נתקע על height הסגור (~40px) אחרי הפתיחה, כך שהתוכן שבפנים מצויר במלואו
+    ב-DOM אבל נחתך חזותית ולא נגיש/לא ניתן לגלול אליו ("ביטלת את האפשרות
+    לעלות למעלה ולרדת מטה, יש מידע לא זמין" - 29.9.2026). !important כדי
+    לגבור על ה-inline style הלא-important של Streamlit. */
+    [data-testid="stExpander"] details[open] {
+        height: auto !important;
+        overflow: visible !important;
+    }
     /* בלי overflow:hidden כאן, כשה-JS של Streamlit מכווץ את הסיידבר (מסך צר/
     מובייל - aria-expanded="false", width:0 + transform), התוכן הפנימי שלו
     (שמניח 300px רוחב) ממשיך "לדלוף" ונראה כפס טקסט אנכי דחוס בקצה המסך -
@@ -3444,15 +3455,16 @@ with _tab_slot_today.container():
                             """,
                             unsafe_allow_html=True,
                         )
-                        # מובייל (28.9.2026, "פוליש מובייל" -> "כרטיסים"): הגרסה הראשונה
-                        # (nowrap+overflow-x:auto) פתרה את חוסר-הקריאות אבל השאירה גלילה
-                        # אופקית ארוכה לכל שורה בנפרד - "עדיין דורש גלילה". גרסה זו במקום
-                        # זאת עושה flex-wrap אמיתי לכל שורה, עם order+flex-basis לפי עמודה
+                        # מובייל (28-29.9.2026, "פוליש מובייל" -> "כרטיסים" -> "בפועל בטלפון
+                        # זה עמוס מדי"): הגרסה הקודמת (3 שורות, 6 מספרים בלי תוויות צמודות)
+                        # עבדה טכנית אבל הורגשה עמוסה על מסך אמיתי - "צריך לזכור את הכותרת
+                        # שלמעלה". צומצם לשורה מכווצת עם רק שם+שינוי נוכחי; תגובת-יתר/איכות/
+                        # סיווג ריבאונד (וגם לימיט/יעד/סטופ, כבר קודם) מוסתרים במובייל -
+                        # כולם כבר מופיעים בכרטיס הפרטים המלא בלחיצה על השורה
+                        # (_verdict_html/_rebound_quality_html ב-_build_alert_detail_html),
+                        # אז שום מידע לא אובד, רק פחות צפוף בתצוגה המכווצת.
                         # (מחושב כאן ב-Python, כי המיקום של כל שדה תלוי אם עמודת "מספר
-                        # ני''ע" קיימת - ר' _show_tase_id_col2) - כך שכל שורת התראה נראית
-                        # ככרטיס: שם+שינוי נוכחי בשורה עליונה, שלושת ציוני האיכות בשורה
-                        # אמצעית, סיווג הריבאונד לבד בשורה תחתונה. הכותרת (alert_header_row)
-                        # מקבלת את אותו טיפול - משמשת כמקרא חד-פעמי במקום תוויות בכל כרטיס.
+                        # ני''ע" קיימת - ר' _show_tase_id_col2).
                         _offset = 1 if _show_tase_id_col2 else 0
                         _p_change_at, _p_change_now = 2 + _offset, 3 + _offset
                         _p_overreact, _p_quality, _p_rebound = 4 + _offset, 5 + _offset, 6 + _offset
@@ -3485,25 +3497,19 @@ with _tab_slot_today.container():
                                 div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_now}) {{
                                     order: 2 !important; flex: 1 1 38% !important;
                                 }}
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_at}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_at}) {{
-                                    order: 3 !important; flex: 1 1 33% !important;
-                                }}
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_overreact}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_overreact}) {{
-                                    order: 4 !important; flex: 1 1 33% !important;
-                                }}
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_quality}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_quality}) {{
-                                    order: 5 !important; flex: 1 1 34% !important;
-                                }}
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_rebound}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_rebound}) {{
-                                    order: 6 !important; flex: 1 1 100% !important;
-                                }}
                                 {_tase_hide_css}
-                                /* לימיט כניסה/יעד מכירה/סטופ-לוס - כבר בכרטיס הפרטים המלא
-                                בלחיצה על השורה (ר' _build_alert_detail_html), לא אובד מידע. */
+                                /* שינוי בזמן התראה / תגובת יתר / איכות פונדמנטלית / סיווג
+                                ריבאונד / לימיט כניסה / יעד מכירה / סטופ-לוס - כולם כבר
+                                בכרטיס הפרטים המלא בלחיצה על השורה (ר' _build_alert_detail_html
+                                ו-_verdict_html/_rebound_quality_html שם), לא אובד מידע. */
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_at}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_at}),
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_overreact}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_overreact}),
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_quality}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_quality}),
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_rebound}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_rebound}),
                                 div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-last-child(-n+3),
                                 div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-last-child(-n+3) {{
                                     display: none !important;
