@@ -4117,40 +4117,43 @@ with _tab_slot_portfolio.container():
                     # אפור נייטרלי כברירת מחדל (לא ירוק/אדום לפי רווח/הפסד גולמי) -
                     # הכרטיס כבר עמוס באדום/ירוק (פילס, בר, מספרים) לפי רווח/הפסד,
                     # כפתור בצבע נוסף לפי אותו היגיון "מתחרה" איתם במקום להיראות
-                    # כמו פעולה משנית רגילה (9.9.2026, "לא נראה הכי טוב"). אבל
-                    # קרבה/חציה בפועל של יעד/סטופ (לא רווח/הפסד גולמי) היא איתות
-                    # פעולה אמיתי, לא רק מצב - אז הכפתור כן צובע לפיה (29.9.2026,
-                    # רעיון המשתמש), באותם המשתנים בדיוק שכבר קובעים את התג
-                    # שמעל הבר (warning_html, למעלה) כדי ששניהם תמיד יסכימו.
+                    # כמו פעולה משנית רגילה (9.9.2026, "לא נראה הכי טוב"). חציה
+                    # בפועל של יעד/סטופ (לא רק קרבה אליו, לא רווח/הפסד גולמי) היא
+                    # איתות פעולה אמיתי - אז הכפתור כן צובע לפיה (29.9.2026, רעיון
+                    # המשתמש, מדויק ל"רק בהגעה ליעד או לסטופ" - לא כולל את אזור
+                    # ה"קרוב ל..." שה-warning_html שמעל הבר כן מציג).
                     _sell_color = NEUTRAL_COLOR
                     if current is not None:
-                        if current <= stop_price or stop_is_warning:
+                        if current <= stop_price:
                             _sell_color = NEG_COLOR
-                        elif current >= target_price or target_is_warning:
+                        elif current >= target_price:
                             _sell_color = POS_COLOR
                     _sell_r, _sell_g, _sell_b = (int(_sell_color.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
                     # הסלקטור חייב לכלול את row['id'] - בלי זה, "st-key-sell_holding_"
                     # (סוביסטרינג) תפס את הכפתורים של *כל* האחזקות, לא רק של השורה
                     # הזו, ומאחר ש-<style> תגי מוזרקים גלובליים לעמוד, ה-CSS של
                     # האחזקה האחרונה בלולאה "ניצח" וצבע את כל הכפתורים באותו צבע.
-                    # 29.9.2026, "אולי לצבוע אותו בהגעה ליעד/לסטופ?" + "לשנות אותו
-                    # עיצובית... כרגע זה לא נראה טוב" - שני שינויים ביחד: הצבע לפי
-                    # קרבה/חציה בפועל (למעלה), והעיצוב עצמו מקופסה עם מסגרת מלאה
-                    # (שהתחרתה ויזואלית עם שאר הכרטיס הצבעוני) לקישור-טקסט עדין -
-                    # בלי רקע/מסגרת קבועים, רק טקסט צבוע עם קו תחתון מנוקד, אותה
-                    # מוסכמה בדיוק כמו כפתור שם המניה בטבלת ההתראות (ר' alert_row_).
+                    # 29.9.2026, "אולי לצבוע אותו בהגעה ליעד/לסטופ?" - הצבע לפי
+                    # קרבה/חציה בפועל (למעלה). עיצוב: נוסה תחילה קישור-טקסט בלי
+                    # מסגרת (כמו כפתור שם המניה בטבלת ההתראות), אבל בעקבות משוב
+                    # מיידי ("אני רוצה שזה יהיה עם המסגרת... באופן קבוע. ובלי הקו
+                    # מתחת לטקסט") הוחלף חזרה למסגרת קבועה בצבע הדינמי, בלי
+                    # underline - כלומר המסגרת המקורית (9.9.2026), רק שהצבע שלה
+                    # תלוי בקרבה ליעד/סטופ במקום קבוע לאפור.
                     st.markdown(
                         f"""
                         <style>
                         div[class*="st-key-sell_holding_{row['id']}"] button {{
-                            background-color: transparent !important; border: none !important;
-                            box-shadow: none !important; color: {_sell_color} !important;
-                            text-decoration: underline dotted; text-underline-offset: 3px;
+                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08) !important;
+                            color: {_sell_color} !important;
+                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.4) !important;
+                            border-radius: 8px; text-decoration: none !important;
                             font-weight: 500; font-size: 0.85rem; white-space: nowrap !important;
                         }}
                         div[class*="st-key-sell_holding_{row['id']}"] button:hover {{
-                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08) !important;
+                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.16) !important;
                             color: {_sell_color} !important;
+                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.6) !important;
                         }}
                         </style>
                         """,
