@@ -2008,6 +2008,13 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
     entry_pos = max(0.0, min(100.0, (entry_price - stop_price) / rng * 100))
     current_pos = max(0.0, min(100.0, (current_price - stop_price) / rng * 100))
     fill_color = POS_COLOR if current_price >= entry_price else NEG_COLOR
+    # המילוי מתחיל מנקודת הכניסה, לא מ-0 (=סטופ) - 29.9.2026, "הגרף מתחיל
+    # מהסטופ במקום מנקודת הקנייה". left:0 קבוע (המצב הקודם) מייצג "מרחק
+    # מהסטופ", לא "תזוזה מאז הקנייה" - אותו עיקרון בדיוק כמו הבר הדו-כיווני
+    # בכרטיס "מצב תיק" (_stat_card_portfolio_status, ממורכז בנקודת העלות,
+    # ממלא ימינה ברווח/שמאלה בהפסד).
+    fill_left = min(entry_pos, current_pos)
+    fill_width = abs(current_pos - entry_pos)
     # משבצת בגובה קבוע לאזהרה - גם כשאין אזהרה - כדי שהבר ומה שמתחתיו יתחילו
     # תמיד באותו גובה בדיוק בין כרטיסים זה לצד זה, לא רק בכרטיס שבו יש אזהרה
     # (9.9.2026, "היחס בין שני הכרטיסים... שהנתונים יעמדו באותו הגובה").
@@ -2020,7 +2027,7 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
     return (
         f'<div style="margin-top:10px;">{warning_slot}'
         f'<div style="position:relative; height:6px; border-radius:4px; background:#e2e5e9; direction:ltr;">'
-        f'<div style="position:absolute; left:0; top:0; height:100%; width:{current_pos:.1f}%; '
+        f'<div style="position:absolute; left:{fill_left:.1f}%; top:0; height:100%; width:{fill_width:.1f}%; '
         f'background:{fill_color}; border-radius:4px;"></div>'
         f'<div style="position:absolute; left:{entry_pos:.1f}%; top:-3px; width:2px; height:12px; '
         f'background:{NEUTRAL_COLOR}; opacity:0.55; transform:translateX(-1px);"></div>'
