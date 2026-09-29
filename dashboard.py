@@ -2042,7 +2042,7 @@ def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: f
 
 _SECTOR_LABELS_HE = {
     "Technology": "טכנולוגיה",
-    "Financial Services": "שירותים פיננסיים",
+    "Financial Services": "פיננסיים",
     "Financials": "פיננסים",
     "Healthcare": "בריאות",
     "Energy": "אנרגיה",
@@ -2051,7 +2051,7 @@ _SECTOR_LABELS_HE = {
     "Industrials": "תעשייה",
     "Basic Materials": "חומרי גלם",
     "Real Estate": 'נדל"ן',
-    "Utilities": "שירותים ציבוריים",
+    "Utilities": "תשתיות",
     "Communication Services": "תקשורת",
 }
 
