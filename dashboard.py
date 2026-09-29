@@ -4848,7 +4848,8 @@ def _render_news_section() -> None:
             )
             card = (
                 f'<div class="news-card" style="border-radius:10px; padding:12px 16px; '
-                f'background:rgba(128,128,128,0.05); border-right:3px solid {_NEWS_ACCENT}; '
+                f'background:rgba(128,128,128,0.05); border:1px solid rgba(128,128,128,0.3); '
+                f'border-right:3px solid {_NEWS_ACCENT}; '
                 f'box-shadow:0 1px 3px rgba(0,0,0,0.05);">{inner}</div>'
             )
             if link:
