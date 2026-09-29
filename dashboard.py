@@ -624,13 +624,8 @@ with st.container(key="main_title_wrap"):
     st.markdown(
         f"""
         <div style="text-align:center; padding:6px 0 2px;">
-          <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.02em; color:{ACCENT_COLOR};
-                      line-height:1.25;">
-            📡 DipRadar
-          </div>
-          <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px;">
-            סורק ירידות חדות ואיתותי ריבאונד
-          </div>
+          <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.02em; color:{ACCENT_COLOR}; line-height:1.25;">DipRadar</div>
+          <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px;">התראות ואסטרטגיית ריבאונד <span style="display:inline-block; font-size:0.9rem;">📡</span></div>
         </div>
         """,
         unsafe_allow_html=True,
