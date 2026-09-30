@@ -3035,15 +3035,39 @@ with _tab_slot_movers.container():
                 if st.button("🔄 רענן נתוני שוק"):
                     get_all_changes.clear()
 
-                mc1, mc2 = st.columns(2, gap="medium")
-                with mc1:
-                    with st.container(border=True):
-                        _section_header(NEG_COLOR, "בירידה", len(down_df))
-                        _render(down_df)
-                with mc2:
-                    with st.container(border=True):
-                        _section_header(POS_COLOR, "בעלייה", len(up_df))
-                        _render(up_df)
+                # שתי הטבלאות (412px כ"א, ר' truncate_columns ב-_render_movers_style_table)
+                # ב-st.columns(2) צריכות ~850px+ כדי לשבת זו לצד זו בלי להידחס - ברוחב
+                # דסקטופ בינוני (למשל חלון ~800px, מחצית מסך או מחשב נייד קטן) כל עמודה
+                # מקבלת רק ~375px, פחות מספיק, והמספרים ב"מצטבר" נחתכים ל-"...4%"
+                # (30.9.2026, נמצא תוך כדי צילומי מסך ל-ChatGPT). עוטפים ב-container עם
+                # key כדי לכפות עמידה זו-מתחת-זו (רוחב מלא לכל טבלה) מתחת לרוחב שבו
+                # השתיים לא נכנסות בנוחות - נפרד מ-@media(480px) הקיים בתוך הטבלה עצמה,
+                # שמטפל בנפרד במסך טלפון צר ממש.
+                with st.container(key="movers_columns_row"):
+                    st.markdown(
+                        """
+                        <style>
+                        @media (max-width: 900px) {
+                            div[class*="st-key-movers_columns_row"] [data-testid="stHorizontalBlock"] {
+                                flex-direction: column !important;
+                            }
+                            div[class*="st-key-movers_columns_row"] [data-testid="stColumn"] {
+                                width: 100% !important; flex: 1 1 100% !important;
+                            }
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    mc1, mc2 = st.columns(2, gap="medium")
+                    with mc1:
+                        with st.container(border=True):
+                            _section_header(NEG_COLOR, "בירידה", len(down_df))
+                            _render(down_df)
+                    with mc2:
+                        with st.container(border=True):
+                            _section_header(POS_COLOR, "בעלייה", len(up_df))
+                            _render(up_df)
 
             _wl_conn = store.get_conn(db_path(cfg))
             _wl_items = store.get_watchlist(_wl_conn)
