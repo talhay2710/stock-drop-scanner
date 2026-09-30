@@ -677,10 +677,14 @@ with st.container(key="main_title_wrap"):
 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
 _TAB_DEFS = [
-    ("movers", "🔝 מניות מובילות"),
+    # מניות מובילות זזה למקום הרביעי (30.9.2026, בעקבות ביקורת חיצונית +
+    # "בוא ננסה") - כלי גלישה כללי בשוק, פחות פעולה יומיומית אישית כמו
+    # התראות/אחזקות/יומן, שעולים בעדיפות. שינוי סדר בלבד - בלי לגעת בברירת
+    # המחדל של active_tab (None) או בעיצוב הכרטיסים עצמם.
     ("today", "🔔 התראות"),
     ("portfolio", "💰 אחזקות"),
     ("history", "📋 יומן עסקאות"),
+    ("movers", "🔝 מניות מובילות"),
     ("backtest", "📈 ביצועי אסטרטגיה"),
 ]
 if "active_tab" not in st.session_state:
