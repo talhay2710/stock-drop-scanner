@@ -4565,6 +4565,12 @@ with _tab_slot_history.container():
                     return "🛑 פגע בסטופ"
                 if _crossed_stop_during_hold(r):
                     return "↩️ חזרה מסטופ לפני המכירה"
+                # מכירה ידנית שלא פגעה ביעד/בסטופ עדיין יכולה להיות רווחית - מבחינת
+                # המשתמש רווח הוא הצלחה גם בלי להגיע בדיוק ליעד המחושב (30.9.2026,
+                # "מבחינתי רווח, גם אם קרוב ליעד - זו הצלחה"). "✋ נמכרה ידנית" נשאר
+                # רק למכירה ידנית בהפסד/בלי רווח.
+                if r["exit_price"] > r["entry_price"]:
+                    return "✅ רווח לפני היעד"
                 return "✋ נמכרה ידנית"
 
             def _fmt_price_date(price: float | None, date_str: str | None, is_il: bool) -> str:
@@ -4578,7 +4584,7 @@ with _tab_slot_history.container():
                 return f"{price_text} ({date_text})"
 
             def _outcome_color(text: str) -> str:
-                if text.startswith("🎯"):
+                if text.startswith("🎯") or text.startswith("✅"):
                     return POS_COLOR
                 if text.startswith("🛑"):
                     return NEG_COLOR
