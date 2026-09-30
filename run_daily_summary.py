@@ -36,22 +36,36 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
         # fetch_current_price (קריאת .info בודדת, ללא נפילה חזרה). שולפים אותו
         # קודם כדי שיהיה לנו fallback אמין אם השליפה הבודדת נכשלת.
         today_df = market_data.fetch_universe_daily_changes([h["ticker"]])
-        today_pct = float(today_df.iloc[0]["pct_change"]) if not today_df.empty else None
         current = market_data.fetch_current_price(h["ticker"])
         if current is None and not today_df.empty:
             current = float(today_df.iloc[0]["last_close"])
         entry = h["actual_entry_price"]
         qty = h["actual_qty"]
-        # שינוי היום בש"ח/$ (לא רק %) - כדי שהסיכום היומי יוכל לפתוח עם "מה
-        # התיק עשה היום" במספר אחד, לפני המצב הכולל מאז הכניסה (30.9.2026,
-        # "תתחיל קודם כל במה התיק עשה היום"). בסיס פשוט (prev_close מ-
-        # fetch_universe_daily_changes) - לא כל התיקונים העדינים שיש בדשבורד
-        # (פער prev_close/בסיס כניסה לאחזקה חדשה) - מספיק טוב להודעת טקסט יומית.
-        today_pnl = None
-        if current is not None and not today_df.empty:
+        # אחזקה שנקנתה היום ממש - "שינוי היום" חייב להיות מול מחיר הכניסה,
+        # לא מול סגירת אתמול (שלא הייתה רלוונטית לך בכלל לפני שקנית) - אותה
+        # טעות בדיוק שתוקנה עכשיו למכירות (ר' _enrich_closed_today_with_today_pnl
+        # למטה), רק הפוך: קנייה, לא מכירה (30.9.2026, "בא לי ללטש... שתהיה
+        # מושלמת" בעקבות "לקחת בחשבון את המכירה ברווח?"). הדשבורד כבר מטפל
+        # בזה (_using_entry_baseline2 ב-dashboard.py) - כאן גרסה פשוטה יותר.
+        bought_today = False
+        if h.get("bought_at"):
+            try:
+                bought_today = dt.datetime.fromisoformat(h["bought_at"]).date() == israel_today()
+            except Exception:
+                pass
+
+        if bought_today and current is not None and entry:
+            baseline = entry
+        elif not today_df.empty:
             _prev_close = today_df.iloc[0].get("prev_close")
-            if _prev_close is not None and not (isinstance(_prev_close, float) and _prev_close != _prev_close):
-                today_pnl = (current - float(_prev_close)) * qty
+            baseline = float(_prev_close) if (
+                _prev_close is not None and not (isinstance(_prev_close, float) and _prev_close != _prev_close)
+            ) else None
+        else:
+            baseline = None
+
+        today_pct = ((current - baseline) / baseline * 100) if (current is not None and baseline) else None
+        today_pnl = (current - baseline) * qty if (current is not None and baseline) else None
         ccy = constituents.INDEX_CURRENCY.get(h.get("index_name"), "ILS")
         country_code = constituents.INDEX_COUNTRY_CODE.get(h.get("index_name"), "IL")
 
