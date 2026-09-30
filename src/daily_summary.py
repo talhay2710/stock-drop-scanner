@@ -63,9 +63,16 @@ def _build_holdings_section(holdings: list[dict]) -> list[str]:
 
     total_net = sum(h["net_pnl"] for h in holdings if h["net_pnl"] is not None)
     total_word = "ברווח" if total_net >= 0 else "בהפסד"
-    # net_pnl הוא הרווח/הפסד הכולל מאז הכניסה (לא שינוי של היום בלבד) - הניסוח
-    # חייב לשקף את זה, לא לערבב "היום" עם "בסך הכל" באותו משפט.
-    lines = ["💼 <b>האחזקות שלך</b>", f"התיק שלך {total_word} כולל של {abs(total_net):,.0f} ש\"ח", ""]
+    lines = ["💼 <b>האחזקות שלך</b>"]
+    # קודם מה שקרה היום (30.9.2026, "תתחיל קודם כל במה התיק עשה היום"), ורק
+    # אחר כך המצב הכללי/הכולל מאז הכניסה - לא לערבב את שני המספרים באותו משפט.
+    today_values = [h["today_pnl"] for h in holdings if h.get("today_pnl") is not None]
+    if today_values:
+        total_today = sum(today_values)
+        today_word = "ברווח" if total_today >= 0 else "בהפסד"
+        lines.append(f"היום התיק שלך {today_word} של {abs(total_today):,.0f} ש\"ח")
+    lines.append(f"בסך הכל התיק שלך {total_word} כולל של {abs(total_net):,.0f} ש\"ח")
+    lines.append("")
     for h in sorted(holdings, key=lambda h: h["net_pnl"] if h["net_pnl"] is not None else float("-inf"), reverse=True):
         if h["net_pnl"] is None:
             lines.append(f"⚪ <b>{h['name']}</b> - אין כרגע מחיר עדכני")

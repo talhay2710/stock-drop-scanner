@@ -42,6 +42,16 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
             current = float(today_df.iloc[0]["last_close"])
         entry = h["actual_entry_price"]
         qty = h["actual_qty"]
+        # שינוי היום בש"ח/$ (לא רק %) - כדי שהסיכום היומי יוכל לפתוח עם "מה
+        # התיק עשה היום" במספר אחד, לפני המצב הכולל מאז הכניסה (30.9.2026,
+        # "תתחיל קודם כל במה התיק עשה היום"). בסיס פשוט (prev_close מ-
+        # fetch_universe_daily_changes) - לא כל התיקונים העדינים שיש בדשבורד
+        # (פער prev_close/בסיס כניסה לאחזקה חדשה) - מספיק טוב להודעת טקסט יומית.
+        today_pnl = None
+        if current is not None and not today_df.empty:
+            _prev_close = today_df.iloc[0].get("prev_close")
+            if _prev_close is not None and not (isinstance(_prev_close, float) and _prev_close != _prev_close):
+                today_pnl = (current - float(_prev_close)) * qty
         ccy = constituents.INDEX_CURRENCY.get(h.get("index_name"), "ILS")
         country_code = constituents.INDEX_COUNTRY_CODE.get(h.get("index_name"), "IL")
 
@@ -63,7 +73,7 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
 
         result.append({
             "ticker": h["ticker"], "name": h["company_name"] or h["ticker"],
-            "net_pnl": net_pnl, "net_pct": net_pct, "today_pct": today_pct,
+            "net_pnl": net_pnl, "net_pct": net_pct, "today_pct": today_pct, "today_pnl": today_pnl,
             "ccy_symbol": {"ILS": 'ש"ח', "USD": "$"}.get(ccy, ccy),
         })
     return result
