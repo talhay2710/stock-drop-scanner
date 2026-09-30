@@ -3902,18 +3902,56 @@ with _tab_slot_backtest.container():
                     "scan_ts": "זמן סריקה", "ticker": "טיקר", "pct_change": "שינוי (%)",
                     "target_base": "יעד", "stop_loss": "סטופ", "outcome": "תוצאה",
                 })
+                def _fmt_scan_ts(v) -> str:
+                    # "2026-09-30T14:40:51+03:00" הגולמי לקח 194px - כמעט 2/3 מהרוחב
+                    # שהיה זמין במובייל, בלי שום תועלת (לא קריא/פורמט תאריך שמופיע
+                    # בשום מקום אחר באתר). "30.09 14:40" מספיק לזיהוי + מקוצר בהרבה
+                    # (30.9.2026, "תעבור שוב על כל טאב במובייל").
+                    if pd.isna(v):
+                        return "—"
+                    try:
+                        return dt.datetime.fromisoformat(str(v)).strftime("%d.%m %H:%M")
+                    except Exception:
+                        return str(v)[:16]
+
+                # מובייל: גם אחרי קיצור "זמן סריקה" (למעלה) הטבלה עדיין רחבה מדי
+                # (511px מול ~310px זמינים) - "יעד"/"סטופ" (ערכי התחזית הגולמיים,
+                # 4-5) הכי פחות קריטיים לסריקה חטופה של "מה קרה" (תוצאה כבר אומרת
+                # את זה במילים) - מוסתרים במובייל, עדיין גלויים בדסקטופ.
+                st.markdown(
+                    """
+                    <style>
+                    @media (max-width: 480px) {
+                        div.backtest-detail-table table th:nth-child(4),
+                        div.backtest-detail-table table td:nth-child(4),
+                        div.backtest-detail-table table th:nth-child(5),
+                        div.backtest-detail-table table td:nth-child(5) {
+                            display: none !important;
+                        }
+                        div.backtest-detail-table table th:nth-child(6),
+                        div.backtest-detail-table table td:nth-child(6) {
+                            max-width: 90px !important; white-space: normal !important;
+                            word-break: break-word !important;
+                        }
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
                 st.markdown(
                     _html_table(
                         bt_table,
                         [("טיקר", "טיקר"), ("זמן סריקה", "זמן סריקה"), ("שינוי (%)", "שינוי (%)"),
                          ("יעד", "יעד"), ("סטופ", "סטופ"), ("תוצאה", "תוצאה")],
                         formatters={
+                            "זמן סריקה": _fmt_scan_ts,
                             "שינוי (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
                             "יעד": lambda v: f"{v:.2f}" if pd.notna(v) else "—",
                             "סטופ": lambda v: f"{v:.2f}" if pd.notna(v) else "—",
                         },
                         color_columns={"שינוי (%)"}, color_fns={"תוצאה": _outcome_color_hex},
                         max_height=600,
+                        extra_class="backtest-detail-table",
                     ),
                     unsafe_allow_html=True,
                 )
