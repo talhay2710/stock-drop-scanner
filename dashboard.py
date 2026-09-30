@@ -3844,35 +3844,56 @@ with _tab_slot_backtest.container():
                     unsafe_allow_html=True,
                 )
 
-            rc1, rc2 = st.columns(2)
-            with rc1:
-                _section_subheader("שיעור הצלחה לפי סיבת הירידה", "📌")
-                if by_reason.empty:
-                    st.caption("אין עדיין מספיק התראות מוכרעות.")
-                else:
-                    st.markdown(
-                        _html_table(
-                            by_reason, [("סיבה", "סיבה"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
-                                        ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
-                            formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
-                            color_fns={"שיעור הצלחה (%)": _success_rate_color},
-                        ),
-                        unsafe_allow_html=True,
-                    )
-            with rc2:
-                _section_subheader("שיעור הצלחה לפי ציון תגובת-יתר", "🎯")
-                if by_score.empty:
-                    st.caption("אין עדיין מספיק התראות מוכרעות.")
-                else:
-                    st.markdown(
-                        _html_table(
-                            by_score, [("ציון תגובת-יתר", "ציון תגובת-יתר"), ('סה"כ', 'סה"כ'),
-                                       ("הגיעו ליעד", "הגיעו ליעד"), ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
-                            formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
-                            color_fns={"שיעור הצלחה (%)": _success_rate_color},
-                        ),
-                        unsafe_allow_html=True,
-                    )
+            # מובייל (30.9.2026, "תעבור שוב על כל טאב במובייל"): שתי טבלאות 4-עמודות
+            # זו לצד זו ב-st.columns(2) - Streamlit לא עורם עמודות אלה לבד במובייל,
+            # אז כל טבלה נדחסת לחצי מהרוחב הזמין וגולשת שמאלה (RTL) מחוץ למסך. עוטפים
+            # ב-container עם key כדי לכפות flex-direction:column (עמודה מלאה, לא חצי)
+            # מתחת לרוחב מובייל - אותו דפוס בדיוק כמו portfolio-status-row.
+            with st.container(key="backtest_reason_score_row"):
+                st.markdown(
+                    """
+                    <style>
+                    @media (max-width: 480px) {
+                        div[class*="st-key-backtest_reason_score_row"] [data-testid="stHorizontalBlock"] {
+                            flex-direction: column !important;
+                        }
+                        div[class*="st-key-backtest_reason_score_row"] [data-testid="stColumn"] {
+                            width: 100% !important; flex: 1 1 100% !important;
+                        }
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                rc1, rc2 = st.columns(2)
+                with rc1:
+                    _section_subheader("שיעור הצלחה לפי סיבת הירידה", "📌")
+                    if by_reason.empty:
+                        st.caption("אין עדיין מספיק התראות מוכרעות.")
+                    else:
+                        st.markdown(
+                            _html_table(
+                                by_reason, [("סיבה", "סיבה"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
+                                            ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
+                                formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
+                                color_fns={"שיעור הצלחה (%)": _success_rate_color},
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                with rc2:
+                    _section_subheader("שיעור הצלחה לפי ציון תגובת-יתר", "🎯")
+                    if by_score.empty:
+                        st.caption("אין עדיין מספיק התראות מוכרעות.")
+                    else:
+                        st.markdown(
+                            _html_table(
+                                by_score, [("ציון תגובת-יתר", "ציון תגובת-יתר"), ('סה"כ', 'סה"כ'),
+                                           ("הגיעו ליעד", "הגיעו ליעד"), ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
+                                formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
+                                color_fns={"שיעור הצלחה (%)": _success_rate_color},
+                            ),
+                            unsafe_allow_html=True,
+                        )
 
             with st.expander("📋 כל ההתראות עם תוצאה"):
                 bt_table = bt_display[["scan_ts", "ticker", "pct_change", "target_base", "stop_loss", "outcome"]].copy()
@@ -4671,7 +4692,27 @@ with _tab_slot_history.container():
             # overflow-x:auto (28.9.2026, "פוליש מובייל") - לטבלה הזו, בשונה מ-_html_table,
             # היה חסר wrapper גלילה אופקית; 9 עמודות במסך צר נדחסות/נשברות באופן מכוער
             # בלי זה. אותו תיקון בדיוק כמו ב-_html_table (ר' ההערה שם).
-            st.markdown(f'<div style="overflow-x:auto;">{table_html}</div>', unsafe_allow_html=True)
+            # 30.9.2026 ("תעבור שוב על כל טאב במובייל") - overflow-x:auto לבד לא היה
+            # מספיק: 9 העמודות ביחד רוחבן ~926px מול ~343px זמינים במובייל, כמעט פי 3 -
+            # גלילה ארוכה מדי כדי להגיע ל"נטו" (המספר הכי חשוב). "מטבע" (כמעט תמיד ש"ח)
+            # ו"רווח/הפסד" הגולמי (כפול - "תשואה" ו"נטו" כבר מספרים את הסיפור) מוסתרים
+            # במובייל כדי לקצר את הגלילה הנדרשת, בלי לאבד נתון אמיתי (עדיין גלוי בדסקטופ).
+            st.markdown(
+                """
+                <style>
+                @media (max-width: 480px) {
+                    div.trade-journal-table table th:nth-child(7),
+                    div.trade-journal-table table td:nth-child(7),
+                    div.trade-journal-table table th:nth-child(9),
+                    div.trade-journal-table table td:nth-child(9) {
+                        display: none !important;
+                    }
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(f'<div class="trade-journal-table" style="overflow-x:auto;">{table_html}</div>', unsafe_allow_html=True)
 
 
 with st.container(border=True, key="market_panel"):
