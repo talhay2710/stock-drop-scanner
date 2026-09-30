@@ -4975,7 +4975,7 @@ with st.container(border=True, key="market_panel"):
 
     st.divider()
 
-    st.subheader('🕒 שעות מסחר בישראל ובארה"ב')
+    st.subheader('🕒 זמני מסחר בישראל ובארה"ב')
     mcols = st.columns(2, gap="medium")
     with mcols[0]:
         render_market_card('ארה"ב <span dir="ltr">(S&P 500 / NASDAQ)</span>', "US")
