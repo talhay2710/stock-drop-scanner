@@ -5065,7 +5065,26 @@ def _render_news_section() -> None:
             for h in heads:
                 _all_news_items.append({**h, "source": f'{h.get("source", "")} · {name}'})
 
-        _render_news_grid(_all_news_items, "לא נמצאו חדשות כרגע.")
+        with st.container(key="news_section_wrap"):
+            # כרטיסי החדשות (components.html, רוחב מלא) לא יושבים בתוך st.columns
+            # כמו "זמני מסחר"/"מצב המדדים" מעליהם - ה-iframe שלהם נמדד רחב וזז
+            # שמאלה ב-16.8px מהקו האחיד שכל השורות האחרות משתפות (30.9.2026,
+            # "תעשה שהכרטיסים של החדשות יהיו באותו הקו של אלה העליונים" +
+            # צילום מסך). נמדד אמפירית בדפדפן (לא נוסחה כללית - ה-calc() לא
+            # הצליח לשחזר את אותו בסיס-אחוזים) ותוקן לאותם 2 הקצוות בדיוק.
+            st.markdown(
+                """
+                <style>
+                div[class*="st-key-news_section_wrap"] [data-testid="stElementContainer"]:has(iframe) {
+                    width: 1076px !important;
+                    margin-right: 16.8px !important;
+                    margin-left: 0 !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            _render_news_grid(_all_news_items, "לא נמצאו חדשות כרגע.")
     else:
         # לא "עבור לטאב אחר" (טקסט ישן, שגוי) - הקטע הזה עצמאי מהטאב הפעיל
         # (ר' הערה למעלה), אז מעבר טאב לא עוזר בכלל. אם _news_movers_df ריק
