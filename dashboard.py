@@ -2627,7 +2627,8 @@ def _color_pct(val):
 def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: dict | None = None,
                  color_columns: set | None = None, color_fns: dict | None = None,
                  max_height: int | None = None, truncate_columns: dict | None = None,
-                 wrap_headers: bool = True, row_formatters: dict | None = None) -> str:
+                 wrap_headers: bool = True, row_formatters: dict | None = None,
+                 extra_class: str = "") -> str:
     """טבלת HTML פשוטה, בסדר עמודות טבעי (מימין לשמאל, כמו שכתוב כאן) - תחליף ל-
     st.dataframe בטבלאות שמציגות טיקרים/טקסט עברי. st.dataframe מצייר הכל על
     canvas תמיד משמאל לימין ומתעלם לגמרי מ-CSS, מה שגורם לחיתוך טקסט ולעמודות
@@ -2707,7 +2708,8 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     # overflow-x:auto תמיד - אם העמודות לא נכנסות ברוחב הזמין (למשל שתי טבלאות
     # זו לצד זו בחצי מסך), מקבלים גלילה אופקית במקום שהדפדפן יחתוך עמודות בשקט.
     height_style = f"max-height:{max_height}px; overflow-y:auto; " if max_height else ""
-    table_html = f'<div style="{height_style}overflow-x:auto;">{table_html}</div>'
+    class_attr = f' class="{extra_class}"' if extra_class else ""
+    table_html = f'<div{class_attr} style="{height_style}overflow-x:auto;">{table_html}</div>'
     return table_html
 
 
@@ -2887,6 +2889,30 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
     _truncate = {"שם_וטיקר": 150, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58}
     if _show_tase_id_col:
         _truncate["מספר ני\"ע"] = 88
+    # מובייל (30.9.2026, "תסדר את טאב מניות מובילות במובייל"): 5 העמודות ביחד
+    # (150+88+58+58+58=412px) רחבות מהמסך הזמין (~312px), מכריחות גלילה אופקית
+    # כדי להגיע לעמודות מצטבר/שער. "מספר ני"ע" הוא הכי פחות קריטי לתצוגה חטופה
+    # (מזהה פנימי, לא ערך גלוי כמו % /שער - אותו היגיון בדיוק כמו הסתרת העמודה
+    # הזו בטבלת ההתראות במובייל) - מוסתר, ושם המניה מצטמצם קצת, כדי שכל היתר
+    # ייכנס בלי שום גלילה.
+    # table-layout:auto (במקום fixed) במובייל - כך שרוחב העמודות ייגזר מהתוכן
+    # בפועל (+max-width שנקבע כאן) במקום מ-colgroup קבוע-מראש; ניסיון קודם
+    # להסתיר את עמודת "מספר ני"ע" עם table-layout:fixed (visibility:collapse
+    # על ה-col) גרם לעמודה השלישית לקרוס ל-0px במקום לקבל את הרוחב שלה בפועל -
+    # קונפליקט ידוע בין fixed-layout ל-col מוסתר/collapsed (30.9.2026).
+    st.markdown(
+        f"""
+        <style>
+        @media (max-width: 480px) {{
+            div.movers-style-table table {{ table-layout: auto !important; }}
+            div.movers-style-table table th:first-child,
+            div.movers-style-table table td:first-child > div {{ max-width: 108px !important; }}
+            {"div.movers-style-table table th:nth-child(2), div.movers-style-table table td:nth-child(2) { display: none !important; }" if _show_tase_id_col else ""}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(
         _html_table(
             sub_df,
@@ -2899,6 +2925,7 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
             truncate_columns=_truncate,
             max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
+            extra_class="movers-style-table",
         ),
         unsafe_allow_html=True,
     )
