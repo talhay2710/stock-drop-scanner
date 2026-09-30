@@ -54,11 +54,16 @@ def _rtl_line(text: str) -> str:
     return f"‏{text}"
 
 
-def _build_holdings_section(holdings: list[dict]) -> list[str]:
+def _build_holdings_section(holdings: list[dict], closed_today: list[dict] | None = None) -> list[str]:
     """holdings: רשימת dict-ים עם ticker, name, net_pnl, net_pct, ccy_symbol,
     today_pct (שינוי המניה היום בלבד, לא קשור לתאריך הקנייה). רק מה שקרה היום
-    ואיפה זה עומד מול נקודת הכניסה - בלי היסטוריה/טרק-רקורד."""
-    if not holdings:
+    ואיפה זה עומד מול נקודת הכניסה - בלי היסטוריה/טרק-רקורד.
+    closed_today: פוזיציות שנסגרו היום ממש (ר' _build_closed_today_section) -
+    צריך את today_pnl שלהן (שינוי המחיר היום בלבד, לא הרווח הכולל מאז הכניסה)
+    כדי ש"מה התיק עשה היום" יכלול גם אותן, לא רק את האחזקות שעדיין פתוחות
+    (30.9.2026, "לקחת בחשבון את המכירה ברווח?" - מכירה שהתבצעה היום באמת
+    השפיעה על השווי של היום, גם אם היא כבר לא מופיעה בין האחזקות הפתוחות)."""
+    if not holdings and not closed_today:
         return []
 
     total_net = sum(h["net_pnl"] for h in holdings if h["net_pnl"] is not None)
@@ -67,11 +72,13 @@ def _build_holdings_section(holdings: list[dict]) -> list[str]:
     # קודם מה שקרה היום (30.9.2026, "תתחיל קודם כל במה התיק עשה היום"), ורק
     # אחר כך המצב הכללי/הכולל מאז הכניסה - לא לערבב את שני המספרים באותו משפט.
     today_values = [h["today_pnl"] for h in holdings if h.get("today_pnl") is not None]
+    today_values += [c["today_pnl"] for c in (closed_today or []) if c.get("today_pnl") is not None]
     if today_values:
         total_today = sum(today_values)
         today_word = "ברווח" if total_today >= 0 else "בהפסד"
         lines.append(f"היום התיק שלך {today_word} של {abs(total_today):,.0f} ש\"ח")
-    lines.append(f"בסך הכל התיק שלך {total_word} כולל של {abs(total_net):,.0f} ש\"ח")
+    if holdings:
+        lines.append(f"בסך הכל התיק שלך {total_word} כולל של {abs(total_net):,.0f} ש\"ח")
     lines.append("")
     for h in sorted(holdings, key=lambda h: h["net_pnl"] if h["net_pnl"] is not None else float("-inf"), reverse=True):
         if h["net_pnl"] is None:
@@ -223,7 +230,7 @@ def build_daily_summary(
     owned_tickers = {h["ticker"] for h in (holdings or [])}
 
     lines = [f"📅 <b>סיכום יומי - {_israeli_date(scan_date)}</b>", ""]
-    lines.extend(_build_holdings_section(holdings or []))
+    lines.extend(_build_holdings_section(holdings or [], closed_today))
     lines.extend(_build_closed_today_section(closed_today or []))
 
     if rows:

@@ -78,6 +78,25 @@ def _build_holdings_summary(conn, cfg) -> list[dict]:
         })
     return result
 
+
+def _enrich_closed_today_with_today_pnl(closed_today: list[dict]) -> list[dict]:
+    """מוסיף today_pnl (שינוי המחיר היום בלבד, לא הרווח הכולל מאז הכניסה) לכל
+    פוזיציה שנסגרה היום - כדי ש"מה התיק עשה היום" ב-daily_summary יוכל לכלול
+    גם מכירות מהיום, לא רק אחזקות שעדיין פתוחות (30.9.2026, "לקחת בחשבון את
+    המכירה ברווח?"). ברוטו, ללא עמלות - עקבי עם today_pnl של אחזקות פתוחות
+    (_build_holdings_summary למעלה), שגם הוא ברוטו טהור."""
+    for c in closed_today:
+        today_df = market_data.fetch_universe_daily_changes([c["ticker"]])
+        c["today_pnl"] = None
+        if today_df.empty:
+            continue
+        prev_close = today_df.iloc[0].get("prev_close")
+        if prev_close is None or (isinstance(prev_close, float) and prev_close != prev_close):
+            continue
+        c["today_pnl"] = (c["exit_price"] - float(prev_close)) * c["qty"]
+    return closed_today
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -106,7 +125,7 @@ if __name__ == "__main__":
 
             today = israel_today().isoformat()
             holdings_summary = _build_holdings_summary(conn, cfg)
-            closed_today = get_closed_trades_on_date(conn, today)
+            closed_today = _enrich_closed_today_with_today_pnl(get_closed_trades_on_date(conn, today))
             message = build_daily_summary(conn, today, holdings_summary, closed_today=closed_today)
 
             updated = backtest.refresh_pending_outcomes(conn)
