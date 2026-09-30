@@ -450,6 +450,15 @@ st.markdown(
         height: auto !important;
         overflow: visible !important;
     }
+    /* ה-expanders בסיידבר (מעקב אחזקות/השקעה וסיכון/עמלות ומיסים/סוגי
+    התראה) נראים "נכנסים אחד לתוך השני" (30.9.2026) - ל-Streamlit יש
+    margin-top: -7px כברירת מחדל על ה-wrapper של כל block, כדי לצמצם רווח
+    בין אלמנטים, אבל ביחד עם ה-gap:4px של העמודה זה יוצא overlap שלילי של
+    3px בין כל שני expanders - הפינות המעוגלות (border-radius:8px) של כל
+    קופסה חופפות לקופסה שמתחתיה. מכריחים רווח חיובי במקום. */
+    [data-testid="stSidebar"] [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) {
+        margin-top: 8px !important;
+    }
     /* בלי overflow:hidden כאן, כשה-JS של Streamlit מכווץ את הסיידבר (מסך צר/
     מובייל - aria-expanded="false", width:0 + transform), התוכן הפנימי שלו
     (שמניח 300px רוחב) ממשיך "לדלוף" ונראה כפס טקסט אנכי דחוס בקצה המסך -
