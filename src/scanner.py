@@ -13,7 +13,6 @@ from . import strategy as strategy_mod
 from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
-from . import schedule_guard
 from .config import db_path
 from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
 
@@ -585,30 +584,6 @@ def _scan_one_index(
         logger.warning("כל נתוני המחיר עבור %s התבררו כישנים מדי - דילוג על הסבב הזה", index)
         return []
 
-    # מנגנון התרעה על פער-מקור רוחבי (1.10.2026, "תוודא שהתקלה לא חוזרת...
-    # תייצר מנגנון" - KEN.TA/AZRG.TA ב-30/09, התברר שזה פגע ב-124/125 מניות
-    # ת"א בו-זמנית, לא בשתיים בודדות). בניגוד לחסימת-ההתראות שבוטלה (ר' ההערה
-    # למעלה, "22.9.2026 ניסינו גם לחסום") - זו רק התרעה, לא חוסמת שום דבר,
-    # כדי לא לחזור לאותה טעות. פעם ביום למדד, כדי לא להציף בכל סבב סריקה
-    # (כל 5 דק').
-    _gap_frac = market_data.universe_gap_fraction(df)
-    if _gap_frac >= market_data.UNIVERSE_GAP_WARNING_THRESHOLD:
-        _gap_guard_kind = f"data_gap_{index}"
-        if not schedule_guard.already_sent_today(conn, _gap_guard_kind):
-            logger.warning(
-                "פער-מקור רוחבי ב-%s: %.0f%% מהמניות עם prev_close_gap - שולח התרעה חד-פעמית",
-                index, _gap_frac * 100,
-            )
-            notifier.notify_typed(
-                cfg, "health_data_gap",
-                f"⚠️ <b>תקלת נתונים רוחבית ב-{index}</b>\n\n"
-                f"מקור הנתונים (yfinance) חסר יום מסחר שלם ל-{_gap_frac*100:.0f}% מהמניות ב{index} - "
-                f"השינוי היומי שמוצג בהתראות/בדשבורד עשוי לכסות כמה ימים, לא רק אחד. "
-                f"ההתראות ממשיכות להישלח כרגיל (לא נחסמות) - רק שים לב לפער.",
-                "⚠️ תקלת נתונים", "",
-            )
-            schedule_guard.mark_sent_today(conn, _gap_guard_kind)
-
     multi_day_window = cfg.get("multi_day_window_days", 3)
     multi_day_threshold = abs(cfg.get("multi_day_threshold_pct", 5.0))
     multi_day_enabled = cfg.get("multi_day_enabled", True)
@@ -636,11 +611,22 @@ def _scan_one_index(
             confirmed.loc[idx] = True
         store_mod.upsert_watch_candidate(conn, cand_ticker, index, scan_date, cand_pct)
 
-    single_day_flag = (df["pct_change"] <= -threshold) & confirmed
+    # prev_close_gap - pct_change עבור טיקר כזה הוא בפועל שינוי של כמה ימי
+    # מסחר (yfinance דילגה על יום/ימים), לא יום אחד. נגד הסף היומי (threshold,
+    # קטן בהרבה) זה מייצר התראות "יומיות" שקריות על ירידה שבאמת נפרשת על
+    # כמה ימים - לכן טיקרים כאלה נבדקים מול הסף הרב-יומי (multi_day_threshold,
+    # גדול בהרבה) במקום, ומסומנים is_multi_day_only כדי שהטקסט/הכותרת ישקפו
+    # את זה נכון ("ירידה מצטברת", לא "ירידה יומית") - בלי לבדות עמודת ⚠️/באנר
+    # נפרדת (1.10.2026, "נתב אמת אבל מתויג נכון ומשתמש בסף הנכון", אחרי
+    # "אל תוסיף דברים על דעת עצמך" על הניסיון הקודם - באנר נפרד).
+    _is_gapped = df.get("prev_close_gap")
+    _is_gapped = _is_gapped.fillna(False) if _is_gapped is not None else pd.Series(False, index=df.index)
+    single_day_flag = (df["pct_change"] <= -threshold) & confirmed & (~_is_gapped)
+    gap_as_multi_day_flag = _is_gapped & (df["pct_change"] <= -multi_day_threshold)
     if multi_day_enabled:
-        multi_day_flag = df["n_day_change"] <= -multi_day_threshold
+        multi_day_flag = (df["n_day_change"] <= -multi_day_threshold) | gap_as_multi_day_flag
     else:
-        multi_day_flag = pd.Series(False, index=df.index)
+        multi_day_flag = gap_as_multi_day_flag
     flagged = df[single_day_flag | multi_day_flag].copy()
     flagged["is_multi_day_only"] = multi_day_flag[flagged.index] & ~single_day_flag[flagged.index]
     flagged["severity"] = flagged[["pct_change", "n_day_change"]].min(axis=1)
