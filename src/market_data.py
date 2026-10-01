@@ -91,6 +91,26 @@ def is_data_stale(last_close_date, ticker: str, as_of: dt.date | None = None) ->
         expected = check_date
     return last_close_date < expected
 
+
+def universe_gap_fraction(df: pd.DataFrame) -> float:
+    """שיעור הטיקרים ב-df (פלט fetch_universe_daily_changes) עם prev_close_gap
+    דלוק - כלומר כמה מהיקום הנסרק משווה בפועל מול בסיס ישן מיום/ימים, לא
+    מול הסגירה הקודמת האמיתית. שיעור בודד גבוה (טיקר אחד-שניים) הוא רעש רגיל
+    (מניה שלא נסחרה אתמול וכו') - שיעור גבוה על פני *כל* הסריקה (רוב/כל
+    הטיקרים גם יחד) הוא סימן לתקלת מקור-נתונים רוחבית (yfinance חסר יום
+    מסחר שלם לבורסה כולה), לא לתקלות מניה-בודדת (1.10.2026, "תוודא שהתקלה
+    לא חוזרת... תייצר מנגנון" - 124/125 טיקרי ת"א נפגעו בו-זמנית אותו יום).
+    מחזיר 0.0 אם df ריק או שאין בו את העמודה."""
+    if df.empty or "prev_close_gap" not in df.columns:
+        return 0.0
+    return float(df["prev_close_gap"].fillna(False).mean())
+
+
+# סף שמעליו שיעור-פער נחשב "רוחבי" (תקלת מקור, לא כמה טיקרים בודדים) - 30%
+# הוא כבר הרבה יותר ממה שהיה אי-פעם "רעש רגיל" של טיקרים בודדים לא-נסחרים.
+UNIVERSE_GAP_WARNING_THRESHOLD = 0.3
+
+
 # מיפוי סקטור GICS -> ETF סקטוריאלי (SPDR) לצורך השוואת "לחץ סקטוריאלי" בשוק האמריקאי בלבד
 US_SECTOR_ETF = {
     "Technology": "XLK",

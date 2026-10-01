@@ -13,6 +13,7 @@ from . import strategy as strategy_mod
 from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
+from . import schedule_guard
 from .config import db_path
 from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
 
@@ -583,6 +584,30 @@ def _scan_one_index(
     if df.empty:
         logger.warning("כל נתוני המחיר עבור %s התבררו כישנים מדי - דילוג על הסבב הזה", index)
         return []
+
+    # מנגנון התרעה על פער-מקור רוחבי (1.10.2026, "תוודא שהתקלה לא חוזרת...
+    # תייצר מנגנון" - KEN.TA/AZRG.TA ב-30/09, התברר שזה פגע ב-124/125 מניות
+    # ת"א בו-זמנית, לא בשתיים בודדות). בניגוד לחסימת-ההתראות שבוטלה (ר' ההערה
+    # למעלה, "22.9.2026 ניסינו גם לחסום") - זו רק התרעה, לא חוסמת שום דבר,
+    # כדי לא לחזור לאותה טעות. פעם ביום למדד, כדי לא להציף בכל סבב סריקה
+    # (כל 5 דק').
+    _gap_frac = market_data.universe_gap_fraction(df)
+    if _gap_frac >= market_data.UNIVERSE_GAP_WARNING_THRESHOLD:
+        _gap_guard_kind = f"data_gap_{index}"
+        if not schedule_guard.already_sent_today(conn, _gap_guard_kind):
+            logger.warning(
+                "פער-מקור רוחבי ב-%s: %.0f%% מהמניות עם prev_close_gap - שולח התרעה חד-פעמית",
+                index, _gap_frac * 100,
+            )
+            notifier.notify_typed(
+                cfg, "health_data_gap",
+                f"⚠️ <b>תקלת נתונים רוחבית ב-{index}</b>\n\n"
+                f"מקור הנתונים (yfinance) חסר יום מסחר שלם ל-{_gap_frac*100:.0f}% מהמניות ב{index} - "
+                f"השינוי היומי שמוצג בהתראות/בדשבורד עשוי לכסות כמה ימים, לא רק אחד. "
+                f"ההתראות ממשיכות להישלח כרגיל (לא נחסמות) - רק שים לב לפער.",
+                "⚠️ תקלת נתונים", "",
+            )
+            schedule_guard.mark_sent_today(conn, _gap_guard_kind)
 
     multi_day_window = cfg.get("multi_day_window_days", 3)
     multi_day_threshold = abs(cfg.get("multi_day_threshold_pct", 5.0))

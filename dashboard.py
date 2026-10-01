@@ -3000,6 +3000,14 @@ with _tab_slot_movers.container():
                     _movers_stale = market_data.is_data_stale(_movers_rep_date, "")
                     _movers_warn = "⚠️ " if _movers_stale else ""
                     st.caption(f"{_movers_warn}נכון לסגירת מסחר ב-{_movers_rep_date.strftime('%d/%m/%Y')}")
+                # מנגנון התרעה על פער-מקור רוחבי - ר' אותה הערה בדיוק בטאב
+                # ההתראות (1.10.2026, "תוודא שהתקלה לא חוזרת... תייצר מנגנון").
+                _movers_gap_frac = market_data.universe_gap_fraction(movers_df)
+                if _movers_gap_frac >= market_data.UNIVERSE_GAP_WARNING_THRESHOLD:
+                    st.warning(
+                        f"⚠️ מקור הנתונים חסר יום מסחר שלם ל-{_movers_gap_frac*100:.0f}% מהמניות ב{INDEX_LABELS[movers_index]} - "
+                        f"ה'שינוי יומי' המוצג עשוי לכסות כמה ימים, לא רק אחד."
+                    )
 
                 def _section_header(color: str, word_dir: str, count: int) -> None:
                     st.image(render_text_image(f"מניות {word_dir} ({count})", color, font_size=17))
@@ -3484,6 +3492,19 @@ with _tab_slot_today.container():
                         st.info("אין התראות חדשות במסחר הנוכחי.")
                     else:
                         st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
+                        # מנגנון התרעה על פער-מקור רוחבי (1.10.2026, "תוודא שהתקלה
+                        # לא חוזרת... תייצר מנגנון" - KEN.TA/AZRG.TA, התברר ש-124
+                        # מתוך 125 טיקרי ת"א נפגעו אותו יום, לא שני טיקרים בודדים).
+                        # ⚠️ בודד ליד "שינוי נוכחי" (קודם) הוא התרעה לפי-שורה - זה
+                        # כאן באנר אחד למעלה, לתפוס את המקרה שבו רוב/כל ההתראות
+                        # של היום סובלות מאותה תקלה בו-זמנית, לפני שגוללים שורה
+                        # אחר שורה ורואים ⚠️ שוב ושוב בלי להבין שזו תקלה אחת רוחבית.
+                        _gap_frac = market_data.universe_gap_fraction(_current_changes_df)
+                        if _gap_frac >= market_data.UNIVERSE_GAP_WARNING_THRESHOLD:
+                            st.warning(
+                                f"⚠️ מקור הנתונים חסר יום מסחר שלם ל-{_gap_frac*100:.0f}% מהמניות שנסרקו "
+                                f"היום - האחוזים שמוצגים (⚠️) עשויים להיות שינוי של כמה ימים, לא רק יום אחד."
+                            )
                         # שם המניה הוא כפתור Streamlit אמיתי (מעוצב כמו קישור, לא
                         # כפתור מרובע - ר' ה-CSS למטה), לא <a href> (ניווט דפדפן
                         # אמיתי, איטי בפועל - נבדק ונדחה). scope="fragment" בכל
