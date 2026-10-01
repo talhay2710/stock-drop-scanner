@@ -3417,6 +3417,19 @@ with _tab_slot_today.container():
                     if not _current_changes_df.empty else {}
                 )
                 todays_display_src["current_pct_change"] = todays_display_src["ticker"].map(_current_changes_map)
+                # prev_close_gap - "שינוי נוכחי" מושווה מול בסיס (prev_close) שעלול
+                # להיות ישן בכמה ימים (yfinance מדלגת יום מסחר לטיקר ספציפי, ר' הערה
+                # ב-scanner.py) גם כש-last_close עצמו עדכני לגמרי - אז "שינוי יומי"
+                # בפועל הוא שינוי מצטבר של כמה ימים, לא של אתמול בלבד, ושונה ממה
+                # שהבנק/מקור אחר מראה (1.10.2026, "יש פער בין ההתראה... לבין מה
+                # שאני רואה בבנק", KEN.TA - prev_close מ-29/09 בזמן שהיום 1/10).
+                # כבר נבדק ומסומן בכל מקום אחר באתר (טבלת מניות מובילות/קרוב לסף/
+                # אחזקות) - רק כאן, בטבלת ההתראות הראשית, היה חסר.
+                _current_gap_map = (
+                    dict(zip(_current_changes_df["ticker"], _current_changes_df["prev_close_gap"].fillna(False)))
+                    if not _current_changes_df.empty and "prev_close_gap" in _current_changes_df.columns else {}
+                )
+                todays_display_src["current_gap"] = todays_display_src["ticker"].map(_current_gap_map).fillna(False)
 
                 alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
@@ -3445,7 +3458,7 @@ with _tab_slot_today.container():
                     lambda r: f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"],
                     axis=1,
                 )
-                _base_display_cols = ["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי",
+                _base_display_cols = ["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי", "current_gap",
                                        "תגובת יתר", "איכות פונדמנטלית",
                                        "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
                 if _show_tase_id_col2:
@@ -3662,6 +3675,8 @@ with _tab_slot_today.container():
                                             st.rerun(scope="fragment")
                                         continue
                                     _text = _fmt(_val) if _fmt else ("—" if pd.isna(_val) else str(_val))
+                                    if _col_name == "שינוי נוכחי" and _row.get("current_gap"):
+                                        _text = f"⚠️ {_text}"
                                     _color_style = ""
                                     if _col_name in _color_cols and pd.notna(_val):
                                         _color_style = f"color:{POS_COLOR if _val >= 0 else NEG_COLOR}; font-weight:600;"
