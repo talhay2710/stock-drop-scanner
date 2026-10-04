@@ -45,9 +45,11 @@ def _build_movers_by_index(cfg) -> dict[str, list[dict]]:
             constituents.get_il_name_map(index_name) if index_name.upper() in ("TA35", "TA125")
             else constituents.get_us_name_map(index_name)
         )
+        # שורה עם prev_close_gap לא מוצגת: האחוז שלה פורש כמה ימי מסחר ולא יום, וכאן
+        # הוא מתויג כשינוי יומי (1.10.2026, "אני לא מוכן שתשלח לי נתונים לא נכונים").
         movers_by_index[index_name] = [
             {"ticker": r["ticker"], "name": name_map.get(r["ticker"], r["ticker"]), "pct_change": r["pct_change"]}
-            for _, r in df.iterrows()
+            for _, r in df.iterrows() if not r.get("prev_close_gap")
         ]
     return movers_by_index
 

@@ -298,18 +298,24 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             # העקבי מהציטוט החי על פני הרכבה-מחדש שעלולה לצרף תאריכים לא רצופים.
             if row.get("last_close_date") and close_date < row["last_close_date"]:
                 return None
-            return price, prev, close_date
+            return price, prev, close_date, prev_date
 
         result = _with_retry(_do, f"תיקון-טריות עבור {row['ticker']}")
         if result is None:
             return
-        price, prev, close_date = result
+        price, prev, close_date, prev_date = result
         if _is_israeli_ticker(row["ticker"]):
             price, prev = price / 100.0, prev / 100.0
         row["last_close"] = float(price)
         row["prev_close"] = float(prev)
         row["pct_change"] = (price - prev) / prev * 100.0
         row["last_close_date"] = close_date
+        # הזוג (price, prev) הוחלף כאן כולו - גם דגל הפער חייב להתעדכן לפי הזוג
+        # החדש, לא להישאר מהנתון הקודם. אחרת זוג חי שמדלג על יום מסחר עובר
+        # בלי דגל (התראת "ירידה יומית" שקרית, 1.10.2026 קנון: -6.7% מול -1.8%
+        # אמיתי) או להפך, דגל ישן חוסם זוג חי תקין.
+        row["prev_close_date"] = prev_date
+        row["prev_close_gap"] = prev_date < _expected_last_close_date(close_date)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         list(executor.map(_fetch_live, target_rows))

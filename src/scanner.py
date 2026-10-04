@@ -467,7 +467,10 @@ def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israel
     כלשהי - כדי לא להכביד יתר על המידה על yfinance החינמי."""
     log_threshold = abs(cfg.get("signal_log_threshold_pct", 3.5))
     alert_threshold = abs(cfg["drop_threshold_pct"])
-    candidates = df[df["pct_change"] <= -log_threshold]
+    # טיקר עם prev_close_gap: pct_change פורש כמה ימי מסחר, לא יום - לא נרשם כאות
+    # "יומי" (אחרת מאגר האסטרטגיה מתמלא באותות שקריים, 1.10.2026).
+    _gapped = df["prev_close_gap"].fillna(False) if "prev_close_gap" in df.columns else False
+    candidates = df[(df["pct_change"] <= -log_threshold) & (~_gapped)]
 
     for _, row in candidates.iterrows():
         ticker = row["ticker"]

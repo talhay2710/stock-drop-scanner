@@ -73,7 +73,9 @@ def _build_holdings_section(holdings: list[dict], closed_today: list[dict] | Non
     # אחר כך המצב הכללי/הכולל מאז הכניסה - לא לערבב את שני המספרים באותו משפט.
     today_values = [h["today_pnl"] for h in holdings if h.get("today_pnl") is not None]
     today_values += [c["today_pnl"] for c in (closed_today or []) if c.get("today_pnl") is not None]
-    if today_values:
+    # סכום חלקי (חסר נתון יומי לאחזקה אחת או יותר) הוא לא "מה התיק עשה היום" -
+    # עדיף בלי השורה מאשר מספר שנראה שלם ואינו כזה.
+    if today_values and len(today_values) == len(holdings) + len(closed_today or []):
         total_today = sum(today_values)
         today_word = "ברווח" if total_today >= 0 else "בהפסד"
         lines.append(f"היום התיק שלך {today_word} של {abs(total_today):,.0f} ש\"ח")

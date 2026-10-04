@@ -44,8 +44,11 @@ def build_holdings_summary(conn, cfg) -> list[dict]:
             baseline = entry
         elif not today_df.empty:
             _prev_close = today_df.iloc[0].get("prev_close")
+            # prev_close_gap: ה"אתמול" הזה ישן ביום מסחר או יותר - אין לנו שינוי יומי
+            # אמיתי, עדיף "אין נתון" מאחוז מנופח.
             baseline = float(_prev_close) if (
                 _prev_close is not None and not (isinstance(_prev_close, float) and _prev_close != _prev_close)
+                and not bool(today_df.iloc[0].get("prev_close_gap"))
             ) else None
         else:
             baseline = None
