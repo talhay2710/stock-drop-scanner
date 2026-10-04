@@ -5,10 +5,42 @@
 שנסגר מוקדם לקראת כניסת השבת. יום ראשון כבר אינו יום מסחר.
 מקור: https://www.tase.co.il/en/content/about/tradingdays_change
 """
+import csv
 import datetime as dt
+import os
 from zoneinfo import ZoneInfo
 
 from .constituents import INDEX_COUNTRY_CODE
+
+_TASE_CLOSED_CSV = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "tase_closed_days.csv")
+_tase_closed_cache: set[dt.date] | None = None
+
+
+def _tase_closed_days() -> set[dt.date]:
+    """ימי חול (שני-שישי) שהבורסה בת"א סגורה בהם סגירה מלאה (חגים/ערבי חג). נטען
+    מ-data/tase_closed_days.csv. בלי הרשימה הזו כל מניה נראתה "עם פער" אחרי כל חג
+    (הקוד הניח שכל יום חול הוא יום מסחר) - מה שחסם את כל ההתראות היומיות בבוקר
+    שאחרי חג (4.10.2026, לפני פתיחת המסחר ב-5.10). הרשימה אומתה מול נתוני
+    yfinance בפועל: כל תאריך בה חסר אצל כל 125 מניות ת"א35/125, ו-30.9 (חור זמני
+    של yfinance, לא חג) לא נמצא בה. לעדכן אחת לשנה."""
+    global _tase_closed_cache
+    if _tase_closed_cache is None:
+        days: set[dt.date] = set()
+        try:
+            with open(_TASE_CLOSED_CSV, encoding="utf-8", newline="") as f:
+                for row in csv.DictReader(f):
+                    days.add(dt.date.fromisoformat(row["date"]))
+        except (OSError, ValueError, KeyError):
+            pass  # בלי קובץ - ההתנהגות הישנה (כל יום חול הוא יום מסחר), לא קריסה
+        _tase_closed_cache = days
+    return _tase_closed_cache
+
+
+def is_trading_day(country: str, day: dt.date) -> bool:
+    """יום מסחר לפי יום בשבוע + חגי הבורסה בת"א (ארה"ב: ימי שבוע בלבד - אין כאן לוח חגים אמריקאי)."""
+    if day.isoweekday() not in MARKET_HOURS[country]["weekdays"]:
+        return False
+    return not (country == "IL" and day in _tase_closed_days())
 
 MARKET_HOURS = {
     "US": {
@@ -47,7 +79,7 @@ def is_market_open(index: str) -> bool:
     country = INDEX_COUNTRY_CODE[index.upper()]
     spec = MARKET_HOURS[country]
     now = dt.datetime.now(ZoneInfo(spec["tz"]))
-    if now.isoweekday() not in spec["weekdays"]:
+    if not is_trading_day(country, now.date()):
         return False
     close_hm = _close_for_weekday(spec, now.isoweekday())
     open_t = now.replace(hour=spec["open"][0], minute=spec["open"][1], second=0, microsecond=0)
@@ -63,7 +95,7 @@ def has_closed_today(country: str) -> bool:
     כי נתון שפיגר יום שלם מאחורי לא נתפס בכלל כ"תקוע" בבדיקה הישנה - ר' שם)."""
     spec = MARKET_HOURS[country]
     now = dt.datetime.now(ZoneInfo(spec["tz"]))
-    if now.isoweekday() not in spec["weekdays"]:
+    if not is_trading_day(country, now.date()):
         return False
     close_hm = _close_for_weekday(spec, now.isoweekday())
     close_t = now.replace(hour=close_hm[0], minute=close_hm[1], second=0, microsecond=0)
@@ -82,18 +114,18 @@ def get_market_status(country: str) -> dict:
 
     today_open = at(now.date(), spec["open"])
     today_close = at(now.date(), _close_for_weekday(spec, now.isoweekday()))
-    is_trading_day = now.isoweekday() in spec["weekdays"]
+    is_trading_day_now = is_trading_day(country, now.date())
 
-    if is_trading_day and today_open <= now <= today_close:
+    if is_trading_day_now and today_open <= now <= today_close:
         return {"open": True, "now": now, "next_change": today_close, "next_label": "נסגר"}
 
-    if is_trading_day and now < today_open:
+    if is_trading_day_now and now < today_open:
         next_open = today_open
     else:
         d = now.date()
         for _ in range(8):
             d = d + dt.timedelta(days=1)
-            if d.isoweekday() in spec["weekdays"]:
+            if is_trading_day(country, d):
                 next_open = at(d, spec["open"])
                 break
 

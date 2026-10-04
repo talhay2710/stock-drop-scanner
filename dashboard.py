@@ -3005,7 +3005,7 @@ with _tab_slot_movers.container():
                 if _movers_rep_date == israel_today() and is_market_open(movers_index):
                     st.caption("🟢 מסחר פעיל")
                 elif pd.notna(_movers_rep_date):
-                    _movers_stale = market_data.is_data_stale(_movers_rep_date, "")
+                    _movers_stale = market_data.is_data_stale(_movers_rep_date, "X.TA" if movers_index in ("TA35", "TA125") else "")
                     _movers_warn = "⚠️ " if _movers_stale else ""
                     st.caption(f"{_movers_warn}נכון לסגירת מסחר ב-{_movers_rep_date.strftime('%d/%m/%Y')}")
 

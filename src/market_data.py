@@ -10,7 +10,7 @@ import numpy as np
 import yfinance as yf
 
 from .constituents import INDEX_PROXY_TICKER
-from .market_hours import is_market_open, has_closed_today, MARKET_HOURS
+from .market_hours import is_market_open, has_closed_today, MARKET_HOURS, is_trading_day
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +59,14 @@ def _drop_phantom_rows(df: pd.DataFrame) -> pd.DataFrame:
     return df[~is_phantom]
 
 
-def _expected_last_close_date(as_of: dt.date) -> dt.date:
+def _expected_last_close_date(as_of: dt.date, ticker: str | None = None) -> dt.date:
     """יום המסחר האחרון שכבר אמור להיות זמין נכון ל-as_of (לא כולל as_of עצמו).
-    לא לוקח בחשבון חגים ספציפיים - הערכה גסה שנועדה לתפוס פערי נתונים אמיתיים
-    (יום-יומיים), לא דיוק מושלם."""
+    למניות ת"א (ticker שמסתיים ב-.TA) מדלג גם על חגי הבורסה (data/tase_closed_days.csv);
+    בלי זה כל מניה נראתה "עם פער"/"ישנה" בבוקר שאחרי חג (4.10.2026). ארה"ב: סופי
+    שבוע בלבד - אין לוח חגים אמריקאי כאן."""
+    country = "IL" if (ticker and _is_israeli_ticker(ticker)) else "US"
     d = as_of - dt.timedelta(days=1)
-    while d.weekday() in _CLOSED_WEEKDAYS:
+    while d.weekday() in _CLOSED_WEEKDAYS or not is_trading_day(country, d):
         d -= dt.timedelta(days=1)
     return d
 
@@ -86,7 +88,7 @@ def is_data_stale(last_close_date, ticker: str, as_of: dt.date | None = None) ->
     if last_close_date is None:
         return True
     check_date = as_of or dt.date.today()
-    expected = _expected_last_close_date(check_date)
+    expected = _expected_last_close_date(check_date, ticker)
     if as_of is None and has_closed_today("IL" if _is_israeli_ticker(ticker) else "US"):
         expected = check_date
     return last_close_date < expected
@@ -193,7 +195,7 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             # ספציפיים (כמו _expected_last_close_date) - גם פער אמיתי בגלל חג
             # ידגל כאן, וזה בכוונה: עדיף להראות את התאריך תמיד כשההשוואה היא
             # לא ל"אתמול" הרגיל, מאשר להטעות.
-            _prev_close_gap = _prev_close_date < _expected_last_close_date(_last_close_date)
+            _prev_close_gap = _prev_close_date < _expected_last_close_date(_last_close_date, ticker)
             rows.append({
                 "ticker": ticker,
                 "last_close": last_close,
@@ -315,7 +317,7 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
         # בלי דגל (התראת "ירידה יומית" שקרית, 1.10.2026 קנון: -6.7% מול -1.8%
         # אמיתי) או להפך, דגל ישן חוסם זוג חי תקין.
         row["prev_close_date"] = prev_date
-        row["prev_close_gap"] = prev_date < _expected_last_close_date(close_date)
+        row["prev_close_gap"] = prev_date < _expected_last_close_date(close_date, row["ticker"])
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         list(executor.map(_fetch_live, target_rows))

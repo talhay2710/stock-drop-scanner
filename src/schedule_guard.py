@@ -10,6 +10,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from . import store as store_mod
+from .market_hours import is_trading_day
 
 _TZ = ZoneInfo("Asia/Jerusalem")
 
@@ -27,6 +28,10 @@ def in_window(
     if weekday is not None:
         allowed = {weekday} if isinstance(weekday, int) else set(weekday)
         if now.weekday() not in allowed:
+            return False
+        # יום חול שהבורסה סגורה בו (חג/ערב חג) - לא שולחים סיכום "יומי/בוקר" על נתוני
+        # היום הקודם כאילו היו של היום (קרה ב-2.10.2026: נשלחו סיכום בוקר ויומי ביום חג).
+        if not is_trading_day("IL", now.date()) and now.weekday() in TRADING_WEEKDAYS:
             return False
     start = now.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
     end = now.replace(hour=end_hour, minute=end_minute, second=0, microsecond=0)
