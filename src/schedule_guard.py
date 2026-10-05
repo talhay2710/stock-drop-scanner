@@ -10,6 +10,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from . import store as store_mod
+from . import notifier
 from .market_hours import is_trading_day
 
 _TZ = ZoneInfo("Asia/Jerusalem")
@@ -46,3 +47,14 @@ def already_sent_today(conn, kind: str) -> bool:
 def mark_sent_today(conn, kind: str) -> None:
     today = dt.datetime.now(_TZ).date().isoformat()
     store_mod.mark_summary_sent(conn, kind, today)
+
+
+def send_and_mark(conn, cfg, kind: str, message_type: str, message: str, title: str) -> bool:
+    """שולח הודעה ומסמן "נשלח היום" רק אם הטלגרם באמת קיבל אותה (או שסוג ההודעה
+    כבוי בכוונה). שליחה שנכשלה לא מסומנת, כך שהריצה הבאה בתוך החלון תנסה שוב
+    במקום לדלג בשקט (5.10.2026)."""
+    msg_id = notifier.notify_typed(cfg, message_type, message, title, "")
+    if msg_id is not None or not notifier.is_message_type_enabled(cfg, message_type):
+        mark_sent_today(conn, kind)
+        return True
+    return False

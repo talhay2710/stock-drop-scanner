@@ -40,9 +40,10 @@ if __name__ == "__main__":
         message = build_weekly_report(conn)
 
         if message:
-            notifier.notify_typed(cfg, "weekly_report", message, "📊 דוח שבועי", "")
-            schedule_guard.mark_sent_today(conn, "weekly")
-            print("דוח שבועי נשלח.")
+            if schedule_guard.send_and_mark(conn, cfg, "weekly", "weekly_report", message, "📊 דוח שבועי"):
+                print("דוח שבועי נשלח.")
+            else:
+                print("שליחת הדוח השבועי נכשלה - לא מסומן כנשלח, ינסה שוב בתוך החלון.")
         else:
             print("אין מספיק התראות עם תוצאה השבוע - לא נשלח דוח.")
     finally:

@@ -66,9 +66,10 @@ if __name__ == "__main__":
                 print(f"נפתרו {signals_resolved} אותות-צל (signal_log).")
 
             if message:
-                notifier.notify_typed(cfg, "daily_summary", message, "📅 סיכום יומי", "")
-                schedule_guard.mark_sent_today(conn, "daily")
-                print("סיכום יומי נשלח.")
+                if schedule_guard.send_and_mark(conn, cfg, "daily", "daily_summary", message, "📅 סיכום יומי"):
+                    print("סיכום יומי נשלח.")
+                else:
+                    print("שליחת הסיכום היומי נכשלה - לא מסומן כנשלח, ינסה שוב בתוך החלון.")
             else:
                 print("אין התראות היום - לא נשלח סיכום.")
         finally:

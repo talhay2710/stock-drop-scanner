@@ -96,9 +96,10 @@ if __name__ == "__main__":
             )
 
             if message:
-                notifier.notify_typed(cfg, "morning_summary", message, "🌅 תמונת מצב - תחילת יום", "")
-                schedule_guard.mark_sent_today(conn, "morning")
-                print("תמונת מצב בוקר נשלחה.")
+                if schedule_guard.send_and_mark(conn, cfg, "morning", "morning_summary", message, "🌅 תמונת מצב - תחילת יום"):
+                    print("תמונת מצב בוקר נשלחה.")
+                else:
+                    print("שליחת תמונת הבוקר נכשלה - לא מסומן כנשלח, ינסה שוב בתוך החלון.")
             else:
                 print("אין נתונים - לא נשלח דוח בוקר.")
         finally:
