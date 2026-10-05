@@ -700,14 +700,17 @@ with st.container(key="nav_tabs_row"):
         """
         <style>
         @media (max-width: 480px) {
+            /* 5.10.2026: שורה אחת גוללת הסתירה 2 מ-5 הטאבים מחוץ למסך בלי שום רמז.
+            עכשיו 3+2 בשתי שורות - הכל גלוי בלי גלילה. */
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] {
-                flex-wrap: nowrap !important; overflow-x: auto !important;
+                flex-wrap: wrap !important; gap: 6px !important;
             }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"] {
-                width: fit-content !important; min-width: fit-content !important; flex: 0 0 auto !important;
+                width: auto !important; min-width: 0 !important;
+                flex: 1 1 calc(33.33% - 6px) !important;
             }
             div[class*="st-key-nav_tabs_row"] button {
-                white-space: nowrap !important; padding-left: 10px !important; padding-right: 10px !important;
+                white-space: nowrap !important; padding-left: 6px !important; padding-right: 6px !important;
                 font-size: 0.82rem !important;
             }
         }
@@ -726,6 +729,24 @@ with st.container(key="nav_tabs_row"):
                 st.rerun()
 
 
+# מובייל (5.10.2026): שורות של 4 כרטיסים (מדדים, תיק) נערמו כל אחד במסך שלם -
+# שלושה מסכים רק כדי לראות 4 מדדים. עכשיו רשת 2x2 למדדים בלבד - כרטיסי התיק
+# (card-bottom-line) צרים מדי לשתי עמודות ונשארים בעמודה אחת.
+st.markdown(
+    """
+    <style>
+    @media (max-width: 480px) {
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4):last-child):not(:has(.card-bottom-line)) {
+            flex-wrap: wrap !important; gap: 10px !important;
+        }
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4):last-child):not(:has(.card-bottom-line)) > [data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 10px) !important; width: auto !important; min-width: 0 !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
 # ב-Streamlit Cloud הסודות מוזנים דרך st.secrets (secrets.toml, לא קובץ ב-git) -
