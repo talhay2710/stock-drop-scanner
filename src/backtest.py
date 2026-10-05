@@ -106,7 +106,7 @@ def _fetch_batched_histories(tickers: list[str], start: dt.date, end: dt.date) -
 def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss: float,
                         window_days: int = 10, entry_limit: float | None = None,
                         actual_entry_price: float | None = None, actual_entry_date: str | None = None,
-                        hist_df: pd.DataFrame | None = None) -> str:
+                        hist_df: pd.DataFrame | None = None) -> tuple[str, int | None]:
     """אם actual_entry_price/actual_entry_date מסופקים (עסקה שבאמת מומשה) -
     בודקים יעד/סטופ מרגע הכניסה האמיתי, לא מרגע ההתראה - אחרת תנודה חדה באותו
     יום של ההתראה עצמה (לפני שהייתה הזדמנות ריאלית להיכנס) יכולה להיספר כהצלחה
@@ -115,12 +115,17 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
     hist_df - היסטוריית High/Low מוכנה מראש (מ-_fetch_batched_histories), כבר
     מומרת למטבע הנכון. כשניתן, לא נעשית שום קריאת רשת כאן בכלל. None משאיר
     את ההתנהגות הישנה (קריאת yf.download בודדת) - נשמר לתאימות עם קוד/בדיקות
-    שעדיין קוראים לפונקציה הזו ישירות בלי batching."""
+    שעדיין קוראים לפונקציה הזו ישירות בלי batching.
+
+    מחזיר (outcome, day_resolved) - day_resolved הוא מספר יום המסחר (1-based,
+    בתוך window_days) שבו הוכרע הגורל (הגיע ליעד/פגע בסטופ), או None אם עדיין
+    pending/אין החלטה/אין נתונים. נוסף כדי לאפשר התפלגות "אחרי כמה ימים בד"כ
+    נפגע הסטופ" (1.10.2026, כרטיס "קרוב לסטופ" - "בוא ננסה", "זמן-עד-פגיעה")."""
     entry_ts = actual_entry_date if (actual_entry_price and actual_entry_date) else scan_ts
     try:
         scan_date = dt.datetime.fromisoformat(entry_ts).date()
     except Exception:
-        return NO_DATA
+        return NO_DATA, None
 
     entry_ref = actual_entry_price if actual_entry_price else entry_limit
     target = _effective_target(entry_ref, target_base, stop_loss)
@@ -129,13 +134,13 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
     calendar_buffer = int(window_days * 1.6) + 4  # מרווח לסופי שבוע/חגים
     end = min(start + dt.timedelta(days=calendar_buffer), dt.date.today())
     if start >= dt.date.today():
-        return PENDING
+        return PENDING, None
 
     if hist_df is not None:
         mask = (hist_df.index.date >= start) & (hist_df.index.date <= end)
         hist_slice = hist_df.loc[mask]
         if hist_slice.empty:
-            return NO_DATA
+            return NO_DATA, None
         highs, lows = hist_slice["High"], hist_slice["Low"]
     else:
         try:
@@ -145,10 +150,10 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
             )
         except Exception as e:
             logger.debug("נכשלה שליפת היסטוריה עבור %s: %s", ticker, e)
-            return NO_DATA
+            return NO_DATA, None
 
         if hist.empty:
-            return NO_DATA
+            return NO_DATA, None
 
         highs, lows = hist["High"], hist["Low"]
         if hasattr(highs, "columns"):  # yfinance עשוי להחזיר multiindex גם למניה בודדת
@@ -168,14 +173,14 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
     else:
         highs, lows = highs.iloc[:window_days], lows.iloc[:window_days]
 
-    for h, l in zip(highs.tolist(), lows.tolist()):
+    for day_idx, (h, l) in enumerate(zip(highs.tolist(), lows.tolist()), start=1):
         if l <= stop_loss:
-            return HIT_STOP
+            return HIT_STOP, day_idx
         if h >= target:
-            return HIT_TARGET
+            return HIT_TARGET, day_idx
 
     still_within_window = (dt.date.today() - start).days < calendar_buffer
-    return PENDING if still_within_window else NEITHER
+    return (PENDING if still_within_window else NEITHER), None
 
 
 def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10) -> pd.DataFrame:
@@ -200,7 +205,7 @@ def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10) -> pd.DataFrame
     else:
         histories = {}
 
-    df["outcome"] = [
+    _resolved = [
         _outcome_for_alert(
             row["ticker"], row["scan_ts"], row["target_base"], row["stop_loss"], window_days,
             entry_limit=row.get("entry_limit"),
@@ -210,6 +215,8 @@ def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10) -> pd.DataFrame
         )
         for _, row in df.iterrows()
     ]
+    df["outcome"] = [o for o, _ in _resolved]
+    df["day_resolved"] = [d for _, d in _resolved]
     return df
 
 
@@ -263,6 +270,31 @@ def summarize_by(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
     grouped = grouped.sort_values("rate", ascending=False).reset_index()
     grouped.columns = [group_col, "סה\"כ", "הגיעו ליעד", "שיעור הצלחה (%)"]
     return grouped
+
+
+def stop_survival_stat(df: pd.DataFrame, days_held: int) -> dict | None:
+    """עבור כרטיס "קרוב לסטופ" (1.10.2026, "בוא ננסה", "זמן-עד-פגיעה") - לא בודקים
+    "התאוששות אחרי חצייה" (המערכת הזו מגדירה פגיעה בסטופ כרגע-חצייה-ראשונה,
+    החלטה סופית - אין "חצה וחזר" לבדוק), אלא תחזית מבוססת-היסטוריה אחרת:
+    מתוך כל ההתראות שבסופו של דבר פגעו בסטופ, כמה אחוז מהן כבר היו פגעו עד
+    היום ה-days_held הנוכחי (אם היית בהתראה ממוצעת, כבר היית אמור לדעת את
+    התוצאה). days_held גדול יחסית לרוב ה"פגיעות" ההיסטוריות = זו דווקא ירידה
+    שלוקחת יותר זמן מהרגיל להיפתר, לא בהכרח "אופיינית".
+    מחזיר None אם אין מספיק דגימות (HIT_STOP עם day_resolved ידוע)."""
+    if "day_resolved" not in df.columns:
+        return None
+    stop_days = df.loc[(df["outcome"] == HIT_STOP) & df["day_resolved"].notna(), "day_resolved"]
+    if len(stop_days) < 10:
+        return None
+    stop_days = stop_days.astype(int)
+    median_days = int(stop_days.median())
+    pct_by_now = float((stop_days <= days_held).mean() * 100)
+    return {
+        "sample_size": int(len(stop_days)),
+        "median_days": median_days,
+        "pct_resolved_by_now": round(pct_by_now, 0),
+        "days_held": days_held,
+    }
 
 
 def refresh_pending_outcomes(conn: sqlite3.Connection, window_days: int = 10) -> int:
@@ -349,7 +381,7 @@ def compare_target_strategies(conn: sqlite3.Connection, window_days: int = 10) -
     df = pd.read_sql_query(
         "SELECT ticker, scan_ts, entry_limit, stop_loss, target_base, last_close, prev_close, "
         "bought, actual_entry_price, bought_at "
-        "FROM alerts WHERE entry_limit IS NOT NULL AND stop_loss IS NOT NULL",
+        "FROM alerts WHERE entry_limit IS NOT NULL AND stop_loss IS NOT NULL" + store.exclusion_clause(),
         conn,
     )
     if df.empty:
@@ -527,7 +559,7 @@ def compare_stop_multipliers(conn: sqlite3.Connection, window_days: int = 10) ->
     שיעור הצלחה (%), תוחלת (%)."""
     df = pd.read_sql_query(
         "SELECT ticker, scan_ts, entry_limit, target_base, bought, actual_entry_price, bought_at "
-        "FROM alerts WHERE entry_limit IS NOT NULL AND target_base IS NOT NULL",
+        "FROM alerts WHERE entry_limit IS NOT NULL AND target_base IS NOT NULL" + store.exclusion_clause(),
         conn,
     )
     if df.empty:

@@ -508,6 +508,24 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
     return cur.lastrowid
 
 
+def excluded_alert_ids() -> list[int]:
+    import csv, os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "excluded_alert_ids.csv")
+    try:
+        with open(path, encoding="utf-8", newline="") as f:
+            return [int(r["alert_id"]) for r in csv.DictReader(f)]
+    except (OSError, ValueError, KeyError):
+        return []
+
+
+def exclusion_clause() -> str:
+    """ "AND id NOT IN (...)" להחרגת התראות שתוקנו בדיעבד (data/excluded_alert_ids.csv) -
+    לא היו ירידות אמיתיות (בסיס prev_close פער), ולכן אסור שיזינו סטטיסטיקות
+    אסטרטגיה. קובץ נפרד ולא עמודה ב-alerts: ה-DB משותף עם הענן ומתמזג ברמת עמודה."""
+    ids = excluded_alert_ids()
+    return f" AND id NOT IN ({','.join(map(str, ids))})" if ids else ""
+
+
 def snapshot_alert(conn: sqlite3.Connection, scan_date: str, ticker: str) -> dict | None:
     """תמונת מצב של שורת ההתראה הקיימת (אם יש) לפני save_alert - כדי שאפשר יהיה
     להחזיר אותה אם שליחת הטלגרם נכשלה (ר' restore_alert)."""

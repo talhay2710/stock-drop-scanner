@@ -6,14 +6,15 @@ import sqlite3
 
 import pandas as pd
 
-from . import backtest
+from . import backtest, store
 from .analysis import REASON_LABELS
 
 
 def build_weekly_report(conn: sqlite3.Connection, days: int = 7) -> str | None:
     since = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     df = pd.read_sql_query(
-        "SELECT * FROM alerts WHERE scan_date >= ? AND outcome IN ('hit_target', 'hit_stop', 'neither')",
+        "SELECT * FROM alerts WHERE scan_date >= ? AND outcome IN ('hit_target', 'hit_stop', 'neither')"
+        + store.exclusion_clause(),
         conn, params=(since,),
     )
     if df.empty:
