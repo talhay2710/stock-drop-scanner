@@ -2616,6 +2616,8 @@ def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
         name_map = constituents.get_us_name_map(index_name)
     df["company_name"] = df["טיקר"].map(name_map).fillna("")
     df["index_name"] = index_name
+    if "thin_print" not in df.columns:
+        df["thin_print"] = False
     column_order = ["שער", "שינוי מצטבר (%)", "שינוי יומי (%)", "טיקר", "company_name",
                      "last_close_date", "is_stale", "index_name", "prev_close_gap", "prev_close_date", "thin_print"]
     return df[column_order]
