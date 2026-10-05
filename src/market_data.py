@@ -223,7 +223,35 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             continue
 
     _fix_stale_rows_with_live_quote(rows)
+    _flag_thin_prints(rows)
     return pd.DataFrame(rows)
+
+
+# מתחת לשבר הזה מהנפח היומי הממוצע, "המחיר האחרון" של היום הוא כנראה עסקה בודדת
+# זעירה ולא מחיר שוק (5.10.2026: סאמיט - עסקה אחת של 21 מניות ב-09:59 ב-40.55 מול
+# ממוצע ~45,000 ליום; ה-bid/ask באותו רגע היו 41.37/41.75 והירידה האמיתית <1%
+# במקום 3.8%, והתראה שקרית נשלחה).
+THIN_PRINT_VOLUME_FRACTION = 0.005
+
+
+def _flag_thin_prints(rows: list[dict]) -> None:
+    """מסמן thin_print=True לשורה שהמחיר שלה היום מבוסס על נפח זעיר בזמן שהשוק
+    פתוח. אחרי הסגירה הנפח סופי והמחיר הוא סגירה אמיתית, לכן לא מסמנים."""
+    for row in rows:
+        row["thin_print"] = False
+        try:
+            is_il = _is_israeli_ticker(row["ticker"])
+            if not is_market_open("TA35" if is_il else "NASDAQ100"):
+                continue
+            vol, avg = row.get("last_volume"), row.get("avg_volume_20d")
+            if vol is None or not avg or avg <= 0:
+                continue
+            spec = MARKET_HOURS["IL" if is_il else "US"]
+            if row["last_close_date"] != dt.datetime.now(ZoneInfo(spec["tz"])).date():
+                continue
+            row["thin_print"] = vol < avg * THIN_PRINT_VOLUME_FRACTION
+        except Exception:
+            continue
 
 
 def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:

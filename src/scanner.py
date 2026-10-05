@@ -470,7 +470,8 @@ def _log_shadow_signals(cfg: dict, conn, df: pd.DataFrame, index: str, is_israel
     # טיקר עם prev_close_gap: pct_change פורש כמה ימי מסחר, לא יום - לא נרשם כאות
     # "יומי" (אחרת מאגר האסטרטגיה מתמלא באותות שקריים, 1.10.2026).
     _gapped = df["prev_close_gap"].fillna(False) if "prev_close_gap" in df.columns else False
-    candidates = df[(df["pct_change"] <= -log_threshold) & (~_gapped)]
+    _thin_s = df["thin_print"].fillna(False).astype(bool) if "thin_print" in df.columns else False
+    candidates = df[(df["pct_change"] <= -log_threshold) & (~_gapped) & (~_thin_s)]
 
     for _, row in candidates.iterrows():
         ticker = row["ticker"]
@@ -606,7 +607,12 @@ def _scan_one_index(
     watch_buffer = abs(cfg.get("drop_confirm_watch_pct", 1.0))
     watch_threshold = max(threshold - watch_buffer, 0.0)
     confirmed = pd.Series(False, index=df.index)
-    in_watch_zone = df["pct_change"] <= -watch_threshold
+    # thin_print: המחיר של היום מבוסס על נפח זעיר (עסקה בודדת) ולא על מחיר שוק -
+    # לא מתריעים ולא נרשמים כמועמדים (5.10.2026, סאמיט: 21 מניות => "ירידה" של
+    # 3.8% שלא הייתה קיימת, בפועל <1%).
+    _thin = df.get("thin_print")
+    _thin = _thin.fillna(False).astype(bool) if _thin is not None else pd.Series(False, index=df.index)
+    in_watch_zone = (df["pct_change"] <= -watch_threshold) & ~_thin
     for idx in df[in_watch_zone].index:
         cand_ticker = df.loc[idx, "ticker"]
         cand_pct = float(df.loc[idx, "pct_change"])
@@ -630,7 +636,7 @@ def _scan_one_index(
         multi_day_flag = (df["n_day_change"] <= -multi_day_threshold) | gap_as_multi_day_flag
     else:
         multi_day_flag = gap_as_multi_day_flag
-    flagged = df[single_day_flag | multi_day_flag].copy()
+    flagged = df[(single_day_flag | multi_day_flag) & ~_thin].copy()
     flagged["is_multi_day_only"] = multi_day_flag[flagged.index] & ~single_day_flag[flagged.index]
     flagged["severity"] = flagged[["pct_change", "n_day_change"]].min(axis=1)
 

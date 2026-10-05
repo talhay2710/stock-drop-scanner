@@ -2617,7 +2617,7 @@ def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
     df["company_name"] = df["טיקר"].map(name_map).fillna("")
     df["index_name"] = index_name
     column_order = ["שער", "שינוי מצטבר (%)", "שינוי יומי (%)", "טיקר", "company_name",
-                     "last_close_date", "is_stale", "index_name", "prev_close_gap", "prev_close_date"]
+                     "last_close_date", "is_stale", "index_name", "prev_close_gap", "prev_close_date", "thin_print"]
     return df[column_order]
 
 
@@ -2931,7 +2931,7 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
                 # ההתראות הראשית (1.10.2026, "שהמידע שמוצג במניות המובילות
                 # יהיה אמין" - בלי באנר נפרד, רק תיוג נכון של הערך עצמו).
                 "שינוי יומי (%)": lambda v, r: (
-                    ("⚠️ " if r.get("prev_close_gap") else "") + (_signed_num(v, 1, "%") if pd.notna(v) else "—")
+                    ("⚠️ " if (r.get("prev_close_gap") or r.get("thin_print")) else "") + (_signed_num(v, 1, "%") if pd.notna(v) else "—")
                 ),
             },
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},

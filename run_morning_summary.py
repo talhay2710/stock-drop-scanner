@@ -49,7 +49,7 @@ def _build_movers_by_index(cfg) -> dict[str, list[dict]]:
         # הוא מתויג כשינוי יומי (1.10.2026, "אני לא מוכן שתשלח לי נתונים לא נכונים").
         movers_by_index[index_name] = [
             {"ticker": r["ticker"], "name": name_map.get(r["ticker"], r["ticker"]), "pct_change": r["pct_change"]}
-            for _, r in df.iterrows() if not r.get("prev_close_gap")
+            for _, r in df.iterrows() if not (r.get("prev_close_gap") or r.get("thin_print"))
         ]
     return movers_by_index
 
