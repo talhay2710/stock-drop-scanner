@@ -7,7 +7,6 @@ import os
 import re
 import sys
 import sqlite3
-import threading
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -1100,30 +1099,6 @@ def render_value_card(label: str, value: float, invested: float, ccy_symbol: str
     )
 
 
-@st.cache_resource
-def _stop_time_stat_holder() -> dict:
-    """זמן טיפוסי עד פגיעה בסטופ (ימי מסחר, חציון היסטורי) - מחושב פעם אחת ברקע
-    (backtest מלא ~10 שניות) כדי שלא יחסום את טעינת טאב האחזקות. עד שהחישוב מסתיים
-    הכרטיס פשוט לא מציג את השורה."""
-    holder = {"median_days": None, "sample_size": 0}
-
-    def _work():
-        try:
-            conn = store.get_conn(db_path(cfg))
-            try:
-                df = pd.read_sql_query("SELECT * FROM alerts WHERE 1=1" + store.exclusion_clause(), conn)
-            finally:
-                conn.close()
-            stat = backtest.stop_survival_stat(backtest.run_backtest(df, 10), 0)
-            if stat:
-                holder["median_days"], holder["sample_size"] = stat["median_days"], stat["sample_size"]
-        except Exception:
-            pass
-
-    threading.Thread(target=_work, daemon=True).start()
-    return holder
-
-
 def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
     # מציג את האחזקה הכי קרובה לחצות את היעד שלה (רווח) או את הסטופ שלה (הפסד),
     # מכל האחזקות בתיק - כדי לתת "איתות" בלי צורך לבדוק כל אחזקה בנפרד.
@@ -1139,20 +1114,6 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
     else:
         label = f"{icon} קרוב ל{'יעד' if is_target else 'סטופ'}"
         gap_line = f"{gap_pct:.1f}% נותרו"
-    # רק בכרטיס סטופ: כמה זמן בדרך כלל לוקח לסטופ להיפגע, מההיסטוריה של ההתראות
-    # עצמן (שורה חדשה שלא חוזרת בשום מקום אחר בדשבורד).
-    _stop_stat = _stop_time_stat_holder() if not is_target else {}
-    # באותה שורה תחתונה (flex, אותו גובה כמו בשאר הכרטיסים) - לא שורה נוספת, כדי
-    # שהיישור מול שאר הכרטיסים יישמר; במסך צר הטקסט הקטן נחתך ב-ellipsis.
-    if _stop_stat.get("median_days"):
-        gap_line = (
-            f'<span style="flex:none;">{gap_line}</span>'
-            f'<span style="font-size:0.7rem; opacity:0.7; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
-            f'סטופ נפגע בד"כ אחרי {_stop_stat["median_days"]} ימים</span>'
-        )
-        _bottom_style = "display:flex; justify-content:space-between; align-items:baseline; gap:8px;"
-    else:
-        _bottom_style = ""
     st.markdown(
         f"""
         <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
@@ -1160,7 +1121,7 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
                     transition:box-shadow 0.2s;">
           <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
           <div style="font-size:1.25rem; font-weight:700; color:{color}; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{name}</div>
-          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px; {_bottom_style}">
+          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
             {gap_line}
           </div>
         </div>
