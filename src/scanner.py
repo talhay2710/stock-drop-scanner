@@ -2,6 +2,7 @@
 import logging
 import statistics
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -637,6 +638,18 @@ def _scan_one_index(
     else:
         multi_day_flag = gap_as_multi_day_flag
     flagged = df[(single_day_flag | multi_day_flag) & ~_thin].copy()
+    # מקור שני: מחיר אחרון שנמוך מה-bid החי הוא עסקה ישנה, לא ירידה אמיתית. נבדק רק
+    # כשהשוק פתוח והנתון של היום (אחרת אין bid/ask משמעותי).
+    if not flagged.empty and is_market_open(index):
+        _today = dt.datetime.now(ZoneInfo(market_data.MARKET_HOURS["IL" if is_israeli else "US"]["tz"])).date()
+        _cands = [
+            (r["ticker"], float(r["last_close"])) for _, r in flagged.iterrows()
+            if r.get("last_close_date") == _today
+        ]
+        _rejected = market_data.find_prints_below_bid(_cands)
+        for _t, (_p, _b) in _rejected.items():
+            logger.warning("דילוג על %s - המחיר האחרון %.2f נמוך מה-bid החי %.2f (עסקה ישנה)", _t, _p, _b)
+        flagged = flagged[~flagged["ticker"].isin(_rejected)].copy()
     flagged["is_multi_day_only"] = multi_day_flag[flagged.index] & ~single_day_flag[flagged.index]
     flagged["severity"] = flagged[["pct_change", "n_day_change"]].min(axis=1)
 
@@ -792,6 +805,7 @@ def _scan_one_index(
             expected_max_drop_pct=expected_max_drop_pct,
         )
         record["market_regime"] = market_regime_tag
+        prior_snapshot = store_mod.snapshot_alert(conn, scan_date, ticker)
         new_id = store_mod.save_alert(conn, record)
         sector_peers = store_mod.count_todays_sector_alerts(conn, analysis.sector, scan_date, exclude_ticker=ticker)
 
@@ -804,10 +818,19 @@ def _scan_one_index(
 
         if notifier.is_message_type_enabled(cfg, "drop_alert"):
             edited = prior_message_id and notifier.edit_telegram(cfg, prior_message_id, message)
+            send_failed = False
             if not edited:
                 new_message_id = notifier.send_telegram(cfg, message)
                 if new_message_id:
                     store_mod.update_telegram_message_id(conn, new_id, new_message_id)
+                elif notifier.telegram_active(cfg):
+                    send_failed = True
+            if send_failed:
+                # ההתראה נשמרה לפני השליחה, והדדופ היה חוסם כל ניסיון חוזר ומאבד אותה.
+                # מחזירים את השורה למצבה הקודם - הסריקה הבאה (5 דק') תנסה שוב מאפס.
+                store_mod.restore_alert(conn, scan_date, ticker, prior_snapshot)
+                logger.warning("שליחת טלגרם נכשלה עבור %s - ההתראה בוטלה ותנסה שוב בסריקה הבאה", ticker)
+                continue
 
             if is_multi_day_only:
                 desktop_title = f"📉 {ticker} ירדה מצטבר {row.get('n_day_change', 0):.1f}% ב-{multi_day_window} ימים"

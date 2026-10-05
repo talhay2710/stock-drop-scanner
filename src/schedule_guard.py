@@ -54,7 +54,8 @@ def send_and_mark(conn, cfg, kind: str, message_type: str, message: str, title: 
     כבוי בכוונה). שליחה שנכשלה לא מסומנת, כך שהריצה הבאה בתוך החלון תנסה שוב
     במקום לדלג בשקט (5.10.2026)."""
     msg_id = notifier.notify_typed(cfg, message_type, message, title, "")
-    if msg_id is not None or not notifier.is_message_type_enabled(cfg, message_type):
+    if (msg_id is not None or not notifier.is_message_type_enabled(cfg, message_type)
+            or not notifier.telegram_active(cfg)):
         mark_sent_today(conn, kind)
         return True
     return False

@@ -508,6 +508,31 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
     return cur.lastrowid
 
 
+def snapshot_alert(conn: sqlite3.Connection, scan_date: str, ticker: str) -> dict | None:
+    """תמונת מצב של שורת ההתראה הקיימת (אם יש) לפני save_alert - כדי שאפשר יהיה
+    להחזיר אותה אם שליחת הטלגרם נכשלה (ר' restore_alert)."""
+    cur = conn.execute("SELECT * FROM alerts WHERE scan_date = ? AND ticker = ?", (scan_date, ticker))
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return dict(zip([d[0] for d in cur.description], row))
+
+
+def restore_alert(conn: sqlite3.Connection, scan_date: str, ticker: str, snapshot: dict | None) -> None:
+    """מבטל את save_alert: שורה שלא הייתה קיימת - נמחקת; שורה שהייתה - חוזרת בדיוק
+    למצבה הקודם. נקרא כששליחת הטלגרם נכשלה, כדי שהדדופ ('כבר שלחנו היום') לא יחסום
+    ניסיון חוזר בסריקה הבאה והתראה אמיתית לא תאבד בשקט (5.10.2026)."""
+    if snapshot is None:
+        conn.execute("DELETE FROM alerts WHERE scan_date = ? AND ticker = ?", (scan_date, ticker))
+    else:
+        cols = [c for c in snapshot if c != "id"]
+        conn.execute(
+            f"UPDATE alerts SET {', '.join(c + ' = ?' for c in cols)} WHERE id = ?",
+            [snapshot[c] for c in cols] + [snapshot["id"]],
+        )
+    conn.commit()
+
+
 def update_telegram_message_id(conn: sqlite3.Connection, alert_id: int, message_id: int) -> None:
     conn.execute("UPDATE alerts SET telegram_message_id = ? WHERE id = ?", (message_id, alert_id))
     conn.commit()

@@ -234,6 +234,50 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
 THIN_PRINT_VOLUME_FRACTION = 0.005
 
 
+# סטייה מותרת (באחוזים) בין "המחיר האחרון" לבין ה-bid הנוכחי לפני שהמחיר נחשב
+# ישן. עסקה אחרונה שמתחת ל-bid ב-יותר מזה = המחיר כבר עלה מאז, והירידה מנופחת.
+STALE_PRINT_TOLERANCE_PCT = 0.5
+_BOOK_CHECK_TIMEOUT_SECONDS = 10
+
+
+def find_prints_below_bid(candidates: list[tuple[str, float]]) -> dict[str, tuple[float, float]]:
+    """בדיקת מקור שני לפני התראת ירידה: מחזיר {ticker: (price, bid)} עבור כל טיקר
+    שהמחיר האחרון שלו נמוך מה-bid החי ביותר מ-STALE_PRINT_TOLERANCE_PCT. טיקר שלא
+    ניתן לאמת (אין bid, ספר הפוך, timeout, שגיאה) לא נחסם - אין נתון נגדי.
+    (5.10.2026, סאמיט: עסקה אחרונה ב-40.55 מול bid 41.37.)"""
+    if not candidates:
+        return {}
+
+    def _check(item):
+        ticker, price = item
+        info = yf.Ticker(ticker).info
+        bid, ask = info.get("bid"), info.get("ask")
+        if not bid or bid <= 0 or (ask and ask < bid):
+            return None
+        scale = 100.0 if _is_israeli_ticker(ticker) else 1.0
+        bid = float(bid) / scale
+        if price < bid * (1 - STALE_PRINT_TOLERANCE_PCT / 100.0):
+            return ticker, (price, bid)
+        return None
+
+    rejected: dict[str, tuple[float, float]] = {}
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(candidates)))
+    try:
+        futures = [executor.submit(_check, c) for c in candidates]
+        done, _ = concurrent.futures.wait(futures, timeout=_BOOK_CHECK_TIMEOUT_SECONDS)
+        for f in done:
+            try:
+                res = f.result()
+            except Exception as e:
+                logger.debug("בדיקת bid נכשלה: %s", e)
+                continue
+            if res:
+                rejected[res[0]] = res[1]
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+    return rejected
+
+
 def _flag_thin_prints(rows: list[dict]) -> None:
     """מסמן thin_print=True לשורה שהמחיר שלה היום מבוסס על נפח זעיר בזמן שהשוק
     פתוח. אחרי הסגירה הנפח סופי והמחיר הוא סגירה אמיתית, לכן לא מסמנים."""

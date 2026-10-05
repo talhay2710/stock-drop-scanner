@@ -45,6 +45,12 @@ def is_message_type_enabled(cfg: dict, message_type: str) -> bool:
     return bool(cfg.get("telegram_message_types", {}).get(message_type, True))
 
 
+def telegram_active(cfg: dict) -> bool:
+    """האם טלגרם מוגדר ופעיל בפועל. כש-False, send_telegram מחזיר None "בכוונה" ולא
+    בגלל כשל - שולחים שמסתמכים על ה-id חייבים להבדיל בין שני המקרים."""
+    return _telegram_creds(cfg) is not None
+
+
 def send_telegram_typed(cfg: dict, message_type: str, text: str) -> int | None:
     """כמו send_telegram, אבל בודק קודם שהסוג הזה לא כובה ב"סוגי התראה"
     בסיידבר - נקודת מעבר יחידה לכל שולחי ההודעות, כדי שכיבוי סוג לא ידרוש
