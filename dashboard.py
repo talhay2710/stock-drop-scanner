@@ -348,7 +348,8 @@ def get_or_backfill_stop_price(holding_row: dict, entry_price: float) -> float:
     מחשב פעם אחת עכשיו ושומר, כדי שמאותו רגע הוא יהיה קבוע גם היא, בלי צורך
     לחשב מחדש בכל טעינה."""
     stored = holding_row.get("holding_stop_price")
-    if stored:
+    # pd.notna: NULL מה-DB מגיע מ-pandas כ-NaN, שהוא truthy - בלי הבדיקה הזו הסטופ הוצג "nan"
+    if stored is not None and pd.notna(stored) and stored:
         return stored
     computed = get_holding_stop_price(holding_row["ticker"], entry_price)
     bf_conn = store.get_conn(db_path(cfg))
@@ -4236,7 +4237,8 @@ with _tab_slot_portfolio.container():
                 # יש תו ברוחב אפס (ZWNJ) בתוך "סטופ" - בלתי נראה לעין, אבל שובר זיהוי תבנית של
                 # כלי חיצוני שנראה שמתקן/מחליף את המילה השאולה הזו שוב ושוב (כבר קרה פעמיים).
                 _STOPLOSS_LABEL = "ס‌טופ-לוס"
-                stop_price = row.get("holding_stop_price") or (row["entry"] * STOP_LOSS_FACTOR)
+                _stored_stop = row.get("holding_stop_price")
+                stop_price = _stored_stop if (_stored_stop is not None and pd.notna(_stored_stop) and _stored_stop) else (row["entry"] * STOP_LOSS_FACTOR)
                 stop_price_text = f"{stop_price*100:,.0f}" if is_il else f"{stop_price:,.2f}"
                 target_price = live_target_price(row["entry"], stop_price, row.get("forecast_target"))
                 target_price_text = f"{target_price*100:,.0f}" if is_il else f"{target_price:,.2f}"
