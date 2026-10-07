@@ -1146,30 +1146,6 @@ def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
     )
 
 
-def render_exposure_card(at_risk_count: int, total_count: int, at_risk_value: float,
-                          total_value: float, ccy_symbol: str) -> None:
-    """באנר רוחב-מלא (לא כרטיס ברשת) - מוצג רק כש-2+ אחזקות קרובות/חצו סטופ
-    *בו-זמנית* (ר' _compute_portfolio_summaries), כדי לענות על 'כמה % מהתיק
-    בסיכון עכשיו', לא רק מי האחזקה הבודדת הכי דחופה (render_proximity_card,
-    למעלה) - 17.9.2026, בקשת משתמש מפורשת."""
-    _pct_of_portfolio = (at_risk_value / total_value * 100) if total_value else 0.0
-    st.markdown(
-        f"""
-        <div style="border:1px solid {NEG_COLOR}; border-radius:12px; padding:12px 18px;
-                    display:flex; align-items:center; justify-content:space-between; gap:12px;
-                    background:{NEG_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-top:12px;">
-          <div style="font-size:0.95rem; font-weight:700; color:{NEG_COLOR};">
-            ⚠️ {at_risk_count} מתוך {total_count} אחזקות קרובות/חצו סטופ-לוס בו-זמנית
-          </div>
-          <div style="font-size:0.9rem; font-weight:600; color:{NEG_COLOR}; white-space:nowrap;">
-            {_pct_of_portfolio:.0f}% משווי התיק ({at_risk_value:,.0f} {ccy_symbol})
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 DAY_NAMES_HE = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון"]
 
 
@@ -5029,8 +5005,6 @@ with st.container(border=True, key="market_panel"):
             if _proximity_summary:
                 with _pf_cols[3]:
                     render_proximity_card(*_proximity_summary)
-            if _exposure_summary:
-                render_exposure_card(*_exposure_summary)
 
         # מחמם מראש (בלי להציג כלום) את המטמון של get_all_changes לכל מדדי
         # הסריקה, באותו קצב (60s) שה-ttl שלו - כדי שכשעוברים לטאב "מניות
