@@ -20,6 +20,8 @@ import yfinance as yf
 logger = logging.getLogger(__name__)
 
 HOLD_DAYS = 3
+# אופקי החזקה שנשמרים (ימי מסחר, יום ההתראה = יום 1). 8/14/30 = קצה עליון של "4-8", "9-14", "15 ומעלה".
+WINDOWS = (1, 2, 3, 8, 14, 30)
 _SCALE_IL = 100.0  # מניות ת"א מדווחות באגורות
 
 _SCHEMA = """
@@ -31,10 +33,15 @@ CREATE TABLE IF NOT EXISTS post_alert_outcomes (
     computed_at TEXT
 )
 """
+_EXTRA_COLUMNS = [f"{c}_{n} REAL" for n in (8, 14, 30) for c in ("max_up", "last", "max_dn")]
 
 
 def ensure_table(conn: sqlite3.Connection) -> None:
     conn.execute(_SCHEMA)
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(post_alert_outcomes)")}
+    for col_def in _EXTRA_COLUMNS:
+        if col_def.split()[0] not in existing:
+            conn.execute(f"ALTER TABLE post_alert_outcomes ADD COLUMN {col_def}")
     conn.commit()
 
 
@@ -50,7 +57,8 @@ def _alert_ts(scan_ts: str) -> pd.Timestamp | None:
 
 
 def _compute_one(bars: pd.DataFrame, ts: pd.Timestamp, entry: float) -> dict | None:
-    """bars: High/Low/Close ב-5 דקות (כבר בש"ח/$), index עם tz של הבורסה."""
+    """bars: High/Low/Close ב-5 דקות (כבר בש"ח/$), index עם tz של הבורסה. לכל אופק מ-WINDOWS
+    מחשב שיא/סגירה/שפל מרגע ההתראה, רק אם האופק הושלם בנתונים (אחרת None לאותו אופק)."""
     if bars is None or bars.empty or not entry:
         return None
     ts = ts.tz_convert(bars.index.tz)
@@ -59,19 +67,30 @@ def _compute_one(bars: pd.DataFrame, ts: pd.Timestamp, entry: float) -> dict | N
     if d0 not in days:
         return None
     k = days.index(d0)
-    window_days = days[k:k + HOLD_DAYS]
-    if len(window_days) < HOLD_DAYS:
-        return None  # החלון עדיין לא הסתיים
+    # היום הנוכחי לא נספר (יום מסחר שלא הסתיים) - אחרת אופק "שהושלם" יכלול נתון חלקי
+    window_days = [d for d in days[k:k + max(WINDOWS)] if d < dt.date.today()]
     after = bars[bars.index > ts]
+    per_day = []
+    for day in window_days:
+        b = after[after.index.date == day]
+        if b.empty:
+            return None if not per_day else _finish(per_day, entry)
+        per_day.append((float(b["High"].max()), float(b["Low"].min()), float(b["Close"].iloc[-1])))
+    return _finish(per_day, entry)
+
+
+def _finish(per_day: list[tuple[float, float, float]], entry: float) -> dict | None:
     out: dict = {}
-    for i, day in enumerate(window_days, start=1):
-        upto = after[after.index.date <= day]
-        if upto.empty:
-            return None
-        out[f"max_up_{i}"] = (float(upto["High"].max()) / entry - 1) * 100
-        out[f"last_{i}"] = (float(upto["Close"].iloc[-1]) / entry - 1) * 100
-    out["max_dn_3"] = (float(after[after.index.date <= window_days[-1]]["Low"].min()) / entry - 1) * 100
-    return out
+    for n in WINDOWS:
+        if len(per_day) < n:
+            continue
+        hi = max(p[0] for p in per_day[:n])
+        lo = min(p[1] for p in per_day[:n])
+        out[f"max_up_{n}"] = (hi / entry - 1) * 100
+        out[f"last_{n}"] = (per_day[n - 1][2] / entry - 1) * 100
+        if n >= 3:
+            out[f"max_dn_{n}"] = (lo / entry - 1) * 100
+    return out if "max_up_3" in out else None
 
 
 def update_missing(conn: sqlite3.Connection, max_alerts: int = 400) -> int:
@@ -79,9 +98,12 @@ def update_missing(conn: sqlite3.Connection, max_alerts: int = 400) -> int:
     ensure_table(conn)
     df = pd.read_sql_query(
         "SELECT id, ticker, scan_ts, last_close FROM alerts "
-        "WHERE id NOT IN (SELECT alert_id FROM post_alert_outcomes) AND last_close IS NOT NULL "
-        "AND date(substr(scan_ts, 1, 10)) <= date('now', '-4 day') "
-        "ORDER BY id DESC LIMIT ?",
+        "WHERE last_close IS NOT NULL AND ("
+        "  (id NOT IN (SELECT alert_id FROM post_alert_outcomes) AND date(substr(scan_ts, 1, 10)) <= date('now', '-4 day'))"
+        "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_8 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-12 day')"
+        "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_14 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-21 day')"
+        "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_30 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-45 day')"
+        ") ORDER BY id DESC LIMIT ?",
         conn, params=(max_alerts,),
     )
     if df.empty:
@@ -111,12 +133,10 @@ def update_missing(conn: sqlite3.Connection, max_alerts: int = 400) -> int:
             continue
         if res is None:
             continue
+        cols = ["alert_id", "computed_at"] + list(res)
         conn.execute(
-            "INSERT OR REPLACE INTO post_alert_outcomes "
-            "(alert_id, max_up_1, max_up_2, max_up_3, last_1, last_2, last_3, max_dn_3, computed_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (int(r["id"]), res["max_up_1"], res["max_up_2"], res["max_up_3"],
-             res["last_1"], res["last_2"], res["last_3"], res["max_dn_3"], now),
+            f"INSERT OR REPLACE INTO post_alert_outcomes ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+            [int(r["id"]), now] + [res[c] for c in res],
         )
         added += 1
     conn.commit()
@@ -133,13 +153,14 @@ def evaluate(df: pd.DataFrame, target_pct: float, hold_days: int) -> pd.DataFram
     'neither'/'pending') ואת ret (תשואה באחוזים: target_pct בהצלחה, אחרת הסגירה ביום hold_days).
     התראה בלי נתונים מחושבים = pending (החלון לא הסתיים או שאין נתוני 5 דקות)."""
     from .backtest import HIT_TARGET, HIT_STOP, NEITHER, PENDING
-    k = max(1, min(HOLD_DAYS, int(hold_days)))
+    k = max([n for n in WINDOWS if n <= int(hold_days)] or [1])
     out = df.copy()
     up, last = out[f"max_up_{k}"], out[f"last_{k}"]
     stop_pct = (out["stop_loss"] / out["last_close"] - 1) * 100
+    dn = out[f"max_dn_{k}"] if f"max_dn_{k}" in out.columns else out["max_dn_3"]
     has = up.notna()
     win = has & (up >= target_pct)
-    loss = has & ~win & (out["max_dn_3"] <= stop_pct)
+    loss = has & ~win & (dn <= stop_pct)
     out["outcome"] = PENDING
     out.loc[has, "outcome"] = NEITHER
     out.loc[loss, "outcome"] = HIT_STOP

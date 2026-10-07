@@ -3927,13 +3927,13 @@ with _tab_slot_backtest.container():
                     "סיגנל", ["🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות", "הכל"], horizontal=True, key="backtest_signal",
                     index=0,
                 )
-                _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6)}
+                _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6, 7, 8, 9, 10)}
                 _target_choice = st.radio(
                     "יעד רווח", list(_target_labels), horizontal=True, key="backtest_target_pct",
                     index=list(_target_labels.values()).index(int(round(strategy_mod.TARGET_PCT))),
                 )
                 target_pct = _target_labels[_target_choice]
-                _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3}
+                _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3, "4-8 ימים": 8, "9-14 ימים": 14, "15 ימים ומעלה": 30}
                 _hold_choice = st.radio(
                     "זמן החזקה מקסימלי", list(_hold_labels), horizontal=True, key="backtest_hold_days",
                     index=list(_hold_labels.values()).index(strategy_mod.HOLD_MAX_DAYS),
