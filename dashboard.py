@@ -3647,9 +3647,7 @@ with _tab_slot_today.container():
                 todays_display_src["_is_new"] = (
                     (pd.Timestamp.now(tz="UTC") - todays_display_src["_ts"]) <= pd.Timedelta(minutes=30)
                 ).fillna(False)
-                _sort_mode = st.radio(
-                    "מיון", ["לפי ניקוד", "לפי זמן"], horizontal=True, key="alerts_sort_mode",
-                )
+                _sort_mode = st.session_state.get("alerts_sort_mode", "לפי ניקוד")
                 if _sort_mode == "לפי ניקוד":
                     todays_display_src = todays_display_src.sort_values(
                         ["_score", "_drop", "_ts"], ascending=[False, False, False], na_position="last",
@@ -3737,7 +3735,13 @@ with _tab_slot_today.container():
                         st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
                         st.info("אין התראות חדשות במסחר הנוכחי.")
                     else:
-                        st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
+                        _title_col, _sort_col = st.columns([3, 2])
+                        _title_col.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
+                        with _sort_col:
+                            st.radio(
+                                "מיון", ["לפי ניקוד", "לפי זמן"], horizontal=True, key="alerts_sort_mode",
+                                label_visibility="collapsed",
+                            )
                         # שם המניה הוא כפתור Streamlit אמיתי (מעוצב כמו קישור, לא
                         # כפתור מרובע - ר' ה-CSS למטה), לא <a href> (ניווט דפדפן
                         # אמיתי, איטי בפועל - נבדק ונדחה). scope="fragment" בכל
@@ -3941,7 +3945,7 @@ with _tab_slot_today.container():
                                             _name_text = _name_text[:21] + "…"
                                         _name_label = f"{_tier_badge} {_name_text}" if _tier_badge else _name_text
                                         if _row.get("_is_new"):
-                                            _name_label += " · חדשה"
+                                            _name_label += " · התראה חדשה"
                                         if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", width='stretch'):
                                             st.session_state["open_alert_id"] = None if _is_selected else _rid
                                             st.rerun(scope="fragment")
