@@ -2776,10 +2776,21 @@ def _build_alert_detail_html(r) -> str:
     _svg = _sparkline_svg(_sparkline_prices)
 
     _sig, _sig_why = _alert_signal(r)
+    _dm = r.get("dist_from_ma50_pct")
+    _rec = r.get("intraday_recovery_pct")
+    _vectors = [
+        f"ירידה {abs(r['pct_change']):.1f}%",
+        f"מרחק מהממוצע ל-50 יום: {_dm:+.0f}%" if pd.notna(_dm) else None,
+        f"סקטור: {strategy_mod.sector_he(r.get('sector'))}" if pd.notna(r.get("sector")) else None,
+        f"מיקום בטווח היום: {_rec:.0f}%" if pd.notna(_rec) else None,
+        f"שעת ההתראה: {str(r.get('scan_ts'))[11:16]}" if str(r.get("scan_ts"))[11:16] else None,
+    ]
     _sig_html = (
-        f'<div style="font-size:1rem; margin-top:6px;"><b>{strategy_mod.SIGNAL_EMOJI[_sig]} '
-        f'{strategy_mod.SIGNAL_LABEL[_sig]}</b> · החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים'
-        f'<span style="opacity:0.7;"> — {_sig_why}</span></div>'
+        f'<div style="font-size:1rem; margin-top:6px;"><b style="color:{SIGNAL_COLORS[_sig]};">'
+        f'{strategy_mod.SIGNAL_EMOJI[_sig]} סיווג {strategy_mod.rebound_class(_sig)} · {strategy_mod.SIGNAL_LABEL[_sig]}</b>'
+        f' · החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים</div>'
+        f'<div style="font-size:0.85rem; margin-top:3px; opacity:0.85;">{_sig_why}</div>'
+        f'<div style="font-size:0.8rem; margin-top:2px; opacity:0.65;">נתוני האסטרטגיה: {" · ".join(v for v in _vectors if v)}</div>'
     )
 
     _exp_drop_html = ""
@@ -2790,31 +2801,51 @@ def _build_alert_detail_html(r) -> str:
             f'<b>📉 צפי לנמוך היומי:</b> {_signed_num(-_exp_drop, 1, "%")}</div>'
         )
 
-    _verdict_color = POS_COLOR if r["overreaction_score"] >= 70 else (ACCENT_COLOR if r["overreaction_score"] >= 45 else NEG_COLOR)
+    # שני מדדים בולטים בכרטיס (7.10.2026): הערכת תגובת יתר ואיכות פונדמנטלית - כל אחד בתיבה
+    # צבועה לפי הסיווג שלו, עם הניקוד גדול וברור. סיווג ריבאונד (A/B/C) ושאר הפירוט מתחת.
+    _AMBER = SIGNAL_COLORS["wait"]
+    _over = r["overreaction_score"]
+    if _over >= 70:
+        _over_color, _over_label = POS_COLOR, "גבוהה"
+    elif _over >= 45:
+        _over_color, _over_label = _AMBER, "בינונית"
+    else:
+        _over_color, _over_label = NEG_COLOR, "נמוכה"
+
+    _quality_tier = r.get("quality_tier")
+    _quality_known = bool(_quality_tier) and _quality_tier != "unknown" and pd.notna(r.get("quality_score"))
+    _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
+    _quality_colors = {"high": POS_COLOR, "medium": _AMBER, "low": NEG_COLOR}
+    _q_color = _quality_colors.get(_quality_tier, "#7A8591") if _quality_known else "#7A8591"
+    _q_label = _quality_labels.get(_quality_tier, "") if _quality_known else "לא ידוע"
+    _q_score_text = f"{int(r.get('quality_score'))}" if _quality_known else "—"
+
+    def _metric_box(title: str, score_text: str, label: str, color: str) -> str:
+        return (
+            f'<div style="flex:1 1 150px; border:1.5px solid {color}; border-radius:10px; padding:8px 12px; '
+            f'background:{color}14;">'
+            f'<div style="font-size:0.78rem; opacity:0.75;">{title}</div>'
+            f'<div style="display:flex; align-items:baseline; gap:8px;">'
+            f'<span style="font-size:1.55rem; font-weight:800; color:{color}; line-height:1.2;">{score_text}</span>'
+            f'<span style="font-size:0.8rem; opacity:0.6;">/100</span>'
+            f'<span style="font-size:0.95rem; font-weight:700; color:{color};">{label}</span></div></div>'
+        )
+
     _verdict_html = (
-        f'<div style="font-size:0.9rem; margin-top:6px;">'
-        f'<b>הערכת תגובת יתר:</b> <span style="color:{_verdict_color}; font-weight:600;">'
-        f'{r["overreaction_verdict"]} (ציון {r["overreaction_score"]}/100)</span></div>'
+        '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">'
+        + _metric_box("הערכת תגובת יתר", f"{_over}", _over_label, _over_color)
+        + _metric_box("איכות פונדמנטלית", _q_score_text, _q_label, _q_color)
+        + '</div>'
+        f'<div style="font-size:0.85rem; margin-top:6px; opacity:0.85;">{r["overreaction_verdict"]}</div>'
     )
 
-    _rebound_labels = {"A": "🟢 A - סיכוי גבוה לריבאונד", "B": "🟡 B - סיכוי אפשרי", "C": "🔴 C - סיכוי נמוך"}
-    _rebound_text = _rebound_labels.get(r.get("rebound_tier"), "⚪ לא זמין (נסרק לפני העדכון)")
-    if pd.notna(r.get("rebound_tier")):
-        _rb_score = analysis.weighted_rebound_score(
-            r["overreaction_score"], r.get("quality_score") if pd.notna(r.get("quality_score")) else None,
-        )
-        _rebound_text += f" (ציון משוקלל: {round(_rb_score)}/100)"
-    _quality_tier = r.get("quality_tier")
-    _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
-    _quality_text = (
-        f"{_quality_labels.get(_quality_tier, '')} ({int(r.get('quality_score'))}/100)"
-        if _quality_tier and _quality_tier != "unknown" and pd.notna(r.get("quality_score"))
-        else "⚪ לא ידוע (נתונים חסרים)"
+    _rebound_text = (
+        f'{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.rebound_class(_sig)} - {strategy_mod.SIGNAL_LABEL[_sig]} '
+        f'(לפי הניקוד המשוקלל של האסטרטגיה)'
     )
     _rebound_quality_html = (
-        f'<div style="font-size:0.9rem; margin-top:2px;">'
-        f'<b>סיווג ריבאונד:</b> {_rebound_text} &nbsp;|&nbsp; '
-        f'<b>איכות פונדמנטלית:</b> {_quality_text}</div>'
+        f'<div style="font-size:0.9rem; margin-top:6px;">'
+        f'<b>סיווג ריבאונד:</b> {_rebound_text}</div>'
     )
 
     _raw_quality_flags = r.get("quality_flags_json")
@@ -3521,17 +3552,42 @@ with _tab_slot_today.container():
                     todays_display_src[_price_col] = todays_display_src.apply(
                         lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
                     )
-                # "C-34" - האות מ-rebound_tier, הציון המשוקלל מחושב כאן (לא
-                # שמור בעמודה נפרדת ב-DB) מאותם overreaction_score/quality_score
-                # שכבר נשלפו לשורה, בדיוק כמו ש-_classify_rebound מחשב.
-                todays_display_src["rebound_tier"] = todays_display_src.apply(
-                    lambda r: (
-                        f'{r["rebound_tier"]}-{round(analysis.weighted_rebound_score(r["overreaction_score"], r["quality_score"]))}'
-                        if pd.notna(r.get("rebound_tier")) and pd.notna(r.get("overreaction_score"))
-                        else r.get("rebound_tier")
-                    ),
-                    axis=1,
-                )
+                # סיווג ריבאונד (A/B/C) = הרמזור של האסטרטגיה + הניקוד המשוקלל, צבוע לפי הרמזור; הפירוט
+                # (איזה גורם נתן כמה נקודות) בריחוף - ר' strategy.signal_score (7.10.2026).
+                def _rebound_cell_html(r) -> str:
+                    if pd.isna(r.get("pct_change")):
+                        return "—"
+                    try:
+                        _h = int(str(r.get("scan_ts"))[11:13])
+                    except Exception:
+                        _h = None
+                    _score, _parts = strategy_mod.signal_score(
+                        r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
+                        r.get("dist_from_ma50_pct"), r.get("sector"), _h,
+                    )
+                    _k = (strategy_mod.SIGNAL_BUY if _score >= strategy_mod.BUY_MIN_SCORE
+                          else strategy_mod.SIGNAL_WAIT if _score >= strategy_mod.WAIT_MIN_SCORE
+                          else strategy_mod.SIGNAL_AVOID)
+                    _lines = "".join(
+                        f'<div><span style="color:{POS_COLOR if pts > 0 else NEG_COLOR}; font-weight:700;">{pts:+d}</span> {name}</div>'
+                        for name, pts in _parts
+                    ) or "<div>אין גורם תומך</div>"
+                    _tip = (
+                        f'<span class="sigtip-text sigtip-wide"><div style="font-weight:700; margin-bottom:3px; '
+                        f'color:{SIGNAL_COLORS[_k]};">{strategy_mod.SIGNAL_LABEL[_k]} · ניקוד {_score} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</div>{_lines}'
+                        f'<div style="margin-top:4px; opacity:0.65; font-size:0.74rem;">{strategy_mod.BUY_MIN_SCORE} ומעלה = לקנות · '
+                        f'{strategy_mod.WAIT_MIN_SCORE}-{strategy_mod.BUY_MIN_SCORE - 1} = לחכות · פחות = לא לקנות</div></span>'
+                    )
+                    # אות הסיווג גדולה וצבועה; הניקוד כטקסט ברור "ניקוד X מתוך 6" (מקסימום אפשרי 6, לקנות מ-4)
+                    return (
+                        f'<span class="sigtip sigtip-side">'
+                        f'<span style="font-weight:800; font-size:1.05rem; color:{SIGNAL_COLORS[_k]};">'
+                        f'{strategy_mod.rebound_class(_k)}</span>'
+                        f'<span style="font-size:0.78rem; opacity:0.75; margin-inline-start:7px;">'
+                        f'ניקוד {_score} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</span>{_tip}</span>'
+                    )
+
+                todays_display_src["rebound_tier"] = todays_display_src.apply(_rebound_cell_html, axis=1)
 
                 # שינוי נוכחי - נשלף בכל ריצה של הפרגמנט (run_every="60s") לרשימת
                 # הטיקרים של היום בלבד, בנפרד מ"שינוי בזמן התראה" השמור שלא זז.
@@ -3555,23 +3611,6 @@ with _tab_slot_today.container():
                     if not _current_changes_df.empty and "prev_close_gap" in _current_changes_df.columns else {}
                 )
                 todays_display_src["current_gap"] = todays_display_src["ticker"].map(_current_gap_map).fillna(False)
-
-                # עמודות האסטרטגיה (7.10.2026) - במקום תגובת יתר/איכות/סיווג A-B-C, שלא הבדילו בין
-                # הצלחה לכישלון: ניקוד הרמזור, מרחק מהממוצע הנע 50 יום, וסקטור (ר' strategy.entry_signal).
-                def _strategy_score_row(r) -> int | None:
-                    if pd.isna(r.get("pct_change")):
-                        return None
-                    try:
-                        _h = int(str(r.get("scan_ts"))[11:13])
-                    except Exception:
-                        _h = None
-                    return strategy_mod.signal_score(
-                        r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
-                        r.get("dist_from_ma50_pct"), r.get("sector"), _h,
-                    )[0]
-                todays_display_src["ניקוד"] = todays_display_src.apply(_strategy_score_row, axis=1)
-                todays_display_src["מרחק מהממוצע"] = todays_display_src["dist_from_ma50_pct"]
-                todays_display_src["סקטור"] = todays_display_src["sector"].map(strategy_mod.sector_he)
 
                 alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
@@ -3601,15 +3640,12 @@ with _tab_slot_today.container():
                     axis=1,
                 )
                 _base_display_cols = ["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי", "current_gap",
-                                       "ניקוד", "מרחק מהממוצע",
-                                       "סקטור", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
+                                       "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
                 if _show_tase_id_col2:
                     _base_display_cols.insert(2, "מספר ני\"ע")
                 alerts_display = alerts_display[_base_display_cols]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
-                _rebound_header_label = (
-                    f'סיווג ריבאונד {_help_icon_span(f"משוקלל: {_ow}% תגובת יתר + {100 - _ow}% איכות פונדמנטלית")}'
-                )
+                _rebound_header_label = "סיווג ריבאונד"
                 if _is_fallback_day:
                     _fallback_date_text = dt.date.fromisoformat(_last_scan_date).strftime("%d.%m")
                     _today_header_text = f"{len(todays_alerts)} התראות מיום המסחר האחרון ({_fallback_date_text})"
@@ -3704,7 +3740,7 @@ with _tab_slot_today.container():
                         # ני''ע" קיימת - ר' _show_tase_id_col2).
                         _offset = 1 if _show_tase_id_col2 else 0
                         _p_change_at, _p_change_now = 2 + _offset, 3 + _offset
-                        _p_overreact, _p_quality, _p_rebound = 4 + _offset, 5 + _offset, 6 + _offset
+                        _p_rebound_class = 4 + _offset  # עמודת "סיווג ריבאונד" היחידה של האסטרטגיה (7.10.2026)
                         _tase_hide_css = (
                             'div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child(2),\n'
                             'div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child(2) '
@@ -3741,12 +3777,8 @@ with _tab_slot_today.container():
                                 ו-_verdict_html/_rebound_quality_html שם), לא אובד מידע. */
                                 div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_at}),
                                 div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_at}),
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_overreact}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_overreact}),
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_quality}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_quality}),
-                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_rebound}),
-                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_rebound}),
+                                div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_rebound_class}),
+                                div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_rebound_class}),
                                 div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-last-child(-n+3),
                                 div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-last-child(-n+3) {{
                                     display: none !important;
@@ -3756,16 +3788,32 @@ with _tab_slot_today.container():
                             """,
                             unsafe_allow_html=True,
                         )
+                        st.markdown(
+                            """
+                            <style>
+                            .sigtip { position:relative; cursor:default; }
+                            .sigtip .sigtip-text { display:none; position:absolute; z-index:60; white-space:nowrap; text-align:right;
+                                background:Canvas; color:CanvasText; border:1px solid rgba(128,128,128,0.35); border-radius:8px;
+                                padding:6px 11px; font-size:0.8rem; font-weight:500; box-shadow:0 2px 8px rgba(0,0,0,0.18);
+                                top:130%; right:0; }
+                            .sigtip.sigtip-side .sigtip-text { top:50%; right:130%; transform:translateY(-50%); }
+                            .sigtip:hover .sigtip-text { display:block; }
+                            div[class*="st-key-alert_row_"], div[class*="st-key-alert_row_"] [data-testid="stColumn"],
+                            div[class*="st-key-alert_row_"] [data-testid="stVerticalBlock"],
+                            div[class*="st-key-alert_row_"] [data-testid="stElementContainer"],
+                            div[class*="st-key-alert_row_"] [data-testid="stMarkdownContainer"] { overflow: visible !important; }
+                            </style>
+                            """,
+                            unsafe_allow_html=True,
+                        )
                         _col_defs = [
                             ("שם", None),
                             ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
                             ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
-                            ("ניקוד", lambda v: f"{int(v)}" if pd.notna(v) else "—"),
-                            ("מרחק מהממוצע", lambda v: (_signed_num(v, 0, "%") if round(v) != 0 else "0%") if pd.notna(v) else "—"),
-                            ("סקטור", None),
+                            ("סיווג ריבאונד", None),
                             ("לימיט כניסה", None), ("יעד מכירה", None), ("סטופ-לוס", None),
                         ]
-                        _col_weights = [2.2, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
+                        _col_weights = [2.2, 1.1, 1.1, 1.8, 1, 1, 1]
                         if _show_tase_id_col2:
                             _col_defs.insert(1, ("מספר ני\"ע", lambda v: f"{v:.0f}" if pd.notna(v) else "—"))
                             _col_weights.insert(1, 0.9)
@@ -3819,6 +3867,13 @@ with _tab_slot_today.container():
                                         if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", width='stretch'):
                                             st.session_state["open_alert_id"] = None if _is_selected else _rid
                                             st.rerun(scope="fragment")
+                                        continue
+                                    if _col_name == "סיווג ריבאונד":
+                                        _rc.markdown(
+                                            f'<div style="font-size:0.9rem; padding:6px 10px; white-space:nowrap; '
+                                            f'border-bottom:1px solid rgba(128,128,128,0.15);">{_val}</div>',
+                                            unsafe_allow_html=True,
+                                        )
                                         continue
                                     _text = _fmt(_val) if _fmt else ("—" if pd.isna(_val) else str(_val))
                                     if _col_name == "שינוי נוכחי" and _row.get("current_gap"):

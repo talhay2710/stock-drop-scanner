@@ -174,6 +174,7 @@ SIGNAL_EMOJI = {SIGNAL_BUY: "🟢", SIGNAL_WAIT: "🟡", SIGNAL_AVOID: "🔴", S
 SIGNAL_LABEL = {SIGNAL_BUY: "לקנות", SIGNAL_WAIT: "לחכות", SIGNAL_AVOID: "לא לקנות", SIGNAL_UNKNOWN: "אין נתונים"}
 ISRAELI_INDICES = ("TA35", "TA125")
 BUY_MIN_SCORE = 4
+MAX_SIGNAL_SCORE = 6  # הניקוד המקסימלי האפשרי: ירידה חדה 2 + רחוק מהממוצע 1 + סקטור חזק 2 + בוקר/התאוששות 1
 WAIT_MIN_SCORE = 2
 
 _SECTOR_HE = {
@@ -182,6 +183,15 @@ _SECTOR_HE = {
     "Industrials": "תעשייה", "Healthcare": "בריאות", "Communication Services": "תקשורת",
     "Consumer Defensive": "צריכה בסיסית",
 }
+
+
+REBOUND_CLASS = {SIGNAL_BUY: "A", SIGNAL_WAIT: "B", SIGNAL_AVOID: "C", SIGNAL_UNKNOWN: "—"}
+
+
+def rebound_class(signal: str) -> str:
+    """סיווג ריבאונד A/B/C = הרמזור של האסטרטגיה (A=🟢 לקנות, B=🟡 לחכות, C=🔴 לא לקנות), במקום
+    הסיווג הישן (60% תגובת יתר + 40% איכות), שלא הבדיל בין הצלחה לכישלון (7.10.2026)."""
+    return REBOUND_CLASS.get(signal, "—")
 
 
 def sector_he(sector: str | None) -> str:

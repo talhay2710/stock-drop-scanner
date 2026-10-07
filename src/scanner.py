@@ -978,7 +978,7 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
 
     _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]  # כבר 🟢/🟡/🔴 לפי A/B/C, ר' _classify_rebound
-    lines.append(f"3️⃣ {_rebound_emoji} סיווג ריבאונד: {analysis.rebound_tier}")
+    lines.append(f"3️⃣ {strategy_mod.SIGNAL_EMOJI[_sig]} סיווג ריבאונד: {strategy_mod.rebound_class(_sig)}")
 
     _liquidity_emoji = {"high": "💧", "medium": "🌊", "low": "🏜️", "unknown": "⚪"}
     if trade_idea.liquidity_tier in ("medium", "low"):
