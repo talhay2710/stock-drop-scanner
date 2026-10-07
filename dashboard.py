@@ -3645,18 +3645,38 @@ with _tab_slot_today.container():
                     _base_display_cols.insert(2, "מספר ני\"ע")
                 alerts_display = alerts_display[_base_display_cols]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
-                _rebound_help = (
-                    "הסיווג נקבע לפי ניקוד משוקלל (0 עד 6) מהגורמים:\n"
-                    "• ירידה חדה: ‎+2\n"
-                    "• רחוק 10% ומעלה מתחת לממוצע ל-50 יום: ‎+1 (מעל הממוצע: ‎-1)\n"
-                    "• סקטור חזק - תשתיות, טכנולוגיה: ‎+2\n"
-                    "• סקטור חלש - נדל״ן, אנרגיה, חומרי גלם: ‎-2\n"
-                    "• התראה לפני 13:00: ‎+1 (בארה״ב: התאוששות מהשפל)\n"
-                    f"A - לקנות (ניקוד {strategy_mod.BUY_MIN_SCORE} ומעלה)\n"
-                    f"B - לחכות (ניקוד {strategy_mod.WAIT_MIN_SCORE} עד {strategy_mod.BUY_MIN_SCORE - 1})\n"
-                    f"C - לא לקנות (ניקוד {strategy_mod.WAIT_MIN_SCORE - 1} ומטה)"
+                # הסבר הסיווג בריחוף על ה-"?" - מסודר בקבוצות (מוסיף / מוריד / הסיווג), עם צבעים (7.10.2026)
+                def _help_row(text: str, pts: str, color: str) -> str:
+                    return (
+                        f'<div style="display:flex; justify-content:space-between; gap:18px; padding:1px 0;">'
+                        f'<span>{text}</span><b style="color:{color}; direction:ltr;">{pts}</b></div>'
+                    )
+
+                def _help_title(text: str) -> str:
+                    return f'<div style="font-weight:800; margin:7px 0 3px; font-size:0.82rem;">{text}</div>'
+
+                _rebound_help_html = (
+                    '<span class="sigtip sigtip-help" style="margin-inline-start:4px;">'
+                    f'{_HELP_ICON_SVG}'
+                    '<span class="sigtip-text" style="width:300px; white-space:normal; top:140%; right:-10px; '
+                    'text-align:right; line-height:1.45;">'
+                    '<div style="font-weight:800; font-size:0.88rem;">איך נקבע הסיווג</div>'
+                    '<div style="opacity:0.7;">הניקוד הוא סכום נקודות (0 עד 6) מסימנים שבעבר חזו הצלחה</div>'
+                    + _help_title("מוסיף נקודות")
+                    + _help_row("ירידה חדה", "+2", POS_COLOR)
+                    + _help_row("רחוקה 10% ומעלה מתחת לממוצע של 50 יום", "+1", POS_COLOR)
+                    + _help_row("סקטור חזק (תשתיות, טכנולוגיה)", "+2", POS_COLOR)
+                    + _help_row("התראה לפני 13:00", "+1", POS_COLOR)
+                    + _help_title("מוריד נקודות")
+                    + _help_row("מעל הממוצע של 50 יום", "−1", NEG_COLOR)
+                    + _help_row("סקטור חלש (נדל״ן, אנרגיה, חומרי גלם)", "−2", NEG_COLOR)
+                    + _help_title("הסיווג")
+                    + f'<div><b style="color:{SIGNAL_COLORS["buy"]};">A · לקנות</b> — {strategy_mod.BUY_MIN_SCORE} נקודות ומעלה</div>'
+                    + f'<div><b style="color:{SIGNAL_COLORS["wait"]};">B · לחכות</b> — {strategy_mod.WAIT_MIN_SCORE} עד {strategy_mod.BUY_MIN_SCORE - 1} נקודות</div>'
+                    + f'<div><b style="color:{SIGNAL_COLORS["avoid"]};">C · לא לקנות</b> — 0 עד {strategy_mod.WAIT_MIN_SCORE - 1} נקודות</div>'
+                    '</span></span>'
                 )
-                _rebound_header_label = f'סיווג ריבאונד {_help_icon_span(_rebound_help)}'
+                _rebound_header_label = f'סיווג ריבאונד {_rebound_help_html}'
                 if _is_fallback_day:
                     _fallback_date_text = dt.date.fromisoformat(_last_scan_date).strftime("%d.%m")
                     _today_header_text = f"{len(todays_alerts)} התראות מיום המסחר האחרון ({_fallback_date_text})"
