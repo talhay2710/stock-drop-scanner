@@ -3238,7 +3238,7 @@ with _tab_slot_movers.container():
         _render_movers_tab()
 
 def _open_position_form(chosen_row, key_prefix: str) -> None:
-    """טופס פתיחת פוזיציה (שער ביצוע / כמות או עלות / תאריך / עסקה ידנית) להתראה אחת.
+    """טופס פתיחת פוזיציה (שער ביצוע / עלות / תאריך / עסקה ידנית) להתראה אחת.
     משותף ל"➕ פתיחת פוזיציה" בטאב אחזקות ולכפתור בתוך ההתראה עצמה (7.10.2026) - אותו
     קוד בדיוק, כדי ששניהם יישארו עקביים (שער באגורות לת"א, שדות ריקים בכוונה)."""
     is_il = market_data._is_israeli_ticker(chosen_row["ticker"])
@@ -3247,29 +3247,33 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
         format="DD/MM/YYYY",
         help="אם לא הזנת את האחזקה באותו יום שקנית בפועל - כדי שספירת ימי ההחזקה תהיה נכונה.",
     )
-    ac1, ac2, ac3 = st.columns(3)
-    # שדות ריקים בכוונה (לא ממולאים משער הלימיט המוצע) - כדי שתמיד תזין
-    # את המחיר/הכמות האמיתיים שביצעת, ולא תישאר בטעות עם ערך משער אחר.
+    ac1, ac2 = st.columns(2)
+    # value=None (שדה ריק באמת, לא "0"): עם value=0.0 הסמן נפתח *לפני* ה-"0" המוצג, אז הקלדת
+    # 4636 הפכה ל-46360 - 0 מיותר שנוסף בסוף בכל הזנה (נאוויטס וקמטק, 7.10.2026).
     add_entry_raw = ac1.number_input(
-        "שער ביצוע" + (" (באגורות)" if is_il else ""), min_value=0.0, value=0.0,
-        format="%.0f" if is_il else "%.2f", key=f"{key_prefix}_entry",
+        "שער ביצוע" + (" (באגורות)" if is_il else ""), min_value=0.0, value=None,
+        step=1.0 if is_il else 0.01, format="%.2f", key=f"{key_prefix}_entry", placeholder="0",
     )
-    add_entry = (add_entry_raw / 100.0) if is_il else add_entry_raw
-    add_qty = ac2.number_input("כמות", min_value=0.0, value=0.0, step=1.0, key=f"{key_prefix}_qty")
-    add_amount = ac3.number_input(
-        "עלות (אופציונלי)", min_value=0.0, value=0.0, step=100.0, key=f"{key_prefix}_amount",
-        help="אם תמלא עלות כוללת, הכמות תחושב אוטומטית ממנה (עלות ÷ שער ביצוע) "
-             "במקום השדה 'כמות'.",
+    add_entry = ((add_entry_raw or 0.0) / 100.0) if is_il else (add_entry_raw or 0.0)
+    add_amount_raw = ac2.number_input(
+        "עלות (חובה)", min_value=0.0, value=None, step=100.0, format="%.2f",
+        key=f"{key_prefix}_amount", placeholder="0",
+        help="העלות הכוללת כפי שמופיעה בבנק. הכמות מחושבת ממנה אוטומטית (עלות ÷ שער ביצוע).",
     )
+    add_amount = add_amount_raw or 0.0
     add_is_manual = st.checkbox(
         "🖐️ עסקה ידנית (לא לפי האסטרטגיה - לא תיכלל בסטטיסטיקת ביצועי האסטרטגיה)",
         key=f"{key_prefix}_manual",
     )
     if st.button("✅ הוסף לאחזקות", key=f"{key_prefix}_btn"):
-        final_qty = (add_amount / add_entry) if (add_amount > 0 and add_entry > 0) else add_qty
+        final_qty = (add_amount / add_entry) if (add_amount > 0 and add_entry > 0) else 0.0
+        # מניות בבורסה נסחרות ביחידות שלמות - כשהכמות המחושבת קרובה (עד 1%) לשלם, מעגלים אליו
+        # (אחרת עיגולי מחיר ממוצע הפכו 92 ל-91.994 בפוזיציה ששמרנו).
+        if is_il and final_qty > 0 and abs(final_qty - round(final_qty)) / final_qty < 0.01:
+            final_qty = float(round(final_qty))
         _ref = chosen_row.get("last_close")
         if add_entry <= 0 or final_qty <= 0:
-            st.warning("יש למלא שער ביצוע וכמות (או עלות) לפני ההוספה.")
+            st.warning("יש למלא שער ביצוע ועלות לפני ההוספה.")
         elif _ref is not None and pd.notna(_ref) and _ref > 0 and abs(add_entry / _ref - 1) > 0.4:
             # 7.10.2026: קמטק נרשמה פי 10 מהמחיר האמיתי (אגורות הוזנו כשקלים) - חוסמים
             # שער שרחוק מעל 40% ממחיר ההתראה, כמעט תמיד טעות הקלדה.
@@ -3286,7 +3290,7 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
             )
             add_conn.close()
             _sync_and_warn("position opened", include_db=True)
-            for _clear_key in ("entry", "qty", "amount", "manual"):
+            for _clear_key in ("entry", "amount", "manual"):
                 st.session_state.pop(f"{key_prefix}_{_clear_key}", None)
             load_alerts.clear()
             st.rerun()
