@@ -4075,7 +4075,7 @@ with _tab_slot_backtest.container():
                             by_signal, [("סיגנל", "סיגנל"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
                                         ("שיעור הצלחה (%)", "שיעור הצלחה (%)"), ("תוחלת לעסקה (%)", "תוחלת לעסקה (%)")],
                             formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}",
-                                        "תוחלת לעסקה (%)": lambda v: f"{v:+.2f}" if pd.notna(v) else "—"},
+                                        "תוחלת לעסקה (%)": lambda v: _signed_num(v, 2) if pd.notna(v) else "—"},
                             color_fns={"שיעור הצלחה (%)": _success_rate_color,
                                        "תוחלת לעסקה (%)": lambda v: POS_COLOR if (pd.notna(v) and v >= 0) else NEG_COLOR},
                         ),
