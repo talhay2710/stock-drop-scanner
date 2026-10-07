@@ -129,6 +129,17 @@ def _pts_chip(pts: int) -> str:
     )
 
 
+def _signal_cell_html(emoji: str) -> str:
+    """עיגול הרמזור ואחריו שם הסיווג בצבע: לקנות / לחכות / לא לקנות."""
+    for key, e in strategy_mod.SIGNAL_EMOJI.items():
+        if e == emoji:
+            return (
+                f'{emoji} <span style="color:{SIGNAL_COLORS[key]}; font-weight:700;">'
+                f'{strategy_mod.SIGNAL_LABEL[key]}</span>'
+            )
+    return str(emoji)
+
+
 SIGNAL_COLORS = {"buy": POS_COLOR, "wait": "#C98A00", "avoid": NEG_COLOR, "unknown": "#7A8591"}  # צבעי הרמזור (🟢/🟡/🔴)
 POS_BG = "rgba(6, 128, 107, 0.10)"
 NEG_BG = "rgba(204, 47, 60, 0.10)"
@@ -4253,7 +4264,8 @@ with _tab_slot_backtest.container():
                             by_signal, [("סיגנל", "סיגנל"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
                                         ("שיעור הצלחה (%)", "שיעור הצלחה (%)"), ("תוחלת לעסקה (%)", "תוחלת לעסקה (%)")],
                             formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}",
-                                        "תוחלת לעסקה (%)": lambda v: _signed_num(v, 2) if pd.notna(v) else "—"},
+                                        "תוחלת לעסקה (%)": lambda v: _signed_num(v, 2) if pd.notna(v) else "—",
+                                        "סיגנל": lambda v: _signal_cell_html(v)},
                             color_fns={"שיעור הצלחה (%)": _success_rate_color,
                                        "תוחלת לעסקה (%)": lambda v: POS_COLOR if (pd.notna(v) and v >= 0) else NEG_COLOR},
                         ),
