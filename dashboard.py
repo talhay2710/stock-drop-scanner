@@ -118,6 +118,7 @@ def _get_live_index_card_template() -> str:
 
 POS_COLOR = "#06806B"
 NEG_COLOR = "#CC2F3C"
+SIGNAL_COLORS = {"buy": POS_COLOR, "wait": "#C98A00", "avoid": NEG_COLOR, "unknown": "#7A8591"}  # צבעי הרמזור (🟢/🟡/🔴)
 POS_BG = "rgba(6, 128, 107, 0.10)"
 NEG_BG = "rgba(204, 47, 60, 0.10)"
 NEUTRAL_COLOR = "#3B4A5A"
@@ -4419,15 +4420,22 @@ with _tab_slot_portfolio.container():
                 sector_color = row.get("sector_color", NEUTRAL_COLOR)
                 # סקטור/% מהתיק/מוחזק - שורה משלהם מעל כפתור המכירה, באותו רוחב
                 card_html = f"""
+                    <style>
+                    .sigtip {{ position:relative; font-size:0.9rem; cursor:default; }}
+                    .sigtip .sigtip-text {{ display:none; position:absolute; top:130%; right:0; z-index:50; white-space:nowrap;
+                        background:Canvas; color:CanvasText; border:1px solid rgba(128,128,128,0.35); border-radius:8px;
+                        padding:5px 10px; font-size:0.78rem; box-shadow:0 2px 8px rgba(0,0,0,0.15); }}
+                    .sigtip:hover .sigtip-text {{ display:block; }}
+                    </style>
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
                       <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
+                        <span class="sigtip" style="flex-shrink:0;">{row.get('entry_signal', '')}<span class="sigtip-text">סיגנל <b style="color:{row.get('entry_signal_color', 'inherit')};">{row.get('entry_signal_text', '')}</b> בזמן ההתראה</span></span>
                       </div>
                       {daily_badge_html}
                     </div>
-                    <div title="הרמזור של האסטרטגיה בזמן ההתראה שממנה נפתחה הפוזיציה" style="font-size:0.74rem; opacity:0.7; margin-top:2px;">בקנייה: {row.get('entry_signal', '')} {row.get('entry_signal_text', '')}</div>
                     <div style="position:relative; display:flex; align-items:center; margin-top:8px; min-height:34px;">
                       {hero_html}
                       {spark_html}
@@ -4681,6 +4689,7 @@ with _tab_slot_portfolio.container():
                         "trading_days_held": _trading_days_held(bought_date, country_code),
                         "entry_signal": strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]],
                         "entry_signal_text": strategy_mod.SIGNAL_LABEL[_alert_signal(r)[0]],
+                        "entry_signal_color": SIGNAL_COLORS[_alert_signal(r)[0]],
                         "net_pnl": net_pnl, "net_pct": net_pct,
                         "next_alert_pct": _next_gain_alert_pct(pnl_pct),
                         "forecast_entry_limit": r.get("entry_limit"), "forecast_target": r.get("target_base"),
