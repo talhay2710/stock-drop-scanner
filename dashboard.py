@@ -3574,7 +3574,7 @@ with _tab_slot_today.container():
                     ) or "<div>אין גורם תומך</div>"
                     _tip = (
                         f'<span class="sigtip-text sigtip-wide"><div style="font-weight:700; margin-bottom:3px; '
-                        f'color:{SIGNAL_COLORS[_k]};">{strategy_mod.SIGNAL_LABEL[_k]} · ניקוד {_score} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</div>{_lines}'
+                        f'color:{SIGNAL_COLORS[_k]};">{strategy_mod.SIGNAL_LABEL[_k]} · ניקוד {max(_score, 0)} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</div>{_lines}'
                         f'<div style="margin-top:4px; opacity:0.65; font-size:0.74rem;">{strategy_mod.BUY_MIN_SCORE} ומעלה = לקנות · '
                         f'{strategy_mod.WAIT_MIN_SCORE}-{strategy_mod.BUY_MIN_SCORE - 1} = לחכות · פחות = לא לקנות</div></span>'
                     )
@@ -3584,7 +3584,7 @@ with _tab_slot_today.container():
                         f'<span style="font-weight:800; font-size:1.05rem; color:{SIGNAL_COLORS[_k]};">'
                         f'{strategy_mod.rebound_class(_k)}</span>'
                         f'<span style="font-size:0.78rem; opacity:0.75; margin-inline-start:7px;">'
-                        f'ניקוד {_score} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</span>{_tip}</span>'
+                        f'ניקוד {max(_score, 0)} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</span>{_tip}</span>'
                     )
 
                 todays_display_src["rebound_tier"] = todays_display_src.apply(_rebound_cell_html, axis=1)
@@ -3645,7 +3645,18 @@ with _tab_slot_today.container():
                     _base_display_cols.insert(2, "מספר ני\"ע")
                 alerts_display = alerts_display[_base_display_cols]
                 _ow = round(analysis.REBOUND_OVERREACTION_WEIGHT * 100)
-                _rebound_header_label = "סיווג ריבאונד"
+                _rebound_help = (
+                    "הסיווג נקבע לפי ניקוד משוקלל (0 עד 6) מהגורמים:\n"
+                    "• ירידה חדה: ‎+2\n"
+                    "• רחוק 10% ומעלה מתחת לממוצע ל-50 יום: ‎+1 (מעל הממוצע: ‎-1)\n"
+                    "• סקטור חזק - תשתיות, טכנולוגיה: ‎+2\n"
+                    "• סקטור חלש - נדל״ן, אנרגיה, חומרי גלם: ‎-2\n"
+                    "• התראה לפני 13:00: ‎+1 (בארה״ב: התאוששות מהשפל)\n"
+                    f"A - לקנות (ניקוד {strategy_mod.BUY_MIN_SCORE} ומעלה)\n"
+                    f"B - לחכות (ניקוד {strategy_mod.WAIT_MIN_SCORE} עד {strategy_mod.BUY_MIN_SCORE - 1})\n"
+                    f"C - לא לקנות (ניקוד {strategy_mod.WAIT_MIN_SCORE - 1} ומטה)"
+                )
+                _rebound_header_label = f'סיווג ריבאונד {_help_icon_span(_rebound_help)}'
                 if _is_fallback_day:
                     _fallback_date_text = dt.date.fromisoformat(_last_scan_date).strftime("%d.%m")
                     _today_header_text = f"{len(todays_alerts)} התראות מיום המסחר האחרון ({_fallback_date_text})"
