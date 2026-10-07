@@ -3953,18 +3953,20 @@ with _tab_slot_backtest.container():
                     help="🟢 = מה שהאסטרטגיה הייתה אומרת לקנות. הסיגנל מחושב רטרואקטיבית על כל ההתראות "
                          "ההיסטוריות לפי הכללים הנוכחיים.",
                 )
-                st.markdown("⏱️ אופק החזקה (ימי מסחר) ויעד")
-                target_pct = st.select_slider(
-                    "יעד (%)", options=[2, 3, 4, 5, 6], value=int(round(strategy_mod.TARGET_PCT)),
-                    key="backtest_target_pct",
-                    help="היעד שאליו מודדים הצלחה, מחיר ההתראה + X%. נמדד רק מרגע ההתראה ואילך.",
+                _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6)}
+                _target_choice = st.radio(
+                    "יעד רווח (מחיר ההתראה + X%)", list(_target_labels), horizontal=True, key="backtest_target_pct",
+                    index=list(_target_labels.values()).index(int(round(strategy_mod.TARGET_PCT))),
+                    help="הצלחה = המחיר הגיע ליעד הזה אחרי ההתראה, בתוך האופק שנבחר. נמדד רק מרגע ההתראה ואילך.",
                 )
-                window_days = st.slider(
-                    # 30 = בדיוק התקרה הפנימית (MAX_WINDOW_DAYS ב-backtest.py) שאליה
-                    # החלון גדל אוטומטית עבור יעדים גדולים - בלי זה, הסליידר לא
-                    # מאפשר לבחור ערך שהמערכת בעצמה כבר יכולה להגיע אליו.
-                    "אופק החזקה (ימי מסחר)", min_value=1, max_value=strategy_mod.HOLD_MAX_DAYS, value=strategy_mod.HOLD_MAX_DAYS, label_visibility="collapsed",
+                target_pct = _target_labels[_target_choice]
+                _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3}
+                _hold_choice = st.radio(
+                    "זמן החזקה מקסימלי", list(_hold_labels), horizontal=True, key="backtest_hold_days",
+                    index=list(_hold_labels.values()).index(strategy_mod.HOLD_MAX_DAYS),
+                    help="ימי מסחר מרגע ההתראה (יום ההתראה נספר כיום הראשון).",
                 )
+                window_days = _hold_labels[_hold_choice]
             if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
                 get_backtest_results.clear()
 
