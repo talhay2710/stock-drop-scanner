@@ -3647,8 +3647,8 @@ with _tab_slot_today.container():
                 todays_display_src["_is_new"] = (
                     (pd.Timestamp.now(tz="UTC") - todays_display_src["_ts"]) <= pd.Timedelta(minutes=30)
                 ).fillna(False)
-                _sort_mode = st.session_state.get("alerts_sort_mode", "לפי ניקוד")
-                if _sort_mode == "לפי ניקוד":
+                _sort_mode = st.session_state.get("alerts_sort_mode", "סיווג")
+                if _sort_mode == "סיווג":
                     todays_display_src = todays_display_src.sort_values(
                         ["_score", "_drop", "_ts"], ascending=[False, False, False], na_position="last",
                     )
@@ -3735,13 +3735,12 @@ with _tab_slot_today.container():
                         st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
                         st.info("אין התראות חדשות במסחר הנוכחי.")
                     else:
-                        _title_col, _sort_col = st.columns([3, 2])
-                        _title_col.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
-                        with _sort_col:
-                            st.radio(
-                                "מיון", ["לפי ניקוד", "לפי זמן"], horizontal=True, key="alerts_sort_mode",
-                                label_visibility="collapsed",
-                            )
+                        st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
+                        # מתג המיון - מיד מתחת לכותרת (7.10.2026)
+                        st.radio(
+                            "מיון", ["סיווג", "זמן"], horizontal=True, key="alerts_sort_mode",
+                            label_visibility="collapsed",
+                        )
                         # שם המניה הוא כפתור Streamlit אמיתי (מעוצב כמו קישור, לא
                         # כפתור מרובע - ר' ה-CSS למטה), לא <a href> (ניווט דפדפן
                         # אמיתי, איטי בפועל - נבדק ונדחה). scope="fragment" בכל
