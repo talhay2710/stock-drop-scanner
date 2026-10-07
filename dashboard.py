@@ -2732,6 +2732,11 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     return table_html
 
 
+def _days_text(n: int) -> str:
+    """'יום אחד' / 'יומיים' / 'N ימים'."""
+    return "יום אחד" if n == 1 else ("יומיים" if n == 2 else f"{n} ימים")
+
+
 def _trading_days_held(bought_date, country_code: str) -> int:
     """ימי מסחר מיום הקנייה עד היום (כולל שניהם) - אופק האסטרטגיה הוא ימי מסחר, לא ימי לוח."""
     if bought_date is None:
@@ -4445,8 +4450,8 @@ with _tab_slot_portfolio.container():
                                 margin-inline-end:3px; vertical-align:middle; margin-bottom:1px;"></span>{sector_label}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">אחוז מהתיק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק (מתוך {strategy_mod.HOLD_MAX_DAYS})</div>
-                           <div style="font-size:0.82rem; font-weight:700; {_held_style}">{row['trading_days_held']} {'ימי מסחר' if row['trading_days_held'] != 1 else 'יום מסחר'}{_held_note}</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
+                           <div style="font-size:0.82rem; font-weight:700; {_held_style}">{_days_text(row['trading_days_held'])}{_held_note}</div></div>
                       {net_grid_cell}
                     </div>
                 """
