@@ -179,7 +179,13 @@ WAIT_MIN_SCORE = 2
 _SECTOR_HE = {
     "Utilities": "תשתיות", "Technology": "טכנולוגיה", "Real Estate": 'נדל"ן', "Energy": "אנרגיה",
     "Basic Materials": "חומרי גלם", "Consumer Cyclical": "צריכה מחזורית", "Financial Services": "פיננסים",
+    "Industrials": "תעשייה", "Healthcare": "בריאות", "Communication Services": "תקשורת",
+    "Consumer Defensive": "צריכה בסיסית",
 }
+
+
+def sector_he(sector: str | None) -> str:
+    return _SECTOR_HE.get(sector, sector) if sector else "—"
 _IL_STRONG_SECTORS = {"Utilities", "Technology"}
 _IL_WEAK_SECTORS = {"Real Estate", "Energy", "Basic Materials"}
 _US_STRONG_SECTORS = {"Utilities", "Technology", "Basic Materials"}

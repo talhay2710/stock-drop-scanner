@@ -3514,6 +3514,9 @@ with _tab_slot_today.container():
                     return f"<bdi>{v} {emoji}</bdi>"
 
                 todays_display_src = todays_alerts.copy()
+                # יעד לפי האסטרטגיה הנוכחית (+3% ממחיר ההתראה), גם להתראות שנשמרו עם יעד ישן -
+                # לפני ההמרה לטקסט (אגורות/שקלים) שמתחת
+                todays_display_src["target_base"] = (todays_display_src["last_close"] * (1 + strategy_mod.FIXED_TARGET_PCT)).round(2)
                 for _price_col in ("entry_limit", "target_base", "stop_loss"):
                     todays_display_src[_price_col] = todays_display_src.apply(
                         lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
@@ -3553,6 +3556,23 @@ with _tab_slot_today.container():
                 )
                 todays_display_src["current_gap"] = todays_display_src["ticker"].map(_current_gap_map).fillna(False)
 
+                # עמודות האסטרטגיה (7.10.2026) - במקום תגובת יתר/איכות/סיווג A-B-C, שלא הבדילו בין
+                # הצלחה לכישלון: ניקוד הרמזור, מרחק מהממוצע הנע 50 יום, וסקטור (ר' strategy.entry_signal).
+                def _strategy_score_row(r) -> int | None:
+                    if pd.isna(r.get("pct_change")):
+                        return None
+                    try:
+                        _h = int(str(r.get("scan_ts"))[11:13])
+                    except Exception:
+                        _h = None
+                    return strategy_mod.signal_score(
+                        r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
+                        r.get("dist_from_ma50_pct"), r.get("sector"), _h,
+                    )[0]
+                todays_display_src["ניקוד"] = todays_display_src.apply(_strategy_score_row, axis=1)
+                todays_display_src["מרחק מהממוצע"] = todays_display_src["dist_from_ma50_pct"]
+                todays_display_src["סקטור"] = todays_display_src["sector"].map(strategy_mod.sector_he)
+
                 alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
                     "current_pct_change": "שינוי נוכחי",
@@ -3581,8 +3601,8 @@ with _tab_slot_today.container():
                     axis=1,
                 )
                 _base_display_cols = ["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי", "current_gap",
-                                       "תגובת יתר", "איכות פונדמנטלית",
-                                       "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
+                                       "ניקוד", "מרחק מהממוצע",
+                                       "סקטור", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
                 if _show_tase_id_col2:
                     _base_display_cols.insert(2, "מספר ני\"ע")
                 alerts_display = alerts_display[_base_display_cols]
@@ -3740,9 +3760,9 @@ with _tab_slot_today.container():
                             ("שם", None),
                             ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
                             ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
-                            ("תגובת יתר", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
-                            ("איכות פונדמנטלית", lambda v: f"{_score_light(v)}{int(v)}" if pd.notna(v) else "—"),
-                            ("סיווג ריבאונד", _rebound_cell_text),
+                            ("ניקוד", lambda v: f"{int(v)}" if pd.notna(v) else "—"),
+                            ("מרחק מהממוצע", lambda v: (_signed_num(v, 0, "%") if round(v) != 0 else "0%") if pd.notna(v) else "—"),
+                            ("סקטור", None),
                             ("לימיט כניסה", None), ("יעד מכירה", None), ("סטופ-לוס", None),
                         ]
                         _col_weights = [2.2, 1.1, 1.1, 1, 1.1, 1.1, 1, 1, 1]
@@ -3806,6 +3826,13 @@ with _tab_slot_today.container():
                                     _color_style = ""
                                     if _col_name in _color_cols and pd.notna(_val):
                                         _color_style = f"color:{POS_COLOR if _val >= 0 else NEG_COLOR}; font-weight:600;"
+                                    elif _col_name == "ניקוד" and pd.notna(_val):
+                                        # צבע לפי ספי הרמזור (🟢 4+, 🟡 2-3, 🔴 1 ומטה)
+                                        _sc_key = ("buy" if _val >= strategy_mod.BUY_MIN_SCORE
+                                                   else "wait" if _val >= strategy_mod.WAIT_MIN_SCORE else "avoid")
+                                        _color_style = f"color:{SIGNAL_COLORS[_sc_key]}; font-weight:700;"
+                                    elif _col_name == "מרחק מהממוצע" and pd.notna(_val):
+                                        _color_style = f"color:{POS_COLOR if _val <= -10 else (NEG_COLOR if _val > 0.9 else 'inherit')};"
                                     _rc.markdown(
                                         f'<div style="font-size:0.85rem; {_color_style} overflow:hidden; '
                                         f'text-overflow:ellipsis; white-space:nowrap; padding:6px 10px; '
