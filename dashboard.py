@@ -3926,21 +3926,17 @@ with _tab_slot_backtest.container():
                 _signal_choice = st.radio(
                     "סיגנל", ["🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות", "הכל"], horizontal=True, key="backtest_signal",
                     index=0,
-                    help="🟢 = מה שהאסטרטגיה הייתה אומרת לקנות. הסיגנל מחושב רטרואקטיבית על כל ההתראות "
-                         "ההיסטוריות לפי הכללים הנוכחיים.",
                 )
                 _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6)}
                 _target_choice = st.radio(
-                    "יעד רווח (מחיר ההתראה + X%)", list(_target_labels), horizontal=True, key="backtest_target_pct",
+                    "יעד רווח", list(_target_labels), horizontal=True, key="backtest_target_pct",
                     index=list(_target_labels.values()).index(int(round(strategy_mod.TARGET_PCT))),
-                    help="הצלחה = המחיר הגיע ליעד הזה אחרי ההתראה, בתוך האופק שנבחר. נמדד רק מרגע ההתראה ואילך.",
                 )
                 target_pct = _target_labels[_target_choice]
                 _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3}
                 _hold_choice = st.radio(
                     "זמן החזקה מקסימלי", list(_hold_labels), horizontal=True, key="backtest_hold_days",
                     index=list(_hold_labels.values()).index(strategy_mod.HOLD_MAX_DAYS),
-                    help="ימי מסחר מרגע ההתראה (יום ההתראה נספר כיום הראשון).",
                 )
                 window_days = _hold_labels[_hold_choice]
             if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
