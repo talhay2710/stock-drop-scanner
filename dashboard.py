@@ -2799,7 +2799,7 @@ def _build_alert_detail_html(r) -> str:
     _sig_html = (
         f'<div style="font-size:1rem; margin-top:6px;"><b style="color:{SIGNAL_COLORS[_sig]};">'
         f'{strategy_mod.SIGNAL_EMOJI[_sig]} סיווג {strategy_mod.rebound_class(_sig)} · {strategy_mod.SIGNAL_LABEL[_sig]}</b>'
-        f' · החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים</div>'
+        f'</div>'
         f'<div style="font-size:0.85rem; margin-top:3px; opacity:0.85;">{_sig_why}</div>'
         f'<div style="font-size:0.8rem; margin-top:2px; opacity:0.65;">נתוני האסטרטגיה: {" · ".join(v for v in _vectors if v)}</div>'
     )
