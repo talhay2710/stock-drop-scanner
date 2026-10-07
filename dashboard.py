@@ -4424,10 +4424,10 @@ with _tab_slot_portfolio.container():
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
-                        <span title="הסיגנל של האסטרטגיה בזמן ההתראה" style="font-size:0.78rem; flex-shrink:0;">{row.get('entry_signal', '')}</span>
                       </div>
                       {daily_badge_html}
                     </div>
+                    <div title="הרמזור של האסטרטגיה בזמן ההתראה שממנה נפתחה הפוזיציה" style="font-size:0.74rem; opacity:0.7; margin-top:2px;">בקנייה: {row.get('entry_signal', '')} {row.get('entry_signal_text', '')}</div>
                     <div style="position:relative; display:flex; align-items:center; margin-top:8px; min-height:34px;">
                       {hero_html}
                       {spark_html}
@@ -4680,6 +4680,7 @@ with _tab_slot_portfolio.container():
                         "prices": prices, "days_held": days_held,
                         "trading_days_held": _trading_days_held(bought_date, country_code),
                         "entry_signal": strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]],
+                        "entry_signal_text": strategy_mod.SIGNAL_LABEL[_alert_signal(r)[0]],
                         "net_pnl": net_pnl, "net_pct": net_pct,
                         "next_alert_pct": _next_gain_alert_pct(pnl_pct),
                         "forecast_entry_limit": r.get("entry_limit"), "forecast_target": r.get("target_base"),
