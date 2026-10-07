@@ -20,8 +20,8 @@ import yfinance as yf
 logger = logging.getLogger(__name__)
 
 HOLD_DAYS = 3
-# אופקי החזקה שנשמרים (ימי מסחר, יום ההתראה = יום 1). 8/14/30 = קצה עליון של "4-8", "9-14", "15 ומעלה".
-WINDOWS = (1, 2, 3, 8, 14, 30)
+# אופקי החזקה שנשמרים (ימי מסחר, יום ההתראה = יום 1). 8/13/30 = קצה עליון של "4-8", "9-13", "14 ומעלה".
+WINDOWS = (1, 2, 3, 8, 13, 30)
 _SCALE_IL = 100.0  # מניות ת"א מדווחות באגורות
 
 _SCHEMA = """
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS post_alert_outcomes (
     computed_at TEXT
 )
 """
-_EXTRA_COLUMNS = [f"{c}_{n} REAL" for n in (8, 14, 30) for c in ("max_up", "last", "max_dn")]
+_EXTRA_COLUMNS = [f"{c}_{n} REAL" for n in (8, 13, 30) for c in ("max_up", "last", "max_dn")]
 
 
 def ensure_table(conn: sqlite3.Connection) -> None:
@@ -101,7 +101,7 @@ def update_missing(conn: sqlite3.Connection, max_alerts: int = 400) -> int:
         "WHERE last_close IS NOT NULL AND ("
         "  (id NOT IN (SELECT alert_id FROM post_alert_outcomes) AND date(substr(scan_ts, 1, 10)) <= date('now', '-4 day'))"
         "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_8 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-12 day')"
-        "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_14 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-21 day')"
+        "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_13 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-21 day')"
         "  OR id IN (SELECT alert_id FROM post_alert_outcomes WHERE max_up_30 IS NULL) AND date(substr(scan_ts, 1, 10)) <= date('now', '-45 day')"
         ") ORDER BY id DESC LIMIT ?",
         conn, params=(max_alerts,),

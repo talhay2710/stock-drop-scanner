@@ -3933,7 +3933,7 @@ with _tab_slot_backtest.container():
                     index=list(_target_labels.values()).index(int(round(strategy_mod.TARGET_PCT))),
                 )
                 target_pct = _target_labels[_target_choice]
-                _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3, "4-8 ימים": 8, "9-14 ימים": 14, "15 ימים ומעלה": 30}
+                _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3, "4-8 ימים": 8, "9-13 ימים": 13, "14 ימים ומעלה": 30}
                 _hold_choice = st.radio(
                     "זמן החזקה מקסימלי", list(_hold_labels), horizontal=True, key="backtest_hold_days",
                     index=list(_hold_labels.values()).index(strategy_mod.HOLD_MAX_DAYS),
