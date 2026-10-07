@@ -4854,7 +4854,9 @@ with _tab_slot_history.container():
                 return bool((window["Low"] <= r["forecast_stop"]).any())
 
             def _forecast_outcome(r: dict) -> str:
-                if r.get("forecast_target") is not None and r["exit_price"] >= r["forecast_target"]:
+                # יעד לפי האסטרטגיה הנוכחית (+3% מעל הכניסה בפועל, ר' strategy.live_target_price) -
+                # לא ה-forecast_target ששמור בעסקה (חושב בזמנו לפי יעד ישן של 5%).
+                if r["exit_price"] >= live_target_price(r["entry_price"], r.get("forecast_stop"), None):
                     return "🎯 הגיע ליעד"
                 if r.get("forecast_stop") is not None and r["exit_price"] <= r["forecast_stop"]:
                     return "🛑 פגע בסטופ"
@@ -4887,6 +4889,35 @@ with _tab_slot_history.container():
 
             hist_df = hist_df.sort_values("exit_at", ascending=False)
 
+            # רמזור האסטרטגיה בזמן ההתראה שממנה נפתחה העסקה (רטרואקטיבי, ר' strategy.entry_signal)
+            _sig_by_alert: dict[int, str] = {}
+            _journal_alert_ids = [int(x) for x in hist_df["alert_id"].dropna().unique()] if "alert_id" in hist_df.columns else []
+            if _journal_alert_ids:
+                _sig_conn = store.get_conn(db_path(cfg))
+                try:
+                    _sig_rows = pd.read_sql_query(
+                        "SELECT id, index_name, pct_change, intraday_recovery_pct, dist_from_ma50_pct, sector, scan_ts "
+                        f"FROM alerts WHERE id IN ({','.join(map(str, _journal_alert_ids))})", _sig_conn,
+                    )
+                finally:
+                    _sig_conn.close()
+                for _, _sr in _sig_rows.iterrows():
+                    _sig_by_alert[int(_sr["id"])] = strategy_mod.SIGNAL_EMOJI[_alert_signal(_sr)[0]]
+
+            def _journal_trading_days(r) -> int:
+                try:
+                    start = pd.Timestamp(r["entry_at"]).date()
+                    end = pd.Timestamp(r["exit_at"]).date()
+                except Exception:
+                    return int(r["holding_days"])
+                country = constituents.INDEX_COUNTRY_CODE.get(r.get("index_name"), "IL")
+                n, day = 0, start
+                while day <= end:
+                    if is_trading_day(country, day):
+                        n += 1
+                    day += dt.timedelta(days=1)
+                return max(n, 1)
+
             # st.dataframe מצייר תמיד על גבי canvas משמאל לימין ומתעלם לגמרי מ-CSS -
             # אי אפשר ליישר לימין או לשלוט במיקום תווים בתוכו (ראו גם ההערה על כך
             # ב-get_all_changes). לכן טבלת ההיסטוריה בנויה כאן כטבלת HTML רגילה,
@@ -4894,18 +4925,24 @@ with _tab_slot_history.container():
             header_cells = "".join(
                 f'<th style="padding:8px 12px; text-align:right; font-weight:600; '
                 f'border-bottom:1px solid rgba(128,128,128,0.3);">{h}</th>'
-                for h in ["מניה", "כניסה", "יציאה", "ימי החזקה", "תחזית מול בפועל", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
+                for h in ["מניה", "כניסה", "יציאה", f"ימי מסחר (מתוך {strategy_mod.HOLD_MAX_DAYS})", "תחזית מול בפועל", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
             )
 
             body_rows = []
             for _, r in hist_df.iterrows():
                 is_il = market_data._is_israeli_ticker(r["ticker"])
                 _manual_badge = ' <span style="font-size:0.75rem; opacity:0.7;">🖐️</span>' if r.get("is_manual_trade") else ""
-                name = f"{r['company_name'] or r['ticker']} ({r['ticker']}){_manual_badge}"
+                _sig_badge = _sig_by_alert.get(int(r["alert_id"]), "") if pd.notna(r.get("alert_id")) else ""
+                name = f"{_sig_badge} {r['company_name'] or r['ticker']} ({r['ticker']}){_manual_badge}".strip()
                 entry_text = _fmt_price_date(r["entry_price"], r["entry_at"], is_il)
                 exit_text = _fmt_price_date(r["exit_price"], r["exit_at"], is_il)
                 outcome_text = _forecast_outcome(r)
                 outcome_color = _outcome_color(outcome_text)
+                _tdays = _journal_trading_days(r)
+                _held_cell = (
+                    f'<span style="color:{NEG_COLOR}; font-weight:600;">{_tdays} ⏰</span>'
+                    if _tdays > strategy_mod.HOLD_MAX_DAYS else str(_tdays)
+                )
 
                 gross_pnl = r["gross_pnl"]
                 invested = (r["entry_price"] or 0) * (r["qty"] or 0)
@@ -4918,7 +4955,7 @@ with _tab_slot_history.container():
                 net_pnl_text = _signed_num(r["net_pnl"])
 
                 cells = [
-                    name, entry_text, exit_text, f"{r['holding_days']:.0f}",
+                    name, entry_text, exit_text, _held_cell,
                     f'<span style="color:{outcome_color}; font-weight:600;">{outcome_text}</span>',
                     f'<span style="color:{gross_color}; font-weight:600;">{gross_pct_text}</span>',
                     f'<span style="color:{gross_color}; font-weight:600;">{gross_pnl_text}</span>',
