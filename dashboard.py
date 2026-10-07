@@ -3237,6 +3237,61 @@ with _tab_slot_movers.container():
 
         _render_movers_tab()
 
+def _open_position_form(chosen_row, key_prefix: str) -> None:
+    """טופס פתיחת פוזיציה (שער ביצוע / כמות או עלות / תאריך / עסקה ידנית) להתראה אחת.
+    משותף ל"➕ פתיחת פוזיציה" בטאב אחזקות ולכפתור בתוך ההתראה עצמה (7.10.2026) - אותו
+    קוד בדיוק, כדי ששניהם יישארו עקביים (שער באגורות לת"א, שדות ריקים בכוונה)."""
+    is_il = market_data._is_israeli_ticker(chosen_row["ticker"])
+    add_trade_date = st.date_input(
+        "תאריך ביצוע העסקה", value=dt.date.today(), key=f"{key_prefix}_trade_date",
+        format="DD/MM/YYYY",
+        help="אם לא הזנת את האחזקה באותו יום שקנית בפועל - כדי שספירת ימי ההחזקה תהיה נכונה.",
+    )
+    ac1, ac2, ac3 = st.columns(3)
+    # שדות ריקים בכוונה (לא ממולאים משער הלימיט המוצע) - כדי שתמיד תזין
+    # את המחיר/הכמות האמיתיים שביצעת, ולא תישאר בטעות עם ערך משער אחר.
+    add_entry_raw = ac1.number_input(
+        "שער ביצוע" + (" (באגורות)" if is_il else ""), min_value=0.0, value=0.0,
+        format="%.0f" if is_il else "%.2f", key=f"{key_prefix}_entry",
+    )
+    add_entry = (add_entry_raw / 100.0) if is_il else add_entry_raw
+    add_qty = ac2.number_input("כמות", min_value=0.0, value=0.0, step=1.0, key=f"{key_prefix}_qty")
+    add_amount = ac3.number_input(
+        "עלות (אופציונלי)", min_value=0.0, value=0.0, step=100.0, key=f"{key_prefix}_amount",
+        help="אם תמלא עלות כוללת, הכמות תחושב אוטומטית ממנה (עלות ÷ שער ביצוע) "
+             "במקום השדה 'כמות'.",
+    )
+    add_is_manual = st.checkbox(
+        "🖐️ עסקה ידנית (לא לפי האסטרטגיה - לא תיכלל בסטטיסטיקת ביצועי האסטרטגיה)",
+        key=f"{key_prefix}_manual",
+    )
+    if st.button("✅ הוסף לאחזקות", key=f"{key_prefix}_btn"):
+        final_qty = (add_amount / add_entry) if (add_amount > 0 and add_entry > 0) else add_qty
+        _ref = chosen_row.get("last_close")
+        if add_entry <= 0 or final_qty <= 0:
+            st.warning("יש למלא שער ביצוע וכמות (או עלות) לפני ההוספה.")
+        elif _ref is not None and pd.notna(_ref) and _ref > 0 and abs(add_entry / _ref - 1) > 0.4:
+            # 7.10.2026: קמטק נרשמה פי 10 מהמחיר האמיתי (אגורות הוזנו כשקלים) - חוסמים
+            # שער שרחוק מעל 40% ממחיר ההתראה, כמעט תמיד טעות הקלדה.
+            _shown = f"{_ref * 100:,.0f} אג'" if is_il else f"{_ref:,.2f}"
+            st.error(f"שער הביצוע שהוזן רחוק מאוד ממחיר ההתראה ({_shown}) - בדוק יחידות (אגורות/שקלים).")
+        else:
+            bought_at = dt.datetime.combine(add_trade_date, dt.datetime.now().time()).isoformat(timespec="seconds")
+            add_stop_price = get_holding_stop_price(chosen_row["ticker"], add_entry)
+            cloud_sync.refresh_alerts_db_if_clean()
+            add_conn = store.get_conn(db_path(cfg))
+            store.mark_as_bought(
+                add_conn, int(chosen_row["id"]), add_entry, final_qty, bought_at, add_stop_price,
+                is_manual_trade=add_is_manual,
+            )
+            add_conn.close()
+            _sync_and_warn("position opened", include_db=True)
+            for _clear_key in ("entry", "qty", "amount", "manual"):
+                st.session_state.pop(f"{key_prefix}_{_clear_key}", None)
+            load_alerts.clear()
+            st.rerun()
+
+
 _tab_slot_today = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
 with _tab_slot_today.container():
@@ -3724,6 +3779,16 @@ with _tab_slot_today.container():
                                     _sel_row = todays_alerts[todays_alerts["id"] == _rid]
                                     if not _sel_row.empty:
                                         st.markdown(_build_alert_detail_html(_sel_row.iloc[0]), unsafe_allow_html=True)
+                                        _sel = _sel_row.iloc[0]
+                                        if _sel.get("bought") == 1:
+                                            st.caption("✅ כבר באחזקות")
+                                        else:
+                                            with st.expander("➕ פתח פוזיציה", key=f"open_pos_exp_{_rid}"):
+                                                _lim = _sel.get("entry_limit")
+                                                if pd.notna(_lim):
+                                                    _il = market_data._is_israeli_ticker(_sel["ticker"])
+                                                    st.caption(f"לימיט כניסה מוצע: {_lim * 100:,.0f} אג'" if _il else f"לימיט כניסה מוצע: {_lim:,.2f}")
+                                                _open_position_form(_sel, f"alert_pos_{_rid}")
                                         _close_cols = st.columns([9, 1])
                                         if _close_cols[1].button("✕ סגור", key=f"close_alert_btn_{_rid}"):
                                             st.session_state["open_alert_id"] = None
@@ -4078,49 +4143,7 @@ with _tab_slot_portfolio.container():
                                 "בחר מניה", stock_options["label"], key="portfolio_stock_select"
                             )
                             chosen_row = stock_options[stock_options["label"] == chosen_label].iloc[0]
-                            is_il = market_data._is_israeli_ticker(chosen_row["ticker"])
-                            add_trade_date = st.date_input(
-                                "תאריך ביצוע העסקה", value=dt.date.today(), key="portfolio_add_trade_date",
-                                format="DD/MM/YYYY",
-                                help="אם לא הזנת את האחזקה באותו יום שקנית בפועל - כדי שספירת ימי ההחזקה תהיה נכונה.",
-                            )
-                            ac1, ac2, ac3 = st.columns(3)
-                            # שדות ריקים בכוונה (לא ממולאים משער הלימיט המוצע) - כדי שתמיד תזין
-                            # את המחיר/הכמות האמיתיים שביצעת, ולא תישאר בטעות עם ערך משער אחר.
-                            add_entry_raw = ac1.number_input(
-                                "שער ביצוע", min_value=0.0, value=0.0, format="%.0f" if is_il else "%.2f",
-                                key="portfolio_add_entry",
-                            )
-                            add_entry = (add_entry_raw / 100.0) if is_il else add_entry_raw
-                            add_qty = ac2.number_input("כמות", min_value=0.0, value=0.0, step=1.0, key="portfolio_add_qty")
-                            add_amount = ac3.number_input(
-                                "עלות (אופציונלי)", min_value=0.0, value=0.0, step=100.0, key="portfolio_add_amount",
-                                help="אם תמלא עלות כוללת, הכמות תחושב אוטומטית ממנה (עלות ÷ שער ביצוע) "
-                                     "במקום השדה 'כמות'.",
-                            )
-                            add_is_manual = st.checkbox(
-                                "🖐️ עסקה ידנית (לא לפי האסטרטגיה - לא תיכלל בסטטיסטיקת ביצועי האסטרטגיה)",
-                                key="portfolio_add_manual",
-                            )
-                            if st.button("✅ הוסף לאחזקות", key="portfolio_add_btn"):
-                                final_qty = (add_amount / add_entry) if (add_amount > 0 and add_entry > 0) else add_qty
-                                if add_entry <= 0 or final_qty <= 0:
-                                    st.warning("יש למלא שער ביצוע וכמות (או עלות) לפני ההוספה.")
-                                else:
-                                    bought_at = dt.datetime.combine(add_trade_date, dt.datetime.now().time()).isoformat(timespec="seconds")
-                                    add_stop_price = get_holding_stop_price(chosen_row["ticker"], add_entry)
-                                    cloud_sync.refresh_alerts_db_if_clean()
-                                    add_conn = store.get_conn(db_path(cfg))
-                                    store.mark_as_bought(
-                                        add_conn, int(chosen_row["id"]), add_entry, final_qty, bought_at, add_stop_price,
-                                        is_manual_trade=add_is_manual,
-                                    )
-                                    add_conn.close()
-                                    _sync_and_warn("position opened", include_db=True)
-                                    for _clear_key in ("portfolio_add_entry", "portfolio_add_qty", "portfolio_add_amount", "portfolio_add_manual"):
-                                        st.session_state.pop(_clear_key, None)
-                                    load_alerts.clear()
-                                    st.rerun()
+                            _open_position_form(chosen_row, "portfolio_add")
 
             gain_start_pct = cfg.get("holdings_gain_alert_start_pct", 2.0)
             gain_step_pct = cfg.get("holdings_gain_alert_step_pct", 1.0) or 1.0
