@@ -61,6 +61,14 @@ if __name__ == "__main__":
             if updated:
                 print(f"עודכנו {updated} outcome-ים היסטוריים (לטרק-רקורד עתידי).")
 
+            try:
+                from src import post_alert
+                added = post_alert.update_missing(conn)
+                if added:
+                    print(f"נוספו {added} תוצאות מרגע-ההתראה (post_alert_outcomes).")
+            except Exception as e:  # בונוס לסטטיסטיקה - לא מפיל את הסיכום
+                print(f"עדכון post_alert_outcomes נכשל: {e}")
+
             signals_resolved = backtest.resolve_signal_outcomes(conn)
             if signals_resolved:
                 print(f"נפתרו {signals_resolved} אותות-צל (signal_log).")

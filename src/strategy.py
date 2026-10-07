@@ -32,7 +32,7 @@ MIN_TARGET_REWARD_RISK_RATIO = 1.0  # פולבאק בלבד עכשיו (ר' live
 # ו-6% נתן 4.59% - יעד קבוע גדול יותר "מצליח" פחות (קשה יותר להגיע אליו) אבל
 # משתלם יותר בממוצע כי כל הצלחה שווה יותר. נבחר 5% (לא 6%, השיא בבדיקה) כי
 # המדגם קטן (56-76 עסקאות לאסטרטגיה) ו-5% שמרני יותר מ-6% שעלול להיות רעש.
-FIXED_TARGET_PCT = 0.05
+FIXED_TARGET_PCT = 0.03  # שונה מ-5% ל-3% ב-7.10.2026: באופק החזקה של עד 3 ימים יעד של 3% מתממש הרבה יותר (ר' סיגנל כניסה למטה)
 
 REWARD_RISK_RATIO = 1.5  # פולבאק בלבד (ר' live_target_price) - כשאין שום target_base שמור (אחזקה ידנית לגמרי)
 # הרצפה (MIN_TARGET_REWARD_RISK_RATIO) אומתה ב-backtest על 64 התראות היסטוריות:
@@ -147,59 +147,97 @@ def suggest_strategy(last_close: float, last_low: float | None,
 
 
 # ---------------------------------------------------------------------------
-# סיגנל כניסה: 🟢 לקנות / 🟡 לחכות / 🔴 לא לקנות (7.10.2026)
+# סיגנל כניסה: 🟢 לקנות / 🟡 לחכות / 🔴 לא לקנות (7.10.2026) - כרטיס ניקוד רב-גורמי
 #
-# אופק האסטרטגיה: החזקה של כמה שעות עד 3 ימי מסחר בלבד (HOLD_MAX_DAYS). הכללים נגזרו
-# מניתוח ההתראות ההיסטוריות (24.8-1.10.2026) כשכל עסקה נבדקת במחיר ההתראה, יעד קבוע,
-# ויציאה בסגירת היום השלישי אם לא הוכרעה קודם:
-#   ישראל (349 התראות): ירידה >=4% => ~57% הגיעו ליעד, תוחלת +2.2% לעסקה (ירידה 4.5%+:
-#     +2.6%). מתחת ל-4% תוחלת ~0 (-0.1%..+0.2%) - אין יתרון ב-3 ימים. מיקום המחיר בטווח
-#     היומי / מרחק מהממוצע לא הוסיפו כלום באופק הקצר (הם עזרו רק באופק של 10 ימים).
-#   ארה"ב (682 התראות, 20 ימים בלבד - ראשוני): היתרון חלש מאוד ב-3 ימים; רק ירידה
-#     >=6% עם מיקום חזק (+1.45%, מדגם 39) או >=4% (+0.2%) נראים סבירים.
-# ברוטו, לפני עמלות ומס. מדגם קטן וימי סיגנל מקובצים - לבחון מחדש עם עוד נתונים.
+# אופק האסטרטגיה: החזקה של כמה שעות עד 3 ימי מסחר (HOLD_MAX_DAYS), יעד +3% (FIXED_TARGET_PCT),
+# כניסה במחיר ההתראה. התוצאות נמדדות *מרגע ההתראה בלבד*, מנתוני 5 דקות (ר' post_alert.py) -
+# המדידה הקודמת מנתונים יומיים ספרה גם את השיא של לפני ההתראה והגזימה (הצלחה ~58% במקום ~43%).
+#
+# הגורמים נבחרו כי הכיוון שלהם זהה בשתי מחציות הזמן של הנתונים, והוסיפו יכולת הבחנה מחוץ
+# למדגם (AUC על המחצית המאוחרת: ישראל 0.57 לגודל הירידה לבד -> ~0.71 עם כל הגורמים;
+# ארה"ב 0.56 -> 0.66; משקלים נקבעו על המחצית המוקדמת ונבדקו על המאוחרת, ולהפך):
+#   1. גודל הירידה (גורם חזק ביותר).        2. מרחק מהממוצע הנע 50 יום (רחוק מתחת = טוב, מעליו = רע).
+#   3. סקטור (תשתיות/טכנולוגיה חזקים; נדל"ן/אנרגיה חלשים).
+#   4. ישראל: שעת ההתראה (עד 12:59 עדיף).  ארה"ב: המחיר כבר התאושש מהשפל של היום.
+# גורמים שנבדקו ולא הוסיפו יכולת הבחנה יציבה: ציון תגובת-יתר, איכות פונדמנטלית, A/B/C,
+# נפח מסחר, RSI, VIX, סוג שוק, וסיבת הירידה (דוח/מימושים/חדשות).
+# תוצאות (ישראל, 345 התראות, 32 ימים): ניקוד 4+ -> 71% הגיעו ליעד, +1.2% לעסקה; 2-3 -> ~48%,
+# בערך אפס; 1 ומטה -> ~32%, -0.7% לעסקה. ארה"ב (682 התראות, 20 ימים): 4+ -> 68%, +1.4%.
+# ברוטו, לפני עמלות ומס. התראות מקובצות בימים (30 ימים בלבד) - לבחון מחדש עם עוד נתונים.
 # ---------------------------------------------------------------------------
 HOLD_MAX_DAYS = 3
+TARGET_PCT = FIXED_TARGET_PCT * 100
 SIGNAL_BUY, SIGNAL_WAIT, SIGNAL_AVOID, SIGNAL_UNKNOWN = "buy", "wait", "avoid", "unknown"
 SIGNAL_EMOJI = {SIGNAL_BUY: "🟢", SIGNAL_WAIT: "🟡", SIGNAL_AVOID: "🔴", SIGNAL_UNKNOWN: "⚪"}
 SIGNAL_LABEL = {SIGNAL_BUY: "לקנות", SIGNAL_WAIT: "לחכות", SIGNAL_AVOID: "לא לקנות", SIGNAL_UNKNOWN: "אין נתונים"}
 ISRAELI_INDICES = ("TA35", "TA125")
-IL_BUY_MIN_DROP_PCT = 4.0
-IL_WAIT_MIN_DROP_PCT = 3.5
-US_BUY_MIN_DROP_PCT = 6.0
-US_WAIT_MIN_DROP_PCT = 4.0
-US_STRONG_RECOVERY_PCT = 12.0      # מיקום בטווח היומי (0=שפל, 100=שיא)
-US_STRONG_BELOW_MA50_PCT = -9.0    # מרחק מהממוצע הנע 50 יום
+BUY_MIN_SCORE = 4
+WAIT_MIN_SCORE = 2
+
+_SECTOR_HE = {
+    "Utilities": "תשתיות", "Technology": "טכנולוגיה", "Real Estate": 'נדל"ן', "Energy": "אנרגיה",
+    "Basic Materials": "חומרי גלם", "Consumer Cyclical": "צריכה מחזורית", "Financial Services": "פיננסים",
+}
+_IL_STRONG_SECTORS = {"Utilities", "Technology"}
+_IL_WEAK_SECTORS = {"Real Estate", "Energy", "Basic Materials"}
+_US_STRONG_SECTORS = {"Utilities", "Technology", "Basic Materials"}
+_US_WEAK_SECTORS = {"Real Estate", "Energy", "Consumer Cyclical", "Financial Services"}
 
 
 def _known(x) -> bool:
     return x is not None and x == x  # x == x שוללת NaN
 
 
-def entry_signal(index_name: str | None, pct_change: float, intraday_recovery_pct=None,
-                 dist_from_ma50_pct=None) -> tuple[str, str]:
-    """מחזיר (סיגנל, הסבר קצר) לאופק החזקה של עד HOLD_MAX_DAYS ימים."""
-    if not _known(pct_change):
-        return SIGNAL_UNKNOWN, "אין נתון על גודל הירידה"
+def signal_score(index_name: str | None, pct_change: float, intraday_recovery_pct=None,
+                 dist_from_ma50_pct=None, sector: str | None = None,
+                 alert_hour: int | None = None) -> tuple[int, list[tuple[str, int]]]:
+    """(ניקוד כולל, רשימת (גורם, נקודות)). גורם שחסר לו נתון פשוט לא תורם."""
     drop = abs(pct_change)
     is_il = (index_name or "").upper() in ISRAELI_INDICES
+    parts: list[tuple[str, int]] = []
 
     if is_il:
-        if drop >= IL_BUY_MIN_DROP_PCT:
-            return SIGNAL_BUY, f"ירידה חדה ({drop:.1f}%, מעל סף {IL_BUY_MIN_DROP_PCT:.0f}%)"
-        if drop >= IL_WAIT_MIN_DROP_PCT:
-            return SIGNAL_WAIT, f"ירידה של {drop:.1f}% - מתחת ל-{IL_BUY_MIN_DROP_PCT:.0f}% אין יתרון בהחזקה קצרה"
-        return SIGNAL_AVOID, f"ירידה יומית קטנה ({drop:.1f}%)"
+        if drop >= 4.5:
+            parts.append((f"ירידה חדה {drop:.1f}%", 2))
+    else:
+        if drop >= 6:
+            parts.append((f"ירידה חדה {drop:.1f}%", 2))
+        elif drop >= 4.5:
+            parts.append((f"ירידה {drop:.1f}%", 1))
 
-    # ארה"ב - כלל נפרד (ראשוני, מדגם של 20 ימים)
-    rec_ok, ma_ok = _known(intraday_recovery_pct), _known(dist_from_ma50_pct)
-    strong = (rec_ok and intraday_recovery_pct >= US_STRONG_RECOVERY_PCT) or              (ma_ok and dist_from_ma50_pct <= US_STRONG_BELOW_MA50_PCT)
-    if drop >= US_BUY_MIN_DROP_PCT:
-        if strong:
-            return SIGNAL_BUY, f"ירידה חדה ({drop:.1f}%) והמחיר התאושש מהשפל / רחוק מהממוצע"
-        if not (rec_ok or ma_ok):
-            return SIGNAL_UNKNOWN, f"ירידה חדה ({drop:.1f}%) ואין נתוני מיקום"
-        return SIGNAL_WAIT, f"ירידה חדה ({drop:.1f}%) אבל המחיר עדיין בשפל"
-    if drop >= US_WAIT_MIN_DROP_PCT:
-        return SIGNAL_WAIT, f"ירידה של {drop:.1f}% - יתרון חלש בארה\"ב בהחזקה קצרה"
-    return SIGNAL_AVOID, f"ירידה קטנה ({drop:.1f}%)"
+    if _known(dist_from_ma50_pct):
+        if dist_from_ma50_pct <= -10:
+            parts.append((f"רחוק מהממוצע ({dist_from_ma50_pct:.0f}%)", 1))
+        elif dist_from_ma50_pct > 0.9:
+            parts.append(("מעל הממוצע הנע", -1))
+
+    strong, weak = (_IL_STRONG_SECTORS, _IL_WEAK_SECTORS) if is_il else (_US_STRONG_SECTORS, _US_WEAK_SECTORS)
+    if sector in strong:
+        parts.append((f"סקטור חזק ({_SECTOR_HE.get(sector, sector)})", 2))
+    elif sector in weak:
+        parts.append((f"סקטור חלש ({_SECTOR_HE.get(sector, sector)})", -2))
+
+    if is_il:
+        if alert_hour is not None and alert_hour <= 12:
+            parts.append(("התראה בבוקר", 1))
+    elif _known(intraday_recovery_pct) and intraday_recovery_pct >= 12:
+        parts.append(("התאושש מהשפל", 1))
+
+    return sum(p for _, p in parts), parts
+
+
+def entry_signal(index_name: str | None, pct_change: float, intraday_recovery_pct=None,
+                 dist_from_ma50_pct=None, sector: str | None = None,
+                 alert_hour: int | None = None) -> tuple[str, str]:
+    """מחזיר (סיגנל, הסבר עם הגורמים). אופק החזקה: עד HOLD_MAX_DAYS ימים, יעד TARGET_PCT%."""
+    if not _known(pct_change):
+        return SIGNAL_UNKNOWN, "אין נתון על גודל הירידה"
+    score, parts = signal_score(index_name, pct_change, intraday_recovery_pct, dist_from_ma50_pct, sector, alert_hour)
+    if score >= BUY_MIN_SCORE:
+        signal = SIGNAL_BUY
+    elif score >= WAIT_MIN_SCORE:
+        signal = SIGNAL_WAIT
+    else:
+        signal = SIGNAL_AVOID
+    detail = " · ".join(f"{name} ({pts:+d})" for name, pts in parts) if parts else "אין גורם תומך"
+    return signal, f"ניקוד {score}: {detail}"

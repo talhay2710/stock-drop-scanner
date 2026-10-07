@@ -918,6 +918,7 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         lines.append(f"📉 <b>צפי לנמוך היומי: {_signed(-expected_max_drop_pct, 1, '%')}</b>")
     _sig, _sig_why = strategy_mod.entry_signal(
         index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct,
+        sector=analysis.sector, alert_hour=israel_now().hour,
     )
     lines += [
         f"{ticker} · מדד {index}",

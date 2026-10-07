@@ -150,31 +150,37 @@ class HoleBackfill(unittest.TestCase):
 
 
 class EntrySignal(unittest.TestCase):
-    # 7.10.2026: 🟢/🟡/🔴 לפי ניתוח ההתראות באופק החזקה של עד 3 ימים
+    # 7.10.2026: כרטיס ניקוד רב-גורמי לאופק החזקה של עד 3 ימים
     def setUp(self):
         from src import strategy
         self.f = strategy.entry_signal
         self.s = strategy
 
-    def test_israel_thresholds(self):
-        self.assertEqual(self.f("TA35", -4.0)[0], self.s.SIGNAL_BUY)
-        self.assertEqual(self.f("TA125", -4.6)[0], self.s.SIGNAL_BUY)
-        self.assertEqual(self.f("TA125", -3.9)[0], self.s.SIGNAL_WAIT)
-        self.assertEqual(self.f("TA35", -3.5)[0], self.s.SIGNAL_WAIT)
-        self.assertEqual(self.f("TA35", -3.2)[0], self.s.SIGNAL_AVOID)
+    def test_israel_strong_setup_is_buy(self):
+        sig, why = self.f("TA35", -5.0, None, -12, "Utilities", 10)
+        self.assertEqual(sig, self.s.SIGNAL_BUY)
+        self.assertIn("ניקוד 6", why)
 
-    def test_israel_ignores_position_data(self):
-        self.assertEqual(self.f("TA35", -4.2, 0, 5)[0], self.s.SIGNAL_BUY)
+    def test_israel_drop_alone_is_not_enough(self):
+        # ירידה חדה בסקטור חלש וקרוב לממוצע - לא מספיק
+        self.assertNotEqual(self.f("TA125", -4.6, None, 3, "Real Estate", 14)[0], self.s.SIGNAL_BUY)
 
-    def test_us_needs_deep_drop_and_strong_position(self):
-        self.assertEqual(self.f("SP500", -6.5, 30, None)[0], self.s.SIGNAL_BUY)
-        self.assertEqual(self.f("SP500", -6.5, 2, -3)[0], self.s.SIGNAL_WAIT)
-        self.assertEqual(self.f("NASDAQ100", -4.5)[0], self.s.SIGNAL_WAIT)
-        self.assertEqual(self.f("SP500", -3.8)[0], self.s.SIGNAL_AVOID)
+    def test_israel_small_drop_weak_sector_is_avoid(self):
+        self.assertEqual(self.f("TA125", -3.8, None, 3, "Real Estate", 15)[0], self.s.SIGNAL_AVOID)
 
-    def test_missing_drop_is_unknown(self):
+    def test_israel_mid_score_is_wait(self):
+        self.assertEqual(self.f("TA125", -3.8, None, None, "Technology", 11)[0], self.s.SIGNAL_WAIT)  # 2+1
+
+    def test_us_uses_recovery_not_hour(self):
+        self.assertEqual(self.f("SP500", -6.5, 15, -11, "Technology", None)[0], self.s.SIGNAL_BUY)
+        self.assertEqual(self.f("SP500", -3.7, 0, 5, "Energy", None)[0], self.s.SIGNAL_AVOID)
+
+    def test_missing_drop_is_unknown_and_missing_factors_dont_crash(self):
         self.assertEqual(self.f("TA35", float("nan"))[0], self.s.SIGNAL_UNKNOWN)
-        self.assertEqual(self.f("SP500", -7.0)[0], self.s.SIGNAL_UNKNOWN)
+        self.assertEqual(self.f("TA35", -4.6)[0], self.s.SIGNAL_WAIT)  # רק ירידה חדה = 2 נקודות
+
+    def test_target_is_three_percent(self):
+        self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.03)
 
 
 if __name__ == "__main__":

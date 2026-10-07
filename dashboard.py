@@ -79,7 +79,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
-from src import strategy as strategy_mod
+from src import strategy as strategy_mod, post_alert
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
@@ -2758,9 +2758,15 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
 
 def _alert_signal(r) -> tuple[str, str]:
     """סיגנל 🟢/🟡/🔴 להתראה (שורת DataFrame/dict) - ר' strategy.entry_signal."""
+    _scan_ts = r.get("scan_ts")
+    try:
+        _hour = int(str(_scan_ts)[11:13])
+    except Exception:
+        _hour = None
     return strategy_mod.entry_signal(
         r.get("index_name"), r.get("pct_change"),
         r.get("intraday_recovery_pct"), r.get("dist_from_ma50_pct"),
+        sector=r.get("sector"), alert_hour=_hour,
     )
 
 
@@ -3889,6 +3895,21 @@ def get_footer_news(top_names_tickers: list, is_israeli: bool) -> dict:
     return {"general": general, "stock_news": stock_news}
 
 
+@st.cache_data(ttl=300)
+def get_post_alert_results(alerts_df: pd.DataFrame, target_pct: float, hold_days: int) -> pd.DataFrame:
+    """תוצאות מרגע ההתראה בלבד (ר' src/post_alert.py): מחבר את ההתראות לטבלת התוצאות
+    ומחשב מחדש outcome לפי היעד והאופק שנבחרו - רטרואקטיבית על כל ההיסטוריה."""
+    if "id" in alerts_df.columns:
+        alerts_df = alerts_df[~alerts_df["id"].isin(store.excluded_alert_ids())]
+    conn = store.get_conn(db_path(cfg))
+    try:
+        outcomes = post_alert.load_outcomes(conn)
+    finally:
+        conn.close()
+    merged = alerts_df.merge(outcomes, left_on="id", right_on="alert_id", how="left")
+    return post_alert.evaluate(merged, target_pct, hold_days)
+
+
 @st.cache_data(ttl=3600)
 def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFrame:
     if "id" in alerts_df.columns:
@@ -3924,7 +3945,7 @@ with _tab_slot_backtest.container():
                     label_visibility="collapsed",
                 )
                 _market_choice = st.radio(
-                    "שוק", ["שניהם", "ישראל", "ארה\"ב"], horizontal=True, key="backtest_market",
+                    "שוק", ["ישראל", "ארה\"ב", "כל השווקים"], horizontal=True, key="backtest_market",
                 )
                 _signal_choice = st.radio(
                     "סיגנל", ["הכל", "🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות"], horizontal=True, key="backtest_signal",
@@ -3932,12 +3953,17 @@ with _tab_slot_backtest.container():
                     help="🟢 = מה שהאסטרטגיה הייתה אומרת לקנות. הסיגנל מחושב רטרואקטיבית על כל ההתראות "
                          "ההיסטוריות לפי הכללים הנוכחיים.",
                 )
-                st.markdown("⏱️ טווח ימי מסחר לבדיקה")
+                st.markdown("⏱️ אופק החזקה (ימי מסחר) ויעד")
+                target_pct = st.select_slider(
+                    "יעד (%)", options=[2, 3, 4, 5, 6], value=int(round(strategy_mod.TARGET_PCT)),
+                    key="backtest_target_pct",
+                    help="היעד שאליו מודדים הצלחה, מחיר ההתראה + X%. נמדד רק מרגע ההתראה ואילך.",
+                )
                 window_days = st.slider(
                     # 30 = בדיוק התקרה הפנימית (MAX_WINDOW_DAYS ב-backtest.py) שאליה
                     # החלון גדל אוטומטית עבור יעדים גדולים - בלי זה, הסליידר לא
                     # מאפשר לבחור ערך שהמערכת בעצמה כבר יכולה להגיע אליו.
-                    "טווח ימי מסחר לבדיקה", min_value=1, max_value=30, value=strategy_mod.HOLD_MAX_DAYS, label_visibility="collapsed",
+                    "אופק החזקה (ימי מסחר)", min_value=1, max_value=strategy_mod.HOLD_MAX_DAYS, value=strategy_mod.HOLD_MAX_DAYS, label_visibility="collapsed",
                 )
             if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
                 get_backtest_results.clear()
@@ -3961,14 +3987,13 @@ with _tab_slot_backtest.container():
                 _closed_conn = store.get_conn(db_path(cfg))
                 _bt_closed = backtest.closed_trades_as_outcomes(_closed_conn)
                 _closed_conn.close()
-                if _market_choice != "שניהם" and not _bt_closed.empty and "index_name" in _bt_closed.columns:
+                if _market_choice != "כל השווקים" and not _bt_closed.empty and "index_name" in _bt_closed.columns:
                     _closed_is_il = _bt_closed["index_name"].isin(_IL_INDICES)
                     _bt_closed = _bt_closed[_closed_is_il if _market_choice == "ישראל" else ~_closed_is_il]
                 bt = pd.concat([_bt_open, _bt_closed], ignore_index=True) if not _bt_closed.empty else _bt_open
                 _bt_all_signals = None
             else:
-                with st.spinner("בודק נתוני מחיר היסטוריים לכל התראה..."):
-                    bt = get_backtest_results(_strategy_df, window_days)
+                bt = get_post_alert_results(_strategy_df, float(target_pct), int(window_days))
                 # סיגנל רטרואקטיבי: אותם כללים בדיוק שמוצגים בהתראה, מוחלים על כל ההיסטוריה
                 if not bt.empty:
                     bt["סיגנל"] = bt.apply(lambda r: strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]], axis=1)
@@ -4049,17 +4074,32 @@ with _tab_slot_backtest.container():
             # ב-container עם key כדי לכפות flex-direction:column (עמודה מלאה, לא חצי)
             # מתחת לרוחב מובייל - אותו דפוס בדיוק כמו portfolio-status-row.
             if _bt_all_signals is not None and not _bt_all_signals.empty:
-                by_signal = backtest.summarize_by(_bt_all_signals, "סיגנל")
-                _section_subheader(f"שיעור הצלחה לפי סיגנל (החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים מקסימום)" if window_days == strategy_mod.HOLD_MAX_DAYS else f"שיעור הצלחה לפי סיגנל (טווח בדיקה {window_days} ימים)", "🚦")
+                _decided_sig = _bt_all_signals[_bt_all_signals["outcome"].isin([backtest.HIT_TARGET, backtest.HIT_STOP, backtest.NEITHER])]
+                if _decided_sig.empty:
+                    by_signal = pd.DataFrame(columns=["סיגנל", 'סה"כ', "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת לעסקה (%)"])
+                else:
+                    by_signal = _decided_sig.groupby("סיגנל").agg(
+                        total=("outcome", "size"),
+                        hits=("outcome", lambda x: (x == backtest.HIT_TARGET).sum()),
+                        exp=("ret", "mean") if "ret" in _decided_sig.columns else ("outcome", lambda x: float("nan")),
+                    ).reset_index()
+                    by_signal["rate"] = (by_signal["hits"] / by_signal["total"] * 100).round(1)
+                    by_signal = by_signal[["סיגנל", "total", "hits", "rate", "exp"]]
+                    by_signal.columns = ["סיגנל", 'סה"כ', "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת לעסקה (%)"]
+                    _sig_order = {"🟢": 0, "🟡": 1, "🔴": 2, "⚪": 3}
+                    by_signal = by_signal.sort_values("סיגנל", key=lambda col: col.map(_sig_order)).reset_index(drop=True)
+                _section_subheader(f"שיעור הצלחה לפי סיגנל (יעד {target_pct}%, אופק {window_days} {'יום' if window_days == 1 else 'ימים'}, נמדד מרגע ההתראה)", "🚦")
                 if by_signal.empty:
                     st.caption("אין עדיין מספיק התראות מוכרעות.")
                 else:
                     st.markdown(
                         _html_table(
                             by_signal, [("סיגנל", "סיגנל"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
-                                        ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
-                            formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
-                            color_fns={"שיעור הצלחה (%)": _success_rate_color},
+                                        ("שיעור הצלחה (%)", "שיעור הצלחה (%)"), ("תוחלת לעסקה (%)", "תוחלת לעסקה (%)")],
+                            formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}",
+                                        "תוחלת לעסקה (%)": lambda v: f"{v:+.2f}" if pd.notna(v) else "—"},
+                            color_fns={"שיעור הצלחה (%)": _success_rate_color,
+                                       "תוחלת לעסקה (%)": lambda v: POS_COLOR if (pd.notna(v) and v >= 0) else NEG_COLOR},
                         ),
                         unsafe_allow_html=True,
                     )
