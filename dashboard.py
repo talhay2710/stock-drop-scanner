@@ -4424,7 +4424,6 @@ with _tab_slot_portfolio.container():
                         <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
-                        {'<span style="font-size:0.68rem; font-weight:600; opacity:0.6; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
                         <span title="הסיגנל של האסטרטגיה בזמן ההתראה" style="font-size:0.78rem; flex-shrink:0;">{row.get('entry_signal', '')}</span>
                       </div>
                       {daily_badge_html}
