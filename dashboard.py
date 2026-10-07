@@ -2851,8 +2851,7 @@ def _build_alert_detail_html(r) -> str:
     )
 
     _rebound_text = (
-        f'{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.rebound_class(_sig)} - {strategy_mod.SIGNAL_LABEL[_sig]} '
-        f'(לפי הניקוד המשוקלל של האסטרטגיה)'
+        f'{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.rebound_class(_sig)} - {strategy_mod.SIGNAL_LABEL[_sig]}'
     )
     _rebound_quality_html = (
         f'<div style="font-size:0.9rem; margin-top:6px;">'
