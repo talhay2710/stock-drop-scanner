@@ -4943,7 +4943,7 @@ with _tab_slot_history.container():
             header_cells = "".join(
                 f'<th style="padding:8px 12px; text-align:right; font-weight:600; '
                 f'border-bottom:1px solid rgba(128,128,128,0.3);">{h}</th>'
-                for h in ["מניה", "כניסה", "יציאה", f"ימי מסחר (מתוך {strategy_mod.HOLD_MAX_DAYS})", "תחזית מול בפועל", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
+                for h in ["מניה", "כניסה", "יציאה", "ימי מסחר", "תחזית מול בפועל", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
             )
 
             body_rows = []
@@ -4957,10 +4957,7 @@ with _tab_slot_history.container():
                 outcome_text = _forecast_outcome(r)
                 outcome_color = _outcome_color(outcome_text)
                 _tdays = _journal_trading_days(r)
-                _held_cell = (
-                    f'<span style="color:{NEG_COLOR}; font-weight:600;">{_tdays} ⏰</span>'
-                    if _tdays > strategy_mod.HOLD_MAX_DAYS else str(_tdays)
-                )
+                _held_cell = str(_tdays)
 
                 gross_pnl = r["gross_pnl"]
                 invested = (r["entry_price"] or 0) * (r["qty"] or 0)
