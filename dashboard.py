@@ -3948,8 +3948,8 @@ with _tab_slot_backtest.container():
                     "שוק", ["ישראל", "ארה\"ב", "כל השווקים"], horizontal=True, key="backtest_market",
                 )
                 _signal_choice = st.radio(
-                    "סיגנל", ["הכל", "🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות"], horizontal=True, key="backtest_signal",
-                    index=1,
+                    "סיגנל", ["🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות", "הכל"], horizontal=True, key="backtest_signal",
+                    index=0,
                     help="🟢 = מה שהאסטרטגיה הייתה אומרת לקנות. הסיגנל מחושב רטרואקטיבית על כל ההתראות "
                          "ההיסטוריות לפי הכללים הנוכחיים.",
                 )
