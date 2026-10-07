@@ -2933,7 +2933,7 @@ def _build_alert_detail_html(r) -> str:
     _alert_hint_html = (
         f'<div style="margin-top:14px; font-size:0.8rem; opacity:0.7;">'
         f'🔔 להוספת התראת מחיר על {r.get("company_name") or r["ticker"]} - טופס '
-        f'"התראת מחיר ידנית" למעלה.</div>'
+        f'"התראת מחיר ידנית" מתחת לטבלת ההתראות.</div>'
     )
 
     # 24.9.2026 ("פער בשמות המניות בינך לבין אתר הבנק"): הטיקר/שם כאן לא
@@ -3385,8 +3385,9 @@ with _tab_slot_today.container():
             # עצמה (st.button + session_state בתוך הפרגמנט, ר' למטה) - לא
             # קטע נפרד מתחת לטבלה, לא <a href> (ניווט דפדפן אמיתי, שנבדק
             # ונמצא איטי בפועל). התראת מחיר ידנית למעלה (9.9.2026, בקשה מפורשת).
-            _slot_manual = st.container()
+            # 7.10.2026: התראת מחיר ידנית מתחת לטבלת ההתראות ומעל "קרוב לסף התראה"
             _slot_table = st.container()
+            _slot_manual = st.container()
             _slot_nearmiss = st.container()
 
             _pa_count_conn = store.get_conn(db_path(cfg))
