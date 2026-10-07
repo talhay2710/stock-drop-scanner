@@ -125,5 +125,29 @@ class ExcludedAlerts(unittest.TestCase):
         self.assertIn("NOT IN", store.exclusion_clause())
 
 
+class HoleBackfill(unittest.TestCase):
+    # 6.10.2026: yfinance השמיט יום מסחר שלם (בעוד שהנתונים התוך-יומיים קיימים) - כל המניות
+    # סומנו כ"פער" והשינוי היומי התעוות. שחזור מבארים של 5 דקות, רק ליום מלא.
+    def _intraday(self, day, n_bars=88, last="17:25"):
+        import pandas as pd
+        idx = pd.date_range(f"{day} 09:55", periods=n_bars, freq="5min", tz="Asia/Jerusalem")
+        if last:
+            idx = idx[:-1].append(pd.DatetimeIndex([pd.Timestamp(f"{day} {last}", tz="Asia/Jerusalem")]))
+        return __import__("pandas").DataFrame(
+            {"Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 10.0}, index=idx)
+
+    def test_full_day_is_rebuilt(self):
+        rows = market_data._intraday_rows_for_holes("X.TA", [dt.date(2026, 10, 6)], self._intraday("2026-10-06"), None)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1]["Close"], 100.5)
+        self.assertEqual(rows[0][1]["Volume"], 880.0)
+
+    def test_incomplete_day_is_not_invented(self):
+        short = self._intraday("2026-10-06", n_bars=10, last="10:45")
+        self.assertEqual(market_data._intraday_rows_for_holes("X.TA", [dt.date(2026, 10, 6)], short, None), [])
+        early_end = self._intraday("2026-10-06", n_bars=30, last="12:30")
+        self.assertEqual(market_data._intraday_rows_for_holes("X.TA", [dt.date(2026, 10, 6)], early_end, None), [])
+
+
 if __name__ == "__main__":
     unittest.main()

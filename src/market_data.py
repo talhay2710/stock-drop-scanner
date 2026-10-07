@@ -111,6 +111,133 @@ US_SECTOR_ETF = {
 }
 
 
+_HOLE_LOOKBACK_DAYS = 6
+
+
+def _find_hole_days(data, tickers: list[str]) -> dict[str, list[dt.date]]:
+    """ימי מסחר צפויים (אחרונים _HOLE_LOOKBACK_DAYS ימים, לפני היום האחרון שיש בו נתון
+    כלשהו) שחסרים בהיסטוריה היומית של טיקר - "חור" של yfinance (30.9 ו-6.10.2026:
+    יום מסחר שלם חסר אצל כל מניות ת"א, בעוד שהנתונים התוך-יומיים שלו קיימים)."""
+    try:
+        all_dates = sorted({d.date() for d in data.index})
+    except Exception:
+        return {}
+    if not all_dates:
+        return {}
+    last_day = all_dates[-1]
+    holes: dict[str, list[dt.date]] = {}
+    for ticker in tickers:
+        try:
+            sub = data[ticker] if isinstance(data.columns, pd.MultiIndex) else data
+            have = {d.date() for d in sub["Close"].dropna().index}
+        except Exception:
+            continue
+        country = "IL" if _is_israeli_ticker(ticker) else "US"
+        missing = []
+        day = last_day - dt.timedelta(days=_HOLE_LOOKBACK_DAYS)
+        while day < last_day:
+            if day not in have and is_trading_day(country, day) and any(d < day for d in have) and any(d > day for d in have):
+                missing.append(day)
+            day += dt.timedelta(days=1)
+        if missing:
+            holes[ticker] = missing
+    return holes
+
+
+def _intraday_rows_for_holes(ticker: str, days: list[dt.date], it: pd.DataFrame, tz) -> list:
+    """שורות יומיות (idx, ערכים) לימים החסרים, מבארים של 5 דקות. דורש יום מלא (>=20 ברים ובר
+    אחרון קרוב לסגירה) - אחרת היום נשאר חסר ו-prev_close_gap ממשיך להגן."""
+    it = it.dropna(subset=["Close"])
+    country = "IL" if _is_israeli_ticker(ticker) else "US"
+    spec = MARKET_HOURS[country]
+    out = []
+    for day in days:
+        bars = it[[d.date() == day for d in it.index]]
+        if len(bars) < 20:
+            continue
+        close_hm = spec["close_overrides"].get(day.isoweekday(), spec["close"])
+        last_t = bars.index[-1]
+        if last_t.hour * 60 + last_t.minute < close_hm[0] * 60 + close_hm[1] - 20:
+            continue  # היום לא הושלם בנתונים - לא ממציאים סגירה
+        idx = pd.Timestamp(day)
+        if tz is not None:
+            idx = idx.tz_localize(tz)
+        out.append((idx, {
+            "Open": float(bars["Open"].iloc[0]), "High": float(bars["High"].max()),
+            "Low": float(bars["Low"].min()), "Close": float(bars["Close"].iloc[-1]),
+            "Volume": float(bars["Volume"].sum()),
+        }))
+    return out
+
+
+def fill_single_history_holes(ticker: str, hist: pd.DataFrame) -> pd.DataFrame:
+    """אותו שחזור ימים חסרים, להיסטוריה יומית של טיקר בודד (.history())."""
+    try:
+        have = {d.date() for d in hist["Close"].dropna().index}
+        if not have:
+            return hist
+        country = "IL" if _is_israeli_ticker(ticker) else "US"
+        last_day, first_day = max(have), min(have)
+        missing = [
+            first_day + dt.timedelta(days=k) for k in range((last_day - first_day).days)
+            if (first_day + dt.timedelta(days=k)) not in have
+            and is_trading_day(country, first_day + dt.timedelta(days=k))
+        ]
+        if not missing:
+            return hist
+        it = yf.Ticker(ticker).history(period="5d", interval="5m", auto_adjust=False, timeout=_YF_TIMEOUT_SECONDS)
+        rows_ = _intraday_rows_for_holes(ticker, missing, it, hist.index.tz)
+        if not rows_:
+            return hist
+        hist = hist.copy()
+        for idx, vals in rows_:
+            for col, v in vals.items():
+                hist.loc[idx, col] = v
+            if "Adj Close" in hist.columns:
+                hist.loc[idx, "Adj Close"] = vals["Close"]
+        return hist.sort_index()
+    except Exception as e:
+        logger.debug("שחזור ימים חסרים נכשל עבור %s: %s", ticker, e)
+        return hist
+
+
+def _fill_holes_from_intraday(data, tickers: list[str]):
+    """משלים ימי מסחר חסרים בהיסטוריה היומית מנתוני 5 דקות (Close = הבר האחרון של היום -
+    אומת מול סגירות רשמיות: זהה ב-28/28 בדיקות). דורש יום מלא (בר אחרון קרוב לסגירה),
+    אחרת היום נשאר חסר ו-prev_close_gap ממשיך להגן. מחזיר את אותו data (מעודכן)."""
+    holes = _find_hole_days(data, tickers)
+    if not holes:
+        return data
+    try:
+        intra = yf.download(
+            tickers=sorted(holes), period="5d", interval="5m", group_by="ticker",
+            threads=True, auto_adjust=False, progress=False, timeout=_YF_TIMEOUT_SECONDS,
+        )
+    except Exception as e:
+        logger.warning("שחזור ימים חסרים נכשל (הורדה תוך-יומית): %s", e)
+        return data
+    filled_rows: dict[str, list] = {}
+    for ticker, days in holes.items():
+        try:
+            it = intra[ticker] if isinstance(intra.columns, pd.MultiIndex) else intra
+            daily_sub = data[ticker] if isinstance(data.columns, pd.MultiIndex) else data
+            rows_ = _intraday_rows_for_holes(ticker, days, it, daily_sub.index.tz)
+            if rows_:
+                filled_rows[ticker] = rows_
+        except Exception as e:
+            logger.debug("שחזור ימים חסרים נכשל עבור %s: %s", ticker, e)
+    if not filled_rows:
+        return data
+    for ticker, items in filled_rows.items():
+        for idx, vals in items:
+            for col, v in vals.items():
+                data.loc[idx, (ticker, col)] = v
+            if (ticker, "Adj Close") in data.columns:
+                data.loc[idx, (ticker, "Adj Close")] = vals["Close"]
+        logger.info("שוחזרו %d ימי מסחר חסרים עבור %s מנתונים תוך-יומיים", len(items), ticker)
+    return data.sort_index()
+
+
 def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo") -> pd.DataFrame:
     """מוריד היסטוריית מחירים עבור כל המניות ברשימה בבת אחת, ומחזיר טבלת
     שינוי יומי אחוזי לכל מניה (סגירה אחרונה מול הסגירה הקודמת).
@@ -133,6 +260,11 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             timeout=_YF_TIMEOUT_SECONDS,
         )
         _report_circuit_success()
+        if isinstance(data.columns, pd.MultiIndex):
+            try:
+                data = _fill_holes_from_intraday(data, tickers)
+            except Exception as fill_err:  # שחזור הוא בונוס - כשל בו לא אמור להפיל את הסריקה
+                logger.warning("שחזור ימים חסרים נכשל: %s", fill_err)
     except Exception as e:
         _report_circuit_failure()
         logger.warning("נכשלה fetch_universe_daily_changes (%d טיקרים): %s", len(tickers), e)
@@ -333,6 +465,7 @@ def _fix_stale_rows_with_live_quote(rows: list[dict]) -> None:
             # אותו סינון פאנטום כמו ב-fetch_universe_daily_changes - יום ללא
             # מסחר בפועל (חג) שיאהו עדיין מחזירה עבורו שורה מלאכותית (13.9.2026).
             hist = _drop_phantom_rows(hist)
+            hist = fill_single_history_holes(row["ticker"], hist)
             closes = hist["Close"].dropna()
             if len(closes) < 2:
                 return None
