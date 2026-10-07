@@ -749,6 +749,18 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+# כפתור ה-"✕" (ניקוי) בתוך number_input ריק (value=None) קיבל רוחב מלא (370px) מכלל כפתורים
+# גלובלי, וכיווץ את תיבת הטקסט ל-0 - אי אפשר היה לראות/להקליד (7.10.2026, "אי אפשר לכתוב").
+st.markdown(
+    """
+    <style>
+    [data-testid="stNumberInput"] button:has(> svg) {
+        width: auto !important; min-width: 0 !important; flex: 0 0 auto !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
 # ב-Streamlit Cloud הסודות מוזנים דרך st.secrets (secrets.toml, לא קובץ ב-git) -
@@ -3251,12 +3263,12 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
     # value=None (שדה ריק באמת, לא "0"): עם value=0.0 הסמן נפתח *לפני* ה-"0" המוצג, אז הקלדת
     # 4636 הפכה ל-46360 - 0 מיותר שנוסף בסוף בכל הזנה (נאוויטס וקמטק, 7.10.2026).
     add_entry_raw = ac1.number_input(
-        "שער ביצוע" + (" (באגורות)" if is_il else ""), min_value=0.0, value=None,
+        "שער ביצוע", min_value=0.0, value=None,
         step=1.0 if is_il else 0.01, format="%.2f", key=f"{key_prefix}_entry", placeholder="0",
     )
     add_entry = ((add_entry_raw or 0.0) / 100.0) if is_il else (add_entry_raw or 0.0)
     add_amount_raw = ac2.number_input(
-        "עלות (חובה)", min_value=0.0, value=None, step=100.0, format="%.2f",
+        "עלות", min_value=0.0, value=None, step=100.0, format="%.2f",
         key=f"{key_prefix}_amount", placeholder="0",
         help="העלות הכוללת כפי שמופיעה בבנק. הכמות מחושבת ממנה אוטומטית (עלות ÷ שער ביצוע).",
     )
