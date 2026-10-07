@@ -663,7 +663,9 @@ with st.container(key="main_title_wrap"):
     st.markdown(
         f"""
         <div style="padding:6px 0 2px;">
-          <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.02em; color:{ACCENT_COLOR}; line-height:1.25; display:flex; justify-content:center;">DipRadar</div>
+          <a href="./" target="_self" title="מסך הבית" style="text-decoration:none; color:{ACCENT_COLOR}; cursor:pointer; display:block;">
+            <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.02em; color:{ACCENT_COLOR}; line-height:1.25; display:flex; justify-content:center;">DipRadar</div>
+          </a>
           <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px; display:flex; align-items:center; justify-content:center; gap:5px;">
             <span>התראות ואסטרטגיית ריבאונד</span>
             <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0;">
