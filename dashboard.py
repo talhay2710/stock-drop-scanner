@@ -81,7 +81,7 @@ from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_P
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
 from src import strategy as strategy_mod, post_alert
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
-from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
+from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
 st.set_page_config(page_title="DipRadar", layout="wide")
 
@@ -2732,6 +2732,19 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     return table_html
 
 
+def _trading_days_held(bought_date, country_code: str) -> int:
+    """ימי מסחר מיום הקנייה עד היום (כולל שניהם) - אופק האסטרטגיה הוא ימי מסחר, לא ימי לוח."""
+    if bought_date is None:
+        return 1
+    today = israel_today()
+    n, day = 0, bought_date
+    while day <= today:
+        if is_trading_day(country_code, day):
+            n += 1
+        day += dt.timedelta(days=1)
+    return max(n, 1)
+
+
 def _alert_signal(r) -> tuple[str, str]:
     """סיגנל 🟢/🟡/🔴 להתראה (שורת DataFrame/dict) - ר' strategy.entry_signal."""
     _scan_ts = r.get("scan_ts")
@@ -4251,6 +4264,10 @@ with _tab_slot_portfolio.container():
                 is_il = market_data._is_israeli_ticker(row["ticker"])
 
                 net_grid_cell = ""
+                # אופק האסטרטגיה: עד HOLD_MAX_DAYS ימי מסחר - מעבר לכך מסמנים באדום (7.10.2026)
+                _over_horizon = row["trading_days_held"] > strategy_mod.HOLD_MAX_DAYS
+                _held_style = f"color:{NEG_COLOR};" if _over_horizon else ""
+                _held_note = " ⏰" if _over_horizon else ""
                 if current is None or net_pnl is None:
                     color = CLOSED_COLOR
                     hero_html = (
@@ -4403,6 +4420,7 @@ with _tab_slot_portfolio.container():
                               white-space:nowrap; min-width:0;">{row['name']}</span>
                         <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
                         {'<span style="font-size:0.68rem; font-weight:600; opacity:0.6; flex-shrink:0;">🖐️ ידנית</span>' if row.get('is_manual_trade') else ''}
+                        <span title="הסיגנל של האסטרטגיה בזמן ההתראה" style="font-size:0.78rem; flex-shrink:0;">{row.get('entry_signal', '')}</span>
                       </div>
                       {daily_badge_html}
                     </div>
@@ -4427,8 +4445,8 @@ with _tab_slot_portfolio.container():
                                 margin-inline-end:3px; vertical-align:middle; margin-bottom:1px;"></span>{sector_label}</div></div>
                       <div><div style="font-size:0.64rem; opacity:0.45;">אחוז מהתיק</div>
                            <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{row['days_held']} ימים</div></div>
+                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק (מתוך {strategy_mod.HOLD_MAX_DAYS})</div>
+                           <div style="font-size:0.82rem; font-weight:700; {_held_style}">{row['trading_days_held']} {'ימי מסחר' if row['trading_days_held'] != 1 else 'יום מסחר'}{_held_note}</div></div>
                       {net_grid_cell}
                     </div>
                 """
@@ -4656,6 +4674,8 @@ with _tab_slot_portfolio.container():
                         "invested": (entry or 0) * (qty or 0),
                         "current_value": (current * qty) if (current is not None and qty) else None,
                         "prices": prices, "days_held": days_held,
+                        "trading_days_held": _trading_days_held(bought_date, country_code),
+                        "entry_signal": strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]],
                         "net_pnl": net_pnl, "net_pct": net_pct,
                         "next_alert_pct": _next_gain_alert_pct(pnl_pct),
                         "forecast_entry_limit": r.get("entry_limit"), "forecast_target": r.get("target_base"),

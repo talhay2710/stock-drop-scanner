@@ -53,9 +53,11 @@ def live_target_price(entry: float, stop_price: float, target_base: float | None
     כדי ששניהם תמיד יראו את אותו יעד בדיוק."""
     # target_base == target_base שוללת NaN (בלי תלות ב-pandas כאן) - זה יכול
     # להגיע כ-NaN כשהקורא הוא DataFrame (הדשבורד), לא רק None (התראת טלגרם).
-    if target_base is not None and target_base == target_base:
-        return target_base
-    return target_from_stop(entry, stop_price)
+    # 7.10.2026: היעד של אחזקה נגזר מהאסטרטגיה הנוכחית (+FIXED_TARGET_PCT מעל מחיר הכניסה
+    # בפועל, אופק עד HOLD_MAX_DAYS ימים) ולא מה-target_base שנשמר בהתראה - אחרת אחזקות שנפתחו
+    # לפני שינוי האסטרטגיה נשארו עם יעד של 5% בתצוגה ובגרפים. target_base/stop_price נשארו בחתימה
+    # לתאימות עם הקוראים.
+    return round(entry * (1 + FIXED_TARGET_PCT), 2)
 
 
 def stop_distance_pct(current: float, stop_price: float) -> float:
