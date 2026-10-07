@@ -3623,6 +3623,40 @@ with _tab_slot_today.container():
                 )
                 todays_display_src["current_gap"] = todays_display_src["ticker"].map(_current_gap_map).fillna(False)
 
+                # מיון (7.10.2026): ברירת מחדל לפי ניקוד האסטרטגיה (הכי מעניינות למעלה); בשוויון - ירידה
+                # גדולה יותר, ואז העדכנית ביותר. מתג מחזיר לסדר כרונולוגי. התראה מה-30 דקות האחרונות מסומנת "חדשה".
+                def _row_score_value(r) -> int:
+                    if pd.isna(r.get("pct_change")):
+                        return -99
+                    try:
+                        _hh = int(str(r.get("scan_ts"))[11:13])
+                    except Exception:
+                        _hh = None
+                    return strategy_mod.signal_score(
+                        r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
+                        r.get("dist_from_ma50_pct"), r.get("sector"), _hh,
+                    )[0]
+
+                def _row_ts(v):
+                    _t = post_alert._alert_ts(v)
+                    return _t.tz_convert("UTC") if _t is not None else pd.NaT
+
+                todays_display_src["_score"] = todays_display_src.apply(_row_score_value, axis=1)
+                todays_display_src["_drop"] = todays_display_src["pct_change"].abs()
+                todays_display_src["_ts"] = todays_display_src["scan_ts"].map(_row_ts)
+                todays_display_src["_is_new"] = (
+                    (pd.Timestamp.now(tz="UTC") - todays_display_src["_ts"]) <= pd.Timedelta(minutes=30)
+                ).fillna(False)
+                _sort_mode = st.radio(
+                    "מיון", ["לפי ניקוד", "לפי זמן"], horizontal=True, key="alerts_sort_mode",
+                )
+                if _sort_mode == "לפי ניקוד":
+                    todays_display_src = todays_display_src.sort_values(
+                        ["_score", "_drop", "_ts"], ascending=[False, False, False], na_position="last",
+                    )
+                else:
+                    todays_display_src = todays_display_src.sort_values("_ts", ascending=False, na_position="last")
+
                 alerts_display = todays_display_src.rename(columns={
                     "ticker": "טיקר", "company_name": "שם", "pct_change": "שינוי בזמן התראה",
                     "current_pct_change": "שינוי נוכחי",
@@ -3650,7 +3684,7 @@ with _tab_slot_today.container():
                     lambda r: f'{r["שם"]} ({r["טיקר"]})' if pd.notna(r["שם"]) and r["שם"] else r["טיקר"],
                     axis=1,
                 )
-                _base_display_cols = ["id", "שם", "שינוי בזמן התראה", "שינוי נוכחי", "current_gap",
+                _base_display_cols = ["id", "_is_new", "שם", "שינוי בזמן התראה", "שינוי נוכחי", "current_gap",
                                        "סיווג ריבאונד", "לימיט כניסה", "יעד מכירה", "סטופ-לוס"]
                 if _show_tase_id_col2:
                     _base_display_cols.insert(2, "מספר ני\"ע")
@@ -3906,6 +3940,8 @@ with _tab_slot_today.container():
                                         if len(_name_text) > 22:
                                             _name_text = _name_text[:21] + "…"
                                         _name_label = f"{_tier_badge} {_name_text}" if _tier_badge else _name_text
+                                        if _row.get("_is_new"):
+                                            _name_label += " · חדשה"
                                         if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", width='stretch'):
                                             st.session_state["open_alert_id"] = None if _is_selected else _rid
                                             st.rerun(scope="fragment")
