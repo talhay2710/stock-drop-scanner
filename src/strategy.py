@@ -257,5 +257,5 @@ def entry_signal(index_name: str | None, pct_change: float, intraday_recovery_pc
         signal = SIGNAL_WAIT
     else:
         signal = SIGNAL_AVOID
-    detail = " · ".join(f"{name} ({pts:+d})" for name, pts in parts) if parts else "אין גורם תומך"
+    detail = " · ".join(f"{name} (\u2066{pts:+d}\u2069)" for name, pts in parts) if parts else "אין גורם תומך"
     return signal, f"ניקוד {max(score, 0)} מתוך {MAX_SIGNAL_SCORE}: {detail}"

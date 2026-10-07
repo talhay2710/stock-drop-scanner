@@ -118,6 +118,17 @@ def _get_live_index_card_template() -> str:
 
 POS_COLOR = "#06806B"
 NEG_COLOR = "#CC2F3C"
+def _pts_chip(pts: int) -> str:
+    """תג נקודות (+2 / -1) - כיווניות LTR מבודדת, כך שהסימן תמיד לפני המספר ומחוץ לזרימת העברית;
+    רוחב קבוע ורקע בצבע, כדי שיקראו ברור וביישור אחיד (7.10.2026)."""
+    color = POS_COLOR if pts > 0 else NEG_COLOR
+    sign = "+" if pts > 0 else "\u2212"
+    return (
+        f'<span style="display:inline-block; min-width:30px; text-align:center; direction:ltr; unicode-bidi:isolate; '
+        f'font-weight:800; border-radius:6px; padding:0 5px; background:{color}22; color:{color};">{sign}{abs(pts)}</span>'
+    )
+
+
 SIGNAL_COLORS = {"buy": POS_COLOR, "wait": "#C98A00", "avoid": NEG_COLOR, "unknown": "#7A8591"}  # צבעי הרמזור (🟢/🟡/🔴)
 POS_BG = "rgba(6, 128, 107, 0.10)"
 NEG_BG = "rgba(204, 47, 60, 0.10)"
@@ -3569,7 +3580,7 @@ with _tab_slot_today.container():
                           else strategy_mod.SIGNAL_WAIT if _score >= strategy_mod.WAIT_MIN_SCORE
                           else strategy_mod.SIGNAL_AVOID)
                     _lines = "".join(
-                        f'<div><span style="color:{POS_COLOR if pts > 0 else NEG_COLOR}; font-weight:700;">{pts:+d}</span> {name}</div>'
+                        f'<div style="display:flex; align-items:baseline; gap:10px; padding:2px 0;">{_pts_chip(pts)}<span>{name}</span></div>'
                         for name, pts in _parts
                     ) or "<div>אין גורם תומך</div>"
                     _tip = (
@@ -3648,8 +3659,8 @@ with _tab_slot_today.container():
                 # הסבר הסיווג בריחוף על ה-"?" - מסודר בקבוצות (מוסיף / מוריד / הסיווג), עם צבעים (7.10.2026)
                 def _help_row(text: str, pts: str, color: str) -> str:
                     return (
-                        f'<div style="display:flex; justify-content:space-between; gap:18px; padding:1px 0;">'
-                        f'<span>{text}</span><b style="color:{color}; direction:ltr;">{pts}</b></div>'
+                        f'<div style="display:flex; align-items:baseline; gap:10px; padding:2px 0;">'
+                        f'{_pts_chip(int(pts.replace(chr(0x2212), "-")))}<span>{text}</span></div>'
                     )
 
                 def _help_title(text: str) -> str:
@@ -3661,7 +3672,7 @@ with _tab_slot_today.container():
                     '<span class="sigtip-text" style="width:300px; white-space:normal; top:140%; right:-10px; '
                     'text-align:right; line-height:1.45;">'
                     '<div style="font-weight:800; font-size:0.88rem;">איך נקבע הסיווג</div>'
-                    '<div style="opacity:0.7;">הניקוד הוא סכום נקודות (0 עד 6) מסימנים שבעבר חזו הצלחה</div>'
+                    '<div style="opacity:0.7;">סכום נקודות (0 עד 6) מסימנים שחזו הצלחה</div>'
                     + _help_title("מוסיף נקודות")
                     + _help_row("ירידה חדה", "+2", POS_COLOR)
                     + _help_row("רחוקה 10% ומעלה מתחת לממוצע של 50 יום", "+1", POS_COLOR)
