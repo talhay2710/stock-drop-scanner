@@ -916,8 +916,13 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         # נכון ביחס למספר בתצוגה. expected_max_drop_pct הוא גודל חיובי (ירידה
         # תמיד), אז שולחים אותו כשלילי ל-_signed כדי לקבל "-" תמיד, לא "+".
         lines.append(f"📉 <b>צפי לנמוך היומי: {_signed(-expected_max_drop_pct, 1, '%')}</b>")
+    _sig, _sig_why = strategy_mod.entry_signal(
+        index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct,
+    )
     lines += [
         f"{ticker} · מדד {index}",
+        f"<b>{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.SIGNAL_LABEL[_sig]}</b> · החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים",
+        _sig_why,
         "",
     ]
 
@@ -972,7 +977,7 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
 
     _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]  # כבר 🟢/🟡/🔴 לפי A/B/C, ר' _classify_rebound
-    lines.append(f"3️⃣ {_rebound_emoji} המלצת מסחר: סיווג {analysis.rebound_tier}")
+    lines.append(f"3️⃣ {_rebound_emoji} סיווג ריבאונד: {analysis.rebound_tier}")
 
     _liquidity_emoji = {"high": "💧", "medium": "🌊", "low": "🏜️", "unknown": "⚪"}
     if trade_idea.liquidity_tier in ("medium", "low"):

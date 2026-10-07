@@ -149,5 +149,33 @@ class HoleBackfill(unittest.TestCase):
         self.assertEqual(market_data._intraday_rows_for_holes("X.TA", [dt.date(2026, 10, 6)], early_end, None), [])
 
 
+class EntrySignal(unittest.TestCase):
+    # 7.10.2026: 🟢/🟡/🔴 לפי ניתוח ההתראות באופק החזקה של עד 3 ימים
+    def setUp(self):
+        from src import strategy
+        self.f = strategy.entry_signal
+        self.s = strategy
+
+    def test_israel_thresholds(self):
+        self.assertEqual(self.f("TA35", -4.0)[0], self.s.SIGNAL_BUY)
+        self.assertEqual(self.f("TA125", -4.6)[0], self.s.SIGNAL_BUY)
+        self.assertEqual(self.f("TA125", -3.9)[0], self.s.SIGNAL_WAIT)
+        self.assertEqual(self.f("TA35", -3.5)[0], self.s.SIGNAL_WAIT)
+        self.assertEqual(self.f("TA35", -3.2)[0], self.s.SIGNAL_AVOID)
+
+    def test_israel_ignores_position_data(self):
+        self.assertEqual(self.f("TA35", -4.2, 0, 5)[0], self.s.SIGNAL_BUY)
+
+    def test_us_needs_deep_drop_and_strong_position(self):
+        self.assertEqual(self.f("SP500", -6.5, 30, None)[0], self.s.SIGNAL_BUY)
+        self.assertEqual(self.f("SP500", -6.5, 2, -3)[0], self.s.SIGNAL_WAIT)
+        self.assertEqual(self.f("NASDAQ100", -4.5)[0], self.s.SIGNAL_WAIT)
+        self.assertEqual(self.f("SP500", -3.8)[0], self.s.SIGNAL_AVOID)
+
+    def test_missing_drop_is_unknown(self):
+        self.assertEqual(self.f("TA35", float("nan"))[0], self.s.SIGNAL_UNKNOWN)
+        self.assertEqual(self.f("SP500", -7.0)[0], self.s.SIGNAL_UNKNOWN)
+
+
 if __name__ == "__main__":
     unittest.main()

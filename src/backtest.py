@@ -106,7 +106,8 @@ def _fetch_batched_histories(tickers: list[str], start: dt.date, end: dt.date) -
 def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss: float,
                         window_days: int = 10, entry_limit: float | None = None,
                         actual_entry_price: float | None = None, actual_entry_date: str | None = None,
-                        hist_df: pd.DataFrame | None = None) -> tuple[str, int | None]:
+                        hist_df: pd.DataFrame | None = None,
+                        strict_window: bool = False) -> tuple[str, int | None]:
     """אם actual_entry_price/actual_entry_date מסופקים (עסקה שבאמת מומשה) -
     בודקים יעד/סטופ מרגע הכניסה האמיתי, לא מרגע ההתראה - אחרת תנודה חדה באותו
     יום של ההתראה עצמה (לפני שהייתה הזדמנות ריאלית להיכנס) יכולה להיספר כהצלחה
@@ -129,7 +130,8 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
 
     entry_ref = actual_entry_price if actual_entry_price else entry_limit
     target = _effective_target(entry_ref, target_base, stop_loss)
-    window_days = _scaled_window_days(entry_ref, target, window_days)
+    if not strict_window:  # strict_window: אופק החזקה קבוע (למשל 3 ימים) - לא מרחיבים לפי גודל היעד
+        window_days = _scaled_window_days(entry_ref, target, window_days)
     start = scan_date
     calendar_buffer = int(window_days * 1.6) + 4  # מרווח לסופי שבוע/חגים
     end = min(start + dt.timedelta(days=calendar_buffer), dt.date.today())
@@ -183,7 +185,7 @@ def _outcome_for_alert(ticker: str, scan_ts: str, target_base: float, stop_loss:
     return (PENDING if still_within_window else NEITHER), None
 
 
-def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10) -> pd.DataFrame:
+def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10, strict_window: bool = False) -> pd.DataFrame:
     """מקבל DataFrame גולמי מטבלת alerts (SELECT *), ומחזיר אותו עם עמודת 'outcome' נוספת.
     שולף היסטוריית מחירים לכל הטיקרים בקריאה אחת מרובת-טיקרים (ר' _fetch_batched_histories)
     לפני הלולאה, במקום קריאת רשת נפרדת לכל שורה - זה מה שהפך את הטאב מתקוע
@@ -212,6 +214,7 @@ def run_backtest(alerts_df: pd.DataFrame, window_days: int = 10) -> pd.DataFrame
             actual_entry_price=(row.get("actual_entry_price") if row.get("bought") == 1 else None),
             actual_entry_date=(row.get("bought_at") if row.get("bought") == 1 else None),
             hist_df=histories.get(row["ticker"]),
+            strict_window=strict_window,
         )
         for _, row in df.iterrows()
     ]

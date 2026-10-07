@@ -79,6 +79,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
+from src import strategy as strategy_mod
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
@@ -2755,6 +2756,14 @@ def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: di
     return table_html
 
 
+def _alert_signal(r) -> tuple[str, str]:
+    """סיגנל 🟢/🟡/🔴 להתראה (שורת DataFrame/dict) - ר' strategy.entry_signal."""
+    return strategy_mod.entry_signal(
+        r.get("index_name"), r.get("pct_change"),
+        r.get("intraday_recovery_pct"), r.get("dist_from_ma50_pct"),
+    )
+
+
 def _build_alert_detail_html(r) -> str:
     """כל פרטי ההתראה (סיבה, גרף, הערכת תגובת-יתר, חדשות, לימיט/יעד/סטופ,
     תמונת ברוטו/נטו) כ-HTML טהור, בלי שום רכיב Streamlit אמיתי - כדי שיהיה
@@ -2764,6 +2773,13 @@ def _build_alert_detail_html(r) -> str:
     _reason_pill = render_reason_pill(r.get("reasons_json", "[]"))
     _sparkline_prices = get_sparkline_prices(r["ticker"])
     _svg = _sparkline_svg(_sparkline_prices)
+
+    _sig, _sig_why = _alert_signal(r)
+    _sig_html = (
+        f'<div style="font-size:1rem; margin-top:6px;"><b>{strategy_mod.SIGNAL_EMOJI[_sig]} '
+        f'{strategy_mod.SIGNAL_LABEL[_sig]}</b> · החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים'
+        f'<span style="opacity:0.7;"> — {_sig_why}</span></div>'
+    )
 
     _exp_drop_html = ""
     _exp_drop = r.get("expected_max_drop_pct")
@@ -2895,7 +2911,7 @@ def _build_alert_detail_html(r) -> str:
         f'<div style="font-size:0.8rem; opacity:0.7; margin-top:4px;">{r["reason_text"]}</div></div>'
         f'<div style="flex:1; text-align:center;">{_svg}</div>'
         f'</div>'
-        f'{_exp_drop_html}{_verdict_html}{_rebound_quality_html}{_flags_html}{_news_html}'
+        f'{_sig_html}{_exp_drop_html}{_verdict_html}{_rebound_quality_html}{_flags_html}{_news_html}'
         f'{_stat_cards_html}{_net_html}{_alert_hint_html}'
         f'</div>'
     )
@@ -3764,9 +3780,13 @@ with _tab_slot_today.container():
                                         # ראשון במחרוזת מוצג הכי ימני ב-RTL (9.9.2026, בקשה
                                         # מפורשת). אותה מוסכמה כמו _REBOUND_TIER_EMOJI בכל
                                         # מקום אחר בקובץ הזה.
-                                        _tier_raw = _row.get("סיווג ריבאונד")
-                                        _tier_letter = _tier_raw.split("-")[0] if pd.notna(_tier_raw) else None
-                                        _tier_badge = _REBOUND_TIER_EMOJI.get(_tier_letter, "")
+                                        # 7.10.2026: במקום עיגול סיווג הריבאונד (A/B/C, שלא הבדיל בין
+                                        # הצלחה לכישלון) - הסיגנל של האסטרטגיה: 🟢 לקנות / 🟡 לחכות / 🔴 לא לקנות.
+                                        _src = todays_alerts[todays_alerts["id"] == _rid]
+                                        _tier_badge = (
+                                            strategy_mod.SIGNAL_EMOJI[_alert_signal(_src.iloc[0])[0]]
+                                            if not _src.empty else ""
+                                        )
                                         _name_text = str(_val)
                                         # קיצור ידני בפייתון, לא text-overflow:ellipsis - נמצא בפועל
                                         # (9.9.2026) ש-ellipsis על מחרוזת מעורבת (עברית+טיקר לטיני)
@@ -3873,16 +3893,10 @@ def get_footer_news(top_names_tickers: list, is_israeli: bool) -> dict:
 def get_backtest_results(alerts_df: pd.DataFrame, window_days: int) -> pd.DataFrame:
     if "id" in alerts_df.columns:
         alerts_df = alerts_df[~alerts_df["id"].isin(store.excluded_alert_ids())]
-    result = backtest.run_backtest(alerts_df, window_days)
-    if not result.empty and "id" in result.columns:
-        decided = result[result["outcome"] != backtest.PENDING]
-        if not decided.empty:
-            conn = store.get_conn(db_path(cfg))
-            try:
-                store.update_outcomes(conn, list(zip(decided["id"], decided["outcome"])))
-            finally:
-                conn.close()
-    return result
+    # strict_window: אופק החזקה קבוע (7.10.2026, "החזקה של כמה שעות עד שלושה ימים") - בלי הרחבה
+    # אוטומטית של החלון לפי גודל היעד. תוצאה כזו *לא* נשמרת ל-DB (שם ה-outcome הקנוני הוא
+    # של חלון 10 הימים, ר' backtest.refresh_pending_outcomes) - אחרת הטאב היה דורס אותו.
+    return backtest.run_backtest(alerts_df, window_days, strict_window=True)
 
 
 _BACKTEST_CAPTION = "ניתוח הצלחת התראות עבר ע\"פ מחירי שיא / שפל בפועל"
@@ -3909,12 +3923,21 @@ with _tab_slot_backtest.container():
                     "היקף הבדיקה", ["כל ההתראות", "התראות שמומשו"], horizontal=True, key="backtest_scope",
                     label_visibility="collapsed",
                 )
+                _market_choice = st.radio(
+                    "שוק", ["שניהם", "ישראל", "ארה\"ב"], horizontal=True, key="backtest_market",
+                )
+                _signal_choice = st.radio(
+                    "סיגנל", ["הכל", "🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות"], horizontal=True, key="backtest_signal",
+                    index=1,
+                    help="🟢 = מה שהאסטרטגיה הייתה אומרת לקנות. הסיגנל מחושב רטרואקטיבית על כל ההתראות "
+                         "ההיסטוריות לפי הכללים הנוכחיים.",
+                )
                 st.markdown("⏱️ טווח ימי מסחר לבדיקה")
                 window_days = st.slider(
                     # 30 = בדיוק התקרה הפנימית (MAX_WINDOW_DAYS ב-backtest.py) שאליה
                     # החלון גדל אוטומטית עבור יעדים גדולים - בלי זה, הסליידר לא
                     # מאפשר לבחור ערך שהמערכת בעצמה כבר יכולה להגיע אליו.
-                    "טווח ימי מסחר לבדיקה", min_value=1, max_value=30, value=10, label_visibility="collapsed",
+                    "טווח ימי מסחר לבדיקה", min_value=1, max_value=30, value=strategy_mod.HOLD_MAX_DAYS, label_visibility="collapsed",
                 )
             if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
                 get_backtest_results.clear()
@@ -3922,6 +3945,11 @@ with _tab_slot_backtest.container():
             # התראות שהמשתמש קנה וסימן כ"עסקה ידנית" (לא לפי האסטרטגיה) לא נכללות -
             # הטאב הזה בודק את דיוק ההתראות/האסטרטגיה עצמה, לא את ההחלטות האישיות של המשתמש.
             _strategy_df = df[df.get("is_manual_trade") != 1] if "is_manual_trade" in df.columns else df
+            _IL_INDICES = ("TA35", "TA125")
+            if _market_choice == "ישראל":
+                _strategy_df = _strategy_df[_strategy_df["index_name"].isin(_IL_INDICES)]
+            elif _market_choice == "ארה\"ב":
+                _strategy_df = _strategy_df[~_strategy_df["index_name"].isin(_IL_INDICES)]
 
             if _backtest_scope == "התראות שמומשו":
                 # "מומשו" = כל אחזקה שהפכה לעסקה אמיתית - גם פתוחה עדיין (נבדקת
@@ -3933,10 +3961,21 @@ with _tab_slot_backtest.container():
                 _closed_conn = store.get_conn(db_path(cfg))
                 _bt_closed = backtest.closed_trades_as_outcomes(_closed_conn)
                 _closed_conn.close()
+                if _market_choice != "שניהם" and not _bt_closed.empty and "index_name" in _bt_closed.columns:
+                    _closed_is_il = _bt_closed["index_name"].isin(_IL_INDICES)
+                    _bt_closed = _bt_closed[_closed_is_il if _market_choice == "ישראל" else ~_closed_is_il]
                 bt = pd.concat([_bt_open, _bt_closed], ignore_index=True) if not _bt_closed.empty else _bt_open
+                _bt_all_signals = None
             else:
                 with st.spinner("בודק נתוני מחיר היסטוריים לכל התראה..."):
                     bt = get_backtest_results(_strategy_df, window_days)
+                # סיגנל רטרואקטיבי: אותם כללים בדיוק שמוצגים בהתראה, מוחלים על כל ההיסטוריה
+                if not bt.empty:
+                    bt["סיגנל"] = bt.apply(lambda r: strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]], axis=1)
+                _bt_all_signals = bt
+                _wanted_signal = {"🟢 לקנות": "🟢", "🟡 לחכות": "🟡", "🔴 לא לקנות": "🔴"}.get(_signal_choice)
+                if _wanted_signal and not bt.empty:
+                    bt = bt[bt["סיגנל"] == _wanted_signal]
 
             summary = backtest.overall_summary(bt)
             win_rate_text = f"{summary['win_rate_pct']:.0f}%" if summary["win_rate_pct"] is not None else "עדיין אין מספיק נתונים"
@@ -4009,6 +4048,23 @@ with _tab_slot_backtest.container():
             # אז כל טבלה נדחסת לחצי מהרוחב הזמין וגולשת שמאלה (RTL) מחוץ למסך. עוטפים
             # ב-container עם key כדי לכפות flex-direction:column (עמודה מלאה, לא חצי)
             # מתחת לרוחב מובייל - אותו דפוס בדיוק כמו portfolio-status-row.
+            if _bt_all_signals is not None and not _bt_all_signals.empty:
+                by_signal = backtest.summarize_by(_bt_all_signals, "סיגנל")
+                _section_subheader(f"שיעור הצלחה לפי סיגנל (החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים מקסימום)" if window_days == strategy_mod.HOLD_MAX_DAYS else f"שיעור הצלחה לפי סיגנל (טווח בדיקה {window_days} ימים)", "🚦")
+                if by_signal.empty:
+                    st.caption("אין עדיין מספיק התראות מוכרעות.")
+                else:
+                    st.markdown(
+                        _html_table(
+                            by_signal, [("סיגנל", "סיגנל"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
+                                        ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
+                            formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
+                            color_fns={"שיעור הצלחה (%)": _success_rate_color},
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
+
             with st.container(key="backtest_reason_score_row"):
                 st.markdown(
                     """

@@ -144,3 +144,62 @@ def suggest_strategy(last_close: float, last_low: float | None,
         liquidity_tier=liquidity_tier,
         liquidity_note=liquidity_note,
     )
+
+
+# ---------------------------------------------------------------------------
+# סיגנל כניסה: 🟢 לקנות / 🟡 לחכות / 🔴 לא לקנות (7.10.2026)
+#
+# אופק האסטרטגיה: החזקה של כמה שעות עד 3 ימי מסחר בלבד (HOLD_MAX_DAYS). הכללים נגזרו
+# מניתוח ההתראות ההיסטוריות (24.8-1.10.2026) כשכל עסקה נבדקת במחיר ההתראה, יעד קבוע,
+# ויציאה בסגירת היום השלישי אם לא הוכרעה קודם:
+#   ישראל (349 התראות): ירידה >=4% => ~57% הגיעו ליעד, תוחלת +2.2% לעסקה (ירידה 4.5%+:
+#     +2.6%). מתחת ל-4% תוחלת ~0 (-0.1%..+0.2%) - אין יתרון ב-3 ימים. מיקום המחיר בטווח
+#     היומי / מרחק מהממוצע לא הוסיפו כלום באופק הקצר (הם עזרו רק באופק של 10 ימים).
+#   ארה"ב (682 התראות, 20 ימים בלבד - ראשוני): היתרון חלש מאוד ב-3 ימים; רק ירידה
+#     >=6% עם מיקום חזק (+1.45%, מדגם 39) או >=4% (+0.2%) נראים סבירים.
+# ברוטו, לפני עמלות ומס. מדגם קטן וימי סיגנל מקובצים - לבחון מחדש עם עוד נתונים.
+# ---------------------------------------------------------------------------
+HOLD_MAX_DAYS = 3
+SIGNAL_BUY, SIGNAL_WAIT, SIGNAL_AVOID, SIGNAL_UNKNOWN = "buy", "wait", "avoid", "unknown"
+SIGNAL_EMOJI = {SIGNAL_BUY: "🟢", SIGNAL_WAIT: "🟡", SIGNAL_AVOID: "🔴", SIGNAL_UNKNOWN: "⚪"}
+SIGNAL_LABEL = {SIGNAL_BUY: "לקנות", SIGNAL_WAIT: "לחכות", SIGNAL_AVOID: "לא לקנות", SIGNAL_UNKNOWN: "אין נתונים"}
+ISRAELI_INDICES = ("TA35", "TA125")
+IL_BUY_MIN_DROP_PCT = 4.0
+IL_WAIT_MIN_DROP_PCT = 3.5
+US_BUY_MIN_DROP_PCT = 6.0
+US_WAIT_MIN_DROP_PCT = 4.0
+US_STRONG_RECOVERY_PCT = 12.0      # מיקום בטווח היומי (0=שפל, 100=שיא)
+US_STRONG_BELOW_MA50_PCT = -9.0    # מרחק מהממוצע הנע 50 יום
+
+
+def _known(x) -> bool:
+    return x is not None and x == x  # x == x שוללת NaN
+
+
+def entry_signal(index_name: str | None, pct_change: float, intraday_recovery_pct=None,
+                 dist_from_ma50_pct=None) -> tuple[str, str]:
+    """מחזיר (סיגנל, הסבר קצר) לאופק החזקה של עד HOLD_MAX_DAYS ימים."""
+    if not _known(pct_change):
+        return SIGNAL_UNKNOWN, "אין נתון על גודל הירידה"
+    drop = abs(pct_change)
+    is_il = (index_name or "").upper() in ISRAELI_INDICES
+
+    if is_il:
+        if drop >= IL_BUY_MIN_DROP_PCT:
+            return SIGNAL_BUY, f"ירידה חדה ({drop:.1f}%, מעל סף {IL_BUY_MIN_DROP_PCT:.0f}%)"
+        if drop >= IL_WAIT_MIN_DROP_PCT:
+            return SIGNAL_WAIT, f"ירידה של {drop:.1f}% - מתחת ל-{IL_BUY_MIN_DROP_PCT:.0f}% אין יתרון בהחזקה קצרה"
+        return SIGNAL_AVOID, f"ירידה יומית קטנה ({drop:.1f}%)"
+
+    # ארה"ב - כלל נפרד (ראשוני, מדגם של 20 ימים)
+    rec_ok, ma_ok = _known(intraday_recovery_pct), _known(dist_from_ma50_pct)
+    strong = (rec_ok and intraday_recovery_pct >= US_STRONG_RECOVERY_PCT) or              (ma_ok and dist_from_ma50_pct <= US_STRONG_BELOW_MA50_PCT)
+    if drop >= US_BUY_MIN_DROP_PCT:
+        if strong:
+            return SIGNAL_BUY, f"ירידה חדה ({drop:.1f}%) והמחיר התאושש מהשפל / רחוק מהממוצע"
+        if not (rec_ok or ma_ok):
+            return SIGNAL_UNKNOWN, f"ירידה חדה ({drop:.1f}%) ואין נתוני מיקום"
+        return SIGNAL_WAIT, f"ירידה חדה ({drop:.1f}%) אבל המחיר עדיין בשפל"
+    if drop >= US_WAIT_MIN_DROP_PCT:
+        return SIGNAL_WAIT, f"ירידה של {drop:.1f}% - יתרון חלש בארה\"ב בהחזקה קצרה"
+    return SIGNAL_AVOID, f"ירידה קטנה ({drop:.1f}%)"
