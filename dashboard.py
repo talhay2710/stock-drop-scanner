@@ -4916,7 +4916,11 @@ with _tab_slot_history.container():
                 finally:
                     _sig_conn.close()
                 for _, _sr in _sig_rows.iterrows():
-                    _sig_by_alert[int(_sr["id"])] = strategy_mod.SIGNAL_EMOJI[_alert_signal(_sr)[0]]
+                    _k = _alert_signal(_sr)[0]
+                    _sig_by_alert[int(_sr["id"])] = (
+                        f'<span class="sigtip sigtip-side">{strategy_mod.SIGNAL_EMOJI[_k]}<span class="sigtip-text">סיגנל '
+                        f'<b style="color:{SIGNAL_COLORS[_k]};">{strategy_mod.SIGNAL_LABEL[_k]}</b> בזמן ההתראה</span></span>'
+                    )
 
             def _journal_trading_days(r) -> int:
                 try:
@@ -5006,6 +5010,21 @@ with _tab_slot_history.container():
                         display: none !important;
                     }
                 }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            # טולטיפ הרמזור (כמו בכרטיסי האחזקות) - בצד הנקודה ולא מתחתיה/מעליה, כי ה-wrapper
+            # עם overflow-x:auto חותך גם אנכית טולטיפ שיוצא מהשורה הראשונה/האחרונה
+            st.markdown(
+                """
+                <style>
+                .sigtip { position:relative; font-size:0.9rem; cursor:default; }
+                .sigtip .sigtip-text { display:none; position:absolute; z-index:50; white-space:nowrap;
+                    background:Canvas; color:CanvasText; border:1px solid rgba(128,128,128,0.35); border-radius:8px;
+                    padding:5px 10px; font-size:0.78rem; box-shadow:0 2px 8px rgba(0,0,0,0.15); top:130%; right:0; }
+                .sigtip.sigtip-side .sigtip-text { top:50%; right:130%; transform:translateY(-50%); }
+                .sigtip:hover .sigtip-text { display:block; }
                 </style>
                 """,
                 unsafe_allow_html=True,
