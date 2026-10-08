@@ -79,7 +79,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
-from src import strategy as strategy_mod, post_alert
+from src import strategy as strategy_mod, post_alert, strategy_stats
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
@@ -4278,6 +4278,60 @@ with _tab_slot_backtest.container():
                         unsafe_allow_html=True,
                     )
                 st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
+
+            # ברמת יום (8.10.2026): ההתראות באותו יום אינן עצמאיות - טווחי סמך לפי ימים שלמים, תשואה נטו אחרי עמלות ומס,
+            # ומה קורה כשקונים רק את K ההתראות הטובות ביותר ביום (ר' src/strategy_stats.py)
+            if _bt_all_signals is not None and not _bt_all_signals.empty and "ret" in _bt_all_signals.columns:
+                _ds = _bt_all_signals[_bt_all_signals["outcome"].isin([backtest.HIT_TARGET, backtest.HIT_STOP, backtest.NEITHER])].copy()
+                _ds = _ds[_ds["ret"].notna()]
+                if len(_ds) >= 20:
+                    _ds["y"] = (_ds["outcome"] == backtest.HIT_TARGET).astype(int)
+                    _ds["score"] = _ds.apply(
+                        lambda r: strategy_mod.signal_score(
+                            r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
+                            r.get("dist_from_ma50_pct"), r.get("sector"),
+                            int(str(r.get("scan_ts"))[11:13]) if str(r.get("scan_ts"))[11:13].isdigit() else None,
+                        )[0], axis=1,
+                    )
+                    with st.expander("📊 ברמת יום: טווחי סמך, נטו אחרי עמלות, והטובות ביותר ביום"):
+                        _pos_ccy = "ILS"
+                        _position = float(cfg.get("position_size", {}).get(_pos_ccy, 5000.0))
+                        _is_il_only = bool(_ds["index_name"].isin(["TA35", "TA125"]).all())
+                        _fees_cfg = cfg["fees"] if _is_il_only else None
+                        _tbl = strategy_stats.bucket_summary(_ds, _fees_cfg, position=_position, B=600)
+
+                        def _ci(v, pct=True):
+                            return f"{v[0]:.1f}% עד {v[1]:.1f}%" if pct else f"{v[0]:+.2f}% עד {v[1]:+.2f}%"
+
+                        _show = pd.DataFrame({
+                            "קבוצה": _tbl["קבוצה"],
+                            "התראות / ימים": _tbl.apply(lambda r: f"{int(r['התראות'])} / {int(r['ימים'])}", axis=1),
+                            "הצלחה (טווח 95%)": _tbl.apply(lambda r: f"{r['הצלחה %']:.0f}% ({_ci(r['הצלחה CI'])})", axis=1),
+                            "תשואה ברוטו (טווח)": _tbl.apply(lambda r: f"{_signed_num(r['ברוטו %'], 2, '%')} ({_ci(r['ברוטו CI'], False)})", axis=1),
+                        })
+                        if _fees_cfg:
+                            _show["תשואה נטו (טווח)"] = _tbl.apply(lambda r: f"{_signed_num(r['נטו %'], 2, '%')} ({_ci(r['נטו CI'], False)})", axis=1)
+                        st.markdown(_html_table(_show, [(c, c) for c in _show.columns]), unsafe_allow_html=True)
+                        if _fees_cfg:
+                            st.caption(f"נטו: פוזיציה של {_position:,.0f} ש\"ח, אחרי עמלות (כולל מינימום לצד), דמי ניהול ומס רווחי הון (בלי קיזוז הפסדים).")
+                        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                        _tk = strategy_stats.topk_table(_ds)
+                        _tk_show = pd.DataFrame({
+                            "קונים ביום": _tk["K"].map(lambda k: f"{k} הטובות ביותר"),
+                            "בלי סינון": _tk.apply(lambda r: f"{r['הצלחה %']:.0f}% / {_signed_num(r['ברוטו %'], 2, '%')}", axis=1),
+                            "רק עם ניקוד 4+": _tk.apply(
+                                lambda r: (f"{r['רק 4+: הצלחה %']:.0f}% / {_signed_num(r['רק 4+: ברוטו %'], 2, '%')}"
+                                           if r['רק 4+: התראות'] else "—"), axis=1),
+                        })
+                        st.markdown(_html_table(_tk_show, [(c, c) for c in _tk_show.columns]), unsafe_allow_html=True)
+                        st.caption("הצלחה / תשואה ברוטו ממוצעת, לפי הקונים ביום את הטובות ביותר.")
+                        _pd = strategy_stats.per_day_buy_stats(_ds)
+                        if _pd.get("days_with_buy"):
+                            st.caption(
+                                f"ימים עם התראה 4+: {_pd['days_with_buy']} מתוך {_pd['total_days']} · ממוצע יומי "
+                                f"{_signed_num(_pd['avg_daily_ret'], 2, '%')} · ימים חיוביים {_pd['positive_days']} מתוך "
+                                f"{_pd['days_with_buy']} · היום הגרוע ביותר {_signed_num(_pd['worst_day'], 1, '%')}"
+                            )
 
             with st.container(key="backtest_reason_score_row"):
                 st.markdown(

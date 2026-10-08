@@ -239,5 +239,40 @@ class AlertFeatures(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM alert_features WHERE alert_id=7").fetchone()[0], 1)
 
 
+class StrategyStats(unittest.TestCase):
+    # 8.10.2026: סטטיסטיקות ברמת יום (cluster bootstrap), נטו אחרי עמלות, ו-Top-K
+    FEES = {"IL": {"commission_pct": 0.3, "commission_min": 26.0, "currency": "ILS",
+                   "capital_gains_tax_pct": 25.0, "management_fee_annual_pct": 1.15}}
+
+    def _df(self):
+        import pandas as pd
+        rows = []
+        for d, day in enumerate(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"] * 4):
+            rows.append({"scan_date": day, "score": 5 if d % 2 == 0 else 0, "y": 1 if d % 2 == 0 else 0,
+                         "ret": 3.0 if d % 2 == 0 else -1.0, "pct_change": -4.0 - (d % 3)})
+        return pd.DataFrame(rows)
+
+    def test_small_position_pays_minimum_commission(self):
+        from src import strategy_stats
+        small = strategy_stats.net_return_pct(0.0, 5000, self.FEES)
+        large = strategy_stats.net_return_pct(0.0, 20000, self.FEES)
+        self.assertLess(small, large)          # מינימום עמלה (26 ש"ח לצד) כבד יותר בפוזיציה קטנה
+        self.assertLess(small, -0.9)
+
+    def test_bucket_summary_has_confidence_intervals(self):
+        from src import strategy_stats
+        t = strategy_stats.bucket_summary(self._df(), self.FEES, position=10000, B=100)
+        buy = t[t["קבוצה"].str.startswith("4+")].iloc[0]
+        self.assertEqual(buy["התראות"], 10)
+        self.assertLessEqual(buy["הצלחה CI"][0], buy["הצלחה %"])
+        self.assertGreaterEqual(buy["הצלחה CI"][1], buy["הצלחה %"])
+
+    def test_topk_only_counts_buy_scores_in_filtered_columns(self):
+        from src import strategy_stats
+        t = strategy_stats.topk_table(self._df(), ks=(1,))
+        self.assertEqual(int(t.iloc[0]["K"]), 1)
+        self.assertGreaterEqual(t.iloc[0]["רק 4+: הצלחה %"], 99)   # בדוגמה כל ה-4+ הצליחו
+
+
 if __name__ == "__main__":
     unittest.main()
