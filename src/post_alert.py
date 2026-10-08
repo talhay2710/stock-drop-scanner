@@ -156,7 +156,13 @@ def evaluate(df: pd.DataFrame, target_pct: float, hold_days: int) -> pd.DataFram
     k = max([n for n in WINDOWS if n <= int(hold_days)] or [1])
     out = df.copy()
     up, last = out[f"max_up_{k}"], out[f"last_{k}"]
-    stop_pct = (out["stop_loss"] / out["last_close"] - 1) * 100
+    # הסטופ לפי האסטרטגיה הנוכחית: סטופ ההתראה, אבל לא רחוק מ-MAX_STOP_DISTANCE_PCT מתחת לכניסה (רטרואקטיבי)
+    from .strategy import MAX_STOP_DISTANCE_PCT
+    _stop = out["stop_loss"]
+    if "entry_limit" in out.columns:
+        _stop = _stop.where(_stop >= out["entry_limit"] * (1 - MAX_STOP_DISTANCE_PCT / 100),
+                            out["entry_limit"] * (1 - MAX_STOP_DISTANCE_PCT / 100))
+    stop_pct = (_stop / out["last_close"] - 1) * 100
     dn = out[f"max_dn_{k}"] if f"max_dn_{k}" in out.columns else out["max_dn_3"]
     has = up.notna()
     win = has & (up >= target_pct)

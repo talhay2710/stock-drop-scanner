@@ -24,6 +24,10 @@ class TradeIdea:
 # עולה ב-2.5x (לא נמצא שיא), אבל נבחר כפשרה שמרנית - מדגם קטן ורחב מדי מקטין
 # את מספר העסקאות שמוכרעות בתוך חלון הבדיקה (הטיה אפשרית כלפי מעלה).
 ATR_STOP_MULTIPLIER = 2.5  # מרחק הסטופ מהכניסה = פי X מה-ATR (תנודתיות היום-יומית הרגילה)
+# 8.10.2026: תקרה למרחק הסטופ - לא רחוק מ-7% מתחת לכניסה. באופק של עד 3 ימים סטופ ATR (כ-11%) נפגע
+# ב-1.2% מההתראות בלבד (בפועל אין סטופ), וסטופ הדוק (2%-4%) נפגע ברעש ומוריד תוחלת. 6%-8% עולה כ-0.1%-0.3%
+# בתוחלת מול בלי סטופ, אבל חוסם את ההפסדים הגדולים (עד -15% נמדדו). בדיקה על 124 התראות 🟢, ר' post_alert.py.
+MAX_STOP_DISTANCE_PCT = 7.0
 MIN_TARGET_REWARD_RISK_RATIO = 1.0  # פולבאק בלבד עכשיו (ר' live_target_price) - לא רצפה פעילה על target_base יותר
 
 # יעד קבוע (לא Fibonacci) - הוחלף ב-21.8.2026 אחרי בדיקה על ההיסטוריה בפועל
@@ -135,6 +139,12 @@ def suggest_strategy(last_close: float, last_low: float | None,
     # את הפשרה - יחס סיכוי/סיכון עלול להיות גרוע מ-1:1 במניות תנודתיות, בלי הגנה.
     min_target_profit = round(entry_limit * 1.03, 2)
     target_base = max(target_base, min_target_profit)
+
+    # תקרת מרחק לסטופ (ר' MAX_STOP_DISTANCE_PCT) - מניה יציבה שומרת על סטופ ATR הצמוד יותר
+    _stop_floor = round(entry_limit * (1 - MAX_STOP_DISTANCE_PCT / 100), 2)
+    if stop_loss < _stop_floor:
+        stop_loss = _stop_floor
+        stop_loss_note = f"{MAX_STOP_DISTANCE_PCT:g}% מתחת לשער הכניסה (תקרת מרחק לאופק של עד 3 ימים; סטופ ATR היה רחוק יותר)"
 
     return TradeIdea(
         entry_limit=entry_limit,

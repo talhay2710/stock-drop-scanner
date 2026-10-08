@@ -363,7 +363,9 @@ def get_holding_stop_price(ticker: str, entry_price: float) -> float:
         row = df.iloc[0]
         atr = market_data.compute_atr(row.get("highs"), row.get("lows_series"), row["history"])
         if atr is not None and atr > 0:
-            return round(entry_price - ATR_STOP_MULTIPLIER * atr, 2)
+            # תקרת מרחק (strategy.MAX_STOP_DISTANCE_PCT) - לפוזיציות חדשות; אחזקות קיימות שומרות את הסטופ שנקבע בקנייה
+            return round(max(entry_price - ATR_STOP_MULTIPLIER * atr,
+                             entry_price * (1 - strategy_mod.MAX_STOP_DISTANCE_PCT / 100)), 2)
     return round(entry_price * STOP_LOSS_FACTOR, 2)
 
 

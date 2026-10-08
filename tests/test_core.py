@@ -194,5 +194,20 @@ class TrailingNanClose(unittest.TestCase):
         self.assertIn(dt.date(2026, 10, 7), holes.get("X.TA", []))
 
 
+class StopCap(unittest.TestCase):
+    # 8.10.2026: סטופ ATR (כ-11%) כמעט לא נפגע באופק של 3 ימים - תקרה של 7% מתחת לכניסה
+    def test_volatile_stock_stop_is_capped_at_seven_percent(self):
+        from src import strategy
+        idea = strategy.suggest_strategy(last_close=100.0, last_low=97.0, recent_20d_low=95.0,
+                                         overreaction_score=40, atr=6.0)
+        self.assertAlmostEqual(idea.stop_loss / idea.entry_limit - 1, -0.07, places=3)
+
+    def test_stable_stock_keeps_its_tighter_atr_stop(self):
+        from src import strategy
+        idea = strategy.suggest_strategy(last_close=100.0, last_low=97.0, recent_20d_low=95.0,
+                                         overreaction_score=40, atr=1.5)
+        self.assertGreater(idea.stop_loss / idea.entry_limit - 1, -0.07)
+
+
 if __name__ == "__main__":
     unittest.main()

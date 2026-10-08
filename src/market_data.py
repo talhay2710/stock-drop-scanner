@@ -114,6 +114,17 @@ US_SECTOR_ETF = {
 _HOLE_LOOKBACK_DAYS = 6
 
 
+def _latest_completed_day(country: str) -> dt.date:
+    """יום המסחר האחרון שכבר הסתיים (לפני היום הנוכחי) - ל-yfinance יש לפעמים היסטוריה יומית שנגמרת יום
+    לפני כן (8.10.2026: אחרון 6.10 למרות ש-7.10 כבר נסגר), ואז אין שורה (גם לא עם NaN) לזהות כחור."""
+    day = dt.date.today() - dt.timedelta(days=1)
+    for _ in range(10):
+        if is_trading_day(country, day):
+            return day
+        day -= dt.timedelta(days=1)
+    return day
+
+
 def _find_hole_days(data, tickers: list[str]) -> dict[str, list[dt.date]]:
     """ימי מסחר צפויים (אחרונים _HOLE_LOOKBACK_DAYS ימים, לפני היום האחרון שיש בו נתון
     כלשהו) שחסרים בהיסטוריה היומית של טיקר - "חור" של yfinance (30.9 ו-6.10.2026:
@@ -134,13 +145,14 @@ def _find_hole_days(data, tickers: list[str]) -> dict[str, list[dt.date]]:
             continue
         country = "IL" if _is_israeli_ticker(ticker) else "US"
         missing = []
-        day = last_day - dt.timedelta(days=_HOLE_LOOKBACK_DAYS)
         today = dt.date.today()
-        while day <= last_day:
-            # גם היום האחרון בהיסטוריה נחשב חור אם הסגירה שלו NaN (8.10.2026: yfinance החזירה שורה ל-7.10
-            # עם Close=NaN בבוקר שאחרי - הכרטיס הציג 6.10 במקום 7.10) - אבל רק אם היום כבר הסתיים
-            is_trailing = day == last_day
-            has_later = any(d > day for d in have) or is_trailing
+        # עד יום המסחר האחרון שהסתיים - גם אם ההיסטוריה של yfinance נגמרת מוקדם יותר (שורה חסרה
+        # או עם Close=NaN, 8.10.2026: הכרטיס הציג 6.10 במקום 7.10)
+        last_have = max(have) if have else None
+        end = max(last_day, _latest_completed_day(country))
+        day = end - dt.timedelta(days=_HOLE_LOOKBACK_DAYS)
+        while day <= end:
+            has_later = last_have is not None and (any(d > day for d in have) or day > last_have or day == last_day)
             if (day not in have and day < today and is_trading_day(country, day)
                     and any(d < day for d in have) and has_later):
                 missing.append(day)
@@ -185,7 +197,7 @@ def fill_single_history_holes(ticker: str, hist: pd.DataFrame) -> pd.DataFrame:
         country = "IL" if _is_israeli_ticker(ticker) else "US"
         # last_day כולל שורה אחרונה עם Close=NaN (יום שהסתיים ו-yfinance עוד לא סגרה - 8.10.2026)
         first_day = min(have)
-        last_day = max(d.date() for d in hist.index)
+        last_day = max(max(d.date() for d in hist.index), _latest_completed_day(country))
         today = dt.date.today()
         missing = [
             first_day + dt.timedelta(days=k) for k in range((last_day - first_day).days + 1)
