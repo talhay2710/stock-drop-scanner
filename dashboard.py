@@ -3656,10 +3656,14 @@ with _tab_slot_today.container():
 
                 todays_display_src["_score"] = todays_display_src.apply(_row_score_value, axis=1)
                 todays_display_src["_drop"] = todays_display_src["pct_change"].abs()
-                todays_display_src["_ts"] = todays_display_src["scan_ts"].map(_row_ts)
+                # to_datetime(utc=True) - גם כשהטבלה ריקה (תחילת יום מסחר, אין עדיין התראות) העמודה חייבת להיות datetime,
+                # אחרת החיסור למטה קורס (8.10.2026, TypeError: rsub dtype str)
+                todays_display_src["_ts"] = pd.to_datetime(
+                    todays_display_src["scan_ts"].map(_row_ts), utc=True, errors="coerce",
+                )
                 todays_display_src["_is_new"] = (
                     (pd.Timestamp.now(tz="UTC") - todays_display_src["_ts"]) <= pd.Timedelta(minutes=30)
-                ).fillna(False)
+                ).fillna(False).astype(bool)
                 _sort_mode = st.session_state.get("alerts_sort_mode", "סיווג")
                 if _sort_mode == "סיווג":
                     todays_display_src = todays_display_src.sort_values(
