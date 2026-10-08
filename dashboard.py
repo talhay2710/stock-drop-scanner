@@ -3922,6 +3922,14 @@ with _tab_slot_today.container():
                                     f'rgba(128,128,128,0.3); padding-bottom:4px;">{_label}</div>',
                                     unsafe_allow_html=True,
                                 )
+                        # התראה ירידה-מצטברת (ירידה של כמה ימים, שהיום עצמו לא חצה בו את סף הירידה היומי): "שינוי בזמן
+                        # התראה" של היום היה מטעה (למשל +1.2% בהתראה על ירידה של 21% ב-3 ימים) - מציגים את השינוי המצטבר (8.10.2026)
+                        _md_days = cfg.get("multi_day_window_days", 3)
+                        _md_daily_thr = abs(cfg["drop_threshold_pct"])
+                        _nd_map = {}
+                        if not _current_changes_df.empty and "history" in _current_changes_df.columns:
+                            for _t, _h in zip(_current_changes_df["ticker"], _current_changes_df["history"]):
+                                _nd_map[_t] = market_data.compute_n_day_change_pct(_h, _md_days)
                         for _, _row in alerts_display.iterrows():
                             _rid = int(_row["id"])
                             _is_selected = st.session_state["open_alert_id"] == _rid
@@ -3968,6 +3976,13 @@ with _tab_slot_today.container():
                                         )
                                         continue
                                     _text = _fmt(_val) if _fmt else ("—" if pd.isna(_val) else str(_val))
+                                    if _col_name == "שינוי בזמן התראה" and pd.notna(_val) and _val > -_md_daily_thr:
+                                        _src_t = todays_alerts.loc[todays_alerts["id"] == _rid, "ticker"]
+                                        _nd = _nd_map.get(_src_t.iloc[0]) if not _src_t.empty else None
+                                        if _nd is not None and pd.notna(_nd) and _nd < 0:
+                                            _val = _nd
+                                            _text = (f"{_signed_num(_nd, 1, '%')}<br><span style=\"font-size:0.7rem; font-weight:400; opacity:0.75;\">"
+                                                     f"ב-{_md_days} ימים</span>")
                                     if _col_name == "שינוי נוכחי" and _row.get("current_gap"):
                                         _text = f"⚠️ {_text}"
                                     _color_style = ""
