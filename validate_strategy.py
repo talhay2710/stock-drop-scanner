@@ -31,21 +31,25 @@ def _auc(y, s):
     return float(np.mean(pos[:, None] > neg[None, :]) + 0.5 * np.mean(pos[:, None] == neg[None, :]))
 
 
-def load(conn) -> pd.DataFrame:
+def load_merged(conn) -> pd.DataFrame:
     post_alert.ensure_table(conn)
     alerts = pd.read_sql_query(
         "SELECT * FROM alerts WHERE index_name IN ('TA35','TA125')" + store.exclusion_clause(), conn)
     alerts = alerts[alerts["is_manual_trade"].fillna(0) == 0]
-    outcomes = post_alert.load_outcomes(conn)
-    merged = alerts.merge(outcomes, left_on="id", right_on="alert_id", how="inner")
-    ev = post_alert.evaluate(merged, st.TARGET_PCT, st.HOLD_MAX_DAYS)
+    merged = alerts.merge(post_alert.load_outcomes(conn), left_on="id", right_on="alert_id", how="inner")
+    hours = merged["scan_ts"].astype(str).str[11:13].apply(lambda x: int(x) if x.isdigit() else None)
+    merged["score"] = [
+        st.signal_score(r.index_name, r["pct_change"], r.intraday_recovery_pct, r.dist_from_ma50_pct, r.sector, h)[0]
+        for (_, r), h in zip(merged.iterrows(), hours)
+    ]
+    return merged
+
+
+def load(conn, target: float = None) -> pd.DataFrame:
+    merged = load_merged(conn)
+    ev = post_alert.evaluate(merged, st.TARGET_PCT if target is None else target, st.HOLD_MAX_DAYS)
     ev = ev[ev["outcome"] != "pending"].copy()
     ev["y"] = (ev["outcome"] == "hit_target").astype(int)
-    hours = ev["scan_ts"].astype(str).str[11:13].apply(lambda x: int(x) if x.isdigit() else None)
-    ev["score"] = [
-        st.signal_score(r.index_name, r["pct_change"], r.intraday_recovery_pct, r.dist_from_ma50_pct, r.sector, h)[0]
-        for (_, r), h in zip(ev.iterrows(), hours)
-    ]
     try:
         feats = pd.read_sql_query("SELECT * FROM alert_features", conn)
         ev = ev.merge(feats, left_on="id", right_on="alert_id", how="left", suffixes=("", "_f"))
@@ -118,6 +122,20 @@ def main() -> int:
                   f"{r['ברוטו %']:+.2f}% ({r['ברוטו CI'][0]:+.2f} עד {r['ברוטו CI'][1]:+.2f}) | "
                   f"{r['נטו %']:+.2f}% ({r['נטו CI'][0]:+.2f} עד {r['נטו CI'][1]:+.2f}) |")
         print()
+    # יעדים חלופיים (דוח בלבד - היעד בפרודקשן לא משתנה): האם יעד גבוה יותר מכסה טוב יותר את העמלה הקבועה?
+    print("## יעד חלופי, קבוצת 4+ (מדגם עיוור, ברוטו / נטו)")
+    print("| יעד | התראות | הצלחה | ברוטו | נטו (פוזיציה בהגדרות) | נטו (10,000) |\n|---|---|---|---|---|---|")
+    for T in (3, 5, 7):
+        evT = load(conn, T)
+        evT = evT[evT["scan_date"] >= FREEZE_DATE]
+        buy = evT[evT["score"] >= 4]
+        if len(buy) < 5:
+            print(f"| {T}% | {len(buy)} | מעט נתונים | | | |")
+            continue
+        n_cfg = buy["ret"].map(lambda r: ss.net_return_pct(r, pos, cfg["fees"]))
+        n_10k = buy["ret"].map(lambda r: ss.net_return_pct(r, 10000, cfg["fees"]))
+        print(f"| {T}% | {len(buy)} | {buy['y'].mean()*100:.0f}% | {buy['ret'].mean():+.2f}% | {n_cfg.mean():+.2f}% | {n_10k.mean():+.2f}% |")
+    print()
     decide = blind["scan_date"].nunique() >= MIN_BLIND_DAYS
     print("## וקטורים מועמדים (במדגם העיוור)")
     if len(blind) < 20:
