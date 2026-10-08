@@ -209,5 +209,35 @@ class StopCap(unittest.TestCase):
         self.assertGreater(idea.stop_loss / idea.entry_limit - 1, -0.07)
 
 
+class AlertFeatures(unittest.TestCase):
+    # 8.10.2026: וקטורים מועמדים נשמרים לניתוח עתידי, בלי להשפיע על הניקוד
+    def _row(self, n=40):
+        import pandas as pd
+        idx = pd.date_range("2026-08-01", periods=n, freq="B")
+        close = pd.Series([100.0 + i * 0.1 for i in range(n)], index=idx)
+        close.iloc[-2] = close.iloc[-3] - 3          # יום ירידה לפני ההתראה
+        return {"history": close, "highs": close + 1, "lows_series": close - 1, "pct_change": -5.0,
+                "last_close": float(close.iloc[-1]), "last_open": float(close.iloc[-2]) * 0.99, "avg_volume_20d": 1000.0}
+
+    def test_compute_returns_all_fields_from_prior_days_only(self):
+        from src import alert_features
+        f = alert_features.compute(self._row())
+        for k in ("dd_5d", "atr_norm_drop", "dollar_vol", "gap_open_pct", "down_streak", "ret_20d"):
+            self.assertIsNotNone(f[k], k)
+        self.assertLess(f["dd_5d"], 0)
+        self.assertGreaterEqual(f["down_streak"], 1)
+
+    def test_compute_never_raises_on_bad_row(self):
+        from src import alert_features
+        f = alert_features.compute({})
+        self.assertTrue(all(v is None for v in f.values()))
+
+    def test_save_roundtrip(self):
+        from src import alert_features
+        conn = store.get_conn(os.path.join(tempfile.mkdtemp(), "t.db"))
+        alert_features.save(conn, 7, alert_features.compute(self._row()))
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM alert_features WHERE alert_id=7").fetchone()[0], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

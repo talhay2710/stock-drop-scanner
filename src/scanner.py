@@ -14,6 +14,7 @@ from . import strategy as strategy_mod
 from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
+from . import alert_features
 from .config import db_path
 from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
 
@@ -841,6 +842,12 @@ def _scan_one_index(
                 title=desktop_title,
                 message=analysis.reason_text[:250],
             )
+
+        # וקטורים מועמדים לניקוד נשמרים לניתוח עתידי (alert_features.py) - לא משפיעים על הניקוד, ולעולם לא מפילים התראה
+        try:
+            alert_features.save(conn, new_id, alert_features.compute(row))
+        except Exception as _feat_err:
+            logger.debug("שמירת alert_features נכשלה עבור %s: %s", ticker, _feat_err)
 
         results.append({
             "ticker": ticker, "pct_change": row["pct_change"],
