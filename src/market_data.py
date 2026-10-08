@@ -135,8 +135,14 @@ def _find_hole_days(data, tickers: list[str]) -> dict[str, list[dt.date]]:
         country = "IL" if _is_israeli_ticker(ticker) else "US"
         missing = []
         day = last_day - dt.timedelta(days=_HOLE_LOOKBACK_DAYS)
-        while day < last_day:
-            if day not in have and is_trading_day(country, day) and any(d < day for d in have) and any(d > day for d in have):
+        today = dt.date.today()
+        while day <= last_day:
+            # גם היום האחרון בהיסטוריה נחשב חור אם הסגירה שלו NaN (8.10.2026: yfinance החזירה שורה ל-7.10
+            # עם Close=NaN בבוקר שאחרי - הכרטיס הציג 6.10 במקום 7.10) - אבל רק אם היום כבר הסתיים
+            is_trailing = day == last_day
+            has_later = any(d > day for d in have) or is_trailing
+            if (day not in have and day < today and is_trading_day(country, day)
+                    and any(d < day for d in have) and has_later):
                 missing.append(day)
             day += dt.timedelta(days=1)
         if missing:
@@ -177,10 +183,14 @@ def fill_single_history_holes(ticker: str, hist: pd.DataFrame) -> pd.DataFrame:
         if not have:
             return hist
         country = "IL" if _is_israeli_ticker(ticker) else "US"
-        last_day, first_day = max(have), min(have)
+        # last_day כולל שורה אחרונה עם Close=NaN (יום שהסתיים ו-yfinance עוד לא סגרה - 8.10.2026)
+        first_day = min(have)
+        last_day = max(d.date() for d in hist.index)
+        today = dt.date.today()
         missing = [
-            first_day + dt.timedelta(days=k) for k in range((last_day - first_day).days)
+            first_day + dt.timedelta(days=k) for k in range((last_day - first_day).days + 1)
             if (first_day + dt.timedelta(days=k)) not in have
+            and (first_day + dt.timedelta(days=k)) < today
             and is_trading_day(country, first_day + dt.timedelta(days=k))
         ]
         if not missing:

@@ -183,5 +183,16 @@ class EntrySignal(unittest.TestCase):
         self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.03)
 
 
+class TrailingNanClose(unittest.TestCase):
+    # 8.10.2026: yfinance החזירה שורה ליום המסחר האחרון (7.10) עם Close=NaN - הכרטיס הציג את 6.10.
+    def test_last_finished_day_with_nan_close_is_a_hole(self):
+        import pandas as pd
+        idx = pd.DatetimeIndex(["2026-10-01", "2026-10-05", "2026-10-06", "2026-10-07"], tz="Asia/Jerusalem")
+        frame = pd.DataFrame({"Close": [100.0, 101.0, 102.0, float("nan")], "Volume": [1, 1, 1, 1]}, index=idx)
+        multi = pd.concat({"X.TA": frame}, axis=1)  # _find_hole_days מצפה לעמודות (טיקר, שדה)
+        holes = market_data._find_hole_days(multi, ["X.TA"])
+        self.assertIn(dt.date(2026, 10, 7), holes.get("X.TA", []))
+
+
 if __name__ == "__main__":
     unittest.main()
