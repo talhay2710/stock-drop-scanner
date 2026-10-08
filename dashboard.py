@@ -2253,7 +2253,6 @@ def _autosave_settings():
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("settings")
-    st.toast("ההגדרות נשמרו.", icon="💾", duration=2)
 
 
 def _autosave_fees():
@@ -2267,7 +2266,6 @@ def _autosave_fees():
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("fees")
-    st.toast("עמלות ומיסים נשמרו.", icon="💾", duration=2)
 
 
 def _autosave_position():
@@ -2286,7 +2284,6 @@ def _autosave_position():
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("position sizing")
-    st.toast("הגדרות גודל השקעה נשמרו.", icon="💾", duration=2)
 
 
 def _autosave_holdings_alerts():
@@ -2299,7 +2296,6 @@ def _autosave_holdings_alerts():
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("holdings alerts")
-    st.toast("הגדרות התראות אחזקות נשמרו.", icon="💾", duration=2)
 
 
 def _autosave_message_types():
@@ -2311,7 +2307,6 @@ def _autosave_message_types():
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("message types")
-    st.toast("סוגי התראה נשמרו.", icon="💾", duration=2)
 
 
 def _autosave_channels():
@@ -2320,7 +2315,6 @@ def _autosave_channels():
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("notification channels")
-    st.toast("ערוצי התראה נשמרו.", icon="💾", duration=2)
 
 
 with st.sidebar:
