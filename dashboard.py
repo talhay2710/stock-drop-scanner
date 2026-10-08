@@ -3981,7 +3981,7 @@ with _tab_slot_today.container():
                                         _nd = _nd_map.get(_src_t.iloc[0]) if not _src_t.empty else None
                                         if _nd is not None and pd.notna(_nd) and _nd < 0:
                                             _val = _nd
-                                            _text = (f"{_signed_num(_nd, 1, '%')}<br><span style=\"font-size:0.7rem; font-weight:400; opacity:0.75;\">"
+                                            _text = (f"{_signed_num(_nd, 1, '%')}<span style=\"font-size:0.68rem; font-weight:400; opacity:0.75; margin-inline-start:4px;\">"
                                                      f"ב-{_md_days} ימים</span>")
                                     if _col_name == "שינוי נוכחי" and _row.get("current_gap"):
                                         _text = f"⚠️ {_text}"
