@@ -555,6 +555,11 @@ st.markdown(
         padding: 8px 16px !important;
         gap: 10px !important;
     }
+    /* בלוקי ה-CSS שמתחת לשורת הטאבים ריקים ויזואלית אבל כל אחד מוסיף רווח של 16px - מסתירים אותם (13.10.2026,
+       "אפשר לצמצם קצת גם כאן?"). ה-<style> שבתוכם ממשיך לפעול גם כשהמיכל מוסתר */
+    [data-testid="stLayoutWrapper"]:has(.st-key-nav_tabs_row) + [data-testid="stElementContainer"]:has(style),
+    [data-testid="stLayoutWrapper"]:has(.st-key-nav_tabs_row) + [data-testid="stElementContainer"]:has(style)
+        + [data-testid="stElementContainer"]:has(style) { display: none !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         gap: 0.8rem !important;
     }
@@ -784,8 +789,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
-
 # ב-Streamlit Cloud הסודות מוזנים דרך st.secrets (secrets.toml, לא קובץ ב-git) -
 # מעתיקים אותם למשתני סביבה כאן כדי ש-load_config() (המשותף גם לסקריפטים
 # העצמאיים כמו run_scan_once.py, בלי תלות ב-streamlit) יראה אותם באופן אחיד.
