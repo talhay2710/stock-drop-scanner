@@ -136,6 +136,21 @@ def main() -> int:
         n_10k = buy["ret"].map(lambda r: ss.net_return_pct(r, 10000, cfg["fees"]))
         print(f"| {T}% | {len(buy)} | {buy['y'].mean()*100:.0f}% | {buy['ret'].mean():+.2f}% | {n_cfg.mean():+.2f}% | {n_10k.mean():+.2f}% |")
     print()
+    # ירידה יומית מול ירידה מצטברת בלבד (היום עצמו מעל סף הירידה היומי) - הציון לא נבדק על מצטברות (13.10.2026)
+    print("## ירידה יומית מול מצטברת בלבד (כל הציונים / 4+)")
+    print("| סוג | מדגם | התראות | ימים | הצלחה | ברוטו | 4+: התראות | 4+: הצלחה | 4+: ברוטו |" + chr(10) + "|---|---|---|---|---|---|---|---|---|")
+    _thr = abs(cfg["drop_threshold_pct"])
+    for _name, _part in (("פיתוח", dev), ("עיוור", blind)):
+        for _kind, _mask in (("יומית", _part["pct_change"] <= -_thr), ("מצטברת בלבד", _part["pct_change"] > -_thr)):
+            _g = _part[_mask]
+            if _g.empty:
+                continue
+            _b = _g[_g["score"] >= 4]
+            _b_txt = (f"{len(_b)} | {_b['y'].mean()*100:.0f}% | {_b['ret'].mean():+.2f}%" if len(_b) >= 5
+                      else f"{len(_b)} | - | -")
+            print(f"| {_kind} | {_name} | {len(_g)} | {_g['scan_date'].nunique()} | {_g['y'].mean()*100:.0f}% | "
+                  f"{_g['ret'].mean():+.2f}% | {_b_txt} |")
+    print()
     decide = blind["scan_date"].nunique() >= MIN_BLIND_DAYS
     print("## וקטורים מועמדים (במדגם העיוור)")
     if len(blind) < 20:

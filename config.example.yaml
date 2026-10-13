@@ -56,6 +56,7 @@ telegram_message_types:
   holdings_stop: true
   holdings_target: true
   holdings_gain: true
+  holdings_hold_limit: true
   price_alert: true
   reversal_alert: true
   morning_summary: true

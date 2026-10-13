@@ -131,7 +131,7 @@ def get_conn(db_path: str) -> sqlite3.Connection:
         "company_name TEXT", "outcome TEXT", "sector TEXT", "telegram_message_id INTEGER",
         "bought INTEGER DEFAULT 0", "actual_entry_price REAL", "actual_qty REAL", "bought_at TEXT",
         "last_gain_alert_pct REAL", "stop_alert_active INTEGER DEFAULT 0", "holding_stop_price REAL",
-        "target_alert_active INTEGER DEFAULT 0",
+        "target_alert_active INTEGER DEFAULT 0", "hold_alert_sent INTEGER DEFAULT 0",
         "quality_tier TEXT", "quality_score INTEGER", "quality_flags_json TEXT", "rebound_tier TEXT",
         "is_manual_trade INTEGER DEFAULT 0", "last_close_date TEXT",
         "zscore REAL", "rsi REAL", "volume_ratio REAL", "vix_level REAL", "intraday_recovery_pct REAL",
@@ -309,7 +309,7 @@ def get_bought_holdings(conn: sqlite3.Connection) -> list[dict]:
     cur = conn.execute(
         "SELECT id, ticker, company_name, index_name, actual_entry_price, actual_qty, "
         "last_gain_alert_pct, bought_at, stop_alert_active, holding_stop_price, target_base, "
-        "target_alert_active, is_manual_trade "
+        "target_alert_active, is_manual_trade, hold_alert_sent "
         "FROM alerts WHERE bought = 1"
     )
     columns = [c[0] for c in cur.description]
@@ -323,6 +323,11 @@ def update_gain_alert(conn: sqlite3.Connection, alert_id: int, gain_pct: float) 
 
 def update_target_alert(conn: sqlite3.Connection, alert_id: int, active: bool) -> None:
     conn.execute("UPDATE alerts SET target_alert_active = ? WHERE id = ?", (1 if active else 0, alert_id))
+    conn.commit()
+
+
+def update_hold_alert(conn: sqlite3.Connection, alert_id: int, sent: bool = True) -> None:
+    conn.execute("UPDATE alerts SET hold_alert_sent = ? WHERE id = ?", (1 if sent else 0, alert_id))
     conn.commit()
 
 

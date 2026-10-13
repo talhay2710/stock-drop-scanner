@@ -262,6 +262,7 @@ def check_holdings_gains(cfg: dict, conn) -> None:
 
         _check_stop_proximity(cfg, conn, h, display_name, entry, current, ccy)
         _check_target_proximity(cfg, conn, h, display_name, entry, current, ccy)
+        _check_hold_limit(cfg, conn, h, display_name, entry, current, ccy)
 
 
 STOP_LOSS_FACTOR = 0.97  # תואם לחישוב הסטופ באסטרטגיה (strategy.py) - כ-3% מתחת לכניסה
@@ -304,6 +305,49 @@ def _check_stop_proximity(cfg: dict, conn, h: dict, display_name: str, entry: fl
     )
     notifier.notify_typed(cfg, "holdings_stop", message, desktop_title, f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)}")
     store_mod.update_stop_alert(conn, h["id"], True)
+
+
+def trading_days_held(bought_at, country_code: str, today: dt.date | None = None) -> int:
+    """ימי מסחר מיום הקנייה עד היום (כולל שניהם) - אותו חישוב כמו _trading_days_held בדשבורד."""
+    from .market_hours import is_trading_day
+    try:
+        day = dt.date.fromisoformat(str(bought_at)[:10])
+    except Exception:
+        return 1
+    today = today or israel_today()
+    n = 0
+    while day <= today:
+        if is_trading_day(country_code, day):
+            n += 1
+        day += dt.timedelta(days=1)
+    return max(n, 1)
+
+
+def _check_hold_limit(cfg: dict, conn, h: dict, display_name: str, entry: float, current: float, ccy: str) -> None:
+    """מתריע פעם אחת כשאחזקה עוברת את אופק האסטרטגיה (HOLD_MAX_DAYS ימי מסחר) - האסטרטגיה נבדקה על החזקה
+    של עד 3 ימים, אז אחזקה שנשארה מעבר לזה כבר לא "לפי האסטרטגיה" וכדאי לשקול אותה מחדש (13.10.2026).
+    אחזקה ידנית (is_manual_trade) לא נכללת - היא לא נכנסה לפי אות האסטרטגיה מלכתחילה."""
+    if h.get("hold_alert_sent") or h.get("is_manual_trade") or not h.get("bought_at"):
+        return
+    country = constituents.INDEX_COUNTRY_CODE.get(h.get("index_name"), "IL")
+    days = trading_days_held(h["bought_at"], country)
+    if days <= strategy_mod.HOLD_MAX_DAYS:
+        return
+
+    pnl_pct = (current / entry - 1) * 100
+    message = "\n".join([
+        f"⏰ <b>{display_name} מוחזקת {days} ימי מסחר</b>",
+        f"{h['ticker']}",
+        "",
+        f"האסטרטגיה נבדקה על החזקה של עד {strategy_mod.HOLD_MAX_DAYS} ימי מסחר.",
+        f"מחיר נוכחי: {_format_price(current, ccy, with_unit=False)} ({_signed(pnl_pct, 1, '%')} מהכניסה)",
+        f"נכנסת ב-{_format_price(entry, ccy, with_unit=False)}",
+    ])
+    notifier.notify_typed(
+        cfg, "holdings_hold_limit", message,
+        f"⏰ {display_name} מוחזקת {days} ימי מסחר", f"{_signed(pnl_pct, 1, '%')} מהכניסה",
+    )
+    store_mod.update_hold_alert(conn, h["id"], True)
 
 
 def _check_target_proximity(cfg: dict, conn, h: dict, display_name: str, entry: float, current: float, ccy: str) -> None:

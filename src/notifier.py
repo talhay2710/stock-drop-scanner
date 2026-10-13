@@ -30,6 +30,7 @@ MESSAGE_TYPES = {
     "holdings_stop": "קרוב/חצה סטופ-לוס",
     "holdings_target": "קרוב/הגיע ליעד",
     "holdings_gain": "עלייה מהכניסה",
+    "holdings_hold_limit": "החזקה מעל אופק האסטרטגיה (3 ימי מסחר)",
     "price_alert": "התראת מחיר ידנית",
     "reversal_alert": "סימני התאוששות",
     "morning_summary": "תמונת מצב - תחילת יום",

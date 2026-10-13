@@ -274,5 +274,49 @@ class StrategyStats(unittest.TestCase):
         self.assertGreaterEqual(t.iloc[0]["רק 4+: הצלחה %"], 99)   # בדוגמה כל ה-4+ הצליחו
 
 
+class HoldLimitAlert(unittest.TestCase):
+    # 13.10.2026: התראה חד-פעמית כשאחזקה עוברת 3 ימי מסחר
+    def test_trading_days_held_skips_weekend(self):
+        import datetime as dt
+        from src import scanner
+        # רביעי 7.10.2026: 7, 8 (חמישי), 9 (שישי מקוצר), [10-11 סוף שבוע], 12 (שני)
+        n = scanner.trading_days_held("2026-10-07T10:00:00", "IL", dt.date(2026, 10, 8))
+        self.assertEqual(n, 2)
+        n = scanner.trading_days_held("2026-10-07T10:00:00", "IL", dt.date(2026, 10, 9))
+        self.assertEqual(n, 3)
+        n = scanner.trading_days_held("2026-10-07T10:00:00", "IL", dt.date(2026, 10, 12))
+        self.assertEqual(n, 4)       # הסוף שבוע לא נספר
+
+    def _run(self, bought_at, manual=0, sent=0, today=None):
+        import datetime as dt
+        from unittest import mock
+        from src import scanner, notifier, store
+        h = {"id": 1, "ticker": "X.TA", "index_name": "TA35", "bought_at": bought_at,
+             "is_manual_trade": manual, "hold_alert_sent": sent}
+        fake_today = today or dt.date(2026, 10, 13)
+        with mock.patch.object(scanner, "israel_today", return_value=fake_today), \
+             mock.patch.object(notifier, "notify_typed") as nt, \
+             mock.patch.object(store, "update_hold_alert") as upd:
+            scanner._check_hold_limit({}, None, h, "חברה", 100.0, 102.0, "ILS")
+        return nt, upd
+
+    def test_sends_once_after_limit(self):
+        nt, upd = self._run("2026-10-07T10:00:00")
+        nt.assert_called_once()
+        self.assertEqual(nt.call_args[0][1], "holdings_hold_limit")
+        upd.assert_called_once()
+
+    def test_not_sent_within_limit(self):
+        nt, upd = self._run("2026-10-08T10:00:00", today=__import__("datetime").date(2026, 10, 12))
+        nt.assert_not_called()
+        upd.assert_not_called()
+
+    def test_skips_manual_and_already_sent(self):
+        nt, _ = self._run("2026-10-07T10:00:00", manual=1)
+        nt.assert_not_called()
+        nt, _ = self._run("2026-10-07T10:00:00", sent=1)
+        nt.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
