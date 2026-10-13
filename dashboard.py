@@ -1437,6 +1437,8 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
     if not holdings_df.empty:
         _best = None  # (gap_pct, name, is_target) - הפער הכי קטן שנמצא עד כה בין המחיר הנוכחי לבין היעד או הסטופ
         _stop_warn_pct = cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
+        _target_warn_pct = cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
+        _best_target = None  # אותו מבנה כמו _best - רק אחזקות שחצו/קרובות ליעד
         _exposure_by_ccy = {}  # מצטבר לכרטיס "חשיפה לסיכון" - כמה מהתיק קרוב/חצה סטופ *בו-זמנית*,
         # לא רק האחזקה הבודדת הכי דחופה (proximity_summary למעלה) - ר' 17.9.2026,
         # "כמה % מהתיק קרוב לסטופ בו-זמנית, לא רק מניה בודדת".
@@ -1465,6 +1467,9 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
                 _best = (_gap_target, _name, True)
             if _gap_stop < _best[0]:
                 _best = (_gap_stop, _name, False)
+            # מניה שחצתה או קרובה ליעד (בסף ההתראה שהוגדר) תמיד מקבלת עדיפות על פני סטופ (13.10.2026)
+            if _gap_target <= _target_warn_pct and (_best_target is None or _gap_target < _best_target[0]):
+                _best_target = (_gap_target, _name, True)
 
             _ccy3 = constituents.INDEX_CURRENCY.get(_r.get("index_name"), "ILS")
             _exp = _exposure_by_ccy.setdefault(_ccy3, {"total_value": 0.0, "at_risk_value": 0.0,
@@ -1475,6 +1480,8 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             if _gap_stop <= _stop_warn_pct:
                 _exp["at_risk_value"] += _holding_value
                 _exp["at_risk_count"] += 1
+        if _best_target is not None:
+            _best = _best_target
         if _best is not None:
             proximity_summary = (_best[1], _best[0], _best[2])
         if _exposure_by_ccy:
