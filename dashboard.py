@@ -5442,7 +5442,6 @@ with _market_panel_box:
                     "stop_cross_pct": stop_distance_pct(current, stop_price),
                     "value": current * qty,
                 })
-            st.divider()
             with st.container(border=True, key="chart_card_pnl"):
                 st.image(render_text_image("רווח/הפסד לפי אחזקה", ACCENT_COLOR, font_size=15))
                 if not _rows:
@@ -5464,7 +5463,6 @@ with _market_panel_box:
             if _holdings.empty:
                 return
             _comp_df, _comp_as_of, _comp_dom_index, _comp_is_daily = _compute_portfolio_history(_holdings)
-            st.divider()
             with st.container(border=True, key="chart_card_comparison"):
                 st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
                 if _comp_df is None:
