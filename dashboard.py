@@ -781,6 +781,20 @@ st.markdown(
     """
     <style>
     @media (max-width: 480px) {
+        /* כרטיסי התיק: במקום ארבעה כרטיסים גבוהים בעמודה (125px כל אחד) - כרטיס קומפקטי עם הערך בצד אחד והתווית
+           והשורה התחתונה בצד השני (13.10.2026). 2x2 נבדק ונדחה: הכרטיס צר מדי לערכים כמו 30,388 ש"ח */
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] {
+            display: grid !important; grid-template-columns: 1fr auto; grid-template-areas: "label value" "bottom value";
+            align-items: center; column-gap: 12px; row-gap: 0; height: auto !important; min-height: 0 !important;
+            padding: 10px 14px !important; text-align: right !important; justify-content: stretch !important;
+        }
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div { margin-top: 0 !important; }
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(1) { grid-area: label; font-size: 0.82rem !important; }
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(2) { grid-area: value; font-size: 1.35rem !important; text-align: left; max-width: 170px; }
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(3) { grid-area: bottom; font-size: 0.8rem !important; }
+        [data-testid="stMain"] h3 { font-size: 1.3rem !important; }
+        [data-testid="stMain"] div[class*="st-key-chart_card_pnl"],
+        [data-testid="stMain"] div[class*="st-key-chart_card_comparison"] { min-height: 0 !important; }
         [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4):last-child):not(:has(.card-bottom-line)) {
             flex-wrap: wrap !important; gap: 10px !important;
         }
@@ -3076,7 +3090,7 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
             },
             color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
             truncate_columns=_truncate,
-            max_height=min(35 * (len(sub_df) + 1) + 3, 2000),
+            max_height=min(35 * (len(sub_df) + 1) + 53, 2000),
             extra_class="movers-style-table",
         ),
         unsafe_allow_html=True,
@@ -3883,7 +3897,7 @@ with _tab_slot_today.container():
                             @media (max-width: 480px) {{
                                 div[class*="st-key-alert_header_row"] [data-testid="stHorizontalBlock"],
                                 div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] {{
-                                    flex-wrap: wrap !important; row-gap: 3px !important;
+                                    flex-wrap: wrap !important; row-gap: 3px !important; column-gap: 0 !important;
                                 }}
                                 div[class*="st-key-alert_header_row"] [data-testid="stColumn"],
                                 div[class*="st-key-alert_row_"] [data-testid="stColumn"] {{
@@ -5580,6 +5594,7 @@ def _render_news_section() -> None:
                     color:#31333F; }}
                   @media (prefers-color-scheme: dark) {{ html, body {{ color:#FAFAFA; }} }}
                   .news-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }}
+                  @media (max-width: 520px) {{ .news-grid {{ grid-template-columns: 1fr; }} }}
                   .news-card {{ transition: box-shadow 0.15s ease, transform 0.15s ease; height:100%;
                                 box-sizing:border-box; }}
                   a {{ display:block; height:100%; }}
@@ -5589,7 +5604,21 @@ def _render_news_section() -> None:
                     background: rgba(128,128,128,0.09) !important;
                   }}
                 </style></head>
-                <body><div class="news-grid">{banners}</div></body></html>
+                <body><div class="news-grid" id="ng">{banners}</div>
+                <script>
+                  function fit() {{
+                      try {{
+                          var g = document.getElementById("ng");
+                          if (g && window.frameElement) {{
+                              var h = Math.ceil(g.getBoundingClientRect().bottom + 4) + "px";
+                              window.frameElement.style.height = h;
+                              window.frameElement.parentElement.style.height = h;
+                              window.frameElement.parentElement.style.setProperty("flex", "0 0 " + h, "important");
+                          }}
+                      }} catch (e) {{}}
+                  }}
+                  fit(); window.addEventListener("resize", fit);
+                </script></body></html>
                 """,
                 height=height,
             )
