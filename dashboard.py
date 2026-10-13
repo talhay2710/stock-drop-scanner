@@ -554,6 +554,10 @@ st.markdown(
     [data-testid="stMainBlockContainer"] {
         padding-top: 2.5rem;
     }
+    /* ריווח אחיד בכל האתר (13.10.2026, "תצמצם קצת רווחים בכל האתר בצורה שווה וזהה"): רווח בין אלמנטים 12px במקום 16px,
+       וקווי הפרדה (st.divider) עם אותו שוליים בכל מקום */
+    [data-testid="stMainBlockContainer"] [data-testid="stVerticalBlock"] { gap: 0.75rem; }
+    [data-testid="stMainBlockContainer"] hr { margin: 0.5rem 0 !important; }
     /* iframe עזר בגובה 0 בראש העמוד - מוציאים מזרימת העמוד כדי שלא יוסיף רווח של 16px מעל הלוגו */
     [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:first-child:has(> iframe) {
         position: absolute !important;
