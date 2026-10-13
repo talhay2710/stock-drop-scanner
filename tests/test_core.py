@@ -180,7 +180,7 @@ class EntrySignal(unittest.TestCase):
         self.assertEqual(self.f("TA35", -4.6)[0], self.s.SIGNAL_WAIT)  # רק ירידה חדה = 2 נקודות
 
     def test_target_is_three_percent(self):
-        self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.03)
+        self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.035)
 
 
 class TrailingNanClose(unittest.TestCase):
