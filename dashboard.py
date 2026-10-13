@@ -5052,8 +5052,6 @@ with _tab_slot_portfolio.container():
                     unsafe_allow_html=True,
                 )
 
-                st.divider()
-
                 # 2 בשורה (במקום 3) - העיצוב המחודש (9.9.2026) גבוה יותר
                 # (פס מיקום ויזואלי + גריד נתונים), 3 צפופים מדי ברוחב הזה.
                 for i, row in enumerate(rows):
