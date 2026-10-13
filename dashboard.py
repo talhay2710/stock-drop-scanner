@@ -555,8 +555,9 @@ st.markdown(
         padding: 8px 16px !important;
         gap: 10px !important;
     }
-    div[class*="st-key-news_header_wrap"] {
-        padding: 0 16px !important;
+    div[class*="st-key-news_panel"] {
+        padding: 8px 16px !important;
+        gap: 10px !important;
     }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         gap: 0.8rem !important;
@@ -5475,9 +5476,6 @@ with st.container(border=True, key="market_panel"):
 # עטיפה עם padding אופקי זהה ל-market_panel (8px 16px, ראו CSS למעלה) - כדי
 # שהאייקון/טקסט כאן יתחילו באותו X בדיוק כמו "שעות מסחר", שנמצא בתוך container
 # עם padding משלו ולכן היה מוזח 16px ימינה יחסית לכותרת הזו שהיתה בלי עטיפה.
-with st.container(key="news_header_wrap"):
-    st.subheader("📰 חדשות כלכליות")
-
 @st.fragment(run_every="300s")
 def _render_news_section() -> None:
     """fragment עם run_every - תואם לזמן המטמון של get_footer_news (5 דקות),
@@ -5567,9 +5565,7 @@ def _render_news_section() -> None:
                 """
                 <style>
                 div[class*="st-key-news_section_wrap"] [data-testid="stElementContainer"]:has(iframe) {
-                    width: calc(100% - 33.6px) !important;
-                    margin-right: 16.8px !important;
-                    margin-left: 0 !important;
+                    width: 100% !important;
                 }
                 </style>
                 """,
@@ -5583,4 +5579,7 @@ def _render_news_section() -> None:
         # לא קשור לאיזה טאב פתוח (9.9.2026, "למה זה ככה?").
         st.caption("אין כרגע נתוני מדד להצגת חדשות - ינסה שוב ברענון הבא.")
 
-_render_news_section()
+# חדשות כלכליות באותה מסגרת עגולה כמו מצב המדדים/זמני מסחר (13.10.2026)
+with st.container(border=True, key="news_panel"):
+    st.subheader("📰 חדשות כלכליות")
+    _render_news_section()
