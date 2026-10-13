@@ -548,8 +548,19 @@ st.markdown(
         background-color: transparent;
         font-weight: 500;
     }
+    /* הכותרת העליונה של Streamlit (Deploy/Stop) אטומה בגובה 60px ומכסה את מה שמתחתיה - מקצרים אותה כדי שהלוגו יעלה למעלה
+       (13.10.2026); הלוגו חייב להתחיל מתחתיה, אחרת הוא נעלם מאחוריה */
+    header[data-testid="stHeader"] { height: 2.5rem !important; min-height: 0 !important; }
     [data-testid="stMainBlockContainer"] {
-        padding-top: 2rem;
+        padding-top: 2.5rem;
+    }
+    /* iframe עזר בגובה 0 בראש העמוד - מוציאים מזרימת העמוד כדי שלא יוסיף רווח של 16px מעל הלוגו */
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:first-child:has(> iframe) {
+        position: absolute !important;
+    }
+    /* שני בלוקי ה-CSS הראשונים בעמוד ריקים ויזואלית אבל כל אחד מוסיף רווח של 16px מעל הלוגו (13.10.2026) */
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:nth-child(-n+2):has(style) {
+        display: none !important;
     }
     div[class*="st-key-market_panel"] {
         padding: 8px 16px !important;
