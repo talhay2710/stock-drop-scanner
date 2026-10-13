@@ -5051,6 +5051,8 @@ with _tab_slot_portfolio.container():
                     f"""<div style="display:flex; gap:10px; flex-wrap:wrap;">{cards_html}</div>""",
                     unsafe_allow_html=True,
                 )
+                # רווח כמו בין שאר הסעיפים (12 + 17 + 12 = 41px) במקום קו ההפרדה שהוסר (13.10.2026)
+                st.markdown('<div style="height:17px;"></div>', unsafe_allow_html=True)
 
                 # 2 בשורה (במקום 3) - העיצוב המחודש (9.9.2026) גבוה יותר
                 # (פס מיקום ויזואלי + גריד נתונים), 3 צפופים מדי ברוחב הזה.
@@ -5399,6 +5401,9 @@ with _market_panel_box:
         f'div[class*="st-key-chart_card_comparison"] {{ min-height: {_shared_chart_min_height}px; }}</style>',
         unsafe_allow_html=True,
     )
+    # רווח כמו בין שאר הסעיפים (12 + קו 17 + 12 = 41px) במקום קו ההפרדה שהוסר (13.10.2026); ה-markdown של ה-CSS למעלה
+    # כבר תורם 12px אחד נוסף, לכן 5px כאן
+    st.markdown('<div style="height:5px;"></div>', unsafe_allow_html=True)
     _chart_cols = st.columns(2, gap="medium")
 
     with _chart_cols[0]:
