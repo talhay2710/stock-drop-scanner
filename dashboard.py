@@ -1219,7 +1219,7 @@ def render_market_card(label: str, country: str) -> None:
         </style>
         </head>
         <body>
-        <div style="border:1px solid {color}; border-radius:12px; padding:14px 18px; background:{bg};
+        <div id="card_{country}" style="border:1px solid {color}; border-radius:12px; padding:14px 18px; background:{bg};
                     box-sizing:border-box; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin:2px;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div style="font-size:1rem; font-weight:600; opacity:0.85;">{label}</div>
@@ -1243,6 +1243,22 @@ def render_market_card(label: str, country: str) -> None:
           }}
           tick();
           setInterval(tick, 1000);
+          // גובה ה-iframe לפי התוכן בפועל (13.10.2026, "למה הרווח כאן גדול כל כך?") - הגובה הקבוע מ-Python
+          // (175/195) נשאר כגיבוי ומשאיר ~50px ריקים מתחת לכרטיס בדסקטופ
+          function fit() {{
+              try {{
+                  var c = document.getElementById("card_{country}");
+                  if (c && window.frameElement) {{
+                      var h = Math.ceil(c.getBoundingClientRect().bottom + 4) + "px";
+                      window.frameElement.style.height = h;
+                      // העטיפה של Streamlit סביב ה-iframe מחזיקה את הגובה הקבוע - בלי זה נשאר רווח ריק מתחת
+                      window.frameElement.parentElement.style.height = h;
+                      window.frameElement.parentElement.style.setProperty("flex", "0 0 " + h, "important");
+                  }}
+              }} catch (e) {{}}
+          }}
+          fit();
+          window.addEventListener("resize", fit);
         </script>
         </body>
         </html>
