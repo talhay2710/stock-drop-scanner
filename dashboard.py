@@ -2094,8 +2094,7 @@ def _stat_card_portfolio_status(invested: float, current_value: float, pnl: floa
         # בדיוק בשני הצדדים) - כך שהעוגה מתחילה ומסתיימת באותו קו בדיוק
         # (9.9.2026, בקשה מפורשת, לא רק "יותר גדול").
         sector_side = (
-            f'<div style="flex:1; min-width:170px; border-right:1px solid {NEUTRAL_COLOR}22; '
-            f'padding-right:16px; display:flex; flex-direction:column;">'
+            f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column;">'
             f'{sector_title}'
             f'<div style="flex:1; display:flex; direction:rtl; align-items:center; justify-content:center; '
             f'gap:16px; margin-top:6px; min-height:0;">{legend}{donut}</div></div>'
