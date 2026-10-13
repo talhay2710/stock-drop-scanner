@@ -5567,10 +5567,6 @@ with _market_panel_box:
 
         _render_comparison_chart()
 
-    st.divider()
-
-    st.subheader("🧪 מעקב קדימה - האסטרטגיה")
-
     @st.fragment(run_every="300s")
     def _render_forward_test() -> None:
         _ft = get_forward_test_summary(forward_test.position_size(cfg))
@@ -5619,7 +5615,12 @@ with _market_panel_box:
             f"מדגם עיוור: הניקוד הוקפא לפני ההתראות האלה ושום כלל לא נקבע לפיהן. {_status}{_ci_text}"
         )
 
-    _render_forward_test()
+    # מוצג רק כשיש מספיק התראות שנסגרו (MIN_RESOLVED_SHOWN) - עד אז כל הכרטיסים ריקים ("—"), אין מה להראות (13.10.2026)
+    _ft_ready = get_forward_test_summary(forward_test.position_size(cfg))
+    if _ft_ready and "gross" in _ft_ready:
+        st.divider()
+        st.subheader("🧪 מעקב קדימה - האסטרטגיה")
+        _render_forward_test()
 
     st.divider()
 
