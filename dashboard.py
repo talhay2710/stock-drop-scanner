@@ -555,10 +555,6 @@ st.markdown(
         padding: 8px 16px !important;
         gap: 10px !important;
     }
-    div[class*="st-key-news_panel"] {
-        padding: 8px 16px !important;
-        gap: 10px !important;
-    }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         gap: 0.8rem !important;
     }
@@ -5274,7 +5270,8 @@ with _tab_slot_history.container():
             st.markdown(f'<div class="trade-journal-table" style="overflow-x:auto;">{table_html}</div>', unsafe_allow_html=True)
 
 
-with st.container(border=True, key="market_panel"):
+_market_panel_box = st.container(border=True, key="market_panel")
+with _market_panel_box:
     @st.fragment(run_every="60s")
     def _render_market_panel() -> None:
         """fragment עם run_every - כרטיסי המדדים ו'התיק שלי' מתעדכנים לבד כל
@@ -5579,7 +5576,8 @@ def _render_news_section() -> None:
         # לא קשור לאיזה טאב פתוח (9.9.2026, "למה זה ככה?").
         st.caption("אין כרגע נתוני מדד להצגת חדשות - ינסה שוב ברענון הבא.")
 
-# חדשות כלכליות באותה מסגרת עגולה כמו מצב המדדים/זמני מסחר (13.10.2026)
-with st.container(border=True, key="news_panel"):
+# חדשות כלכליות - בתוך אותה מסגרת אחת של שאר האתר (market_panel), מופרדות בקו כמו שאר הסעיפים (13.10.2026)
+with _market_panel_box:
+    st.divider()
     st.subheader("📰 חדשות כלכליות")
     _render_news_section()
