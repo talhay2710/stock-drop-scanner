@@ -209,6 +209,44 @@ def build_morning_summary(
     return "\n".join(lines).rstrip()
 
 
+def _build_quality_section(conn: sqlite3.Connection, scan_date: str) -> list[str]:
+    """תקציר איכות נתונים: לכל מדד - כמה סריקות רצו היום, הפער הגדול ביותר ביניהן, וכמה מניות נפסלו לכל היותר בסריקה
+    (נתון ישן / מחיר דל). מסתיר את עצמו כשאין נתונים (ימים שלפני שהרישום נוסף)."""
+    try:
+        rows = conn.execute(
+            "SELECT index_name, scan_ts, stale, thin, total FROM scan_quality WHERE scan_date = ? ORDER BY scan_ts",
+            (scan_date,),
+        ).fetchall()
+    except sqlite3.Error:
+        return []
+    if not rows:
+        return []
+    import datetime as _dt
+    by_index: dict[str, list] = {}
+    for r in rows:
+        by_index.setdefault(r[0], []).append(r)
+    lines = ["🩺 <b>איכות נתונים</b>"]
+    for index_name, rs in by_index.items():
+        stamps = []
+        for r in rs:
+            try:
+                stamps.append(_dt.datetime.fromisoformat(r[1]))
+            except ValueError:
+                pass
+        gap = max(((b - a).total_seconds() / 60 for a, b in zip(stamps, stamps[1:])), default=0)
+        max_stale = max((r[2] or 0) for r in rs)
+        max_thin = max((r[3] or 0) for r in rs)
+        extra = []
+        if max_stale:
+            extra.append(f"נתון ישן עד {max_stale}")
+        if max_thin:
+            extra.append(f"מחיר דל עד {max_thin}")
+        tail = f" · נפסלו (מקס' בסריקה): {', '.join(extra)}" if extra else ""
+        lines.append(f"{INDEX_LABELS.get(index_name, index_name)}: {len(rs)} סריקות · פער מקס' {gap:.0f} דק'{tail}")
+    lines.append("")
+    return lines
+
+
 def build_daily_summary(
     conn: sqlite3.Connection, scan_date: str,
     holdings: list[dict] | None = None, top_n_per_index: int = 2,
@@ -257,6 +295,7 @@ def build_daily_summary(
 
         lines.extend(_build_watch_section(rows, shown_tickers))
 
+    lines.extend(_build_quality_section(conn, scan_date))
     lines.append("")
     lines.append(_FOOTER_LINE)
     return "\n".join(lines).rstrip()

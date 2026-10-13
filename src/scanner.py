@@ -586,6 +586,14 @@ def _historical_expected_max_drop_pct(conn) -> float | None:
     return statistics.median(drops)
 
 
+def _record_quality(conn, index: str, total: int, stale: int, thin: int) -> None:
+    try:
+        store_mod.record_scan_quality(conn, israel_today().isoformat(), israel_now().isoformat(timespec="seconds"),
+                                      index, total, stale, thin)
+    except Exception as e:  # תקציר איכות הנתונים הוא בונוס - לעולם לא מפיל סריקה
+        logger.warning("רישום איכות הסריקה נכשל: %s", e)
+
+
 def _scan_one_index(
     cfg: dict, index: str, conn, vix_level: float | None = None,
     holdings_value_by_ccy: dict[str, float] | None = None,
@@ -629,9 +637,11 @@ def _scan_one_index(
             "%d מניות דולגו (%s) - נתון המחיר האחרון הזמין ישן מדי (מקור הנתונים מפגר)",
             _n_stale, index,
         )
+    _total_scanned = len(df)
     df = df[~_stale_mask].copy()
     if df.empty:
         logger.warning("כל נתוני המחיר עבור %s התבררו כישנים מדי - דילוג על הסבב הזה", index)
+        _record_quality(conn, index, _total_scanned, _n_stale, 0)
         return []
 
     multi_day_window = cfg.get("multi_day_window_days", 3)
@@ -658,6 +668,7 @@ def _scan_one_index(
     # 3.8% שלא הייתה קיימת, בפועל <1%).
     _thin = df.get("thin_print")
     _thin = _thin.fillna(False).astype(bool) if _thin is not None else pd.Series(False, index=df.index)
+    _record_quality(conn, index, _total_scanned, _n_stale, int(_thin.sum()))
     in_watch_zone = (df["pct_change"] <= -watch_threshold) & ~_thin
     for idx in df[in_watch_zone].index:
         cand_ticker = df.loc[idx, "ticker"]
@@ -973,7 +984,7 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
     )
     lines += [
         f"{ticker} · מדד {index}",
-        f"<b>{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.SIGNAL_LABEL[_sig]}</b> · החזקה עד {strategy_mod.HOLD_MAX_DAYS} ימים",
+        f"<b>{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.SIGNAL_LABEL[_sig]}</b>",
         _sig_why,
         "",
     ]

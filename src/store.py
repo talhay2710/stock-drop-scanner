@@ -64,6 +64,16 @@ CREATE TABLE IF NOT EXISTS scan_heartbeat (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     last_scan_ts TEXT
 );
+CREATE TABLE IF NOT EXISTS scan_quality (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_date TEXT NOT NULL,
+    scan_ts TEXT NOT NULL,
+    index_name TEXT NOT NULL,
+    total INTEGER,
+    stale INTEGER,
+    thin INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_scan_quality_date ON scan_quality (scan_date);
 CREATE TABLE IF NOT EXISTS signal_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_date TEXT NOT NULL,
@@ -323,6 +333,18 @@ def update_gain_alert(conn: sqlite3.Connection, alert_id: int, gain_pct: float) 
 
 def update_target_alert(conn: sqlite3.Connection, alert_id: int, active: bool) -> None:
     conn.execute("UPDATE alerts SET target_alert_active = ? WHERE id = ?", (1 if active else 0, alert_id))
+    conn.commit()
+
+
+def record_scan_quality(conn: sqlite3.Connection, scan_date: str, scan_ts: str, index_name: str,
+                        total: int, stale: int, thin: int) -> None:
+    """שורה לכל סריקה לכל מדד: כמה מניות נסרקו וכמה נפסלו כנתון ישן / מחיר דל - לתקציר איכות הנתונים היומי
+    (13.10.2026). נשמרים 30 ימים אחרונים בלבד, כדי שהקובץ לא יגדל."""
+    conn.execute(
+        "INSERT INTO scan_quality (scan_date, scan_ts, index_name, total, stale, thin) VALUES (?, ?, ?, ?, ?, ?)",
+        (scan_date, scan_ts, index_name, total, stale, thin),
+    )
+    conn.execute("DELETE FROM scan_quality WHERE scan_date < date('now', '-30 day')")
     conn.commit()
 
 

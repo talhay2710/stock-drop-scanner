@@ -318,5 +318,29 @@ class HoldLimitAlert(unittest.TestCase):
         nt.assert_not_called()
 
 
+class ForwardTestSummary(unittest.TestCase):
+    # 13.10.2026: כרטיס מעקב קדימה - ריק לא קורס, וסופר התראות 🟢 גם בלי תוצאות מדודות עדיין
+    def test_empty_db(self):
+        from src import forward_test, store
+        conn = store.get_conn(":memory:")
+        cfg = {"position_size": {"ILS": 5000}, "fees": {"IL": {"commission_pct": 0.3, "commission_min": 26.0, "currency": "ILS",
+                "capital_gains_tax_pct": 25.0, "management_fee_annual_pct": 1.15}}}
+        s = forward_test.summary(conn, cfg)
+        self.assertEqual((s["alerts"], s["resolved"], s["pending"]), (0, 0, 0))
+        self.assertNotIn("gross", s)          # מעט נתונים - אין אחוזים
+
+    def test_pending_buy_alert_counted(self):
+        from src import forward_test, store
+        conn = store.get_conn(":memory:")
+        conn.execute(
+            "INSERT INTO alerts (scan_date, scan_ts, ticker, index_name, pct_change, last_close, prev_close, sector, "
+            "dist_from_ma50_pct, intraday_recovery_pct, is_manual_trade, reason_text, overreaction_score) "
+            "VALUES ('2026-10-12', '2026-10-12T10:30:00+03:00', 'X.TA', 'TA35', -6.0, 100, 106, 'Utilities', -12.0, 0, 0, 'x', 50)"
+        )
+        conn.commit()
+        s = forward_test.summary(conn, {"position_size": {"ILS": 5000}, "fees": {}})
+        self.assertEqual((s["alerts"], s["pending"]), (1, 1))
+
+
 if __name__ == "__main__":
     unittest.main()

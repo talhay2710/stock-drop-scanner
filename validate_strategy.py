@@ -16,9 +16,7 @@ import pandas as pd
 
 from src import post_alert, store, strategy as st, strategy_stats as ss
 from src.config import db_path, load_config
-
-FREEZE_DATE = "2026-10-08"
-MIN_BLIND_DAYS = 40      # פחות מזה - הדוח רק מתאר, לא מחליט
+from src.forward_test import FREEZE_DATE, MIN_BLIND_DAYS, load_merged, load_evaluated, position_size
 CRITERIA = ("כיוון זהה לפיתוח", "שיפור AUC במדגם העיוור", "טווח סמך (לפי ימים) של ההפרש לא כולל 0")
 ISRAELI = ("TA35", "TA125")
 
@@ -31,25 +29,8 @@ def _auc(y, s):
     return float(np.mean(pos[:, None] > neg[None, :]) + 0.5 * np.mean(pos[:, None] == neg[None, :]))
 
 
-def load_merged(conn) -> pd.DataFrame:
-    post_alert.ensure_table(conn)
-    alerts = pd.read_sql_query(
-        "SELECT * FROM alerts WHERE index_name IN ('TA35','TA125')" + store.exclusion_clause(), conn)
-    alerts = alerts[alerts["is_manual_trade"].fillna(0) == 0]
-    merged = alerts.merge(post_alert.load_outcomes(conn), left_on="id", right_on="alert_id", how="inner")
-    hours = merged["scan_ts"].astype(str).str[11:13].apply(lambda x: int(x) if x.isdigit() else None)
-    merged["score"] = [
-        st.signal_score(r.index_name, r["pct_change"], r.intraday_recovery_pct, r.dist_from_ma50_pct, r.sector, h)[0]
-        for (_, r), h in zip(merged.iterrows(), hours)
-    ]
-    return merged
-
-
 def load(conn, target: float = None) -> pd.DataFrame:
-    merged = load_merged(conn)
-    ev = post_alert.evaluate(merged, st.TARGET_PCT if target is None else target, st.HOLD_MAX_DAYS)
-    ev = ev[ev["outcome"] != "pending"].copy()
-    ev["y"] = (ev["outcome"] == "hit_target").astype(int)
+    ev = load_evaluated(conn, target)
     try:
         feats = pd.read_sql_query("SELECT * FROM alert_features", conn)
         ev = ev.merge(feats, left_on="id", right_on="alert_id", how="left", suffixes=("", "_f"))
@@ -108,7 +89,7 @@ def main() -> int:
     print(f"# אימות עתידי של הניקוד - {dt.date.today().isoformat()}\n")
     print(f"תאריך הקפאה: {FREEZE_DATE}. פיתוח: {len(dev)} התראות ב-{dev['scan_date'].nunique()} ימים. "
           f"מדגם עיוור: {len(blind)} התראות ב-{blind['scan_date'].nunique()} ימים (נדרשים {MIN_BLIND_DAYS} לפחות להחלטה).\n")
-    pos = float(cfg.get("position_size", {}).get("ILS", 5000.0))
+    pos = position_size(cfg)
     for name, part in (("תקופת הפיתוח (להשוואה)", dev), ("מדגם עיוור", blind)):
         print(f"## {name}")
         if len(part) < 20 or part["scan_date"].nunique() < 5:

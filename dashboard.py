@@ -79,7 +79,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import load_config, db_path, CONFIG_PATH
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
-from src import strategy as strategy_mod, post_alert, strategy_stats
+from src import strategy as strategy_mod, post_alert, strategy_stats, forward_test
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
@@ -1167,6 +1167,40 @@ def render_value_card(label: str, value: float, invested: float, ccy_symbol: str
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_stat_card(label: str, main_text: str, sub_text: str, color: str = None, bg: str = None) -> None:
+    """כרטיס סטטיסטיקה באותו מבנה ויזואלי בדיוק כמו כרטיסי "התיק שלי" (כולל card-bottom-line, כך שגם גרסת
+    המובייל הקומפקטית חלה עליו)."""
+    color = color or NEUTRAL_COLOR
+    bg = bg or NEUTRAL_BG
+    st.markdown(
+        f"""
+        <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
+                    background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
+                    transition:box-shadow 0.2s;">
+          <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
+          <div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{main_text}</div>
+          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
+            {sub_text}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+@st.cache_data(ttl=300)
+def get_forward_test_summary(position: float) -> dict | None:
+    """תקציר המדגם העיוור (התראות 🟢 מאז הקפאת הניקוד) - ר' src/forward_test.py. None אם החישוב נכשל."""
+    try:
+        _conn = store.get_conn(db_path(cfg))
+        try:
+            return forward_test.summary(_conn, cfg)
+        finally:
+            _conn.close()
+    except Exception:
+        return None
 
 
 def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
@@ -2908,14 +2942,6 @@ def _build_alert_detail_html(r) -> str:
         f'<div style="font-size:0.85rem; margin-top:6px; opacity:0.85;">{r["overreaction_verdict"]}</div>'
     )
 
-    _rebound_text = (
-        f'{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.rebound_class(_sig)} - {strategy_mod.SIGNAL_LABEL[_sig]}'
-    )
-    _rebound_quality_html = (
-        f'<div style="font-size:0.9rem; margin-top:6px;">'
-        f'<b>סיווג ריבאונד:</b> {_rebound_text}</div>'
-    )
-
     _raw_quality_flags = r.get("quality_flags_json")
     _quality_flags = json.loads(_raw_quality_flags) if isinstance(_raw_quality_flags, str) else []
     _flags_html = (
@@ -3011,7 +3037,7 @@ def _build_alert_detail_html(r) -> str:
         f'<div style="font-size:0.8rem; opacity:0.7; margin-top:4px;">{r["reason_text"]}</div></div>'
         f'<div style="flex:1; text-align:center;">{_svg}</div>'
         f'</div>'
-        f'{_sig_html}{_exp_drop_html}{_verdict_html}{_rebound_quality_html}{_flags_html}{_news_html}'
+        f'{_sig_html}{_exp_drop_html}{_verdict_html}{_flags_html}{_news_html}'
         f'{_stat_cards_html}{_net_html}{_alert_hint_html}'
         f'</div>'
     )
@@ -3389,6 +3415,23 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
         help="העלות הכוללת כפי שמופיעה בבנק. הכמות מחושבת ממנה אוטומטית (עלות ÷ שער ביצוע).",
     )
     add_amount = add_amount_raw or 0.0
+    if add_entry > 0 and add_amount > 0:
+        try:
+            _cc = "IL" if is_il else "US"
+            _res = fees.compute_net_result(
+                country_code=_cc, buy_price=add_entry, sell_price=add_entry * (1 + strategy_mod.FIXED_TARGET_PCT),
+                position_size_ccy=add_amount, holding_days=strategy_mod.HOLD_MAX_DAYS, fees_cfg=cfg["fees"],
+            )
+            _ccy_sym = CURRENCY_SYMBOLS.get(_res.currency, _res.currency)
+            _fee_share = (_res.total_commission / _res.gross_pnl * 100) if _res.gross_pnl > 0 else 0
+            _note = (f" · העמלות אוכלות {_fee_share:.0f}% מהרווח הגולמי - פוזיציה גדולה יותר תשפר" if _fee_share >= 35 else "")
+            st.caption(
+                f"אם יגיע ליעד (+{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%): רווח נטו "
+                f"{_signed_num(_res.net_pnl, 0)} {_ccy_sym} ({_signed_num(_res.net_return_pct, 1, '%')}) "
+                f"אחרי עמלות ומס{_note}"
+            )
+        except Exception:
+            pass
     add_is_manual = st.checkbox(
         "🖐️ עסקה ידנית (לא לפי האסטרטגיה - לא תיכלל בסטטיסטיקת ביצועי האסטרטגיה)",
         key=f"{key_prefix}_manual",
@@ -5523,6 +5566,60 @@ with _market_panel_box:
                 # מוצג 17:00" חייב הבהרה, אבל לא עוד שורה נפרדת.
 
         _render_comparison_chart()
+
+    st.divider()
+
+    st.subheader("🧪 מעקב קדימה - האסטרטגיה")
+
+    @st.fragment(run_every="300s")
+    def _render_forward_test() -> None:
+        _ft = get_forward_test_summary(forward_test.position_size(cfg))
+        if not _ft:
+            st.caption("אין עדיין נתונים למעקב קדימה.")
+            return
+        _fdate = dt.date.fromisoformat(_ft["freeze_date"]).strftime("%d/%m").lstrip("0")
+        _pcols = st.columns(4, gap="medium")
+        with _pcols[0]:
+            render_stat_card(
+                f"התראות 🟢 מאז {_fdate}", f"{_ft['alerts']}",
+                f"{_ft['resolved']} נסגרו · {_ft['pending']} ממתינות",
+            )
+        _enough = "gross" in _ft
+        with _pcols[1]:
+            render_stat_card(
+                f"הגיעו ליעד +{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%",
+                f"{_ft['hit_rate']:.0f}%" if _enough else "—",
+                f"{_ft['hits']} מתוך {_ft['resolved']}" if _enough else "מעט נתונים",
+            )
+        with _pcols[2]:
+            if _enough:
+                render_stat_card(
+                    "תשואה ברוטו", _signed_num(_ft["gross"], 1, "%"), "ממוצע להתראה",
+                    POS_COLOR if _ft["gross"] >= 0 else NEG_COLOR, POS_BG if _ft["gross"] >= 0 else NEG_BG,
+                )
+            else:
+                render_stat_card("תשואה ברוטו", "—", "מעט נתונים")
+        with _pcols[3]:
+            if _enough:
+                render_stat_card(
+                    "תשואה נטו", _signed_num(_ft["net"], 1, "%"),
+                    f"פוזיציה {_ft['position']:,.0f} ש\"ח · אחרי עמלות ומס",
+                    POS_COLOR if _ft["net"] >= 0 else NEG_COLOR, POS_BG if _ft["net"] >= 0 else NEG_BG,
+                )
+            else:
+                render_stat_card("תשואה נטו", "—", "מעט נתונים")
+        _ci = _ft.get("net_ci")
+        _ci_text = (f" טווח נטו (95%): {_signed_num(_ci[0], 1, '%')} עד {_signed_num(_ci[1], 1, '%')}." if _ci else "")
+        _days = _ft["days_elapsed"]
+        _status = (
+            f"יום {_days} מתוך {_ft['days_needed']} - עד אז זה תיאור ולא החלטה."
+            if _days < _ft["days_needed"] else f"{_ft['days_needed']} ימי המסחר הושלמו - אפשר להעריך."
+        )
+        st.caption(
+            f"מדגם עיוור: הניקוד הוקפא לפני ההתראות האלה ושום כלל לא נקבע לפיהן. {_status}{_ci_text}"
+        )
+
+    _render_forward_test()
 
     st.divider()
 
