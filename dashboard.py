@@ -3426,7 +3426,7 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
             _fee_share = (_res.total_commission / _res.gross_pnl * 100) if _res.gross_pnl > 0 else 0
             _note = (f" · העמלות אוכלות {_fee_share:.0f}% מהרווח הגולמי - פוזיציה גדולה יותר תשפר" if _fee_share >= 35 else "")
             st.caption(
-                f"אם יגיע ליעד (+{strategy_mod.FIXED_TARGET_PCT * 100:g}%): רווח נטו "
+                f"אם יגיע ליעד (+{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%): רווח נטו "
                 f"{_signed_num(_res.net_pnl, 0)} {_ccy_sym} ({_signed_num(_res.net_return_pct, 1, '%')}) "
                 f"אחרי עמלות ומס{_note}"
             )
@@ -3657,7 +3657,7 @@ with _tab_slot_today.container():
                     return f"<bdi>{v} {emoji}</bdi>"
 
                 todays_display_src = todays_alerts.copy()
-                # יעד לפי האסטרטגיה הנוכחית (+FIXED_TARGET_PCT ממחיר ההתראה), גם להתראות שנשמרו עם יעד ישן -
+                # יעד לפי האסטרטגיה הנוכחית (+3% ממחיר ההתראה), גם להתראות שנשמרו עם יעד ישן -
                 # לפני ההמרה לטקסט (אגורות/שקלים) שמתחת
                 todays_display_src["target_base"] = (todays_display_src["last_close"] * (1 + strategy_mod.FIXED_TARGET_PCT)).round(2)
                 for _price_col in ("entry_limit", "target_base", "stop_loss"):
@@ -4232,10 +4232,10 @@ with _tab_slot_backtest.container():
                     "סיגנל", ["🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות", "הכל"], horizontal=True, key="backtest_signal",
                     index=0,
                 )
-                _target_labels = {f"{t}%": t for t in (2, 3, 3.5, 4, 5, 6, 7, 8, 9, 10)}
+                _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6, 7, 8, 9, 10)}
                 _target_choice = st.radio(
                     "יעד רווח", list(_target_labels), horizontal=True, key="backtest_target_pct",
-                    index=min(range(len(_target_labels)), key=lambda i: abs(list(_target_labels.values())[i] - strategy_mod.TARGET_PCT)),
+                    index=list(_target_labels.values()).index(int(round(strategy_mod.TARGET_PCT))),
                 )
                 target_pct = _target_labels[_target_choice]
                 _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3, "4-8 ימים": 8, "9-13 ימים": 13, "14 ימים ומעלה": 30}
@@ -5209,7 +5209,7 @@ with _tab_slot_history.container():
                 return bool((window["Low"] <= r["forecast_stop"]).any())
 
             def _forecast_outcome(r: dict) -> str:
-                # יעד לפי האסטרטגיה הנוכחית (+FIXED_TARGET_PCT מעל הכניסה בפועל, ר' strategy.live_target_price) -
+                # יעד לפי האסטרטגיה הנוכחית (+3% מעל הכניסה בפועל, ר' strategy.live_target_price) -
                 # לא ה-forecast_target ששמור בעסקה (חושב בזמנו לפי יעד ישן של 5%).
                 if r["exit_price"] >= live_target_price(r["entry_price"], r.get("forecast_stop"), None):
                     return "🎯 הגיע ליעד"
@@ -5583,7 +5583,7 @@ with _market_panel_box:
         _enough = "gross" in _ft
         with _pcols[1]:
             render_stat_card(
-                f"הגיעו ליעד +{strategy_mod.FIXED_TARGET_PCT * 100:g}%",
+                f"הגיעו ליעד +{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%",
                 f"{_ft['hit_rate']:.0f}%" if _enough else "—",
                 f"{_ft['hits']} מתוך {_ft['resolved']}" if _enough else "מעט נתונים",
             )
