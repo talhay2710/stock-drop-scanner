@@ -4089,6 +4089,9 @@ with _tab_slot_today.container():
                     (idx_df["last_close_date"] == israel_today())
                 ])
             near_miss_df = pd.concat(near_miss_frames).sort_values("שינוי יומי (%)") if near_miss_frames else pd.DataFrame()
+            # מניה שנמצאת בכמה מדדים סרוקים (למשל קמטק גם בת"א 35 וגם בת"א 125) מופיעה פעם אחת בלבד (13.10.2026)
+            if not near_miss_df.empty and "טיקר" in near_miss_df.columns:
+                near_miss_df = near_miss_df.drop_duplicates(subset="טיקר", keep="first")
 
             if not near_miss_df.empty:
                 with _slot_nearmiss, st.container(border=True):
@@ -5378,8 +5381,13 @@ with _market_panel_box:
         # שסטרימליט עלול להציג לרגע תוכן ישן מהטאב הקודם באזור הזה (למטה,
         # אחרי כל הטאבים) - לפני שהנתונים החדשים מגיעים ודוחקים אותו למקומו.
         _warm_days = st.session_state.get("movers_cumulative_days", 3)
+        # חימום אופציונלי: כשל רגעי בשליפת רכיבי מדד (למשל Nasdaq API) לא אמור להפיל את כל העמוד שמתחת
+        # (13.10.2026 - RuntimeError כאן עצר את הגרפים, זמני המסחר והחדשות)
         for _warm_idx in (cfg.get("indices") or ALL_INDICES):
-            get_all_changes(_warm_idx, _warm_days)
+            try:
+                get_all_changes(_warm_idx, _warm_days)
+            except Exception:
+                pass
 
     _render_market_panel()
 
