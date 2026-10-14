@@ -111,13 +111,12 @@ _V2_CSS = """
             }
             /* טבלאות עצמאיות (יומן עסקאות, ביצועים לפי סיגנל) בכרטיס לבן */
             [data-testid="stMain"] .trade-journal-table, [data-testid="stMain"] div.by-signal-table {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22); border-radius: 14px; padding: 4px 6px;
+                background: rgba(120,120,120,0.07); border: 1px solid rgba(128,128,128,0.22); border-radius: 14px; padding: 4px 6px;
             }
-            /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): לבנים כמו הפאנל בדף הבית - בלי זה הם שקופים ונראים אפורים
-               על רקע העמוד */
+            /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): אותו גוון כמו כרטיס "שווי כולל" (NEUTRAL_BG) */
             [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_"],
             [data-testid="stMain"] div[class*="st-key-chart_card_"], [data-testid="stMain"] [data-testid="stExpander"] details {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
+                background: rgba(120,120,120,0.07); border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
             }
             /* סיידבר (14.10.2026): רקע מעט עמוק יותר מהעמוד, והכרטיסים שבתוכו לבנים רכים כמו הפאנל הראשי */
             [data-testid="stSidebar"] { background: #e9edf3 !important; }
@@ -133,7 +132,7 @@ _V2_CSS = """
         }
         .v2sec > span:first-child { display: inline-flex; align-items: center; gap: 14px; }
         /* כרטיס "מצב תיק" בטאב אחזקות: מילוי שקוף-אפור על רקע העמוד האפור-כחלחל יצא כהה ואפרורי - לבן עם מסגרת רכה (14.10.2026) */
-        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"]:not([style*="height: 125px"]) { background: #ffffff !important; border-color: rgba(128,128,128,0.22) !important; }
+        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"]:not([style*="height: 125px"]) { border-color: rgba(128,128,128,0.22) !important; }
         .v2sec { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
@@ -900,8 +899,13 @@ with st.container(key="nav_tabs_row"):
                 flex: 1 1 calc(33.33% - 6px) !important;
             }
             div[class*="st-key-nav_tabs_row"] button {
-                white-space: nowrap !important; padding-left: 6px !important; padding-right: 6px !important;
+                white-space: nowrap !important; padding-left: 3px !important; padding-right: 3px !important;
                 font-size: 0.82rem !important;
+            }
+            div[class*="st-key-nav_tabs_row"] button p, div[class*="st-key-nav_tabs_row"] button div { font-size: inherit !important; }
+            /* מסך צר (360px ומטה): "מניות מובילות" נחתך בכפתור - גופן וריפוד קטנים עוד יותר (14.10.2026) */
+            @media (max-width: 380px) {
+                div[class*="st-key-nav_tabs_row"] button { font-size: 0.74rem !important; padding-left: 2px !important; padding-right: 2px !important; }
             }
         }
         </style>
@@ -3311,11 +3315,14 @@ with _tab_slot_movers.container():
             # זה גרם ל-S&P500 "להיתקע" כברירת מחדל, תלוי בסדר שם). key= כדי
             # שבחירה ידנית באותו session תישמר גם כשעוברים בין טאבים וחוזרים.
             _default_idx = ALL_INDICES.index("TA35")
-            movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
-                                         index=_default_idx, format_func=lambda i: INDEX_LABELS[i],
-                                         key="movers_index_select")
-            if movers_index not in scanning_indices:
-                st.caption(f"⚠ שים לב: {INDEX_LABELS[movers_index]} לא נמצא כרגע ברשימת המדדים שנסרקים להתראות (בסיידבר) - זו צפייה בלבד.")
+            # פקדי הצפייה (מדד, מסחר פעיל, ימים, רענון) בכרטיס אחד (14.10.2026)
+            _ctl = st.container(border=True, key="card_movers_controls")
+            with _ctl:
+                movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
+                                             index=_default_idx, format_func=lambda i: INDEX_LABELS[i],
+                                             key="movers_index_select")
+                if movers_index not in scanning_indices:
+                    st.caption(f"⚠ שים לב: {INDEX_LABELS[movers_index]} לא נמצא כרגע ברשימת המדדים שנסרקים להתראות (בסיידבר) - זו צפייה בלבד.")
 
             # movers_days נקרא כאן לפי הערך שנשמר ב-session_state, כי ה-widget עצמו
             # מוצג רק בהמשך הפונקציה (צמוד לעמודת "מצטבר" בטבלה, למטה) - הערך שממנו
@@ -3344,51 +3351,54 @@ with _tab_slot_movers.container():
                 # תיוג טריות גלוי מעל הטבלה - כדי שיהיה ברור אם "שינוי יומי" הוא ממש
                 # מסחר נוכחי (השוק פתוח והנתון מהיום) או שהוא נכון לסגירת יום מסחר
                 # קודם (סוף שבוע, לפני הפתיחה, או שהמקור פשוט עוד לא התעדכן).
-                _movers_rep_date = movers_df["last_close_date"].max()
-                if _movers_rep_date == israel_today() and is_market_open(movers_index):
-                    st.caption("🟢 מסחר פעיל")
-                elif pd.notna(_movers_rep_date):
-                    _movers_stale = market_data.is_data_stale(_movers_rep_date, "X.TA" if movers_index in ("TA35", "TA125") else "")
-                    _movers_warn = "⚠️ " if _movers_stale else ""
-                    st.caption(f"{_movers_warn}נכון לסגירת מסחר ב-{_movers_rep_date.strftime('%d/%m/%Y')}")
+                with _ctl:
+                    _movers_rep_date = movers_df["last_close_date"].max()
+                    if _movers_rep_date == israel_today() and is_market_open(movers_index):
+                        st.caption("🟢 מסחר פעיל")
+                    elif pd.notna(_movers_rep_date):
+                        _movers_stale = market_data.is_data_stale(_movers_rep_date, "X.TA" if movers_index in ("TA35", "TA125") else "")
+                        _movers_warn = "⚠️ " if _movers_stale else ""
+                        st.caption(f"{_movers_warn}נכון לסגירת מסחר ב-{_movers_rep_date.strftime('%d/%m/%Y')}")
 
                 def _section_header(color: str, word_dir: str, count: int) -> None:
                     st.image(render_text_image(f"מניות {word_dir} ({count})", color, font_size=17))
 
-                with st.container(key="movers_days_row"):
-                    st.markdown(
-                        """
-                        <style>
-                        div[class*="st-key-movers_days_row"] {
-                            margin-top: -14px;
-                        }
-                        div[class*="st-key-movers_days_row"] div[data-testid="stHorizontalBlock"] {
-                            gap: 6px !important; align-items: center !important;
-                        }
-                        div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:first-child {
-                            width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
-                        }
-                        div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
-                            /* 130px = הרוחב הצר ביותר שנמצא בבדיקה אמפירית שעדיין מציג
-                               כפתורי +/- (110px=0 כפתורים, 130px=2 - Streamlit לא מרנדר
-                               אותם בכלל מתחת לזה, לא רק מסתיר ב-CSS). */
-                            width: 130px !important; flex: 0 0 auto !important;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    _days_label_col, _days_input_col, _ = st.columns([3, 1, 6])
-                    with _days_label_col:
-                        st.caption("📉 מספר ימים לשינוי מצטבר")
-                    with _days_input_col:
-                        movers_days = st.number_input(
-                            "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
-                            value=3, key="movers_cumulative_days", label_visibility="collapsed",
+                with _ctl:
+                    with st.container(key="movers_days_row"):
+                        st.markdown(
+                            """
+                            <style>
+                            div[class*="st-key-movers_days_row"] {
+                                margin-top: -14px;
+                            }
+                            div[class*="st-key-movers_days_row"] div[data-testid="stHorizontalBlock"] {
+                                gap: 6px !important; align-items: center !important;
+                            }
+                            div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:first-child {
+                                width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
+                            }
+                            div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
+                                /* 130px = הרוחב הצר ביותר שנמצא בבדיקה אמפירית שעדיין מציג
+                                   כפתורי +/- (110px=0 כפתורים, 130px=2 - Streamlit לא מרנדר
+                                   אותם בכלל מתחת לזה, לא רק מסתיר ב-CSS). */
+                                width: 130px !important; flex: 0 0 auto !important;
+                            }
+                            </style>
+                            """,
+                            unsafe_allow_html=True,
                         )
+                        _days_label_col, _days_input_col, _ = st.columns([3, 1, 6])
+                        with _days_label_col:
+                            st.caption("📉 מספר ימים לשינוי מצטבר")
+                        with _days_input_col:
+                            movers_days = st.number_input(
+                                "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
+                                value=3, key="movers_cumulative_days", label_visibility="collapsed",
+                            )
 
-                if st.button("🔄 רענן נתוני שוק"):
-                    get_all_changes.clear()
+                with _ctl:
+                    if st.button("🔄 רענן נתוני שוק"):
+                        get_all_changes.clear()
 
                 # שתי הטבלאות (412px כ"א, ר' truncate_columns ב-_render_movers_style_table)
                 # ב-st.columns(2) צריכות ~850px+ כדי לשבת זו לצד זו בלי להידחס - ברוחב
