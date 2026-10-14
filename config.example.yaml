@@ -64,3 +64,6 @@ telegram_message_types:
   health_heartbeat: true
   health_dashboard: true
 ui_v2: true
+strategy_selector: true
+strategy_card: balanced
+risk_level: balanced
