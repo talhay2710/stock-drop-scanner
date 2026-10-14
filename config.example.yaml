@@ -66,4 +66,4 @@ telegram_message_types:
 ui_v2: true
 strategy_selector: true
 strategy_card: balanced
-risk_level: balanced
+risk_level: conservative
