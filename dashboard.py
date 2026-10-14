@@ -2593,7 +2593,7 @@ with st.sidebar:
             _autosave_strategy()
 
         with st.container(border=True, key="strategy_selector_card"):
-            st.markdown("**🎯 אסטרטגיה**")
+            st.markdown("**🎯 אסטרטגיה ורמת סיכון**")
             _card_keys, _risk_keys = list(strategy_mod.SCORECARDS), list(strategy_mod.RISK_LEVELS)
             st.selectbox(
                 "סוג אסטרטגיה", _card_keys, index=_card_keys.index(strategy_mod.active_card_key()),
