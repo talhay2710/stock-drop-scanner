@@ -101,6 +101,18 @@ _V2_CSS = """
             }
             div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
             div[class*="st-key-idx_card_"] { border-radius: 14px !important; box-shadow: none !important; }
+            /* כרטיסי סטטיסטיקה בגוון ירוק/אדום (יומן עסקאות, ביצועים וכו'): מילוי שקוף על רקע העמוד האפור יצא בוצי - לבן אטום עם
+               אותו גוון מעליו, כך שנראה זהה לכרטיסים שבתוך הפאנל הלבן */
+            [data-testid="stMain"] div[style*="rgba(6, 128, 107, 0.1)"][style*="border-radius"] {
+                background-color: #ffffff !important; background-image: linear-gradient(rgba(6,128,107,0.10), rgba(6,128,107,0.10)) !important;
+            }
+            [data-testid="stMain"] div[style*="rgba(204, 47, 60, 0.1)"][style*="border-radius"] {
+                background-color: #ffffff !important; background-image: linear-gradient(rgba(204,47,60,0.10), rgba(204,47,60,0.10)) !important;
+            }
+            /* טבלאות עצמאיות (יומן עסקאות, ביצועים לפי סיגנל) בכרטיס לבן */
+            [data-testid="stMain"] .trade-journal-table, [data-testid="stMain"] div.by-signal-table {
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22); border-radius: 14px; padding: 4px 6px;
+            }
             /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): לבנים כמו הפאנל בדף הבית - בלי זה הם שקופים ונראים אפורים
                על רקע העמוד */
             [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_"],
