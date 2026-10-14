@@ -2596,7 +2596,7 @@ with st.sidebar:
             st.markdown("**🎯 אסטרטגיה**")
             _card_keys, _risk_keys = list(strategy_mod.SCORECARDS), list(strategy_mod.RISK_LEVELS)
             st.selectbox(
-                "כרטיס ניקוד", _card_keys, index=_card_keys.index(strategy_mod.active_card_key()),
+                "סוג אסטרטגיה", _card_keys, index=_card_keys.index(strategy_mod.active_card_key()),
                 format_func=lambda k: strategy_mod.SCORECARDS[k]["label"], key="settings_strategy_card",
                 on_change=_autosave_strategy,
                 help="איפה עוברים הגבולות בין א' (לקנות), ב' (לחכות) וג' (לא לקנות). הניקוד עצמו זהה בכל הכרטיסים.\n"
