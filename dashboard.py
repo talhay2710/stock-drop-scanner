@@ -101,6 +101,13 @@ _V2_CSS = """
             }
             div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
             div[class*="st-key-idx_card_"] { border-radius: 14px !important; box-shadow: none !important; }
+            /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): לבנים כמו הפאנל בדף הבית - בלי זה הם שקופים ונראים אפורים
+               על רקע העמוד */
+            [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_movers_"],
+            [data-testid="stMain"] div[class*="st-key-card_watchlist"], [data-testid="stMain"] div[class*="st-key-card_perf_controls"],
+            [data-testid="stMain"] div[class*="st-key-chart_card_"] {
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
+            }
             /* סיידבר (14.10.2026): רקע מעט עמוק יותר מהעמוד, והכרטיסים שבתוכו לבנים רכים כמו הפאנל הראשי */
             [data-testid="stSidebar"] { background: #e9edf3 !important; }
             [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
@@ -114,6 +121,8 @@ _V2_CSS = """
             }
         }
         .v2sec > span:first-child { display: inline-flex; align-items: center; gap: 14px; }
+        /* כרטיס "מצב תיק" בטאב אחזקות: מילוי שקוף-אפור על רקע העמוד האפור-כחלחל יצא כהה ואפרורי - לבן עם מסגרת רכה (14.10.2026) */
+        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"] { background: #ffffff !important; border-color: rgba(128,128,128,0.22) !important; }
         .v2sec { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
@@ -3396,11 +3405,11 @@ with _tab_slot_movers.container():
                     )
                     mc1, mc2 = st.columns(2, gap="medium")
                     with mc1:
-                        with st.container(border=True):
+                        with st.container(border=True, key="card_movers_down"):
                             _section_header(NEG_COLOR, "בירידה", len(down_df))
                             _render(down_df)
                     with mc2:
-                        with st.container(border=True):
+                        with st.container(border=True, key="card_movers_up"):
                             _section_header(POS_COLOR, "בעלייה", len(up_df))
                             _render(up_df)
 
@@ -3408,7 +3417,7 @@ with _tab_slot_movers.container():
             _wl_items = store.get_watchlist(_wl_conn)
             _wl_conn.close()
 
-            with st.container(border=True):
+            with st.container(border=True, key="card_watchlist"):
                 st.image(render_text_image(f"מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
                 st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה")
 
@@ -4362,7 +4371,7 @@ with _tab_slot_backtest.container():
             st.caption(_BACKTEST_CAPTION)
             st.info("אין עדיין התראות להערכה. הרץ סריקה כדי להתחיל לצבור נתונים.")
         else:
-            with st.container(border=True):
+            with st.container(border=True, key="card_perf_controls"):
                 st.markdown(f"**🔍 {_BACKTEST_CAPTION}**")
                 _backtest_scope = st.radio(
                     "היקף הבדיקה", ["כל ההתראות", "התראות שמומשו"], horizontal=True, key="backtest_scope",
@@ -4957,7 +4966,7 @@ with _tab_slot_portfolio.container():
                 """
                 card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
 
-                with st.container(border=True):
+                with st.container(border=True, key="holding_card_" + re.sub(r"\W", "_", str(row["ticker"]))):
                     st.markdown(card_html, unsafe_allow_html=True)
                     # אפור נייטרלי כברירת מחדל (לא ירוק/אדום לפי רווח/הפסד גולמי) -
                     # הכרטיס כבר עמוס באדום/ירוק (פילס, בר, מספרים) לפי רווח/הפסד,
