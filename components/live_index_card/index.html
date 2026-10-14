@@ -127,6 +127,9 @@ function update() {
     pctSpan.style.background = rgba(color, 0.12);
     pctSpan.style.borderRadius = "999px";
     pctSpan.style.padding = "1px 9px";
+    document.getElementById("row1").style.alignItems = "center";
+    pctSpan.style.lineHeight = "1.25";
+    nameSpan.style.lineHeight = "1.25";
   }
   graphWrap.innerHTML = buildSparklineSvg(prices, color);
   rangeLabel.textContent = (args.labels && args.labels[String(opt)]) || "";
