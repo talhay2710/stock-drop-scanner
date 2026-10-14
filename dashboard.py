@@ -95,7 +95,8 @@ _V2_CSS = """
                 box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
             }
             div[class*="st-key-nav_tabs_row"] {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 16px !important;
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 12px !important;
+                border-left: 3px solid #3B6EA5 !important; border-right: 3px solid #3B6EA5 !important;
                 padding: 6px !important; box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
             }
             div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
@@ -551,6 +552,16 @@ st.markdown(
     [data-testid="stSidebar"] [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) {
         margin-top: 8px !important;
     }
+    /* רווחים אחידים בין כרטיסי הסיידבר (14.10.2026, "הרווחים בסייד בר לא זהים"): הכלל למעלה הוסיף 8px גם ל-wrapper של
+       כרטיס שלם שמכיל expander (לא רק ל-expander עצמו), כך שבין כרטיס ההגדרות לכרטיס הקבוצות יצא 21px ובין השאר 13px.
+       בין כל שני כרטיסים עכשיו 12px, כמו בין ה-expanders שבתוך הכרטיס. */
+    [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] { gap: 12px !important; }
+    [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"] {
+        margin-top: 0 !important;
+    }
+    /* תווית ("ש"ח"/"$") ושדה המספר מתחתיה מיושרים לאותו קצה: לשדה היה ריפוד פנימי של 8px מימין, והתווית ללא - הערך
+       ישב 9px פנימה מהתווית שמעליו */
+    [data-testid="stSidebar"] [data-testid="stNumberInput"] input { padding-right: 0 !important; }
     /* בלי overflow:hidden כאן, כשה-JS של Streamlit מכווץ את הסיידבר (מסך צר/
     מובייל - aria-expanded="false", width:0 + transform), התוכן הפנימי שלו
     (שמניח 300px רוחב) ממשיך "לדלוף" ונראה כפס טקסט אנכי דחוס בקצה המסך -
