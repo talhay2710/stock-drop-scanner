@@ -103,9 +103,8 @@ _V2_CSS = """
             div[class*="st-key-idx_card_"] { border-radius: 14px !important; box-shadow: none !important; }
             /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): לבנים כמו הפאנל בדף הבית - בלי זה הם שקופים ונראים אפורים
                על רקע העמוד */
-            [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_movers_"],
-            [data-testid="stMain"] div[class*="st-key-card_watchlist"], [data-testid="stMain"] div[class*="st-key-card_perf_controls"],
-            [data-testid="stMain"] div[class*="st-key-chart_card_"] {
+            [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_"],
+            [data-testid="stMain"] div[class*="st-key-chart_card_"], [data-testid="stMain"] [data-testid="stExpander"] details {
                 background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
             }
             /* סיידבר (14.10.2026): רקע מעט עמוק יותר מהעמוד, והכרטיסים שבתוכו לבנים רכים כמו הפאנל הראשי */
@@ -122,7 +121,7 @@ _V2_CSS = """
         }
         .v2sec > span:first-child { display: inline-flex; align-items: center; gap: 14px; }
         /* כרטיס "מצב תיק" בטאב אחזקות: מילוי שקוף-אפור על רקע העמוד האפור-כחלחל יצא כהה ואפרורי - לבן עם מסגרת רכה (14.10.2026) */
-        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"] { background: #ffffff !important; border-color: rgba(128,128,128,0.22) !important; }
+        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"]:not([style*="height: 125px"]) { background: #ffffff !important; border-color: rgba(128,128,128,0.22) !important; }
         .v2sec { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
@@ -1527,7 +1526,7 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             )
             _total_value = _dom_agg["invested"] + _dom_agg["pnl"]
             value_summary = (
-                "🪙 שווי אחזקות", _total_value, _dom_agg["invested"],
+                "🪙 שווי כולל", _total_value, _dom_agg["invested"],
                 CURRENCY_SYMBOLS.get(_dominant_ccy, _dominant_ccy), len(holdings_df),
             )
 
@@ -3985,7 +3984,7 @@ with _tab_slot_today.container():
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
                 st.session_state.setdefault("open_alert_id", None)
-                with _slot_table, st.container(border=True):
+                with _slot_table, st.container(border=True, key="card_alerts_table"):
                     if _no_new_alerts_yet and not _market_open_now:
                         st.info("השווקים סגורים - ההתראות יתחדשו עם פתיחת המסחר.")
                     elif _no_new_alerts_yet:
@@ -4303,7 +4302,7 @@ with _tab_slot_today.container():
                 near_miss_df = near_miss_df.drop_duplicates(subset="טיקר", keep="first")
 
             if not near_miss_df.empty:
-                with _slot_nearmiss, st.container(border=True):
+                with _slot_nearmiss, st.container(border=True, key="card_near_miss"):
                     st.image(render_text_image("קרוב לסף התראה", NEAR_MISS_COLOR, font_size=17))
                     _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
