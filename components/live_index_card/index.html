@@ -78,15 +78,26 @@ function buildSparklineSvg(prices, color) {
   var points = coords.map(function (c) { return c[0].toFixed(1) + "," + c[1].toFixed(1); }).join(" ");
   var baseY = coords[0][1];
   var end = coords[coords.length - 1];
+  var area = "";
+  if (args.v2) {
+    area = '<polygon points="' + points + ' ' + width + ',' + height + ' 0,' + height + '" fill="' + rgba(color, 0.12) + '"/>';
+  }
   return (
     '<svg width="100%" height="' + height + '" viewBox="0 0 ' + width + ' ' + height +
-    '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
+    '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' + area +
     '<line x1="0" y1="' + baseY.toFixed(1) + '" x2="' + width + '" y2="' + baseY.toFixed(1) +
     '" stroke="' + color + '" stroke-width="1" stroke-dasharray="2,3" opacity="0.35"/>' +
     '<circle cx="' + end[0].toFixed(1) + '" cy="' + end[1].toFixed(1) + '" r="3" fill="' + color + '"/>' +
     '<polyline points="' + points + '" fill="none" stroke="' + color +
     '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>'
   );
+}
+
+function rgba(hex, alpha) {
+  var h = (hex || "#888888").replace("#", "");
+  if (h.length === 3) { h = h.split("").map(function (c) { return c + c; }).join(""); }
+  var n = parseInt(h, 16);
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + alpha + ")";
 }
 
 function signedPct(v) {
@@ -108,6 +119,11 @@ function update() {
   nameSpan.textContent = args.label;
   pctSpan.textContent = signedPct(rangePct);
   pctSpan.style.color = color;
+  if (args.v2) {
+    pctSpan.style.background = rgba(color, 0.12);
+    pctSpan.style.borderRadius = "999px";
+    pctSpan.style.padding = "1px 9px";
+  }
   graphWrap.innerHTML = buildSparklineSvg(prices, color);
   rangeLabel.textContent = (args.labels && args.labels[String(opt)]) || "";
   slider.value = optIdx;

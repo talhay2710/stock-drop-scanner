@@ -83,6 +83,59 @@ from src import strategy as strategy_mod, post_alert, strategy_stats, forward_te
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
+# שדרוג עיצובי (14.10.2026): ui_v2 ב-config.yaml. כבוי כברירת מחדל - חזרה למצב הקודם = ui_v2: false (או למחוק את
+# המפתח) ורענון, בלי שינוי קוד. כל מה שקשור לשדרוג מותנה ב-UI_V2.
+UI_V2 = bool(load_config().get("ui_v2", False))
+
+_V2_CSS = """
+        @media (prefers-color-scheme: light) {
+            [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"] { background: #eef1f5 !important; }
+            div[class*="st-key-market_panel"] {
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 16px !important;
+                box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
+            }
+            div[class*="st-key-nav_tabs_row"] {
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 16px !important;
+                padding: 6px !important; box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
+            }
+            div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
+            div[class*="st-key-idx_card_"] { border-radius: 14px !important; box-shadow: none !important; }
+        }
+        .v2sec { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
+        .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
+                 background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
+        @media (min-width: 481px) {
+            [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
+            [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
+        }
+        @media (min-width: 1200px) {
+            [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(2):not([style*="nowrap"]) { font-size: 1.85rem !important; }
+        }
+"""
+
+_SECTION_ICONS = {
+    "📊": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    "💼": '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+    "🕒": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "📰": '<path d="M4 4h13a1 1 0 0 1 1 1v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2zM18 8h3v11a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h4"/>',
+    "🧪": '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
+}
+
+
+def _section_title(text: str) -> None:
+    """כותרת סעיף. בשדרוג העיצובי (UI_V2): אייקון קווי בריבוע עגול במקום האימוג'י; אחרת st.subheader כרגיל."""
+    emoji, _, rest = text.partition(" ")
+    icon = _SECTION_ICONS.get(emoji)
+    if not (UI_V2 and icon):
+        st.subheader(text)
+        return
+    st.markdown(
+        f'<h3 class="v2sec"><span class="v2ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" '
+        f'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        f'{icon}</svg></span>{html.escape(rest)}</h3>',
+        unsafe_allow_html=True,
+    )
+
 st.set_page_config(page_title="DipRadar", layout="wide")
 
 components.html(
@@ -760,7 +813,7 @@ with st.container(key="nav_tabs_row"):
             }
         }
         </style>
-        """,
+        """.replace("</style>", (_V2_CSS if UI_V2 else "") + "</style>"),
         unsafe_allow_html=True,
     )
     _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
@@ -1118,7 +1171,7 @@ def render_index_card(label: str, val: float | None, trading_open: bool, index_k
 
             _card_args = {
                 "label": label, "options": _options, "series": _series, "labels": _labels,
-                "pos_color": POS_COLOR, "neg_color": NEG_COLOR, "initial_index": 0,
+                "pos_color": POS_COLOR, "neg_color": NEG_COLOR, "initial_index": 0, "v2": UI_V2,
             }
             _card_html = _get_live_index_card_template().replace("__ARGS_JSON__", json.dumps(_card_args))
             components.html(_card_html, height=100)
@@ -5384,7 +5437,7 @@ with _market_panel_box:
             _fresh_df[_fresh_df.get("bought") == 1] if (not _fresh_df.empty and "bought" in _fresh_df.columns)
             else pd.DataFrame()
         )
-        st.subheader("📊 מצב המדדים")
+        _section_title("📊 מצב המדדים")
         index_changes = get_index_changes()
         # שליפה בודדת שנכשלה זמנית (למשל rate-limit של Yahoo) לא אמורה להבהב
         # ל"אין נתונים" בכל רענון של ה-fragment (כל 60 שניות) - שומרים את הערך
@@ -5417,7 +5470,7 @@ with _market_panel_box:
                     unsafe_allow_html=True,
                 )
                 st.divider()
-                st.subheader("💼 התיק שלי")
+                _section_title("💼 התיק שלי")
             _pf_cols = st.columns(4, gap="medium")
             if _value_summary:
                 with _pf_cols[0]:
@@ -5619,12 +5672,12 @@ with _market_panel_box:
     _ft_ready = get_forward_test_summary(forward_test.position_size(cfg))
     if _ft_ready and "gross" in _ft_ready:
         st.divider()
-        st.subheader("🧪 מעקב קדימה - האסטרטגיה")
+        _section_title("🧪 מעקב קדימה - האסטרטגיה")
         _render_forward_test()
 
     st.divider()
 
-    st.subheader('🕒 זמני מסחר בישראל ובארה"ב')
+    _section_title('🕒 זמני מסחר בישראל ובארה"ב')
     mcols = st.columns(2, gap="medium")
     with mcols[0]:
         render_market_card('ארה"ב <span dir="ltr">(S&P 500 / NASDAQ)</span>', "US")
@@ -5661,16 +5714,27 @@ def _render_news_section() -> None:
         def _news_banner_html(title: str, source: str, link: str | None) -> str:
             title = html.escape(title or "")
             source = html.escape(source or "")
-            inner = (
-                f'<div style="font-size:0.92rem; font-weight:600; line-height:1.45;">{title}</div>'
-                f'<div style="font-size:0.75rem; opacity:0.6; margin-top:6px;">📌 {source}</div>'
-            )
-            card = (
-                f'<div class="news-card" style="border-radius:10px; padding:12px 16px; '
-                f'background:rgba(128,128,128,0.05); border:1px solid rgba(128,128,128,0.3); '
-                f'border-right:3px solid {_NEWS_ACCENT}; '
-                f'box-shadow:0 1px 3px rgba(0,0,0,0.05);">{inner}</div>'
-            )
+            if UI_V2:
+                inner = (
+                    f'<div style="font-size:1rem; font-weight:600; line-height:1.45;">{title}</div>'
+                    f'<div style="font-size:0.78rem; color:#6b7280; margin-top:8px;">{source}</div>'
+                )
+                card = (
+                    f'<div class="news-card" style="border-radius:12px; padding:14px 18px; background:#ffffff; '
+                    f'border:1px solid rgba(128,128,128,0.25); border-right:3px solid {_NEWS_ACCENT}; '
+                    f'box-shadow:0 1px 3px rgba(16,24,40,0.05);">{inner}</div>'
+                )
+            else:
+                inner = (
+                    f'<div style="font-size:0.92rem; font-weight:600; line-height:1.45;">{title}</div>'
+                    f'<div style="font-size:0.75rem; opacity:0.6; margin-top:6px;">📌 {source}</div>'
+                )
+                card = (
+                    f'<div class="news-card" style="border-radius:10px; padding:12px 16px; '
+                    f'background:rgba(128,128,128,0.05); border:1px solid rgba(128,128,128,0.3); '
+                    f'border-right:3px solid {_NEWS_ACCENT}; '
+                    f'box-shadow:0 1px 3px rgba(0,0,0,0.05);">{inner}</div>'
+                )
             if link:
                 link = html.escape(link, quote=True)
                 return (f'<a href="{link}" target="_blank" rel="noopener" style="text-decoration:none; '
@@ -5755,5 +5819,5 @@ def _render_news_section() -> None:
 # חדשות כלכליות - בתוך אותה מסגרת אחת של שאר האתר (market_panel), מופרדות בקו כמו שאר הסעיפים (13.10.2026)
 with _market_panel_box:
     st.divider()
-    st.subheader("📰 חדשות כלכליות")
+    _section_title("📰 חדשות כלכליות")
     _render_news_section()

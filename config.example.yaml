@@ -65,3 +65,5 @@ telegram_message_types:
   health_startup: true
   health_heartbeat: true
   health_dashboard: true
+# שדרוג עיצובי (14.10.2026): true = העיצוב החדש, false = העיצוב הקודם. ר' dashboard.py UI_V2
+ui_v2: false
