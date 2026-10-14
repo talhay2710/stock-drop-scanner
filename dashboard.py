@@ -159,6 +159,15 @@ _V2_CSS = """
             [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_threshold"]) + [data-testid="stColumn"],
             [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_threshold"]) + [data-testid="stColumn"],
             [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_days"]) + [data-testid="stColumn"] { transform: translateX(70px); }
+            /* כפתור "סריקת שווקים ידנית": כמו קודם (טקסט עם חץ, בלי מסגרת), רק שהאייקון מיושר מתחת לתיבת הסימון שמעליו
+               (קצה ימין של התיבה 724px, של האייקון 711px => ריפוד התחלה 0 במקום 12px) */
+            [data-testid="stSidebar"] div[class*="st-key-sidebar_scan_button"] button { padding-inline-start: 0 !important; }
+            /* ריחוף בסיידבר: אותו גוון תכלת של שאר האתר - rgba(59,110,165,0.15), כמו תגיות בחירת המדדים (14.10.2026) */
+            [data-testid="stSidebar"] [data-testid="stExpander"] summary:hover,
+            [data-testid="stSidebar"] div[class*="st-key-sidebar_scan_button"] button:hover,
+            [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] button:hover:enabled {
+                background-color: rgba(59,110,165,0.15) !important;
+            }
             [data-testid="stSidebar"] [data-baseweb="tag"] { font-size: 12px !important; padding: 0 6px !important; min-height: 24px !important; margin: 2px !important; }
             [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
             [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
@@ -931,6 +940,21 @@ st.markdown(
     <style>
     [data-testid="stNumberInput"] button:has(> svg) {
         width: auto !important; min-width: 0 !important; flex: 0 0 auto !important;
+    }
+    /* כפתורי +/- בשדות מספר: מצב ה-hover/focus הכחול (צבע ראשי) "נתקע" אחרי לחיצה, ולפעמים נראה על שני הכפתורים יחד
+       (14.10.2026). רק hover בפועל מקבל גוון עדין; focus/active אחרי לחיצה נשארים שקופים */
+    [data-testid="stNumberInputContainer"] button:focus,
+    [data-testid="stNumberInputContainer"] button:focus-visible,
+    [data-testid="stNumberInputContainer"] button:active {
+        background: transparent !important; color: inherit !important; box-shadow: none !important; outline: none !important;
+    }
+    @media (hover: hover) {
+        [data-testid="stNumberInputContainer"] button:hover:enabled:not(:focus) {
+            background: rgba(59,110,165,0.15) !important; color: #3b6ea5 !important;
+        }
+    }
+    @media (hover: none) {
+        [data-testid="stNumberInputContainer"] button:hover { background: transparent !important; color: inherit !important; }
     }
     </style>
     """,
