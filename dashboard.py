@@ -119,7 +119,15 @@ _V2_CSS = """
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
         @media (min-width: 481px) {
             /* הכרטיס הראשון בסיידבר מתחיל על אותו קו עם שורת הניווט (נמדד: ניווט 128px, כרטיס 44px => 84px) */
-            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 84px !important; }
+            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 84px !important; padding-bottom: 16px !important; }
+            /* הסיידבר נכנס למסך אחד (14.10.2026): אלמנטי ה-<style> הריקים (גובה 0) בתוך הכרטיסים עדיין מוסיפים 4px רווח כל אחד */
+            [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"] > [data-testid="stElementContainer"]:has(style),
+            [data-testid="stSidebar"] div[class*="st-key-exp_group_card"] > [data-testid="stElementContainer"]:has(style),
+            [data-testid="stSidebar"] div[class*="st-key-channels_card"] > [data-testid="stElementContainer"]:has(style) { display: none !important; }
+            [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
+            [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
+            [data-testid="stSidebar"] div[class*="st-key-channels_card"] { gap: 2px !important; }
+            [data-testid="stSidebar"] [data-baseweb="tag"] { font-size: 12px !important; padding: 0 6px !important; min-height: 24px !important; margin: 2px !important; }
             [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
             [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
         }
