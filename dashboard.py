@@ -133,7 +133,8 @@ _V2_CSS = """
         }
         .v2sec > span:first-child { display: inline-flex; align-items: center; gap: 14px; }
         /* כרטיס "מצב תיק" בטאב אחזקות: מילוי שקוף-אפור על רקע העמוד האפור-כחלחל יצא כהה ואפרורי - לבן עם מסגרת רכה (14.10.2026) */
-        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"]:not([style*="height: 125px"]) { border-color: rgba(128,128,128,0.22) !important; }
+        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"]:not([style*="height: 125px"]):not([style*="min-width: 120px"]) { background: #ffffff !important; border-color: rgba(128,128,128,0.22) !important; }
+        /* כרטיסי _stat_card (ביצועים/יומן: "סה"כ עסקאות סגורות", "התראות שנבדקו"...) נשארים באפור של "שווי כולל" - בכוונה */
         .v2sec { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
