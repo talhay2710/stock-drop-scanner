@@ -111,12 +111,13 @@ _V2_CSS = """
             }
             /* טבלאות עצמאיות (יומן עסקאות, ביצועים לפי סיגנל) בכרטיס לבן */
             [data-testid="stMain"] .trade-journal-table, [data-testid="stMain"] div.by-signal-table {
-                background: rgba(120,120,120,0.07); border: 1px solid rgba(128,128,128,0.22); border-radius: 14px; padding: 4px 6px;
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22); border-radius: 14px; padding: 4px 6px;
             }
-            /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): אותו גוון כמו כרטיס "שווי כולל" (NEUTRAL_BG) */
+            /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): לבנים כמו הפאנל בדף הבית - בלי זה הם שקופים ונראים אפורים
+               על רקע העמוד */
             [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_"],
             [data-testid="stMain"] div[class*="st-key-chart_card_"], [data-testid="stMain"] [data-testid="stExpander"] details {
-                background: rgba(120,120,120,0.07); border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
             }
             /* סיידבר (14.10.2026): רקע מעט עמוק יותר מהעמוד, והכרטיסים שבתוכו לבנים רכים כמו הפאנל הראשי */
             [data-testid="stSidebar"] { background: #e9edf3 !important; }
