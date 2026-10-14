@@ -126,8 +126,9 @@ _V2_CSS = """
                 font-size: 2.3rem; font-weight: 800; letter-spacing: 0.02em; color: #3b6ea5;
             }
             [data-testid="stSidebar"] [data-testid="stSidebarUserContent"]::after {
-                content: "הגדרות ופרמטרים  " url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'/></svg>"); position: absolute; top: 50px; left: 0; right: 0; text-align: center; height: 24px; line-height: 24px;
-                font-size: 0.95rem; font-weight: 500; color: #6b7280;
+                content: "הגדרות ופרמטרים"; position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: max-content;
+                height: 24px; line-height: 24px; padding-left: 19px; font-size: 0.95rem; font-weight: 500; color: #6b7280;
+                background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'/></svg>") left center / 13px 13px no-repeat;
             }
             /* הכרטיס הראשון בסיידבר מתחיל על אותו קו עם שורת הניווט (נמדד: ניווט 128px, כרטיס 44px => 84px) */
             [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 84px !important; padding-bottom: 6px !important; }
@@ -3231,6 +3232,9 @@ def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מ
         <style>
         @media (max-width: 480px) {{
             div.movers-style-table table {{ table-layout: auto !important; }}
+            /* ריפוד תאים קטן יותר: בטבלת "עולות" העמודות הרחבות יותר דחפו את הטבלה ל-320px בקונטיינר של 311px והעמודה
+               האחרונה נחתכה (14.10.2026, "הטאב של מניות מובילות נחתך במובייל") */
+            div.movers-style-table table th, div.movers-style-table table td {{ padding-left: 5px !important; padding-right: 5px !important; }}
             div.movers-style-table table th:first-child,
             div.movers-style-table table td:first-child > div {{ max-width: 108px !important; }}
             {"div.movers-style-table table th:nth-child(2), div.movers-style-table table td:nth-child(2) { display: none !important; }" if _show_tase_id_col else ""}
@@ -4514,6 +4518,14 @@ with _tab_slot_backtest.container():
                     st.caption("אין עדיין מספיק התראות מוכרעות.")
                 else:
                     st.markdown(
+                        """<style>@media (max-width: 480px) {
+                            div.by-signal-table table th, div.by-signal-table table td {
+                                white-space: normal !important; padding-left: 5px !important; padding-right: 5px !important; font-size: 0.8rem !important;
+                            }
+                        }</style>""",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
                         _html_table(
                             by_signal, [("סיגנל", "סיגנל"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
                                         ("שיעור הצלחה (%)", "שיעור הצלחה (%)"), ("תוחלת לעסקה (%)", "תוחלת לעסקה (%)")],
@@ -4522,6 +4534,7 @@ with _tab_slot_backtest.container():
                                         "סיגנל": lambda v: _signal_cell_html(v)},
                             color_fns={"שיעור הצלחה (%)": _success_rate_color,
                                        "תוחלת לעסקה (%)": lambda v: POS_COLOR if (pd.notna(v) and v >= 0) else NEG_COLOR},
+                            extra_class="by-signal-table",
                         ),
                         unsafe_allow_html=True,
                     )
@@ -5489,6 +5502,15 @@ with _tab_slot_history.container():
                     div.trade-journal-table table td:nth-child(9) {
                         display: none !important;
                     }
+                    /* 14.10.2026 ("פוליש במובייל"): הטבלה עדיין הייתה ~850px ברוחב של ~340px - מוסתרות גם כניסה / יציאה /
+                       "תחזית מול בפועל" (נשארים מניה, ימי מסחר, תשואה, נטו), שם המניה רשאי לרדת שורה, וריפוד תאים קטן */
+                    div.trade-journal-table table th:nth-child(2), div.trade-journal-table table td:nth-child(2),
+                    div.trade-journal-table table th:nth-child(3), div.trade-journal-table table td:nth-child(3),
+                    div.trade-journal-table table th:nth-child(5), div.trade-journal-table table td:nth-child(5) {
+                        display: none !important;
+                    }
+                    div.trade-journal-table table td:first-child { white-space: normal !important; max-width: 150px; }
+                    div.trade-journal-table table th, div.trade-journal-table table td { padding-left: 6px !important; padding-right: 6px !important; }
                 }
                 </style>
                 """,
