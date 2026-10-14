@@ -2609,7 +2609,7 @@ with st.sidebar:
                 help="קובעת את היעד בעסקה ואת הסיכון לעסקה (מכפיל על 'סיכון לעסקה' בהגדרות).\n"
                      + "\n".join(f"• {v['label']}: {v['desc']}" for v in strategy_mod.RISK_LEVELS.values()),
             )
-            st.button("↩ חזרה לאסטרטגיה הנוכחית", key="strategy_reset_btn", on_click=_reset_strategy,
+            st.button("↩ חזרה לאסטרטגיית ברירת המחדל", key="strategy_reset_btn", on_click=_reset_strategy,
                       use_container_width=True,
                       disabled=(strategy_mod.active_card_key(), strategy_mod.active_risk_key())
                       == (strategy_mod.DEFAULT_CARD, strategy_mod.DEFAULT_RISK))
