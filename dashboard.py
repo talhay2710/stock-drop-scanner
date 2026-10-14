@@ -112,6 +112,7 @@ _V2_CSS = """
                 border-radius: 10px !important;
             }
         }
+        .v2sec > span:first-child { display: inline-flex; align-items: center; gap: 14px; }
         .v2sec { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
