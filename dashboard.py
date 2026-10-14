@@ -942,7 +942,7 @@ st.markdown(
         [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div { margin-top: 0 !important; }
         [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(1) { grid-area: label; font-size: 0.82rem !important; }
         [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(2) { grid-area: value; font-size: 1.35rem !important; text-align: left; max-width: 170px; }
-        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(3) { grid-area: bottom; font-size: 0.8rem !important; }
+        [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.card-bottom-line) div[style*="height: 125px"] > div:nth-child(3) { grid-area: bottom; font-size: 0.8rem !important; text-align: right !important; }
         [data-testid="stMain"] h3 { font-size: 1.3rem !important; }
         [data-testid="stMain"] div[class*="st-key-chart_card_pnl"],
         [data-testid="stMain"] div[class*="st-key-chart_card_comparison"] { min-height: 0 !important; }
