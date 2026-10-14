@@ -183,6 +183,42 @@ class EntrySignal(unittest.TestCase):
         self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.03)
 
 
+class StrategySelector(unittest.TestCase):
+    """בורר אסטרטגיה (14.10.2026): בלי המתג strategy_selector - בדיוק המצב שלפני השינוי; חזרה מיידית ע"י כיבוי המתג."""
+
+    def setUp(self):
+        import src.strategy as s
+        self.s = s
+        self.addCleanup(s.configure, None)
+
+    def test_defaults_equal_previous_behavior(self):
+        self.s.configure(None)
+        self.assertEqual((self.s.buy_min_score(), self.s.wait_min_score()), (4, 2))
+        self.assertAlmostEqual(self.s.target_frac(), 0.03)
+        self.assertEqual(self.s.risk_mult(), 1.0)
+        self.assertAlmostEqual(self.s.live_target_price(100.0, 90.0, None), 103.0)
+
+    def test_switch_off_ignores_selection(self):
+        self.s.configure({"strategy_selector": False, "strategy_card": "strict", "risk_level": "aggressive"})
+        self.assertEqual((self.s.active_card_key(), self.s.active_risk_key()), ("balanced", "conservative"))
+        self.assertAlmostEqual(self.s.target_frac(), 0.03)
+
+    def test_switch_on_applies_selection(self):
+        self.s.configure({"strategy_selector": True, "strategy_card": "strict", "risk_level": "aggressive"})
+        self.assertEqual(self.s.buy_min_score(), 5)
+        self.assertAlmostEqual(self.s.target_frac(), 0.07)
+        self.assertAlmostEqual(self.s.live_target_price(100.0, 90.0, None), 107.0)
+        # אותו ניקוד (4) - מחמירה לא מסווגת אותו כ-לקנות
+        sig = self.s.entry_signal("TA35", -4.6, None, None, "Technology", 15)[0]
+        self.assertEqual(sig, self.s.SIGNAL_WAIT)
+        self.s.configure({"strategy_selector": True, "strategy_card": "balanced", "risk_level": "aggressive"})
+        self.assertEqual(self.s.entry_signal("TA35", -4.6, None, None, "Technology", 15)[0], self.s.SIGNAL_BUY)
+
+    def test_unknown_values_fall_back_to_defaults(self):
+        self.s.configure({"strategy_selector": True, "strategy_card": "nope", "risk_level": "nope"})
+        self.assertEqual((self.s.active_card_key(), self.s.active_risk_key()), ("balanced", "conservative"))
+
+
 class TrailingNanClose(unittest.TestCase):
     # 8.10.2026: yfinance החזירה שורה ליום המסחר האחרון (7.10) עם Close=NaN - הכרטיס הציג את 6.10.
     def test_last_finished_day_with_nan_close_is_a_hole(self):

@@ -61,7 +61,7 @@ def live_target_price(entry: float, stop_price: float, target_base: float | None
     # בפועל, אופק עד HOLD_MAX_DAYS ימים) ולא מה-target_base שנשמר בהתראה - אחרת אחזקות שנפתחו
     # לפני שינוי האסטרטגיה נשארו עם יעד של 5% בתצוגה ובגרפים. target_base/stop_price נשארו בחתימה
     # לתאימות עם הקוראים.
-    return round(entry * (1 + FIXED_TARGET_PCT), 2)
+    return round(entry * (1 + target_frac()), 2)
 
 
 def stop_distance_pct(current: float, stop_price: float) -> float:
@@ -118,7 +118,7 @@ def suggest_strategy(last_close: float, last_low: float | None,
     if liquidity_tier in ("medium", "low"):
         entry_note += f" (כולל מרווח נוסף בשל נזילות {('בינונית' if liquidity_tier == 'medium' else 'נמוכה')})"
 
-    target_base = round(last_close * (1 + FIXED_TARGET_PCT), 2)
+    target_base = round(last_close * (1 + target_frac()), 2)
 
     stop_ref = last_low if last_low is not None else last_close
     anchor = min(stop_ref, entry_limit)
@@ -195,6 +195,71 @@ _SECTOR_HE = {
 }
 
 
+# ---------------------------------------------------------------------------
+# בורר אסטרטגיה (14.10.2026): שני בוררים בסיידבר, מאחורי המתג strategy_selector ב-config.yaml.
+#   1. כרטיס ניקוד (SCORECARDS): איפה עוברים הגבולות בין א' (לקנות) / ב' (לחכות) / ג' (לא לקנות). הניקוד עצמו (הגורמים
+#      והמשקלים) זהה בכל הכרטיסים - ולכן אפשר להשוות ביניהם על אותן התראות, רק בחלוקה אחרת.
+#   2. רמת סיכון (RISK_LEVELS): היעד בעסקה ומכפיל לסיכון לעסקה (על risk_pct_per_trade מההגדרות).
+# חזרה מיידית למצב הקודם: strategy_selector: false (או למחוק את המפתח) - הכול חוזר לערכי הברירת מחדל = מה שרץ לפני
+# השינוי (כרטיס "balanced", רמת "conservative" = יעד 3%, מכפיל 1). בלי המתג הבוררים לא משפיעים על כלום.
+# ---------------------------------------------------------------------------
+DEFAULT_CARD, DEFAULT_RISK = "balanced", "conservative"
+SCORECARDS = {
+    "balanced": {"label": "מאוזנת (נוכחית)", "buy_min": BUY_MIN_SCORE, "wait_min": WAIT_MIN_SCORE,
+                 "desc": "הכרטיס שרץ עד היום: א' ב-4 נקודות ומעלה"},
+    "strict": {"label": "מחמירה", "buy_min": 5, "wait_min": 3,
+               "desc": "פחות התראות 🟢, איכותיות יותר: א' ב-5 נקודות ומעלה"},
+    "loose": {"label": "מקלה", "buy_min": 3, "wait_min": 2,
+              "desc": "יותר התראות 🟢, איכות נמוכה יותר: א' ב-3 נקודות ומעלה"},
+}
+RISK_LEVELS = {
+    "conservative": {"label": "שמרני", "target_pct": FIXED_TARGET_PCT * 100, "risk_mult": 1.0,
+                     "desc": "יעד 3% (הרבה הצלחות קטנות) - מה שרץ עד היום"},
+    "balanced": {"label": "מאוזן", "target_pct": 5.0, "risk_mult": 1.5,
+                 "desc": "יעד 5%, סיכון לעסקה פי 1.5"},
+    "aggressive": {"label": "אגרסיבי", "target_pct": 7.0, "risk_mult": 2.0,
+                   "desc": "יעד 7% (פחות הצלחות, גדולות יותר), סיכון לעסקה פי 2"},
+}
+_active = {"card": DEFAULT_CARD, "risk": DEFAULT_RISK}
+
+
+def configure(cfg: dict | None) -> None:
+    """קובע את הכרטיס ורמת הסיכון הפעילים מתוך config. בלי המתג strategy_selector (או ערך לא מוכר) - ברירות המחדל."""
+    cfg = cfg or {}
+    on = bool(cfg.get("strategy_selector", False))
+    card, risk = cfg.get("strategy_card"), cfg.get("risk_level")
+    _active["card"] = card if on and card in SCORECARDS else DEFAULT_CARD
+    _active["risk"] = risk if on and risk in RISK_LEVELS else DEFAULT_RISK
+
+
+def active_card_key() -> str:
+    return _active["card"]
+
+
+def active_risk_key() -> str:
+    return _active["risk"]
+
+
+def buy_min_score() -> int:
+    return SCORECARDS[_active["card"]]["buy_min"]
+
+
+def wait_min_score() -> int:
+    return SCORECARDS[_active["card"]]["wait_min"]
+
+
+def target_pct() -> float:
+    return RISK_LEVELS[_active["risk"]]["target_pct"]
+
+
+def target_frac() -> float:
+    return target_pct() / 100.0
+
+
+def risk_mult() -> float:
+    return RISK_LEVELS[_active["risk"]]["risk_mult"]
+
+
 REBOUND_CLASS = {SIGNAL_BUY: "A", SIGNAL_WAIT: "B", SIGNAL_AVOID: "C", SIGNAL_UNKNOWN: "—"}
 
 
@@ -261,9 +326,9 @@ def entry_signal(index_name: str | None, pct_change: float, intraday_recovery_pc
     if not _known(pct_change):
         return SIGNAL_UNKNOWN, "אין נתון על גודל הירידה"
     score, parts = signal_score(index_name, pct_change, intraday_recovery_pct, dist_from_ma50_pct, sector, alert_hour)
-    if score >= BUY_MIN_SCORE:
+    if score >= buy_min_score():
         signal = SIGNAL_BUY
-    elif score >= WAIT_MIN_SCORE:
+    elif score >= wait_min_score():
         signal = SIGNAL_WAIT
     else:
         signal = SIGNAL_AVOID

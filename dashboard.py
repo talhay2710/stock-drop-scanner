@@ -123,6 +123,7 @@ _V2_CSS = """
             [data-testid="stSidebar"] { background: #e9edf3 !important; }
             [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
             [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
+            [data-testid="stSidebar"] div[class*="st-key-strategy_selector_card"],
             [data-testid="stSidebar"] div[class*="st-key-channels_card"] {
                 background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
                 box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
@@ -159,6 +160,7 @@ _V2_CSS = """
             [data-testid="stSidebar"] div[class*="st-key-channels_card"] > [data-testid="stElementContainer"]:has(style) { display: none !important; }
             [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
             [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
+            [data-testid="stSidebar"] div[class*="st-key-strategy_selector_card"],
             [data-testid="stSidebar"] div[class*="st-key-channels_card"] { gap: 2px !important; padding-top: 8px !important; }
             /* שדות מספר ללא תווית (אחוזים, ימים וכו'): שדה צר, כך שכפתורי +/- צמודים למספר. היחידה (% / ימים) מיד אחרי הכפתורים */
             [data-testid="stSidebar"] div[class*="st-key-settings_threshold"],
@@ -996,6 +998,7 @@ except Exception:
     pass
 
 cfg = load_config()
+strategy_mod.configure(cfg)  # בורר אסטרטגיה (מתג strategy_selector) - בלי המתג: ברירות מחדל = המצב הקודם
 
 
 def _sync_and_warn(reason: str, include_db: bool = False) -> None:
@@ -2575,6 +2578,42 @@ with st.sidebar:
     # שקל), לא מפוזרים (14.9.2026, "הנאסד״ק יוכל להיות לצד הS&P").
     current_indices = [i for i in ALL_INDICES if i in current_indices]
 
+    if cfg.get("strategy_selector"):
+        # בורר אסטרטגיה (14.10.2026). כיבוי מיידי: strategy_selector: false ב-config.yaml, או הכפתור "חזרה לאסטרטגיה הנוכחית".
+        def _autosave_strategy():
+            cfg["strategy_card"] = st.session_state.get("settings_strategy_card", strategy_mod.DEFAULT_CARD)
+            cfg["risk_level"] = st.session_state.get("settings_risk_level", strategy_mod.DEFAULT_RISK)
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+            _sync_and_warn("strategy")
+
+        def _reset_strategy():
+            st.session_state["settings_strategy_card"] = strategy_mod.DEFAULT_CARD
+            st.session_state["settings_risk_level"] = strategy_mod.DEFAULT_RISK
+            _autosave_strategy()
+
+        with st.container(border=True, key="strategy_selector_card"):
+            st.markdown("**🎯 אסטרטגיה**")
+            _card_keys, _risk_keys = list(strategy_mod.SCORECARDS), list(strategy_mod.RISK_LEVELS)
+            st.selectbox(
+                "כרטיס ניקוד", _card_keys, index=_card_keys.index(strategy_mod.active_card_key()),
+                format_func=lambda k: strategy_mod.SCORECARDS[k]["label"], key="settings_strategy_card",
+                on_change=_autosave_strategy,
+                help="איפה עוברים הגבולות בין א' (לקנות), ב' (לחכות) וג' (לא לקנות). הניקוד עצמו זהה בכל הכרטיסים.\n"
+                     + "\n".join(f"• {v['label']}: {v['desc']}" for v in strategy_mod.SCORECARDS.values()),
+            )
+            st.selectbox(
+                "רמת סיכון", _risk_keys, index=_risk_keys.index(strategy_mod.active_risk_key()),
+                format_func=lambda k: strategy_mod.RISK_LEVELS[k]["label"], key="settings_risk_level",
+                on_change=_autosave_strategy,
+                help="קובעת את היעד בעסקה ואת הסיכון לעסקה (מכפיל על 'סיכון לעסקה' בהגדרות).\n"
+                     + "\n".join(f"• {v['label']}: {v['desc']}" for v in strategy_mod.RISK_LEVELS.values()),
+            )
+            st.button("↩ חזרה לאסטרטגיה הנוכחית", key="strategy_reset_btn", on_click=_reset_strategy,
+                      use_container_width=True,
+                      disabled=(strategy_mod.active_card_key(), strategy_mod.active_risk_key())
+                      == (strategy_mod.DEFAULT_CARD, strategy_mod.DEFAULT_RISK))
+
     with st.container(border=True, key="scan_settings_card"):
         st.markdown(
             """
@@ -3594,14 +3633,14 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
         try:
             _cc = "IL" if is_il else "US"
             _res = fees.compute_net_result(
-                country_code=_cc, buy_price=add_entry, sell_price=add_entry * (1 + strategy_mod.FIXED_TARGET_PCT),
+                country_code=_cc, buy_price=add_entry, sell_price=add_entry * (1 + strategy_mod.target_frac()),
                 position_size_ccy=add_amount, holding_days=strategy_mod.HOLD_MAX_DAYS, fees_cfg=cfg["fees"],
             )
             _ccy_sym = CURRENCY_SYMBOLS.get(_res.currency, _res.currency)
             _fee_share = (_res.total_commission / _res.gross_pnl * 100) if _res.gross_pnl > 0 else 0
             _note = (f" · העמלות אוכלות {_fee_share:.0f}% מהרווח הגולמי - פוזיציה גדולה יותר תשפר" if _fee_share >= 35 else "")
             st.caption(
-                f"אם יגיע ליעד (+{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%): רווח נטו "
+                f"אם יגיע ליעד (+{strategy_mod.target_pct():.0f}%): רווח נטו "
                 f"{_signed_num(_res.net_pnl, 0)} {_ccy_sym} ({_signed_num(_res.net_return_pct, 1, '%')}) "
                 f"אחרי עמלות ומס{_note}"
             )
@@ -3834,7 +3873,7 @@ with _tab_slot_today.container():
                 todays_display_src = todays_alerts.copy()
                 # יעד לפי האסטרטגיה הנוכחית (+3% ממחיר ההתראה), גם להתראות שנשמרו עם יעד ישן -
                 # לפני ההמרה לטקסט (אגורות/שקלים) שמתחת
-                todays_display_src["target_base"] = (todays_display_src["last_close"] * (1 + strategy_mod.FIXED_TARGET_PCT)).round(2)
+                todays_display_src["target_base"] = (todays_display_src["last_close"] * (1 + strategy_mod.target_frac())).round(2)
                 for _price_col in ("entry_limit", "target_base", "stop_loss"):
                     todays_display_src[_price_col] = todays_display_src.apply(
                         lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
@@ -3852,8 +3891,8 @@ with _tab_slot_today.container():
                         r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
                         r.get("dist_from_ma50_pct"), r.get("sector"), _h,
                     )
-                    _k = (strategy_mod.SIGNAL_BUY if _score >= strategy_mod.BUY_MIN_SCORE
-                          else strategy_mod.SIGNAL_WAIT if _score >= strategy_mod.WAIT_MIN_SCORE
+                    _k = (strategy_mod.SIGNAL_BUY if _score >= strategy_mod.buy_min_score()
+                          else strategy_mod.SIGNAL_WAIT if _score >= strategy_mod.wait_min_score()
                           else strategy_mod.SIGNAL_AVOID)
                     _lines = "".join(
                         f'<div style="display:flex; align-items:baseline; gap:10px; padding:2px 0;">{_pts_chip(pts)}<span>{name}</span></div>'
@@ -3862,8 +3901,8 @@ with _tab_slot_today.container():
                     _tip = (
                         f'<span class="sigtip-text sigtip-wide"><div style="font-weight:700; margin-bottom:3px; '
                         f'color:{SIGNAL_COLORS[_k]};">{strategy_mod.SIGNAL_LABEL[_k]} · ניקוד {max(_score, 0)} מתוך {strategy_mod.MAX_SIGNAL_SCORE}</div>{_lines}'
-                        f'<div style="margin-top:4px; opacity:0.65; font-size:0.74rem;">{strategy_mod.BUY_MIN_SCORE} ומעלה = לקנות · '
-                        f'{strategy_mod.WAIT_MIN_SCORE}-{strategy_mod.BUY_MIN_SCORE - 1} = לחכות · פחות = לא לקנות</div></span>'
+                        f'<div style="margin-top:4px; opacity:0.65; font-size:0.74rem;">{strategy_mod.buy_min_score()} ומעלה = לקנות · '
+                        f'{strategy_mod.wait_min_score()}-{strategy_mod.buy_min_score() - 1} = לחכות · פחות = לא לקנות</div></span>'
                     )
                     # אות הסיווג גדולה וצבועה; הניקוד כטקסט ברור "ניקוד X מתוך 6" (מקסימום אפשרי 6, לקנות מ-4)
                     return (
@@ -3994,9 +4033,9 @@ with _tab_slot_today.container():
                     + _help_row("מעל הממוצע של 50 יום", "−1", NEG_COLOR)
                     + _help_row("סקטור חלש (נדל״ן, אנרגיה, חומרי גלם)", "−2", NEG_COLOR)
                     + _help_title("הסיווג")
-                    + f'<div><b style="color:{SIGNAL_COLORS["buy"]};">A · לקנות</b> — {strategy_mod.BUY_MIN_SCORE} נקודות ומעלה</div>'
-                    + f'<div><b style="color:{SIGNAL_COLORS["wait"]};">B · לחכות</b> — {strategy_mod.WAIT_MIN_SCORE} עד {strategy_mod.BUY_MIN_SCORE - 1} נקודות</div>'
-                    + f'<div><b style="color:{SIGNAL_COLORS["avoid"]};">C · לא לקנות</b> — 0 עד {strategy_mod.WAIT_MIN_SCORE - 1} נקודות</div>'
+                    + f'<div><b style="color:{SIGNAL_COLORS["buy"]};">A · לקנות</b> — {strategy_mod.buy_min_score()} נקודות ומעלה</div>'
+                    + f'<div><b style="color:{SIGNAL_COLORS["wait"]};">B · לחכות</b> — {strategy_mod.wait_min_score()} עד {strategy_mod.buy_min_score() - 1} נקודות</div>'
+                    + f'<div><b style="color:{SIGNAL_COLORS["avoid"]};">C · לא לקנות</b> — 0 עד {strategy_mod.wait_min_score() - 1} נקודות</div>'
                     '</span></span>'
                 )
                 _rebound_header_label = f'סיווג ריבאונד {_rebound_help_html}'
@@ -4259,8 +4298,8 @@ with _tab_slot_today.container():
                                         _color_style = f"color:{POS_COLOR if _val >= 0 else NEG_COLOR}; font-weight:600;"
                                     elif _col_name == "ניקוד" and pd.notna(_val):
                                         # צבע לפי ספי הרמזור (🟢 4+, 🟡 2-3, 🔴 1 ומטה)
-                                        _sc_key = ("buy" if _val >= strategy_mod.BUY_MIN_SCORE
-                                                   else "wait" if _val >= strategy_mod.WAIT_MIN_SCORE else "avoid")
+                                        _sc_key = ("buy" if _val >= strategy_mod.buy_min_score()
+                                                   else "wait" if _val >= strategy_mod.wait_min_score() else "avoid")
                                         _color_style = f"color:{SIGNAL_COLORS[_sc_key]}; font-weight:700;"
                                     elif _col_name == "מרחק מהממוצע" and pd.notna(_val):
                                         _color_style = f"color:{POS_COLOR if _val <= -10 else (NEG_COLOR if _val > 0.9 else 'inherit')};"
@@ -4410,7 +4449,7 @@ with _tab_slot_backtest.container():
                 _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6, 7, 8, 9, 10)}
                 _target_choice = st.radio(
                     "יעד רווח", list(_target_labels), horizontal=True, key="backtest_target_pct",
-                    index=list(_target_labels.values()).index(int(round(strategy_mod.TARGET_PCT))),
+                    index=list(_target_labels.values()).index(int(round(strategy_mod.target_pct()))),
                 )
                 target_pct = _target_labels[_target_choice]
                 _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3, "4-8 ימים": 8, "9-13 ימים": 13, "14 ימים ומעלה": 30}

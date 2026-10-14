@@ -100,6 +100,7 @@ def run_scan(cfg: dict) -> list[dict]:
     indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
     if not indices:
         raise ValueError("לא הוגדר אף מדד ב-config.yaml (indices)")
+    strategy_mod.configure(cfg)  # בורר אסטרטגיה (כרטיס ניקוד + רמת סיכון); בלי strategy_selector: ברירות מחדל = המצב הקודם
 
     conn = store_mod.get_conn(db_path(cfg))
     try:
@@ -729,7 +730,7 @@ def _scan_one_index(
     reference_position_size = cfg["position_size"].get(currency, 10000)
     max_position_size = cfg.get("max_position_size", {}).get(currency, reference_position_size * 3)
     account_size = (holdings_value_by_ccy or {}).get(currency)
-    risk_pct_per_trade = cfg.get("risk_pct_per_trade", 0.75)
+    risk_pct_per_trade = cfg.get("risk_pct_per_trade", 0.75) * strategy_mod.risk_mult()
     max_holding_days = cfg.get("assumed_holding_days", 5)
 
     results = []
