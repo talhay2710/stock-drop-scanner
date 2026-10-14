@@ -118,15 +118,26 @@ _V2_CSS = """
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
                  background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
         @media (min-width: 481px) {
+            /* כותרת לסיידבר (14.10.2026): באותו גובה ובאותה שפה של כותרת האתר (נמדד: כותרת 46px גובה 46px, 36.8px/800/כחול;
+               שורת משנה 94px, 15.2px) - pseudo-elements, בלי לשנות את פריסת הכרטיסים */
+            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { position: relative; }
+            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"]::before {
+                content: "Sidebar"; position: absolute; top: 2px; left: 0; right: 0; text-align: center; height: 46px; line-height: 46px;
+                font-size: 2.3rem; font-weight: 800; letter-spacing: 0.02em; color: #3b6ea5;
+            }
+            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"]::after {
+                content: "בקרת סריקה והתראות  " url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'/></svg>"); position: absolute; top: 50px; left: 0; right: 0; text-align: center; height: 24px; line-height: 24px;
+                font-size: 0.95rem; font-weight: 500; color: #6b7280;
+            }
             /* הכרטיס הראשון בסיידבר מתחיל על אותו קו עם שורת הניווט (נמדד: ניווט 128px, כרטיס 44px => 84px) */
-            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 84px !important; padding-bottom: 16px !important; }
+            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 84px !important; padding-bottom: 6px !important; }
             /* הסיידבר נכנס למסך אחד (14.10.2026): אלמנטי ה-<style> הריקים (גובה 0) בתוך הכרטיסים עדיין מוסיפים 4px רווח כל אחד */
             [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"] > [data-testid="stElementContainer"]:has(style),
             [data-testid="stSidebar"] div[class*="st-key-exp_group_card"] > [data-testid="stElementContainer"]:has(style),
             [data-testid="stSidebar"] div[class*="st-key-channels_card"] > [data-testid="stElementContainer"]:has(style) { display: none !important; }
             [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
             [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
-            [data-testid="stSidebar"] div[class*="st-key-channels_card"] { gap: 2px !important; }
+            [data-testid="stSidebar"] div[class*="st-key-channels_card"] { gap: 2px !important; padding-top: 8px !important; }
             [data-testid="stSidebar"] [data-baseweb="tag"] { font-size: 12px !important; padding: 0 6px !important; min-height: 24px !important; margin: 2px !important; }
             [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
             [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
