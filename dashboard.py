@@ -138,6 +138,29 @@ _V2_CSS = """
             [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
             [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
             [data-testid="stSidebar"] div[class*="st-key-channels_card"] { gap: 2px !important; padding-top: 8px !important; }
+            /* שדות מספר ללא תווית (סף ירידה, ימים, אחוזים וכו'): השדה צר, כך שהיחידה (%/ימים), כפתורי +/- והערך צמודים
+               זה לזה בקצה הימני במקום להתפרש על כל רוחב הסיידבר */
+            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_threshold"]),
+            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_days"]),
+            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_threshold"]) { flex: 0 0 150px !important; width: 150px !important; min-width: 0 !important; }
+            [data-testid="stSidebar"] div[class*="st-key-settings_threshold"],
+            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_days"],
+            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_threshold"],
+            [data-testid="stSidebar"] div[class*="st-key-settings_gain_start"],
+            [data-testid="stSidebar"] div[class*="st-key-settings_gain_step"],
+            [data-testid="stSidebar"] div[class*="st-key-settings_stop_warn"],
+            [data-testid="stSidebar"] div[class*="st-key-settings_target_warn"] { max-width: 150px; }
+            /* המספר צר, כך שכפתורי +/- צמודים אליו; יחידת המידה (%/ימים) נמשכת פנימה אל הכפתורים */
+            [data-testid="stSidebar"] div[class*="st-key-settings_threshold"] input,
+            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_days"] input,
+            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_threshold"] input,
+            [data-testid="stSidebar"] div[class*="st-key-settings_gain_start"] input,
+            [data-testid="stSidebar"] div[class*="st-key-settings_gain_step"] input,
+            [data-testid="stSidebar"] div[class*="st-key-settings_stop_warn"] input,
+            [data-testid="stSidebar"] div[class*="st-key-settings_target_warn"] input { flex: 0 0 56px !important; width: 56px !important; min-width: 0 !important; padding-left: 0 !important; }
+            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_threshold"]) + [data-testid="stColumn"],
+            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_days"]) + [data-testid="stColumn"],
+            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_threshold"]) + [data-testid="stColumn"] { transform: translateX(54px); }
             [data-testid="stSidebar"] [data-baseweb="tag"] { font-size: 12px !important; padding: 0 6px !important; min-height: 24px !important; margin: 2px !important; }
             [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
             [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
