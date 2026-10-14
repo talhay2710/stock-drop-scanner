@@ -100,6 +100,17 @@ _V2_CSS = """
             }
             div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
             div[class*="st-key-idx_card_"] { border-radius: 14px !important; box-shadow: none !important; }
+            /* סיידבר (14.10.2026): רקע מעט עמוק יותר מהעמוד, והכרטיסים שבתוכו לבנים רכים כמו הפאנל הראשי */
+            [data-testid="stSidebar"] { background: #e9edf3 !important; }
+            [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
+            [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
+            [data-testid="stSidebar"] div[class*="st-key-channels_card"] {
+                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
+                box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
+            }
+            [data-testid="stSidebar"] [data-baseweb="input"], [data-testid="stSidebar"] [data-baseweb="select"] > div {
+                border-radius: 10px !important;
+            }
         }
         .v2sec { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
         .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
