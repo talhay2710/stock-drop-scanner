@@ -173,9 +173,6 @@ _V2_CSS = """
             [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
             [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
         }
-        @media (min-width: 1200px) {
-            [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(2):not([style*="nowrap"]) { font-size: 1.85rem !important; }
-        }
 """
 
 _SECTION_ICONS = {
