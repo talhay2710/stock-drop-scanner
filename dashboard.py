@@ -96,6 +96,7 @@ _V2_CSS = """
             }
             div[class*="st-key-nav_tabs_row"] {
                 background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 16px !important;
+                border-left: 3px solid #3B6EA5 !important; border-right: 3px solid #3B6EA5 !important;
                 padding: 6px !important; box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
             }
             div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
