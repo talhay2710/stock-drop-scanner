@@ -193,6 +193,8 @@ _V2_CSS = """
                 background-color: rgba(59,110,165,0.15) !important;
             }
             [data-testid="stSidebar"] [data-baseweb="tag"] { font-size: 12px !important; padding: 0 6px !important; min-height: 24px !important; margin: 2px !important; }
+            /* תגיות מדדים בסיידבר (15.10.2026): קטנות יותר כדי ש-NASDAQ100 ו-SP500 ייכנסו לאותה שורה (נמדד: מכל התגיות 190px) */
+            [data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] [role="group"] > span { font-size: 12.5px !important; padding: 0 6px !important; margin: 0 3px 4px 0 !important; }
             [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
             [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
         }
@@ -1060,6 +1062,7 @@ def load_alerts(path: str) -> pd.DataFrame:
 df = load_alerts(db_path(cfg))
 
 ALL_INDICES = ["SP500", "NASDAQ100", "TA35", "TA125"]
+SCAN_INDEX_ORDER = ["TA35", "TA125", "NASDAQ100", "SP500"]  # סדר קבוע בבורר המדדים לסריקה בסיידבר: ת"א ואז אמריקאי
 INDEX_LABELS = {"SP500": "S&P 500", "NASDAQ100": "NASDAQ-100", "TA35": 'ת"א 35', "TA125": 'ת"א 125'}
 
 
@@ -2498,6 +2501,8 @@ def _autosave_settings():
     if not new_indices:
         st.toast("יש לבחור לפחות מדד אחד - לא נשמר.", icon="⚠️", duration=2)
         return
+    new_indices = [i for i in SCAN_INDEX_ORDER if i in new_indices]  # סדר קבוע, לא סדר הלחיצות
+    st.session_state["settings_indices"] = new_indices
     cfg["indices"] = new_indices
     cfg.pop("index", None)
     cfg["drop_threshold_pct"] = st.session_state.get("settings_threshold")
@@ -2573,10 +2578,10 @@ def _autosave_channels():
 
 with st.sidebar:
     current_indices = cfg.get("indices") or ([cfg["index"]] if "index" in cfg else [])
-    # מסודר לפי סדר קבוע (ALL_INDICES) - לא לפי סדר הבחירה ההיסטורי - כדי
+    # מסודר לפי סדר קבוע (SCAN_INDEX_ORDER: קודם ת"א, אחר כך אמריקאי) - לא לפי סדר הבחירה ההיסטורי - כדי
     # ש-NASDAQ100 יהיה תמיד ליד SP500 (שניהם דולר) ו-TA35 ליד TA125 (שניהם
-    # שקל), לא מפוזרים (14.9.2026, "הנאסד״ק יוכל להיות לצד הS&P").
-    current_indices = [i for i in ALL_INDICES if i in current_indices]
+    # שקל), לא מפוזרים (14.9.2026, "הנאסד״ק יוכל להיות לצד הS&P"; 15.10.2026: הסדר קבוע גם אחרי בחירה/הסרה).
+    current_indices = [i for i in SCAN_INDEX_ORDER if i in current_indices]
 
     if cfg.get("strategy_selector"):
         # בורר אסטרטגיה (14.10.2026). כיבוי מיידי: strategy_selector: false ב-config.yaml, או הכפתור "חזרה לאסטרטגיה הנוכחית".
@@ -2637,7 +2642,8 @@ with st.sidebar:
         )
         st.markdown("**📊 מדדים לסריקה**")
         st.multiselect(
-            "בחר מדד/ים לסריקה", ALL_INDICES, default=current_indices, label_visibility="collapsed",
+            "בחר מדד/ים לסריקה", SCAN_INDEX_ORDER,
+            default=None if "settings_indices" in st.session_state else current_indices, label_visibility="collapsed",
             key="settings_indices", on_change=_autosave_settings,
         )
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
