@@ -22,7 +22,7 @@ from playwright.sync_api import sync_playwright
 
 DASHBOARD_URL = "https://stock-drop-scanner-b2rrberutcyv4uaelcdigu.streamlit.app"
 WAKE_BUTTON_TEXT = "Yes, get this app back up!"
-APP_TITLE_TEXT = "סורק מניות"  # מופיע רק כשהאפליקציה בפועל טעונה ועובדת
+APP_TITLE_TEXT = "DipRadar"  # מופיע רק כשהאפליקציה בפועל טעונה ועובדת (עודכן מ"סורק מניות" אחרי שינוי השם - הבדיקה נכשלה 9+ ימים בגלל זה)
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
 
 
