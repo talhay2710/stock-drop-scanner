@@ -27,6 +27,9 @@ def _write_example_config_from_local() -> None:
     for key in _SECRET_KEYS:
         if key in telegram:
             telegram[key] = ""
+    # ui_v3 (עיצוב חדש, 15.10.2026) מקומי בלבד עד שהמשתמש מחליט להפעיל גם בציבורי - בלי זה כל שמירת הגדרה הייתה
+    # מעתיקה את הדגל הדלוק המקומי לקובץ הדוגמה שהאתר הציבורי נטען ממנו
+    cfg["ui_v3"] = False
     with open(CONFIG_EXAMPLE_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
 

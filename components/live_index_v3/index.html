@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* מצב המדדים (ui_v3): ארבעה מדדים בשורה אחת, עם גרף זעיר, אחוז, ופס טווח זמן שמתעדכן מיידית בגרירה (בצד הלקוח בלבד).
+   העיצוב מהמוקאפ שאושר; ה-iframe מקבל את אותה פלטה לפי prefers-color-scheme (כמו Streamlit עצמו). */
+:root { --bg:#F6F4F0; --ink:#24211D; --dim:#6F6A62; --rule:#DAD5CC; --accent:#2F5D50; --gain:#2F6B4F; --loss:#9B3F2F; }
+:root[data-theme="dark"] { --bg:#1A1814; --ink:#ECE8E0; --dim:#9A948A; --rule:#34302A; --accent:#8DBBA6; --gain:#7DBF9C; --loss:#D98672; }
+html, body { margin:0; padding:0; background:transparent; color:var(--ink); font-family:'Heebo',system-ui,sans-serif; direction:rtl; font-variant-numeric:tabular-nums; }
+.num { direction:ltr; unicode-bidi:isolate; display:inline-block; }
+.mono { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.08em; margin-inline-start:6px; color:var(--dim); }
+.up { color:var(--gain); } .down { color:var(--loss); } .flat { color:var(--dim); }
+#idx { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-bottom:1px solid var(--rule); }
+.card { padding:20px 24px 22px; border-inline-start:1px solid var(--rule); min-width:0; }
+.card:first-child { padding-inline-start:0; border-inline-start:0; }
+.n { font-size:14px; color:var(--dim); }
+.p { font-size:clamp(28px,4vw,34px); font-weight:300; margin:2px 0 10px; }
+svg { display:block; width:100%; height:30px; }
+.sl { display:flex; align-items:center; gap:14px; margin-top:12px; }
+.when { font-size:13px; color:var(--dim); white-space:nowrap; flex:none; min-width:4.8em; }
+.rng { -webkit-appearance:none; appearance:none; display:block; height:24px; background:transparent; margin:0; cursor:pointer; flex:1 1 auto; min-width:28px; width:auto; }
+.rng::-webkit-slider-runnable-track { height:2px; background:var(--rule); }
+.rng::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); border:0; margin-top:-7px; }
+.rng::-moz-range-track { height:2px; background:var(--rule); }
+.rng::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--accent); border:0; }
+.rng:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+@media (max-width:720px) {
+  #idx { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .card:nth-child(odd) { padding-inline-start:0; border-inline-start:0; }
+  .card:nth-child(n+3) { border-top:1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div id="idx"></div>
+<script>
+(function () {
+  var P = window.parent, root = document.documentElement;
+  function eff() { try { var t = P.document.documentElement.getAttribute('data-theme'); if (t) return t; return P.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { return 'light'; } }
+  function mirror() { root.setAttribute('data-theme', eff()); }
+  mirror();
+  try { if (window.MutationObserver) new MutationObserver(mirror).observe(P.document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); P.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', mirror); } catch (e) {}
+})();
+(function () {
+  var CARDS = __ARGS_JSON__;
+  var root = document.getElementById('idx');
+
+  function pctOf(prices) {
+    if (!prices || prices.length < 2 || !prices[0]) return null;
+    return (prices[prices.length - 1] / prices[0] - 1) * 100;
+  }
+  function pts(prices) {
+    var mn = Math.min.apply(null, prices), mx = Math.max.apply(null, prices), rg = (mx - mn) || 1;
+    return prices.map(function (y, i) {
+      return (i * 200 / Math.max(prices.length - 1, 1)).toFixed(1) + ',' + (28 - (y - mn) / rg * 26).toFixed(1);
+    }).join(' ');
+  }
+  function fmtPct(v) { return (v >= 0 ? '+' : '-') + Math.abs(v).toFixed(1) + '%'; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  CARDS.forEach(function (c) {
+    var el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML =
+      '<div class="n">' + c.label_html + '<span class="mono">' + esc(c.mono) + '</span></div>' +
+      '<div class="p"></div>' +
+      '<svg viewBox="0 0 200 30" preserveAspectRatio="none" aria-hidden="true"><polyline vector-effect="non-scaling-stroke" fill="none" stroke-width="1.3"/></svg>' +
+      '<div class="sl"><div class="when"></div><input type="range" class="rng" dir="rtl" min="0" max="' + (c.options.length - 1) +
+      '" step="1" value="0" aria-label="טווח זמן"></div>';
+    root.appendChild(el);
+    var pEl = el.querySelector('.p'), poly = el.querySelector('polyline'), when = el.querySelector('.when'), inp = el.querySelector('.rng');
+
+    function apply() {
+      var key = String(c.options[parseInt(inp.value, 10)]);
+      var s = c.series[key] || { prices: [], as_of: null };
+      var pct = pctOf(s.prices);
+      if (pct === null && key === '0' && c.val !== null) pct = c.val;
+      var cls = pct === null ? 'flat' : (pct >= 0 ? 'up' : 'down');
+      pEl.className = 'p ' + cls;
+      pEl.innerHTML = pct === null ? '<span class="num">—</span>' : '<span class="num">' + fmtPct(pct) + '</span>';
+      if (s.prices && s.prices.length > 1) {
+        poly.setAttribute('points', pts(s.prices));
+        poly.setAttribute('stroke', pct !== null && pct < 0 ? 'var(--loss)' : 'var(--gain)');
+      } else {
+        poly.setAttribute('points', '');
+      }
+      when.innerHTML = c.labels[key] || '';
+      inp.setAttribute('aria-valuetext', (c.labels[key] || '').replace(/<[^>]*>/g, ''));
+    }
+    inp.addEventListener('input', apply);
+    apply();
+  });
+
+  function fit() {
+    try {
+      var h = Math.ceil(root.getBoundingClientRect().bottom + 4) + 'px';
+      if (window.frameElement) {
+        window.frameElement.style.height = h;
+        window.frameElement.parentElement.style.height = h;
+        window.frameElement.parentElement.style.setProperty('flex', '0 0 ' + h, 'important');
+      }
+    } catch (e) {}
+  }
+  fit();
+  window.addEventListener('resize', fit);
+})();
+</script>
+</body>
+</html>
