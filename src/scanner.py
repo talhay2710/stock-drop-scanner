@@ -115,17 +115,21 @@ def run_scan(cfg: dict) -> list[dict]:
         logger.exception("שגיאה בחישוב שווי האחזקות (לצורך גודל פוזיציה מבוסס-סיכון)")
         holdings_value_by_ccy = {}
     all_results = []
+    any_open = False
     try:
         for index in indices:
             index = index.upper()
             if not is_market_open(index):
                 logger.info("מחוץ לשעות המסחר של מדד %s - דילוג", index)
                 continue
+            any_open = True
             try:
                 all_results.extend(_scan_one_index(cfg, index, conn, vix_level, holdings_value_by_ccy))
             except Exception as scan_err:
                 logger.exception("שגיאה בסריקת מדד %s", index)
                 _record_diag(conn, index, "exception", f"{type(scan_err).__name__}: {scan_err} | {traceback.format_exc()[-1100:]}")
+        if not any_open and israel_now().minute < 5:
+            _probe_data_source(conn)  # אבחון: האם הענן מקבל נתונים מיאהו גם כשהשווקים סגורים (שעה אחת בכל פעם)
         try:
             check_holdings_gains(cfg, conn)
         except Exception:
@@ -587,6 +591,17 @@ def _historical_expected_max_drop_pct(conn) -> float | None:
     if not drops:
         return None
     return statistics.median(drops)
+
+
+def _probe_data_source(conn) -> None:
+    """17.10.2026: בדיקת ניסיון קלה לשליפת ת"א 35 (רק כשכל השווקים סגורים) - מתעדת ב-scan_diag כמה נתונים חזרו."""
+    try:
+        tickers = constituents.get_constituents("TA35")
+        df = market_data.fetch_universe_daily_changes(tickers)
+        last = df["last_close_date"].max() if not df.empty else None
+        _record_diag(conn, "TA35", "probe", f"rows={len(df)} tickers={len(tickers)} last_close_date={last} last_fetch={market_data.LAST_FETCH_DIAG}")
+    except Exception as e:
+        _record_diag(conn, "TA35", "probe_error", f"{type(e).__name__}: {e}")
 
 
 def _record_diag(conn, index: str, stage: str, message: str) -> None:
