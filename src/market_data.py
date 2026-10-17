@@ -260,6 +260,10 @@ def _fill_holes_from_intraday(data, tickers: list[str]):
     return data.sort_index()
 
 
+# אבחון הקריאה האחרונה (גודל התשובה / שגיאה) - נשמר ל-scan_diag כשהסבב חוזר ריק (17.10.2026)
+LAST_FETCH_DIAG: dict = {}
+
+
 def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo") -> pd.DataFrame:
     """מוריד היסטוריית מחירים עבור כל המניות ברשימה בבת אחת, ומחזיר טבלת
     שינוי יומי אחוזי לכל מניה (סגירה אחרונה מול הסגירה הקודמת).
@@ -267,8 +271,10 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
     # קריאה יקרה אחת על עשרות/מאות טיקרים - אם המעגל כבר "פתוח" (כשלים
     # רצופים ידועים, ר' _circuit_is_open) מדלגים לגמרי במקום לחכות ל-timeout
     # (8 שניות) על משהו שכמעט בטוח ייכשל, בדיוק כשזה הכי יקר (9.9.2026).
+    LAST_FETCH_DIAG.clear()
     if _circuit_is_open():
         logger.warning("מדלג על fetch_universe_daily_changes - circuit-breaker פתוח")
+        LAST_FETCH_DIAG["circuit_open"] = True
         return pd.DataFrame()
     try:
         data = yf.download(
@@ -282,6 +288,8 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
             timeout=_YF_TIMEOUT_SECONDS,
         )
         _report_circuit_success()
+        LAST_FETCH_DIAG["shape"] = tuple(data.shape)
+        LAST_FETCH_DIAG["multiindex"] = isinstance(data.columns, pd.MultiIndex)
         if isinstance(data.columns, pd.MultiIndex):
             try:
                 data = _fill_holes_from_intraday(data, tickers)
@@ -289,6 +297,7 @@ def fetch_universe_daily_changes(tickers: list[str], history_period: str = "3mo"
                 logger.warning("שחזור ימים חסרים נכשל: %s", fill_err)
     except Exception as e:
         _report_circuit_failure()
+        LAST_FETCH_DIAG["error"] = f"{type(e).__name__}: {e}"[:400]
         logger.warning("נכשלה fetch_universe_daily_changes (%d טיקרים): %s", len(tickers), e)
         return pd.DataFrame()
 

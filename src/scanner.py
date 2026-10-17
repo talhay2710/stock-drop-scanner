@@ -1,5 +1,6 @@
 """אורכסטרציית סריקה - מחבר בין כל המודולים לסבב סריקה אחד."""
 import logging
+import traceback
 import statistics
 import datetime as dt
 from zoneinfo import ZoneInfo
@@ -122,8 +123,9 @@ def run_scan(cfg: dict) -> list[dict]:
                 continue
             try:
                 all_results.extend(_scan_one_index(cfg, index, conn, vix_level, holdings_value_by_ccy))
-            except Exception:
+            except Exception as scan_err:
                 logger.exception("שגיאה בסריקת מדד %s", index)
+                _record_diag(conn, index, "exception", f"{type(scan_err).__name__}: {scan_err} | {traceback.format_exc()[-1100:]}")
         try:
             check_holdings_gains(cfg, conn)
         except Exception:
@@ -587,6 +589,13 @@ def _historical_expected_max_drop_pct(conn) -> float | None:
     return statistics.median(drops)
 
 
+def _record_diag(conn, index: str, stage: str, message: str) -> None:
+    try:
+        store_mod.record_scan_diag(conn, israel_now().isoformat(timespec="seconds"), index, stage, message)
+    except Exception as e:  # אבחון הוא בונוס - לעולם לא מפיל סריקה
+        logger.warning("רישום אבחון הסריקה נכשל: %s", e)
+
+
 def _record_quality(conn, index: str, total: int, stale: int, thin: int) -> None:
     try:
         store_mod.record_scan_quality(conn, israel_today().isoformat(), israel_now().isoformat(timespec="seconds"),
@@ -614,6 +623,8 @@ def _scan_one_index(
     df = market_data.fetch_universe_daily_changes(tickers)
     if df.empty:
         logger.warning("לא התקבלו נתוני מחיר עבור אף מניה (%s)", index)
+        _record_quality(conn, index, 0, 0, 0)
+        _record_diag(conn, index, "fetch_empty", f"tickers={len(tickers)} last_fetch={market_data.LAST_FETCH_DIAG}")
         return []
 
     # אם מקור הנתונים מפגר (הסגירה האחרונה הזמינה ישנה יותר מיום המסחר האחרון

@@ -74,6 +74,13 @@ CREATE TABLE IF NOT EXISTS scan_quality (
     thin INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_scan_quality_date ON scan_quality (scan_date);
+CREATE TABLE IF NOT EXISTS scan_diag (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    index_name TEXT,
+    stage TEXT NOT NULL,
+    message TEXT
+);
 CREATE TABLE IF NOT EXISTS signal_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_date TEXT NOT NULL,
@@ -345,6 +352,13 @@ def record_scan_quality(conn: sqlite3.Connection, scan_date: str, scan_ts: str, 
         (scan_date, scan_ts, index_name, total, stale, thin),
     )
     conn.execute("DELETE FROM scan_quality WHERE scan_date < date('now', '-30 day')")
+    conn.commit()
+
+
+def record_scan_diag(conn: sqlite3.Connection, ts: str, index_name: str | None, stage: str, message: str) -> None:
+    """שורת אבחון כשסבב סריקה נכשל בשקט (17.10.2026: אין נתונים בענן מאז 15.10, בלי שום עקבות ב-DB). נשמרים 3 ימים אחרונים בלבד."""
+    conn.execute("INSERT INTO scan_diag (ts, index_name, stage, message) VALUES (?, ?, ?, ?)", (ts, index_name, stage, (message or "")[:1500]))
+    conn.execute("DELETE FROM scan_diag WHERE ts < datetime('now', '-3 day')")
     conn.commit()
 
 
