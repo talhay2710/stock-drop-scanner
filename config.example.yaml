@@ -19,7 +19,7 @@ position_size:
 risk_pct_per_trade: 4.0
 assumed_holding_days: 3
 holdings_gain_alert_start_pct: 3.0
-holdings_gain_alert_step_pct: 1.0
+holdings_gain_alert_step_pct: 0.5
 telegram:
   enabled: false
   bot_token: ''
