@@ -314,12 +314,25 @@ _V3_CSS = """
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 18px !important; flex-wrap: wrap !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:first-child { flex: 1 1 100% !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:last-child { display: none !important; }
-            /* חמש לשוניות בשורה אחת, חמישה תאים שווים - שמות ארוכים יורדים לשתי שורות במקום לשבור את השורה */
+            /* חמש לשוניות בשורה אחת, תאים שווים, שמות קצרים */
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 0 !important; align-items: stretch !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:not(:first-child):not(:last-child) { flex: 1 1 18% !important; width: auto !important; min-width: 0 !important; max-width: 20% !important; }
             div[class*="st-key-navtab_"] { width: 100% !important; }
-            div[class*="st-key-navtab_"] button { width: 100% !important; min-height: 46px !important; padding: 8px 2px 4px !important; justify-content: center !important; align-items: flex-end !important; }
-            div[class*="st-key-navtab_"] button p { font-size: 13px !important; line-height: 1.25 !important; white-space: normal !important; text-align: center !important; }
+            div[class*="st-key-navtab_"] button { width: 100% !important; padding: 8px 2px 6px !important; justify-content: center !important; }
+            div[class*="st-key-navtab_"] button p { text-align: center !important; white-space: nowrap !important; }
+            div[class*="st-key-navtab_movers"] button p { font-size: 0 !important; }
+            div[class*="st-key-navtab_movers"] button p::after { content: "מניות"; font-size: 15px; }
+            div[class*="st-key-navtab_today"] button p { font-size: 0 !important; }
+            div[class*="st-key-navtab_today"] button p::after { content: "התראות"; font-size: 15px; }
+            div[class*="st-key-navtab_portfolio"] button p { font-size: 0 !important; }
+            div[class*="st-key-navtab_portfolio"] button p::after { content: "אחזקות"; font-size: 15px; }
+            div[class*="st-key-navtab_history"] button p { font-size: 0 !important; }
+            div[class*="st-key-navtab_history"] button p::after { content: "יומן"; font-size: 15px; }
+            div[class*="st-key-navtab_backtest"] button p { font-size: 0 !important; }
+            div[class*="st-key-navtab_backtest"] button p::after { content: "ביצועים"; font-size: 15px; }
+            /* האתר לא "רוקד" ימינה ושמאלה בטלפון: חותכים גלישה אופקית ברמת המסמך (טבלאות עם גלילה פנימית ממשיכות לגלול בתוך המכל שלהן) */
+            html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"] { overflow-x: clip !important; overscroll-behavior-x: none !important; max-width: 100vw; }
+            [data-testid="stMainBlockContainer"] { max-width: 100% !important; overflow-x: clip; }
             /* פס אנכי דק שנראה לפעמים בטלפון: קו הצד של הסיידבר כשהוא סגור/מוסתר */
             [data-testid="stSidebar"] { border: 0 !important; box-shadow: none !important; }
         }
