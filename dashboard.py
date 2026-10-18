@@ -76,6 +76,15 @@ def render_text_image(text: str, color_hex: str, font_size: int = 26) -> Image.I
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# פריסה לשרת שכבר רץ (Streamlit Cloud, fileWatcherType=none) מחליפה את dashboard.py אבל מודולי src נשארים במטמון של התהליך -
+# dashboard חדש מול ui_v3 ישן נתן AttributeError (18.10.2026). בפעם הראשונה שגרסת הקובץ הזו רצה בתהליך מוחקים את מודולי src
+# מהמטמון, והייבואים שלמטה טוענים אותם מחדש מהדיסק.
+_DASH_MTIME = os.path.getmtime(os.path.abspath(__file__))
+if getattr(sys, "_dipradar_dash_mtime", None) != _DASH_MTIME:
+    for _mod_name in [n for n in list(sys.modules) if n == "src" or n.startswith("src.")]:
+        del sys.modules[_mod_name]
+    sys._dipradar_dash_mtime = _DASH_MTIME
+
 from src.config import load_config, db_path, CONFIG_PATH, ROOT_DIR
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
