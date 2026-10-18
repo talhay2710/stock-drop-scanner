@@ -523,7 +523,7 @@ _CHEV = (
 
 def alerts_header() -> str:
     cols = ["מניה", "שינוי בהתראה", "שינוי נוכחי", "סיווג", "ניקוד", "כניסה", "יעד", "סטופ", "שעה"]
-    return '<div class="arow ahead">' + "".join(f"<span>{c}</span>" for c in cols) + "</div>"
+    return '<div class="arow ahead">' + "".join(f'<span{" class=\"x\"" if 4 <= i <= 7 else ""}>{c}</span>' for i, c in enumerate(cols)) + "</div>"
 
 
 def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str, sig_label: str, score_text: str,
@@ -532,8 +532,8 @@ def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str
     return (
         f'<div class="arow r{" open" if is_open else ""}">'
         f'<span class="nmc"><span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
-        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span>{num(score_text)}</span>'
-        f'<span>{num(entry)}</span><span>{num(target)}</span><span>{num(stop)}</span><span>{num(hhmm)}</span></div>'
+        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span class="x">{num(score_text)}</span>'
+        f'<span class="x">{num(entry)}</span><span class="x">{num(target)}</span><span class="x">{num(stop)}</span><span>{num(hhmm)}</span></div>'
     )
 
 
@@ -556,7 +556,7 @@ def spark(prices: list[float]) -> str:
 
 def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str, over: float | None, quality: float | None,
                  over_cls: str, quality_cls: str, exp_drop: float | None, flags: list[str], news: list[dict],
-                 net_text: str, held: bool) -> str:
+                 net_text: str, held: bool, levels: tuple[str, str, str] | None = None) -> str:
     why = "".join(
         f'<span>{esc(n)}<b class="{"p" if p > 0 else "m"}">{num(f"{p:+d}")}</b></span>' for n, p in parts
     ) or '<span class="dim">אין גורם תומך</span>'
@@ -585,8 +585,12 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
         news_html = ""
     foot = f'<div class="afoot"><span>{net_text}</span></div>' if net_text else ""
     held_html = '<div class="heldline">כבר באחזקות</div>' if held else ""
+    lev = (
+        '<div class="alev">' + "".join(f'<div><small>{lbl}</small><strong>{num(v)}</strong></div>' for lbl, v in zip(("כניסה", "יעד", "סטופ"), levels)) + '</div>'
+        if levels else ""
+    )
     return (
-        f'<div class="adet">{met}<div class="atop"><div class="asec"><small>ניקוד</small><div class="why">{why}</div></div>{spark(prices)}</div>'
+        f'<div class="adet">{met}{lev}<div class="atop"><div class="asec"><small>ניקוד</small><div class="why">{why}</div></div>{spark(prices)}</div>'
         f'{flag_html}{news_html}{foot}{held_html}</div>'
     )
 
@@ -638,6 +642,22 @@ ALERTS_CSS = """
         .v3h .afoot { font-size:15px; color:var(--v3-soft); }
         .v3h .heldline { font-size:15px; color:var(--dim); padding-block:6px; border-top:1px solid var(--rule); }
         @media (max-width:720px) { .v3h .amet { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3h .kpi.k4 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        .v3h .alev { display:none; }
+        @media (max-width:480px) {
+            /* נייד: ארבע כרטיסי סיכום בשורה אחת; בטבלה רק העמודות החשובות (כניסה/יעד/סטופ עוברים לפרטי ההתראה) */
+            .v3h .kpi.k4, .v3h .kpi.k4.sm { grid-template-columns:repeat(4,minmax(0,1fr)); }
+            .v3h .kpi.k4 > div, .v3h .kpi.k4.sm > div { padding:10px 8px 11px; border-top:0 !important; }
+            .v3h .kpi.k4 > div:first-child { grid-column:auto; padding-inline-start:0; }
+            .v3h .kpi.k4 small { font-size:12px; white-space:nowrap; }
+            .v3h .kpi.k4 strong, .v3h .kpi.k4.sm strong { font-size:22px; }
+            .v3h .arow { grid-template-columns:1.9fr 1fr 1fr 1.1fr .8fr; min-width:0; font-size:15px; padding:0 4px; gap:0 6px; }
+            .v3h .arow .x { display:none; }
+            .v3h .arow .nm { font-size:15px; gap:6px; flex-wrap:wrap; }
+            .v3h .arow.ahead > span { font-size:12px; }
+            .v3h .alev { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding-block:12px; border-bottom:1px solid var(--rule); }
+            .v3h .alev small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
+            .v3h .alev strong { font-size:18px; font-weight:400; }
+        }
 """
 
 
@@ -912,6 +932,13 @@ HOLDINGS_CSS = """
         .v3h .srow .sn { font-size:16px; color:var(--v3-soft); }
         .v3h .srow .ss { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .v3h .srow .sp2 { font-size:16px; direction:ltr; text-align:right; color:var(--v3-soft); }
+        @media (max-width:720px) {
+            .v3h .sgrid { flex-direction:column; align-items:stretch; gap:16px; }
+            .v3h .sdonut { width:200px; max-width:100%; margin-inline:auto; }
+            .v3h .srow { grid-template-columns:14px minmax(0,1fr) 48px; gap:2px 12px; }
+            .v3h .srow .ss { grid-column:2 / 3; grid-row:2; white-space:normal; }
+            .v3h .srow .sp2 { grid-column:3; grid-row:1 / 3; }
+        }
         .v3h .pmap { display:flex; gap:4px; margin:14px 0 6px; height:78px; }
         .v3h .pmap .tile { min-width:46px; border-radius:10px; padding:9px 10px; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; }
         .v3h .pmap .tn { font-size:12px; color:var(--v3-ink); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -921,8 +948,8 @@ HOLDINGS_CSS = """
         .v3h .tpill { display:flex; align-items:stretch; gap:0; margin:18px 0 6px; background:var(--surface); border:1px solid var(--rule); border-radius:8px; }
         .v3h .tpill .tb { flex:1 1 0; padding:16px 22px 18px; min-width:0; }
         .v3h .tpill .tb small { display:block; font-size:13px; color:var(--dim); margin-bottom:8px; }
-        .v3h .tpill .tv { display:flex; align-items:baseline; gap:12px; }
-        .v3h .tpill strong { font-size:26px; font-weight:400; direction:ltr; line-height:1; }
+        .v3h .tpill .tv { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; }
+        .v3h .tpill strong { font-size:26px; font-weight:400; direction:ltr; line-height:1; white-space:nowrap; }
         .v3h .tpill strong.up { color:var(--gain); } .v3h .tpill strong.down { color:var(--loss); }
         .v3h .tpill .chip { font-size:14px; padding:2px 8px; border-radius:5px; direction:ltr; }
         .v3h .tpill .chip.up { color:var(--gain); background:color-mix(in srgb, var(--gain) 11%, transparent); }
@@ -988,6 +1015,19 @@ def journal_kpi(cells: list[tuple[str, str, str]]) -> str:
     """cells: [(label, value_text, css_class)] - שורת סיכומים בעמודות שוות (מספר העמודות נקבע לפי מספר התאים)."""
     inner = "".join(f'<div><small>{esc(l)}</small><strong class="{c}">{num(v)}</strong></div>' for l, v, c in cells)
     return f'<div class="kpi kn" style="grid-template-columns:repeat({len(cells)},minmax(0,1fr))">{inner}</div>'
+
+
+JOURNAL_KPI_CSS = """
+        @media (max-width:480px) {
+            .v3h .kpi.kn { grid-template-columns:repeat(2,minmax(0,1fr)) !important; margin-top:16px; }
+            .v3h .kpi.kn > div { padding:12px 12px 14px; border-top:1px solid var(--rule) !important; border-inline-start:1px solid var(--rule); }
+            .v3h .kpi.kn > div:nth-child(-n+2) { border-top:0 !important; }
+            .v3h .kpi.kn > div:nth-child(odd) { border-inline-start:0; padding-inline-start:0; }
+            .v3h .kpi.kn > div:first-child { grid-column:auto !important; }
+            .v3h .kpi.kn small { font-size:12px; }
+            .v3h .kpi.kn strong { font-size:22px; }
+        }
+"""
 
 
 _OUTCOME_CLS = {"הגיע ליעד": "up", "רווח לפני היעד": "up", "פגע בסטופ": "down"}
@@ -1146,6 +1186,15 @@ PERF_CSS = """
         .v3h .kpi.k6 { grid-template-columns:repeat(6,minmax(0,1fr)); margin-top:28px; border-top:1px solid var(--rule); }
         .v3h .kpi.k6 > div { padding:18px 18px 20px; }
         .v3h .kpi.k6 > div:first-child { padding-inline-start:0; border-inline-start:0; }
+        @media (max-width:480px) {
+            .v3h .kpi.k6 { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:20px; }
+            .v3h .kpi.k6 > div { padding:12px 12px 14px; border-top:1px solid var(--rule); border-inline-start:1px solid var(--rule); }
+            .v3h .kpi.k6 > div:nth-child(-n+2) { border-top:0; }
+            .v3h .kpi.k6 > div:nth-child(odd) { border-inline-start:0; padding-inline-start:0; }
+            .v3h .kpi.k6 > div:first-child { grid-column:auto; }
+            .v3h .kpi.k6 small { font-size:12px; }
+            .v3h .kpi.k6 strong { font-size:22px; }
+        }
         .v3h .kpi.k6 strong { font-size:clamp(20px,2.4vw,26px); }
         .v3h .pbar { display:flex; gap:2px; height:4px; margin-top:-1px; }
         .v3h .pbar i { display:block; height:100%; }
@@ -1153,6 +1202,10 @@ PERF_CSS = """
         .v3h .fl { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 10px; border-bottom:1px solid var(--rule); cursor:pointer; }
         .v3h .fsum { display:flex; flex-wrap:wrap; align-items:center; row-gap:6px; font-size:16px; color:var(--v3-soft); }
         .v3h .fp { display:inline-block; }
+        @media (max-width:480px) {
+            .v3h .fsum { gap:4px 16px; font-size:15px; }
+            .v3h .fsum .fp + .fp { margin-inline-start:0; padding-inline-start:0; border-inline-start:0; }
+        }
         .v3h .fp + .fp { margin-inline-start:18px; padding-inline-start:18px; border-inline-start:1px solid var(--dim); line-height:1.1; }
         .v3h .chg { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--dim); }
         .v3h .chg svg { transform:scaleX(-1); transition:transform .15s; }
@@ -1164,6 +1217,13 @@ PERF_CSS = """
         .v3h .rb i { display:block; height:100%; background:var(--gain); }
         .v3h .rb::after { content:''; position:absolute; left:50%; top:-3px; width:1px; height:10px; background:var(--dim); }
         .v3h .down .rb i { background:var(--loss); }
+        @media (max-width:480px) {
+            .v3h .rb { width:44px; flex:none; }
+            .v3h .rate { gap:8px; }
+            .v3h .tb th, .v3h .tb td { padding-inline:5px; }
+            .v3h .tb td { font-size:15px; }
+            .v3h .tb td.main { white-space:normal; }
+        }
         .v3h .sec { margin-top:60px; }
         .v3h .sec .sech { margin:0; font-weight:500; font-size:18px; padding-bottom:12px; border-bottom:1px solid var(--rule-strong); display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px 24px; }
         .v3h .sec .sech .hsub { display:inline-flex; flex-wrap:wrap; align-items:center; row-gap:4px; font-size:14px; font-weight:400; color:var(--dim); }
@@ -1177,6 +1237,11 @@ PERF_CSS = """
         .v3h .mt b { font-weight:400; font-size:17px; color:var(--v3-soft); }
         .v3h .ms { display:flex; flex-wrap:wrap; align-items:center; row-gap:4px; font-size:13.5px; color:var(--dim); }
         .v3h .ms .fp + .fp { margin-inline-start:12px; padding-inline-start:12px; }
+        @media (max-width:480px) {
+            .v3h .ms { display:flex; flex-wrap:wrap; gap:2px 14px; }
+            .v3h .ms .fp + .fp, .v3h .sec .sech .hsub .fp + .fp { margin-inline-start:0; padding-inline-start:0; border-inline-start:0; }
+            .v3h .sec .sech .hsub { column-gap:14px; }
+        }
         .v3h details.more .in { padding:0 0 24px; }
         .v3h .stack { margin-top:60px; border-top:1px solid var(--rule-strong); }
         @media (max-width:820px) { .v3h .two { grid-template-columns:minmax(0,1fr); } .v3h .two > * { min-width:0; } }

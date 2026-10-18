@@ -504,7 +504,7 @@ _V3_CSS += """
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label p { font-size: 15px; font-weight: 300; color: var(--v3-dim); }
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label[data-selected="true"] { border-bottom-color: var(--v3-accent); background: transparent; }
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label[data-selected="true"] p { color: var(--v3-ink); font-weight: 400; }
-""" + ui_v3.COMPONENT_CSS + ui_v3.MOVERS_CSS + ui_v3.ALERTS_CSS + ui_v3.HOLDINGS_CSS + ui_v3.JOURNAL_CSS + ui_v3.PERF_CSS + """
+""" + ui_v3.COMPONENT_CSS + ui_v3.MOVERS_CSS + ui_v3.ALERTS_CSS + ui_v3.HOLDINGS_CSS + ui_v3.JOURNAL_CSS + ui_v3.JOURNAL_KPI_CSS + ui_v3.PERF_CSS + """
         div[class*="st-key-perf_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-perf_refresh_icon"] button p, div[class*="st-key-perf_refresh_icon"] button div { display: none !important; }
         div[class*="st-key-perf_refresh_icon"] button {
@@ -4709,6 +4709,9 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                         {"high": "up", "low": "down"}.get(_qt, "") if _q_known else "",
                         float(_exp) if (pd.notna(_exp) and _exp > abs(r["pct_change"])) else None, _flags, _news, _net_text,
                         bool(r.get("bought") == 1),
+                        levels=(_alert_price(r.get("entry_limit"), idx_name),
+                                _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
+                                _alert_price(r.get("stop_loss"), idx_name)),
                     ) + "</div>", unsafe_allow_html=True,
                 )
                 if r.get("bought") != 1:
