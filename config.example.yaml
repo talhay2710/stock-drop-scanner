@@ -24,8 +24,9 @@ telegram:
   enabled: false
   bot_token: ''
   chat_id: ''
+  enabled_since: '2026-10-18T07:56:34+00:00'
 desktop_notifications:
-  enabled: true
+  enabled: false
 fees:
   IL:
     commission_pct: 0.3
