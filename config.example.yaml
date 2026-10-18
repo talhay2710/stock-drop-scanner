@@ -53,7 +53,7 @@ max_position_size:
 account_size: {}
 telegram_message_types:
   drop_alert: false
-  holdings_stop: false
+  holdings_stop: true
   holdings_target: false
   holdings_gain: true
   holdings_hold_limit: true
