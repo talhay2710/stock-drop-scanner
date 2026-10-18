@@ -1,5 +1,4 @@
 indices:
-- TA125
 - NASDAQ100
 - SP500
 drop_threshold_pct: 3.5
