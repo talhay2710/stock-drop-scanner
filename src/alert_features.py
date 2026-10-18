@@ -23,13 +23,17 @@ CREATE TABLE IF NOT EXISTS alert_features (
     gap_open_pct REAL,     -- פער פתיחה ביום ההתראה לעומת הסגירה הקודמת
     down_streak INTEGER,   -- ימי ירידה רצופים לפני יום ההתראה
     ret_20d REAL,          -- שינוי % ב-20 הימים שלפני ההתראה
-    computed_at TEXT
+    computed_at TEXT,
+    atr_pct REAL           -- ATR של 14 ימים כאחוז מהמחיר (18.10.2026: צל ליעד אישי = כפולה של התנודתיות של המניה; ר' זיכרון project_per_stock_target_shadow)
 )
 """
 
 
 def ensure_table(conn: sqlite3.Connection) -> None:
     conn.execute(_SCHEMA)
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(alert_features)")}
+    if "atr_pct" not in existing:  # טבלאות שנוצרו לפני 18.10.2026
+        conn.execute("ALTER TABLE alert_features ADD COLUMN atr_pct REAL")
     conn.commit()
 
 
@@ -45,7 +49,7 @@ def compute(row) -> dict:
     """row = שורת הסריקה (df) של המניה: history/highs/lows_series (סגירות/שיאים/שפלים, כולל היום), last_close,
     prev_close, pct_change, last_open, avg_volume_20d. מחזיר dict ערכים (None כשחסר מידע)."""
     out = {"dd_5d": None, "atr_norm_drop": None, "dollar_vol": None, "gap_open_pct": None,
-           "down_streak": None, "ret_20d": None}
+           "down_streak": None, "ret_20d": None, "atr_pct": None}
     try:
         closes = row["history"].dropna()
         prior = closes.iloc[:-1]            # בלי יום ההתראה עצמו (מחיר חלקי)
@@ -69,6 +73,7 @@ def compute(row) -> dict:
                 atr = sum(tr[-14:]) / len(tr[-14:])
                 if atr > 0 and prev > 0:
                     out["atr_norm_drop"] = _finite(abs(float(row["pct_change"])) / (atr / prev * 100))
+                    out["atr_pct"] = _finite(atr / prev * 100)
             last_open = _finite(row.get("last_open"))
             if last_open and prev > 0:
                 out["gap_open_pct"] = _finite((last_open / prev - 1) * 100)
@@ -84,9 +89,9 @@ def save(conn: sqlite3.Connection, alert_id: int, features: dict) -> None:
     ensure_table(conn)
     conn.execute(
         "INSERT OR REPLACE INTO alert_features "
-        "(alert_id, dd_5d, atr_norm_drop, dollar_vol, gap_open_pct, down_streak, ret_20d, computed_at) "
-        "VALUES (?,?,?,?,?,?,?,?)",
+        "(alert_id, dd_5d, atr_norm_drop, dollar_vol, gap_open_pct, down_streak, ret_20d, computed_at, atr_pct) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
         (alert_id, features["dd_5d"], features["atr_norm_drop"], features["dollar_vol"], features["gap_open_pct"],
-         features["down_streak"], features["ret_20d"], dt.datetime.now().isoformat(timespec="seconds")),
+         features["down_streak"], features["ret_20d"], dt.datetime.now().isoformat(timespec="seconds"), features.get("atr_pct")),
     )
     conn.commit()

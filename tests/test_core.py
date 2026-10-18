@@ -179,8 +179,8 @@ class EntrySignal(unittest.TestCase):
         self.assertEqual(self.f("TA35", float("nan"))[0], self.s.SIGNAL_UNKNOWN)
         self.assertEqual(self.f("TA35", -4.6)[0], self.s.SIGNAL_WAIT)  # רק ירידה חדה = 2 נקודות
 
-    def test_target_is_three_percent(self):
-        self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.03)
+    def test_target_is_five_percent(self):
+        self.assertAlmostEqual(self.s.FIXED_TARGET_PCT, 0.05)
 
 
 class StrategySelector(unittest.TestCase):
@@ -194,14 +194,14 @@ class StrategySelector(unittest.TestCase):
     def test_defaults_equal_previous_behavior(self):
         self.s.configure(None)
         self.assertEqual((self.s.buy_min_score(), self.s.wait_min_score()), (4, 2))
-        self.assertAlmostEqual(self.s.target_frac(), 0.03)
+        self.assertAlmostEqual(self.s.target_frac(), 0.05)
         self.assertEqual(self.s.risk_mult(), 1.0)
-        self.assertAlmostEqual(self.s.live_target_price(100.0, 90.0, None), 103.0)
+        self.assertAlmostEqual(self.s.live_target_price(100.0, 90.0, None), 105.0)
 
     def test_switch_off_ignores_selection(self):
         self.s.configure({"strategy_selector": False, "strategy_card": "strict", "risk_level": "aggressive"})
         self.assertEqual((self.s.active_card_key(), self.s.active_risk_key()), ("balanced", "conservative"))
-        self.assertAlmostEqual(self.s.target_frac(), 0.03)
+        self.assertAlmostEqual(self.s.target_frac(), 0.05)
 
     def test_switch_on_applies_selection(self):
         self.s.configure({"strategy_selector": True, "strategy_card": "strict", "risk_level": "aggressive"})
@@ -226,7 +226,18 @@ class TrailingNanClose(unittest.TestCase):
         idx = pd.DatetimeIndex(["2026-10-01", "2026-10-05", "2026-10-06", "2026-10-07"], tz="Asia/Jerusalem")
         frame = pd.DataFrame({"Close": [100.0, 101.0, 102.0, float("nan")], "Volume": [1, 1, 1, 1]}, index=idx)
         multi = pd.concat({"X.TA": frame}, axis=1)  # _find_hole_days מצפה לעמודות (טיקר, שדה)
-        holes = market_data._find_hole_days(multi, ["X.TA"])
+        # "היום" קבוע ל-8.10.2026 - הפונקציה מסתכלת על חלון ימים אחורה מהיום, ובלי הקפאה הבדיקה נכשלת ככל שהזמן עובר
+        from unittest import mock
+
+        class _FixedDate(dt.date):
+            @classmethod
+            def today(cls):
+                return dt.date(2026, 10, 8)
+
+        fixed_dt = mock.Mock(wraps=dt)
+        fixed_dt.date = _FixedDate
+        with mock.patch.object(market_data, "dt", fixed_dt),                 mock.patch.object(market_data, "_latest_completed_day", return_value=dt.date(2026, 10, 7)):
+            holes = market_data._find_hole_days(multi, ["X.TA"])
         self.assertIn(dt.date(2026, 10, 7), holes.get("X.TA", []))
 
 
@@ -258,7 +269,7 @@ class AlertFeatures(unittest.TestCase):
     def test_compute_returns_all_fields_from_prior_days_only(self):
         from src import alert_features
         f = alert_features.compute(self._row())
-        for k in ("dd_5d", "atr_norm_drop", "dollar_vol", "gap_open_pct", "down_streak", "ret_20d"):
+        for k in ("dd_5d", "atr_norm_drop", "dollar_vol", "gap_open_pct", "down_streak", "ret_20d", "atr_pct"):
             self.assertIsNotNone(f[k], k)
         self.assertLess(f["dd_5d"], 0)
         self.assertGreaterEqual(f["down_streak"], 1)
