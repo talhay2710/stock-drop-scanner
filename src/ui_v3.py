@@ -432,9 +432,9 @@ def age_ticker(age_seconds: int) -> str:
     return f'<span class="upd">עודכן לפני <span class="num v3age" style="--age:{a}"></span> שניות</span>'
 
 
-def movers_head(title: str, fresh: str, age_seconds: int | None) -> str:
+def movers_head(title: str, fresh: str, age_seconds: int | None, icons: int = 1) -> str:
     fresh_html = f'<span class="fresh">{esc(fresh)}</span>' if fresh else ""
-    side = f'<span class="hr withico">{fresh_html}{age_ticker(age_seconds) if age_seconds is not None else ""}</span>'
+    side = f'<span class="hr withico{" withico2" if icons > 1 else ""}">{fresh_html}{age_ticker(age_seconds) if age_seconds is not None else ""}</span>'
     return f'<section class="block" style="margin-top:32px">{head(title, side)}</section>'
 
 
@@ -464,16 +464,20 @@ def stocks_table(rows: list[dict], cum_days: int | None, show_price: bool = True
     )
 
 
-def watchlist_table(rows: list[dict]) -> str:
-    body = "".join(
-        f'<tr><td class="n" title="{esc(r["name"])}">{esc(short_name(r["name"]))}{f"<span class=mono>{esc(r.get("mono", ""))}</span>" if r.get("mono") else ""}</td>'
-        f'<td>{num(r["added"])}</td><td class="{cls_for(r.get("ret"))}">{num(signed(r["ret"], 1, "%")) if r.get("ret") is not None else "—"}</td>'
-        f'<td>{num(r.get("price", "—"))}</td></tr>'
-        for r in rows
-    )
+def watchlist_head() -> str:
+    cells = ["מניה", "נוספה בתאריך", "שער ביצוע", "שער נוכחי", "ימי החזקה", "שינוי"]
+    return '<div class="wlh wlrow">' + "".join(f"<span>{c}</span>" for c in cells) + "<span></span></div>"
+
+
+def watchlist_row(r: dict) -> str:
+    """שורת מניה במעקב (רשת, כמו שורות האחזקות). העמודה האחרונה ריקה - שם נכנס כפתור ההסרה (✕) כשכבת-על."""
+    ret = r.get("ret")
+    mono = f'<span class="mono">{esc(r.get("mono", ""))}</span>' if r.get("mono") else ""
     return (
-        '<div class="tw"><table class="tb"><thead><tr><th>מניה</th><th>נוספה</th><th>שינוי מאז ההוספה</th><th>שער</th></tr></thead>'
-        f'<tbody>{body}</tbody></table></div>'
+        f'<div class="wlrow"><span class="n" title="{esc(r["name"])}">{esc(short_name(r["name"]))}{mono}</span>'
+        f'<span>{num(r["added"])}</span><span>{num(r.get("entry", "—"))}</span><span>{num(r.get("price", "—"))}</span>'
+        f'<span>{num(r.get("days", "—"))}</span>'
+        f'<span class="{cls_for(ret)}">{num(signed(ret, 1, "%")) if ret is not None else "—"}</span><span></span></div>'
     )
 
 
@@ -485,6 +489,10 @@ MOVERS_CSS = """
         .v3h .head > .hr { display:flex; align-items:baseline; gap:20px; font-size:14px; color:var(--dim); }
         .v3h .upd { color:var(--dim); }
         .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .v3h .wlrow { display:grid; grid-template-columns:minmax(0,1.7fr) 1fr 1fr 1fr .8fr .8fr 34px; gap:12px; align-items:center; padding:14px 10px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; }
+        .v3h .wlrow .n { font-size:17px; color:var(--v3-soft); } .v3h .wlrow .mono { margin-inline-start:10px; font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
+        .v3h .wlh { font-size:13px; color:var(--dim); padding-block:10px; border-bottom:1px solid var(--rule-strong); }
+        @media (max-width:720px) { .v3h .wlrow { grid-template-columns:minmax(0,1.5fr) 1fr 1fr 34px; } .v3h .wlrow > span:nth-child(2), .v3h .wlrow > span:nth-child(3), .v3h .wlrow > span:nth-child(5) { display:none; } }
         .v3h table.tb { width:100%; border-collapse:collapse; }
         .v3h .tb th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:10px 8px; border-bottom:1px solid var(--rule); white-space:nowrap; }
         .v3h .tb td { padding:14px 8px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; color:var(--v3-soft); }
@@ -498,13 +506,13 @@ MOVERS_CSS = """
 
 # ───────────────────────── התראות ─────────────────────────
 
-def kpi4(cells: list[tuple]) -> str:
+def kpi4(cells: list[tuple], compact: bool = False) -> str:
     """cells: [(label, value_text, css_class[, sub_text])] - פס סיכום בארבעה תאים שווים (התראות היום, מעקב קדימה)."""
     inner = "".join(
         f'<div><small>{esc(c[0])}</small><strong class="{c[2]}">{num(c[1])}' + (f'<em>{esc(c[3])}</em>' if len(c) > 3 else "") + '</strong></div>'
         for c in cells
     )
-    return f'<div class="kpi k4">{inner}</div>'
+    return f'<div class="kpi k4{" sm" if compact else ""}">{inner}</div>'
 
 
 _CHEV = (
@@ -514,17 +522,17 @@ _CHEV = (
 
 
 def alerts_header() -> str:
-    cols = ["מניה", "שינוי", "סיווג", "ניקוד", "כניסה", "יעד", "סטופ", "שעה"]
+    cols = ["מניה", "שינוי בהתראה", "שינוי נוכחי", "סיווג", "ניקוד", "כניסה", "יעד", "סטופ", "שעה"]
     return '<div class="arow ahead">' + "".join(f"<span>{c}</span>" for c in cols) + "</div>"
 
 
 def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str, sig_label: str, score_text: str,
-              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "") -> str:
+              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "", cur_html: str = "") -> str:
     new = ""  # תגית "חדשה" הוסרה - השעה בשורה מספיקה
     return (
         f'<div class="arow r{" open" if is_open else ""}">'
         f'<span class="nmc"><span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
-        f'<span>{change_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span>{num(score_text)}</span>'
+        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span>{num(score_text)}</span>'
         f'<span>{num(entry)}</span><span>{num(target)}</span><span>{num(stop)}</span><span>{num(hhmm)}</span></div>'
     )
 
@@ -591,7 +599,10 @@ def num_raw(inner_html: str) -> str:
 ALERTS_CSS = """
         .v3h .kpi.k4 { grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:0; }
         .v3h .kpi.k4 > div { padding:18px 24px 20px; }
-        .v3h .arow { display:grid; grid-template-columns:1.9fr 1.4fr .9fr .7fr .95fr .95fr .95fr .7fr; align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:640px; }
+        .v3h .kpi.k4.sm > div { padding:10px 20px 11px; }
+        .v3h .kpi.k4.sm small { font-size:12px; }
+        .v3h .kpi.k4.sm strong { font-size:20px; line-height:1.15; margin-top:1px; }
+        .v3h .arow { display:grid; grid-template-columns:1.9fr 1.4fr 1fr .9fr .7fr .95fr .95fr .95fr .7fr; align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:720px; }
         .v3h .arow > span { padding-block:15px; }
         .v3h .arow > span:has(.nt) { padding-block:8px; }
         .v3h .arow .nm small.ix { opacity:.75; }

@@ -97,6 +97,51 @@ from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, fo
 UI_V3 = bool(load_config().get("ui_v3", False))
 UI_V2 = bool(load_config().get("ui_v2", False)) and not UI_V3
 
+_UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_prefs.json")
+_PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
+
+
+_UI_PREFS_ON = bool(load_config().get("ui_prefs", False)) and os.environ.get("DIPRADAR_NO_PREFS") != "1"  # רק מקומית (ר' cloud_sync)
+
+
+def _load_ui_prefs() -> dict:
+    if not _UI_PREFS_ON:
+        return {}
+    try:
+        return json.loads(open(_UI_PREFS_FILE, encoding="utf-8").read())
+    except Exception:
+        return {}
+
+
+def _save_ui_prefs(updates: dict) -> None:
+    """שומר העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש) - רק כשמשהו השתנה."""
+    if not _UI_PREFS_ON:
+        return
+    prefs = _load_ui_prefs()
+    if all(prefs.get(k) == v for k, v in updates.items()):
+        return
+    prefs.update(updates)
+    try:
+        open(_UI_PREFS_FILE, "w", encoding="utf-8").write(json.dumps(prefs, ensure_ascii=False, indent=1))
+    except Exception:
+        pass
+
+
+def _restore_filter_prefs(spec: dict) -> None:
+    """משחזר את הבחירה האחרונה של מסנני טאב (כשמצב הווידג'ט נמחק - מעבר טאב/רענון); בלי בחירה שמורה (או ערך שכבר לא חוקי) - ברירת מחדל.
+    spec: {מפתח: (ברירת מחדל, [אפשרויות חוקיות])}."""
+    prefs = _load_ui_prefs()
+    for key, (default, options) in spec.items():
+        if st.session_state.get(key) is None:
+            saved = prefs.get(key)
+            st.session_state[key] = saved if saved in options else default
+
+
+def _save_filter_prefs(keys: tuple) -> None:
+    _save_ui_prefs({k: st.session_state.get(k) for k in keys if st.session_state.get(k) is not None})
+
+
+
 _V2_CSS = """
         @media (prefers-color-scheme: light) {
             [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"] { background: #eef1f5 !important; }
@@ -269,6 +314,14 @@ _V3_CSS = """
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 18px !important; flex-wrap: wrap !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:first-child { flex: 1 1 100% !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:last-child { display: none !important; }
+            /* חמש לשוניות בשורה אחת, חמישה תאים שווים - שמות ארוכים יורדים לשתי שורות במקום לשבור את השורה */
+            div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 0 !important; align-items: stretch !important; }
+            div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:not(:first-child):not(:last-child) { flex: 1 1 18% !important; width: auto !important; min-width: 0 !important; max-width: 20% !important; }
+            div[class*="st-key-navtab_"] { width: 100% !important; }
+            div[class*="st-key-navtab_"] button { width: 100% !important; min-height: 46px !important; padding: 8px 2px 4px !important; justify-content: center !important; align-items: flex-end !important; }
+            div[class*="st-key-navtab_"] button p { font-size: 13px !important; line-height: 1.25 !important; white-space: normal !important; text-align: center !important; }
+            /* פס אנכי דק שנראה לפעמים בטלפון: קו הצד של הסיידבר כשהוא סגור/מוסתר */
+            [data-testid="stSidebar"] { border: 0 !important; box-shadow: none !important; }
         }
 """
 
@@ -524,6 +577,8 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-journal_filter_icon"] button:hover { background: var(--v3-hover) !important; }
+        }
+        }
         div[class*="st-key-perf_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-perf_filter_icon"] button p, div[class*="st-key-perf_filter_icon"] button div { display: none !important; }
         div[class*="st-key-perf_filter_icon"] button {
@@ -598,7 +653,7 @@ _V3_CSS += """
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] {
             display: flex !important; align-items: center; gap: 8px; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important;
         }
-        div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] { height: 26px !important; min-height: 26px !important; align-items: center !important; justify-content: flex-end !important; width: 100% !important; }
+        div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] { height: 32px !important; min-height: 32px !important; align-items: center !important; justify-content: flex-end !important; width: 100% !important; }
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] > div:last-child { align-self: center !important; }
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputField"] {
             order: 1; flex: 0 0 2ch; width: 2ch !important; background: transparent !important; font-size: 15px; color: var(--v3-soft) !important; padding: 0 !important; text-align: left !important;
@@ -625,10 +680,26 @@ _V3_CSS += """
             background: transparent !important; color: var(--v3-dim) !important; padding: 14px 0 !important; font-size: 14px; min-height: 0 !important;
         }
         div[class*="st-key-movers_more_"] button:hover { color: var(--v3-accent) !important; }
-        div[class*="st-key-movers_watch_actions"] [data-testid="stExpander"] details { border: 0 !important; border-bottom: 1px solid var(--v3-rule) !important; border-radius: 0 !important; background: transparent !important; }
-        div[class*="st-key-movers_watch_actions"] [data-testid="stExpander"] summary { padding: 14px 0 !important; color: var(--v3-accent); font-weight: 500; font-size: 15px; }
-        div[class*="st-key-movers_watch_actions"] [data-testid="stExpander"] summary:hover { background: transparent !important; }
+        div[class*="st-key-movers_watch_section"] { position: relative; }
+        div[class*="st-key-watch_manage_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: absolute; top: 0; left: 0; z-index: 2; width: 100% !important; }
+        div[class*="st-key-watch_manage_icon"] button p, div[class*="st-key-watch_manage_icon"] button div { display: none !important; }
+        div[class*="st-key-watch_manage_icon"] button { position: absolute; top: 50px; left: 0; width: 22px; height: 22px; min-height: 0; padding: 0 !important; border: 0 !important; background: transparent !important; font-size: 0 !important; border-radius: 50% !important; }
+        div[class*="st-key-watch_manage_icon"] button::before { content: ""; position: absolute; inset: 4px; background-color: var(--v3-accent); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>") center / contain no-repeat; }
+        div[class*="st-key-watch_manage_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-movers_watch_add_row"] { padding: 6px 0 10px; gap: 16px !important; }
+        div[class*="st-key-movers_watch_rows"], div[class*="st-key-movers_watch_rows"] > div { gap: 0 !important; }
+        div[class*="st-key-wl_row_"] { position: relative; gap: 0 !important; }
+        div[class*="st-key-wl_rm_"] { position: absolute !important; inset-inline-end: 8px; top: 27.5px; transform: translateY(-50%); width: auto !important; z-index: 3; }
+        div[class*="st-key-wl_rm_"] button { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 2px 4px !important; min-height: 0 !important; color: var(--v3-dim) !important; font-size: 15px !important; }
+        div[class*="st-key-wl_rm_"] button:hover { color: var(--v3-loss, #9B3F2F) !important; background: transparent !important; }
+        /* לוח ניהול המעקב: שקט - שדות בלי רקע ובלי מסגרת (רק קו תחתון דק), כפתורים כטקסט */
+        div[class*="st-key-movers_watch_actions"] [data-baseweb="select"] > div { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; box-shadow: none !important; min-height: 34px; }
+        div[class*="st-key-movers_watch_actions"] label p { font-size: 13px !important; color: var(--v3-dim) !important; }
+        div[class*="st-key-movers_watch_actions"] button { background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 4px 0 !important; min-height: 0 !important; color: var(--v3-accent) !important; font-size: 15px !important; white-space: nowrap; }
+        div[class*="st-key-movers_watch_actions"] button:hover { text-decoration: underline; background: transparent !important; }
+        div[class*="st-key-movers_watch_actions"] button p { font-size: 15px !important; font-weight: 500 !important; }
         .v3h .head > .hr.withico { padding-inline-end: 40px; }
+        .v3h .head > .hr.withico2 { padding-inline-end: 74px; }
 """
 
 # תאריך + בורר יום/לילה בכותרת (iframe קטן): קובע data-theme על <html> של העמוד, שומר ב-localStorage ומסנכרן את שאר ה-iframe-ים
@@ -3922,8 +3993,13 @@ def _v3_stock_rows(sub_df: pd.DataFrame) -> list[dict]:
 def _render_movers_v3() -> None:
     """טאב 'מניות מובילות' בעיצוב v3 (המוקאפ שאושר): כותרת + טריות, מדד + ימים, שתי טבלאות (ירידה/עלייה), מניות במעקב."""
     scanning_indices = cfg.get("indices") or ALL_INDICES
+    # הבחירה האחרונה (מדד, ימים) נשמרת בין כניסות - כמו בשאר הטאבים עם מסננים
+    _restore_filter_prefs({"movers_index_select": ("TA35", list(SCAN_INDEX_ORDER))})
+    # הימים: ערך התחלתי מהבחירה השמורה (value=), ולא דרך session_state - אחרת value=None והשדה מקבל כפתור ניקוי (⊗)
+    _saved_days = _load_ui_prefs().get("movers_cumulative_days")
+    _days_default = _saved_days if isinstance(_saved_days, int) and 2 <= _saved_days <= 10 else 3
     movers_index = st.session_state.get("movers_index_select") or "TA35"
-    movers_days = int(st.session_state.get("movers_cumulative_days", 3))
+    movers_days = int(st.session_state.get("movers_cumulative_days", _days_default))
     movers_df = get_all_changes(movers_index, movers_days)
 
     fresh, stale_note = "היום", ""
@@ -3934,22 +4010,29 @@ def _render_movers_v3() -> None:
             if market_data.is_data_stale(_rep, "X.TA" if movers_index in ("TA35", "TA125") else ""):
                 fresh += " · נתון ישן"
     st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", fresh, 0 if fresh == "היום" else None)}</div>', unsafe_allow_html=True)
-    if st.button("רענון", key="movers_refresh_icon"):
-        get_all_changes.clear()
-        st.rerun(scope="fragment")
+
+    def _movers_index_keep() -> None:  # לחיצה על המדד שכבר נבחר מבטלת אותו - חוזרים לאחרון ששמור
+        if st.session_state.get("movers_index_select") is None:
+            st.session_state["movers_index_select"] = _load_ui_prefs().get("movers_index_select", "TA35")
+
+    # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהפקדים נרשמו מאפס את הבחירות שלהם
+    st.button("רענון", key="movers_refresh_icon", on_click=get_all_changes.clear)
 
     with st.container(key="movers_controls"):
         _c_idx, _c_days = st.columns([3, 2])
         with _c_idx:
             st.segmented_control(
-                "מדד לצפייה", SCAN_INDEX_ORDER, format_func=lambda i: INDEX_LABELS[i], default="TA35",
-                selection_mode="single", key="movers_index_select", label_visibility="collapsed",
+                "מדד לצפייה", SCAN_INDEX_ORDER, format_func=lambda i: INDEX_LABELS[i],
+                default=None if st.session_state.get("movers_index_select") is not None else "TA35",
+                selection_mode="single", key="movers_index_select", label_visibility="collapsed", on_change=_movers_index_keep,
             )
         with _c_days:
             st.number_input(
-                "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1, value=3,
+                "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
+                value=_days_default,
                 key="movers_cumulative_days", label_visibility="collapsed",
             )
+    _save_filter_prefs(("movers_index_select", "movers_cumulative_days"))
     if movers_index not in scanning_indices:
         st.caption(f"{INDEX_LABELS[movers_index]} לא נמצא ברשימת המדדים שנסרקים להתראות - זו צפייה בלבד.")
 
@@ -3984,53 +4067,70 @@ def _render_movers_v3() -> None:
         _wl_daily_df = get_current_changes_for(tuple({it["ticker"] for it in _wl_items}))
         for it in _wl_items:
             _match = _wl_daily_df[_wl_daily_df["ticker"] == it["ticker"]]
-            if _match.empty:
-                continue
             _cur = get_current_price(it["ticker"])
-            if _cur is None:
+            if _cur is None and not _match.empty:
                 _cur = _match.iloc[0]["last_close"]
+            _wl_added = dt.datetime.fromisoformat(it["added_at"])
+            _wl_country = constituents.INDEX_COUNTRY_CODE.get(it["index_name"], "IL")
+            _wl_days, _wl_day = 0, _wl_added.date()
+            while _wl_day <= israel_today():  # ימי מסחר מיום ההוספה ועד היום (כולל), כמו "ימי החזקה" ביומן העסקאות
+                if is_trading_day(_wl_country, _wl_day):
+                    _wl_days += 1
+                _wl_day += dt.timedelta(days=1)
             _wl_rows.append({
-                "name": it["company_name"] or it["ticker"], "mono": str(it["ticker"]).replace(".TA", ""),
-                "added": dt.datetime.fromisoformat(it["added_at"]).strftime("%d.%m"),
-                "ret": (_cur / it["entry_price"] - 1) * 100.0, "price": _price_text(_cur, it["index_name"]),
+                "id": it["id"], "name": it["company_name"] or it["ticker"], "mono": str(it["ticker"]).replace(".TA", ""),
+                "added": _wl_added.strftime("%d.%m.%y"), "days": max(_wl_days, 1),
+                "ret": ((_cur / it["entry_price"] - 1) * 100.0) if _cur is not None else None,
+                "entry": _price_text(it["entry_price"], it["index_name"]),
+                "price": _price_text(_cur, it["index_name"]) if _cur is not None else "—",
             })
-    st.markdown(
-        f'<div class="v3h"><section class="block">{ui_v3.head(f"מניות במעקב ({len(_wl_items)})")}'
-        f'{ui_v3.watchlist_table(_wl_rows) if _wl_rows else ""}</section></div>',
-        unsafe_allow_html=True,
-    )
-    with st.container(key="movers_watch_actions"):
-        with st.expander("הוספת מניה למעקב"):
-            _wl_add_index = st.selectbox("מדד", ALL_INDICES, format_func=lambda i: INDEX_LABELS[i], key="watchlist_add_index")
-            _wl_add_tickers = constituents.get_constituents(_wl_add_index)
-            _wl_add_name_map = (
-                constituents.get_il_name_map(_wl_add_index) if _wl_add_index.upper() in ("TA35", "TA125")
-                else constituents.get_us_name_map(_wl_add_index)
-            )
-            _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
-            _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
-            _wl_add_chosen = st.selectbox("מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker")
-            if st.button("הוסף למעקב", key="watchlist_add_btn"):
-                _wl_entry_price = get_current_price(_wl_add_chosen)
-                if _wl_entry_price is None:
-                    st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
-                else:
-                    _wl_add_conn = store.get_conn(db_path(cfg))
-                    store.add_watchlist_item(
-                        _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen), _wl_add_index, _wl_entry_price,
+    # ניהול המעקב: אייקון הוספה (+) בקצה השמאלי של כותרת הסעיף (כמו הרענון והמשפך בשאר הטאבים) פותח לוח הוספה/הסרה
+    def _toggle_watch_manage() -> None:
+        st.session_state["watch_manage_open"] = not st.session_state.get("watch_manage_open", False)
+
+    def _remove_watch_item(item_id: int) -> None:
+        _c = store.get_conn(db_path(cfg))
+        try:
+            store.remove_watchlist_item(_c, item_id)
+        finally:
+            _c.close()
+
+    with st.container(key="movers_watch_section"):
+        st.markdown(
+            f'<div class="v3h"><section class="block">{ui_v3.head(f"מניות במעקב ({len(_wl_items)})")}'
+            f'{ui_v3.watchlist_head() if _wl_rows else ""}</section></div>',
+            unsafe_allow_html=True,
+        )
+        st.button(" ", key="watch_manage_icon", on_click=_toggle_watch_manage)
+        with st.container(key="movers_watch_rows"):
+            for _wr in _wl_rows:
+                with st.container(key=f"wl_row_{_wr['id']}"):
+                    st.markdown(f'<div class="v3h">{ui_v3.watchlist_row(_wr)}</div>', unsafe_allow_html=True)
+                    st.button("✕", key=f"wl_rm_{_wr['id']}", on_click=_remove_watch_item, args=(_wr["id"],))
+        if st.session_state.get("watch_manage_open", False):
+            with st.container(key="movers_watch_actions"):
+                with st.container(horizontal=True, vertical_alignment="bottom", key="movers_watch_add_row"):
+                    _wl_add_index = st.selectbox("מדד", SCAN_INDEX_ORDER, format_func=lambda i: INDEX_LABELS[i], key="watchlist_add_index")
+                    _wl_add_tickers = constituents.get_constituents(_wl_add_index)
+                    _wl_add_name_map = (
+                        constituents.get_il_name_map(_wl_add_index) if _wl_add_index.upper() in ("TA35", "TA125")
+                        else constituents.get_us_name_map(_wl_add_index)
                     )
-                    _wl_add_conn.close()
-                    st.rerun()
-        if _wl_items:
-            with st.expander("הסרת מניה מהמעקב"):
-                _wl_rm = st.selectbox(
-                    "מניה להסרה", _wl_items, format_func=lambda it: it["company_name"] or it["ticker"], key="watchlist_remove_pick",
-                )
-                if st.button("הסר מהמעקב", key="watchlist_remove_btn"):
-                    _wl_rm_conn = store.get_conn(db_path(cfg))
-                    store.remove_watchlist_item(_wl_rm_conn, _wl_rm["id"])
-                    _wl_rm_conn.close()
-                    st.rerun()
+                    _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
+                    _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
+                    _wl_add_chosen = st.selectbox("מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker")
+                    _wl_add_clicked = st.button("הוספה למעקב", key="watchlist_add_btn")
+                if _wl_add_clicked:
+                    _wl_entry_price = get_current_price(_wl_add_chosen)
+                    if _wl_entry_price is None:
+                        st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
+                    else:
+                        _wl_add_conn = store.get_conn(db_path(cfg))
+                        store.add_watchlist_item(
+                            _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen), _wl_add_index, _wl_entry_price,
+                        )
+                        _wl_add_conn.close()
+                        st.rerun()
 
 
 _tab_slot_movers = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
@@ -4385,50 +4485,6 @@ _ALERT_REASON_LABELS = {
 _SIG_WORD = {"buy": "לקנות", "wait": "לחכות", "avoid": "לא לקנות"}
 
 
-_UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_prefs.json")
-_PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
-
-
-_UI_PREFS_ON = bool(load_config().get("ui_prefs", False)) and os.environ.get("DIPRADAR_NO_PREFS") != "1"  # רק מקומית (ר' cloud_sync)
-
-
-def _load_ui_prefs() -> dict:
-    if not _UI_PREFS_ON:
-        return {}
-    try:
-        return json.loads(open(_UI_PREFS_FILE, encoding="utf-8").read())
-    except Exception:
-        return {}
-
-
-def _save_ui_prefs(updates: dict) -> None:
-    """שומר העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש) - רק כשמשהו השתנה."""
-    if not _UI_PREFS_ON:
-        return
-    prefs = _load_ui_prefs()
-    if all(prefs.get(k) == v for k, v in updates.items()):
-        return
-    prefs.update(updates)
-    try:
-        open(_UI_PREFS_FILE, "w", encoding="utf-8").write(json.dumps(prefs, ensure_ascii=False, indent=1))
-    except Exception:
-        pass
-
-
-def _restore_filter_prefs(spec: dict) -> None:
-    """משחזר את הבחירה האחרונה של מסנני טאב (כשמצב הווידג'ט נמחק - מעבר טאב/רענון); בלי בחירה שמורה (או ערך שכבר לא חוקי) - ברירת מחדל.
-    spec: {מפתח: (ברירת מחדל, [אפשרויות חוקיות])}."""
-    prefs = _load_ui_prefs()
-    for key, (default, options) in spec.items():
-        if st.session_state.get(key) is None:
-            saved = prefs.get(key)
-            st.session_state[key] = saved if saved in options else default
-
-
-def _save_filter_prefs(keys: tuple) -> None:
-    _save_ui_prefs({k: st.session_state.get(k) for k in keys if st.session_state.get(k) is not None})
-
-
 def _filter_dot_css(icon_key: str, active: bool) -> str:
     """נקודה קטנה על אייקון המשפך כשיש סינון פעיל (והלוח סגור או פתוח - כדי שתמיד ברור שהטבלה מסוננת)."""
     if not active:
@@ -4450,11 +4506,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     """טבלת 'התראות היום' בעיצוב v3 (המוקאפ שאושר): סיכום, מסננים, שורות שנפתחות לפרטי ההתראה, פתיחת פוזיציה."""
     st.session_state.setdefault("open_alert_id", None)
     n_total = len(todays_alerts)
-    if is_fallback_day and last_scan_date:
-        _cnt = "התראה אחת" if n_total == 1 else f"{n_total} התראות"
-        title = f"{_cnt} מיום המסחר האחרון ({dt.date.fromisoformat(last_scan_date).strftime('%d.%m')})"
-    else:
-        title = "התראות היום"
+    title = "התראות"  # כותרת במילה אחת, כמו בשאר הטאבים
     st.markdown(
         f'<div class="v3h">{ui_v3.movers_head(title, "", None)}</div>', unsafe_allow_html=True,
     )
@@ -4474,6 +4526,12 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     if not _cur_df.empty and "history" in _cur_df.columns:
         for _t, _h in zip(_cur_df["ticker"], _cur_df["history"]):
             _nd_map[_t] = market_data.compute_n_day_change_pct(_h, _md_days)
+
+    _cur_map, _cur_gap = {}, {}
+    if not _cur_df.empty:
+        _cur_map = dict(zip(_cur_df["ticker"], _cur_df["pct_change"]))
+        if "prev_close_gap" in _cur_df.columns:
+            _cur_gap = dict(zip(_cur_df["ticker"], _cur_df["prev_close_gap"].fillna(False)))
 
     items = []
     for _, r in todays_alerts.iterrows():
@@ -4508,7 +4566,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     st.markdown(
         '<div class="v3h">' + ui_v3.kpi4([
             ("סך הכל", str(n_total), ""), ("לקנות", str(n_buy), "up"), ("לחכות", str(n_wait), ""), ("לא לקנות", str(n_avoid), "down"),
-        ]) + "</div>", unsafe_allow_html=True,
+        ], compact=True) + "</div>", unsafe_allow_html=True,
     )
 
     _restore_filter_prefs({
@@ -4579,6 +4637,11 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         idx_name = r.get("index_name")
         _ch = it["change"]
         change_html = f'<span class="{ui_v3.cls_for(_ch)}">{ui_v3.num(ui_v3.signed(_ch, 1, "%"))}{esc_note(it["note"])}</span>'
+        _cv = _cur_map.get(r["ticker"])
+        if _cv is None or pd.isna(_cv) or _cur_gap.get(r["ticker"]):  # בסיס השוואה ישן - לא מציגים שינוי יומי מטעה
+            cur_html = '<span style="color:var(--dim)">—</span>'
+        else:
+            cur_html = f'<span class="{ui_v3.cls_for(_cv)}">{ui_v3.num(ui_v3.signed(_cv, 1, "%"))}</span>'
         with st.container(key=f"v3_arow_{rid}"):
           with st.container(key=f"v3_arowhd_{rid}"):
             st.markdown(
@@ -4587,7 +4650,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     it["key"], _SIG_WORD[it["key"]], f"{max(it['score'], 0)}/{strategy_mod.MAX_SIGNAL_SCORE}",
                     _alert_price(r.get("entry_limit"), idx_name),
                     _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
-                    _alert_price(r.get("stop_loss"), idx_name), it["hhmm"], is_open, {"SP500": "SPX", "NASDAQ100": "NDX"}.get(idx_name, idx_name or ""),
+                    _alert_price(r.get("stop_loss"), idx_name), it["hhmm"], is_open, {"SP500": "SPX", "NASDAQ100": "NDX"}.get(idx_name, idx_name or ""), cur_html,
                 ) + "</div>", unsafe_allow_html=True,
             )
             if st.button(" ", key=f"v3_open_alert_{rid}"):
