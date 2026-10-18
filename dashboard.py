@@ -260,6 +260,7 @@ _V2_CSS = """
 # שקובע data-theme על <html> - כל הצבעים כאן הם משתני --v3-*, ולכן הווידג'טים של Streamlit נצבעים מחדש גם הם.
 _V3_CSS = """
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        [data-testid='stMain'], [data-testid='stSidebar'] { opacity: 1 !important; animation: none !important; }
         :root {
             --v3-bg:#F6F4F0; --v3-surface:#F9F6EF; --v3-ink:#24211D; --v3-soft:#59534C; --v3-dim:#6F6A62; --v3-rule:#DAD5CC;
             --v3-accent:#2F5D50; --v3-gain:#2F6B4F; --v3-loss:#9B3F2F; --v3-warn:#8A6A1F; --v3-hover:#EFECE6;
@@ -781,6 +782,15 @@ def _section_title(text: str) -> None:
     )
 
 st.set_page_config(page_title="DipRadar", layout="wide")
+
+if UI_V3:
+    # מניעת הבזק של העיצוב הישן בטעינה (נייד): התוכן מוסתר עד שה-CSS של v3 נטען (שורה אחת למטה מבטלת את ההסתרה);
+    # אם משהו נכשל באמצע - אחרי 4 שניות הכל מוצג בכל מקרה
+    st.markdown(
+        "<style>[data-testid='stMain'], [data-testid='stSidebar'] { opacity: 0; animation: drReveal .01s 4s forwards; } "
+        "@keyframes drReveal { to { opacity: 1; } }</style>",
+        unsafe_allow_html=True,
+    )
 
 components.html(
     """
