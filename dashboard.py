@@ -359,14 +359,14 @@ _V3_CSS += """
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2) > * { display: none !important; }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2)::after {
-            content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 11px; height: 11px; border-radius: 50%;
+            content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 11px; height: 11px; border-radius: 50%;
             background: var(--v3-ink); transition: inset-inline-start .15s;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2) {
             background: var(--v3-accent) !important; border-color: var(--v3-accent) !important;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2)::after {
-            inset-inline-start: 16px; background: var(--v3-bg);
+            inset-inline-start: 15px; background: var(--v3-bg);
         }
         /* אותו מתג גם בסוגי ההתראה בטלגרם (במקום תיבות הסימון הכחולות של Streamlit) */
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) {
@@ -375,14 +375,14 @@ _V3_CSS += """
         }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) > * { display: none !important; }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2)::after {
-            content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 11px; height: 11px; border-radius: 50%;
+            content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 11px; height: 11px; border-radius: 50%;
             background: var(--v3-ink); transition: inset-inline-start .15s;
         }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2) {
             background: var(--v3-accent) !important; border-color: var(--v3-accent) !important;
         }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2)::after {
-            inset-inline-start: 16px; background: var(--v3-bg);
+            inset-inline-start: 15px; background: var(--v3-bg);
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label, div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label { align-items: center !important; }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2), div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) { top: -1px; }
