@@ -298,15 +298,23 @@ _V3_CSS += """
         /* צ'יפים: מדדים לסריקה */
         [data-testid="stSidebar"] [data-testid="stButtonGroup"] > div[role="toolbar"] { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 0; }
         [data-testid="stSidebar"] button[data-variant="pills"] {
-            border: 1px solid var(--v3-rule) !important; background: transparent !important; border-radius: 999px !important;
-            padding: 3px 14px !important; min-height: 0 !important; color: var(--v3-dim) !important; box-shadow: none !important;
+            border: 0 !important; border-bottom: 2px solid transparent !important; background: transparent !important; border-radius: 0 !important;
+            padding: 2px 0 !important; min-height: 0 !important; color: var(--v3-dim) !important; box-shadow: none !important;
         }
-        [data-testid="stSidebar"] button[data-variant="pills"] p { font-size: 14px; font-weight: 300; direction: ltr; }
+        [data-testid="stSidebar"] button[data-variant="pills"] p { font-size: 15px; font-weight: 300; direction: ltr; }
         /* שורה לכל שוק (בקשה מ-15.10): ת"א 35 + ת"א 125 למעלה, NASDAQ100 + SP500 מתחת */
-        [data-testid="stSidebar"] [data-testid="stButtonGroup"] > div[role="toolbar"] { display: grid; grid-template-columns: repeat(2, max-content); justify-content: start; }
+        [data-testid="stSidebar"] [data-testid="stButtonGroup"] > div[role="toolbar"] { display: grid; grid-template-columns: repeat(2, max-content); justify-content: start; gap: 8px 26px; }
         [data-testid="stSidebar"] button[data-variant="pills"][data-selected="true"] {
-            border-color: var(--v3-accent) !important; color: var(--v3-accent) !important; background: var(--v3-surface) !important;
+            border-bottom-color: var(--v3-accent) !important; color: var(--v3-ink) !important; background: transparent !important;
         }
+        [data-testid="stSidebar"] button[data-variant="pills"][data-selected="true"] p { color: var(--v3-ink) !important; font-weight: 400; }
+        /* שדה מושבת (למשל ירידה מצטברת כשהמתג כבוי): נראה בדיוק כמו שדה פעיל - Streamlit מעמעם אותו עד שבלילה לא רואים כלום */
+        [data-testid="stSidebar"] [data-testid="stNumberInput"], [data-testid="stSidebar"] [data-testid="stNumberInputContainer"],
+        [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] button { opacity: 1 !important; }
+        [data-testid="stSidebar"] [data-testid="stNumberInputField"]:disabled {
+            opacity: 1 !important; color: var(--v3-soft) !important; -webkit-text-fill-color: var(--v3-soft) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stNumberInputContainer"]:has(input:disabled) { cursor: default; }
         /* כפתורי +/- עגולים באמת בכל האתר (קודם נראו כאליפסה - ה-flex כיווץ אותם לרוחב) */
         [data-testid="stNumberInputContainer"] button {
             flex: 0 0 26px !important; width: 26px !important; min-width: 26px !important; max-width: 26px !important;
@@ -346,20 +354,38 @@ _V3_CSS += """
         [data-testid="stSidebar"] [data-testid="stCheckbox"] { padding-top: 12px; }
         /* מתג בנוי מחדש (בלי הידית של Streamlit שיצאה מהמסילה ב-RTL): מסילה + עיגול שזז בתוכה, כמו במוקאפ */
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2) {
-            position: relative; flex: none; width: 38px !important; height: 22px !important; border-radius: 11px !important;
+            position: relative; flex: none; width: 30px !important; height: 17px !important; border-radius: 9px !important;
             border: 1px solid var(--v3-rule-strong) !important; background: transparent !important; box-shadow: none !important;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2) > * { display: none !important; }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2)::after {
-            content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 14px; height: 14px; border-radius: 50%;
+            content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 11px; height: 11px; border-radius: 50%;
             background: var(--v3-ink); transition: inset-inline-start .15s;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2) {
             background: var(--v3-accent) !important; border-color: var(--v3-accent) !important;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2)::after {
-            inset-inline-start: 19px; background: var(--v3-bg);
+            inset-inline-start: 16px; background: var(--v3-bg);
         }
+        /* אותו מתג גם בסוגי ההתראה בטלגרם (במקום תיבות הסימון הכחולות של Streamlit) */
+        div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) {
+            position: relative; flex: none; width: 30px !important; height: 17px !important; border-radius: 9px !important;
+            border: 1px solid var(--v3-rule-strong) !important; background: transparent !important; box-shadow: none !important;
+        }
+        div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) > * { display: none !important; }
+        div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2)::after {
+            content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 11px; height: 11px; border-radius: 50%;
+            background: var(--v3-ink); transition: inset-inline-start .15s;
+        }
+        div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2) {
+            background: var(--v3-accent) !important; border-color: var(--v3-accent) !important;
+        }
+        div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2)::after {
+            inset-inline-start: 16px; background: var(--v3-bg);
+        }
+        div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label, div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label { align-items: center !important; }
+        div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2), div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) { top: -1px; }
         /* כפתור הסריקה הידנית */
         /* פעולה, לא קופסה: שורה עם קו תחתון (כמו שורות ההגדרות המתקדמות), טקסט בצבע המבטא וחץ בקצה */
         div[class*="st-key-sidebar_scan_button"] { padding-top: 6px; }
@@ -389,18 +415,20 @@ _V3_CSS += """
         [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { font-size: 13px; color: var(--v3-dim); }
         /* ערוצי התראה: צ'יפים */
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] { padding-top: 0; }
+        div[class*="st-key-channels_card"] [data-testid="stHorizontalBlock"] { justify-content: flex-start; gap: 26px !important; }
+        div[class*="st-key-channels_card"] [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label {
-            border: 1px solid var(--v3-rule); border-radius: 999px; padding: 3px 14px; width: fit-content; cursor: pointer;
+            border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 0; height: 32px; box-sizing: border-box; display: flex; align-items: center; width: fit-content; cursor: pointer;
         }
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label > div:nth-child(2) { display: none; }
-        div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label p { font-size: 14px; font-weight: 300; color: var(--v3-dim); }
-        div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label[data-selected="true"] { border-color: var(--v3-accent); background: var(--v3-surface); }
-        div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label[data-selected="true"] p { color: var(--v3-accent); }
+        div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label p { font-size: 15px; font-weight: 300; color: var(--v3-dim); }
+        div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label[data-selected="true"] { border-bottom-color: var(--v3-accent); background: transparent; }
+        div[class*="st-key-channels_card"] [data-testid="stCheckbox"] label[data-selected="true"] p { color: var(--v3-ink); font-weight: 400; }
 """ + ui_v3.COMPONENT_CSS + ui_v3.MOVERS_CSS + ui_v3.ALERTS_CSS + ui_v3.HOLDINGS_CSS + ui_v3.JOURNAL_CSS + ui_v3.PERF_CSS + """
         div[class*="st-key-perf_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-perf_refresh_icon"] button p, div[class*="st-key-perf_refresh_icon"] button div { display: none !important; }
         div[class*="st-key-perf_refresh_icon"] button {
-            position: absolute; top: -50px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            position: absolute; top: -36px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
             background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
         }
         div[class*="st-key-perf_refresh_icon"] button::before {
@@ -415,7 +443,7 @@ _V3_CSS += """
         div[class*="st-key-perf_filters_body"] { padding: 6px 0 12px; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-perf_filters_body"] [data-testid="stHorizontalBlock"] { align-items: center; gap: 16px; padding: 4px 0; }
         .v3pl { font-size: 13px; color: var(--v3-dim); }
-        div[class*="st-key-perf_filters_body"] [data-testid="stButtonGroup"] > div[role="toolbar"] { border: 0; border-radius: 0; flex-wrap: wrap; gap: 2px 22px; }
+        div[class*="st-key-perf_filters_body"] [data-testid="stButtonGroup"] > div[role="toolbar"], div[class*="st-key-perf_filters_body"] [data-testid="stButtonGroup"] > div[role="radiogroup"] { border: 0 !important; border-radius: 0 !important; flex-wrap: wrap !important; gap: 2px 22px !important; }
         div[class*="st-key-perf_filters_body"] button[data-variant="segmented_control"] {
             background: transparent !important; border-bottom: 2px solid transparent !important; padding: 2px 0 !important; color: var(--v3-dim) !important;
         }
@@ -425,7 +453,11 @@ _V3_CSS += """
         }
         div[class*="st-key-perf_filters_body"] button[data-variant="segmented_control"][data-selected="true"] p { color: var(--v3-ink) !important; font-weight: 500; }
 
-        div[class*="st-key-alerts_filters"] { padding: 20px 0 14px; }
+        div[class*="st-key-alerts_filters"], div[class*="st-key-journal_filters"] { padding: 20px 0 14px; }
+        div[class*="st-key-alerts_filters"] [data-testid="stHorizontalBlock"], div[class*="st-key-journal_filters"] [data-testid="stHorizontalBlock"] { gap: 36px !important; justify-content: flex-start !important; flex-wrap: wrap; }
+        div[class*="st-key-alerts_filters"] [data-testid="stColumn"], div[class*="st-key-journal_filters"] [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+        div[class*="st-key-alerts_filters"] [data-testid="stColumn"], div[class*="st-key-journal_filters"] [data-testid="stColumn"] { position: relative; }
+        div[class*="st-key-alerts_filters"] [data-testid="stColumn"] + [data-testid="stColumn"]::before, div[class*="st-key-journal_filters"] [data-testid="stColumn"] + [data-testid="stColumn"]::before { content: ""; position: absolute; inset-inline-start: -19px; top: 50%; height: 22px; width: 1px; background: var(--v3-rule); transform: translateY(-50%); }
         div[class*="st-key-v3_arowhd_"], div[class*="st-key-v3_hrowhd_"] { position: relative; }
         div[class*="st-key-v3_arowhd_"] [data-testid="stElementContainer"]:has(button[kind="secondary"]),
         div[class*="st-key-v3_hrowhd_"] [data-testid="stElementContainer"]:has(button[kind="secondary"]) { position: absolute; inset: 0 0 auto 0; width: 100% !important; height: 100%; z-index: 3; margin: 0 !important; }
@@ -438,7 +470,7 @@ _V3_CSS += """
         div[class*="st-key-holdings_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-holdings_refresh_icon"] button p, div[class*="st-key-holdings_refresh_icon"] button div { display: none !important; }
         div[class*="st-key-holdings_refresh_icon"] button {
-            position: absolute; top: -50px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            position: absolute; top: -36px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
             background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
         }
         div[class*="st-key-holdings_refresh_icon"] button::before {
@@ -447,7 +479,75 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.6-5.9'/><path d='M20 4v5h-5'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-open_position_expander"] [data-testid="stExpander"] details { border: 0 !important; border-bottom: 1px solid var(--v3-rule) !important; border-radius: 0 !important; background: transparent !important; }
-        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary { padding: 14px 0 !important; color: var(--v3-accent); font-weight: 500; font-size: 15px; }
+        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary { padding: 18px 10px !important; color: var(--v3-soft); font-weight: 400; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary [data-testid="stIconMaterial"], div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary > span > span:first-child { display: none !important; }
+        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary > span { gap: 0 !important; padding: 0 !important; margin: 0 !important; }
+        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary p { font-size: 17px; }
+        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] summary::after { content: ""; width: 12px; height: 12px; flex: none; background: var(--v3-dim); transform: scaleX(-1); transition: transform .15s;
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6l6 6-6 6'/></svg>") center/contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6l6 6-6 6'/></svg>") center/contain no-repeat; }
+        div[class*="st-key-open_position_expander"] [data-testid="stExpander"] details[open] summary::after { transform: scaleX(-1) rotate(90deg); }
+        div[class*="st-key-journal_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-journal_refresh_icon"] button p, div[class*="st-key-journal_refresh_icon"] button div { display: none !important; }
+        div[class*="st-key-journal_refresh_icon"] button {
+            position: absolute; top: -36px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-journal_refresh_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.6-5.9'/><path d='M20 4v5h-5'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.6-5.9'/><path d='M20 4v5h-5'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-journal_refresh_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-journal_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-journal_filter_icon"] button p, div[class*="st-key-journal_filter_icon"] button div { display: none !important; }
+        div[class*="st-key-journal_filter_icon"] button {
+            position: absolute; top: -48px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-journal_filter_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-journal_filter_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-perf_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-perf_filter_icon"] button p, div[class*="st-key-perf_filter_icon"] button div { display: none !important; }
+        div[class*="st-key-perf_filter_icon"] button {
+            position: absolute; top: -48px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-perf_filter_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-perf_filter_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-holdings_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-holdings_filter_icon"] button p, div[class*="st-key-holdings_filter_icon"] button div { display: none !important; }
+        div[class*="st-key-holdings_filter_icon"] button {
+            position: absolute; top: -48px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-holdings_filter_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-holdings_filter_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-holdings_filters"] { padding: 12px 0 14px; }
+        div[class*="st-key-alerts_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-alerts_filter_icon"] button p, div[class*="st-key-alerts_filter_icon"] button div { display: none !important; }
+        div[class*="st-key-alerts_filter_icon"] button {
+            position: absolute; top: -48px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-alerts_filter_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
         div[class*="st-key-sell_holding_"] button {
             margin-top: 10px; padding: 6px 14px !important; border: 1px solid var(--v3-rule) !important; border-radius: 6px !important;
@@ -457,7 +557,7 @@ _V3_CSS += """
         div[class*="st-key-alerts_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-alerts_refresh_icon"] button p, div[class*="st-key-alerts_refresh_icon"] button div { display: none !important; }
         div[class*="st-key-alerts_refresh_icon"] button {
-            position: absolute; top: -50px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            position: absolute; top: -36px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
             background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
         }
         div[class*="st-key-alerts_refresh_icon"] button::before {
@@ -469,6 +569,7 @@ _V3_CSS += """
         div[class*="st-key-open_pos_exp_"] [data-testid="stExpander"] summary, div[class*="st-key-exp_price_alert"] [data-testid="stExpander"] summary { padding: 14px 0 !important; color: var(--v3-accent); font-weight: 500; font-size: 15px; }
         div[class*="st-key-open_pos_exp_"] [data-testid="stExpander"] summary:hover, div[class*="st-key-exp_price_alert"] [data-testid="stExpander"] summary:hover { background: transparent !important; }
         div[class*="st-key-open_pos_exp_"] { padding-inline: 12px; }
+        div[class*="st-key-exp_price_alert"] [data-testid="stExpander"] summary { padding-inline: 12px !important; }
         [data-testid="stExpander"][class*="st-key-"] summary { color: var(--v3-accent); }
 
         /* מניות מובילות: בורר מדד (מקטעים), ימים (מספר+טקסט+כפתורים), רענון (אייקון), "הצג את כל", ניהול מעקב */
@@ -484,8 +585,10 @@ _V3_CSS += """
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] {
             display: flex !important; align-items: center; gap: 8px; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important;
         }
+        div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] { height: 26px !important; min-height: 26px !important; align-items: center !important; justify-content: flex-end !important; width: 100% !important; }
+        div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] > div:last-child { align-self: center !important; }
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputField"] {
-            order: 1; flex: 0 0 2.2ch; width: 2.2ch !important; background: transparent !important; font-size: 15px; color: var(--v3-soft) !important; padding: 0 !important; text-align: end !important;
+            order: 1; flex: 0 0 2ch; width: 2ch !important; background: transparent !important; font-size: 15px; color: var(--v3-soft) !important; padding: 0 !important; text-align: left !important;
         }
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"]::after { content: "ימים לירידה מצטברת"; order: 2; font-size: 15px; color: var(--v3-soft); }
         div[class*="st-key-movers_cumulative_days"] [data-testid="stNumberInputContainer"] > div:last-child { order: 3; display: flex; gap: 6px; margin-inline-start: 8px; }
@@ -495,7 +598,7 @@ _V3_CSS += """
         div[class*="st-key-movers_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-movers_refresh_icon"] button p, div[class*="st-key-movers_refresh_icon"] button div { display: none !important; }
         div[class*="st-key-movers_refresh_icon"] button {
-            position: absolute; top: -50px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            position: absolute; top: -36px; left: 0; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
             background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
         }
         div[class*="st-key-movers_refresh_icon"] button::before {
@@ -503,7 +606,7 @@ _V3_CSS += """
             -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.6-5.9'/><path d='M20 4v5h-5'/></svg>") center / contain no-repeat;
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.6-5.9'/><path d='M20 4v5h-5'/></svg>") center / contain no-repeat;
         }
-        div[class*="st-key-movers_refresh_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-movers_refresh_icon"] button:hover, div[class*="st-key-alerts_refresh_icon"] button:hover, div[class*="st-key-holdings_refresh_icon"] button:hover, div[class*="st-key-perf_refresh_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-movers_more_"] button {
             width: 100%; justify-content: flex-start; border: 0 !important; border-bottom: 1px solid var(--v3-rule) !important; border-radius: 0 !important;
             background: transparent !important; color: var(--v3-dim) !important; padding: 14px 0 !important; font-size: 14px; min-height: 0 !important;
@@ -905,6 +1008,46 @@ def get_sparkline_series(ticker: str, days: int = 15):
 
 def get_sparkline_prices(ticker: str, days: int = 15) -> list:
     return get_sparkline_series(ticker, days).tolist()
+
+
+def get_holding_range(ticker: str, bought_at, entry) -> tuple[float, float] | None:
+    """הטוב והגרוע ביותר מאז הקנייה: (שיא %, שפל %) יחסית לשער הכניסה, לפי סגירות יומיות מהקנייה ועד היום."""
+    if not entry:
+        return None
+    series = get_sparkline_series(ticker, 80)
+    if series.empty:
+        return None
+    try:
+        bought = dt.datetime.fromisoformat(str(bought_at)).date() if bought_at else None
+    except ValueError:
+        bought = None
+    if bought is None:
+        return None
+    idx = pd.to_datetime(series.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    vals = series[idx.date >= bought]
+    if vals.empty:
+        return None
+    return (float(vals.max()) / entry - 1) * 100, (float(vals.min()) / entry - 1) * 100
+
+
+def get_holding_sparkline(ticker: str, bought_at) -> list:
+    """גרף אחזקה: מהקנייה (פחות 3 ימי מסחר של הקשר) עד היום; מוגבל להיסטוריה הזמינה (3 חודשים), לפחות 8 נקודות."""
+    series = get_sparkline_series(ticker, 80)
+    if series.empty:
+        return []
+    try:
+        bought = dt.datetime.fromisoformat(str(bought_at)).date() if bought_at else None
+    except ValueError:
+        bought = None
+    if bought is None:
+        return series.tail(15).tolist()
+    idx = pd.to_datetime(series.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    n_after = int((idx.date >= bought).sum())
+    return series.tail(max(n_after + 3, 8)).tolist()
 
 st.markdown(
     """
@@ -2950,8 +3093,14 @@ def _autosave_message_types():
 
 
 def _autosave_channels():
-    cfg.setdefault("telegram", {})["enabled"] = st.session_state.get("settings_telegram_enabled", True)
-    cfg.setdefault("desktop_notifications", {})["enabled"] = st.session_state.get("settings_desktop_enabled", True)
+    # בהפעלת ערוץ נרשם מתי הופעל (enabled_since): מקבלים התראות רק מאותו רגע קדימה, לא את מה שקרה קודם
+    _now_iso = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    for _ch_key, _widget in (("telegram", "settings_telegram_enabled"), ("desktop_notifications", "settings_desktop_enabled")):
+        _new_on = bool(st.session_state.get(_widget, True))
+        _was_on = bool(cfg.get(_ch_key, {}).get("enabled", True))
+        cfg.setdefault(_ch_key, {})["enabled"] = _new_on
+        if _new_on and not _was_on:
+            cfg[_ch_key]["enabled_since"] = _now_iso
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _sync_and_warn("notification channels")
@@ -3772,7 +3921,7 @@ def _render_movers_v3() -> None:
             if market_data.is_data_stale(_rep, "X.TA" if movers_index in ("TA35", "TA125") else ""):
                 fresh += " · נתון ישן"
     st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", fresh, 0 if fresh == "היום" else None)}</div>', unsafe_allow_html=True)
-    if st.button("רענון", key="movers_refresh_icon", help="רענון נתוני שוק"):
+    if st.button("רענון", key="movers_refresh_icon"):
         get_all_changes.clear()
         st.rerun(scope="fragment")
 
@@ -4223,21 +4372,31 @@ _ALERT_REASON_LABELS = {
 _SIG_WORD = {"buy": "לקנות", "wait": "לחכות", "avoid": "לא לקנות"}
 
 
+def _alert_price(value, index_name) -> str:
+    """שער בטבלת ההתראות (v3): מספר שלם בלי סמל מטבע - השוק ברור מהסינון והשם, ות"א נסחר באגורות."""
+    if pd.isna(value):
+        return "—"
+    return f"{value * 100:,.0f}" if constituents.INDEX_CURRENCY.get(index_name, "ILS") == "ILS" else f"{value:,.0f}"
+
+
 def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_scan_date: str | None) -> None:
     """טבלת 'התראות היום' בעיצוב v3 (המוקאפ שאושר): סיכום, מסננים, שורות שנפתחות לפרטי ההתראה, פתיחת פוזיציה."""
     st.session_state.setdefault("open_alert_id", None)
     n_total = len(todays_alerts)
     if is_fallback_day and last_scan_date:
-        title = f"{n_total} התראות מיום המסחר האחרון ({dt.date.fromisoformat(last_scan_date).strftime('%d.%m')})"
-        fresh = "סגירה " + dt.date.fromisoformat(last_scan_date).strftime("%d.%m")
+        _cnt = "התראה אחת" if n_total == 1 else f"{n_total} התראות"
+        title = f"{_cnt} מיום המסחר האחרון ({dt.date.fromisoformat(last_scan_date).strftime('%d.%m')})"
     else:
-        title, fresh = "התראות היום", "היום"
+        title = "התראות היום"
     st.markdown(
-        f'<div class="v3h">{ui_v3.movers_head(title, fresh, None if is_fallback_day else 0)}</div>', unsafe_allow_html=True,
+        f'<div class="v3h">{ui_v3.movers_head(title, "", None)}</div>', unsafe_allow_html=True,
     )
-    if st.button("רענון", key="alerts_refresh_icon", help="רענון"):
-        load_alerts.clear()
-        st.rerun(scope="fragment")
+    # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסננים נרשמו מאפס את הבחירות שלהם
+    def _toggle_alerts_filters() -> None:
+        st.session_state["alerts_filters_open"] = not st.session_state.get("alerts_filters_open", False)
+
+    st.button("רענון", key="alerts_refresh_icon", on_click=load_alerts.clear)
+    st.button(" ", key="alerts_filter_icon", on_click=_toggle_alerts_filters)
 
     # נתוני שורה: סיגנל, ניקוד, גורמים, מחירים מעוצבים, שעה
     _tickers = tuple(sorted(todays_alerts["ticker"].unique())) if n_total else ()
@@ -4285,26 +4444,48 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         ]) + "</div>", unsafe_allow_html=True,
     )
 
+    # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה) - כשהלוח סגור הוא מוסתר ב-CSS
+    st.markdown(
+        '<style>div[class*="st-key-alerts_filters"] { display:' + ("block" if st.session_state.get("alerts_filters_open", False) else "none") + '; }</style>',
+        unsafe_allow_html=True,
+    )
     with st.container(key="alerts_filters"):
         _f1, _f2, _f3 = st.columns([3, 2, 2])
+        # "הכל" בסוף כל בורר, מסומן כברירת מחדל; לחיצה על האפשרות הנבחרת לא מבטלת אותה (חוזרים ל"הכל")
+        _ALL_LABEL = {"alerts_filter_sig": "כל הסיגנלים", "alerts_filter_mkt": "כל השווקים"}
+
+        def _all_if_empty(_key: str) -> None:
+            if st.session_state.get(_key) in (None, "הכל"):
+                st.session_state[_key] = _ALL_LABEL[_key]
+
+        for _k in _ALL_LABEL:
+            _all_if_empty(_k)
         with _f1:
             _sig_filter = st.segmented_control(
-                "סינון לפי סיווג", ["הכל", "לקנות", "לחכות", "לא לקנות"], default="הכל", selection_mode="single",
-                key="alerts_filter_sig", label_visibility="collapsed",
-            ) or "הכל"
+                "סינון לפי סיווג", ["לקנות", "לחכות", "לא לקנות", "כל הסיגנלים"], selection_mode="single",
+                key="alerts_filter_sig", label_visibility="collapsed", on_change=_all_if_empty, args=("alerts_filter_sig",),
+            ) or "כל הסיגנלים"
         with _f2:
             _mkt_filter = st.segmented_control(
-                "שוק", ["ישראל", 'ארה"ב'], selection_mode="single", key="alerts_filter_mkt", label_visibility="collapsed",
+                "שוק", ['בורסת ת"א', "וול סטריט", "כל השווקים"], selection_mode="single", key="alerts_filter_mkt", label_visibility="collapsed",
+                on_change=_all_if_empty, args=("alerts_filter_mkt",),
             )
         with _f3:
-            _sort_mode = st.segmented_control(
-                "מיון", ["סיווג", "זמן"], default="סיווג", selection_mode="single", key="alerts_sort_mode", label_visibility="collapsed",
-            ) or "סיווג"
+            # המיון בפועל תמיד מסומן (ברירת מחדל: זמן); לחיצה על האפשרות שכבר נבחרה לא מבטלת אותה
+            st.session_state.setdefault("alerts_sort_mode", "זמן")
 
-    shown = [i for i in items if (_sig_filter == "הכל" or _SIG_WORD[i["key"]] == _sig_filter)]
-    if _mkt_filter == "ישראל":
+            def _keep_sort() -> None:
+                if st.session_state.get("alerts_sort_mode") is None:
+                    st.session_state["alerts_sort_mode"] = "זמן"
+
+            _sort_mode = st.segmented_control(
+                "מיון", ["סיווג", "זמן"], selection_mode="single", key="alerts_sort_mode", label_visibility="collapsed", on_change=_keep_sort,
+            ) or "זמן"
+
+    shown = [i for i in items if (_sig_filter == "כל הסיגנלים" or _SIG_WORD[i["key"]] == _sig_filter)]
+    if _mkt_filter == 'בורסת ת"א':
         shown = [i for i in shown if i["is_il"]]
-    elif _mkt_filter == 'ארה"ב':
+    elif _mkt_filter == "וול סטריט":
         shown = [i for i in shown if not i["is_il"]]
     if _sort_mode == "סיווג":
         shown.sort(key=lambda i: (-i["score"], -abs(i["row"]["pct_change"]), -(i["ts"].value if pd.notna(i["ts"]) else 0)))
@@ -4329,9 +4510,9 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                 '<div class="v3h tw">' + ui_v3.alert_row(
                     r.get("company_name") or r["ticker"], str(r["ticker"]).replace(".TA", ""), it["is_new"], change_html,
                     it["key"], _SIG_WORD[it["key"]], f"{max(it['score'], 0)}/{strategy_mod.MAX_SIGNAL_SCORE}",
-                    _price_text(r.get("entry_limit"), idx_name),
-                    _price_text(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
-                    _price_text(r.get("stop_loss"), idx_name), it["hhmm"], is_open,
+                    _alert_price(r.get("entry_limit"), idx_name),
+                    _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
+                    _alert_price(r.get("stop_loss"), idx_name), it["hhmm"], is_open, {"SP500": "SPX", "NASDAQ100": "NDX"}.get(idx_name, idx_name or ""),
                 ) + "</div>", unsafe_allow_html=True,
             )
             if st.button(" ", key=f"v3_open_alert_{rid}"):
@@ -4379,7 +4560,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
 
 
 def esc_note(note: str) -> str:
-    return f'<small class="dim"> {html.escape(note.strip())}</small>' if note else ""
+    return f'<small class="dim nt">{html.escape(note.strip().removeprefix("ב־"))} מצטבר</small>' if note else ""
 
 
 _tab_slot_today = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
@@ -4545,9 +4726,19 @@ with _tab_slot_today.container():
                 # להציג את היום הקודם כאילו הוא עדיין רלוונטי.
                 _today_iso = israel_today().isoformat()
                 todays_alerts = df[df["scan_date"] == _today_iso]
-                _is_fallback_day = todays_alerts.empty and israel_now().time() < dt.time(9, 58)
+                # 17.10.2026 (בקשת המשתמש): ממשיכים להציג את יום המסחר האחרון עד 10 דקות לפני פתיחת
+                # המסחר בת"א (9:59 -> 9:49) - וגם בסופ"ש/חג, כשאין בכלל יום מסחר חדש שמתחיל.
+                _il_open = MARKET_HOURS["IL"]["open"]
+                _fallback_until = (dt.datetime.combine(israel_today(), dt.time(*_il_open)) - dt.timedelta(minutes=10)).time()
+                _is_fallback_day = todays_alerts.empty and (
+                    not is_trading_day("IL", israel_today()) or israel_now().time() < _fallback_until
+                )
+                # כלי פיתוח (סקירת עיצוב): DIPRADAR_ALERTS_PREVIEW_DATE=YYYY-MM-DD מציג יום מלא כאילו הוא "אחרון"; לא מוגדר בפרודקשן
+                _preview_day = os.environ.get("DIPRADAR_ALERTS_PREVIEW_DATE")
+                if _preview_day and (df["scan_date"] == _preview_day).any():
+                    _is_fallback_day = True
                 if _is_fallback_day:
-                    _last_scan_date = df["scan_date"].max()
+                    _last_scan_date = _preview_day if (_preview_day and (df["scan_date"] == _preview_day).any()) else df["scan_date"].max()
                     todays_alerts = df[df["scan_date"] == _last_scan_date]
 
                 _REBOUND_TIER_EMOJI = {"A": "🟢", "B": "🟡", "C": "🔴"}
@@ -4752,7 +4943,7 @@ with _tab_slot_today.container():
                 st.session_state.setdefault("open_alert_id", None)
                 if UI_V3:
                     with _slot_table:
-                        _render_alerts_v3(todays_alerts, _is_fallback_day, df["scan_date"].max() if _is_fallback_day else None)
+                        _render_alerts_v3(todays_alerts, _is_fallback_day, _last_scan_date if _is_fallback_day else None)
                 else:
                     with _slot_table, st.container(border=True, key="card_alerts_table"):
                         if _no_new_alerts_yet and not _market_open_now:
@@ -5140,12 +5331,46 @@ def _perf_bucket(score) -> str:
     return "80-100" if score >= 80 else "60-79" if score >= 60 else "40-59" if score >= 40 else "20-39" if score >= 20 else "0-19"
 
 
+_UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_prefs.json")
+_PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
+
+
+def _load_ui_prefs() -> dict:
+    try:
+        return json.loads(open(_UI_PREFS_FILE, encoding="utf-8").read())
+    except Exception:
+        return {}
+
+
+def _save_ui_prefs(updates: dict) -> None:
+    """שומר העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש) - רק כשמשהו השתנה."""
+    prefs = _load_ui_prefs()
+    if all(prefs.get(k) == v for k, v in updates.items()):
+        return
+    prefs.update(updates)
+    try:
+        open(_UI_PREFS_FILE, "w", encoding="utf-8").write(json.dumps(prefs, ensure_ascii=False, indent=1))
+    except Exception:
+        pass
+
+
 def _render_perf_v3() -> None:
     """טאב 'ביצועי אסטרטגיה' בעיצוב v3 (המוקאפ שאושר): פילטרים מכווצים לשורה, שישה סיכומים, לפי סיגנל/סיבה/ציון, פירוט מתקפל."""
-    st.markdown(f'<div class="v3h">{ui_v3.movers_head("ביצועי אסטרטגיה", "", None)}</div>', unsafe_allow_html=True)
-    if st.button("הרצת בדיקה מחדש", key="perf_refresh_icon", help="הרצת בדיקה מחדש"):
-        get_backtest_results.clear()
-        st.rerun()
+    # בזמן חישוב ארוך (בדיקת ההתראות מול מחירים) Streamlit משאיר על המסך שאריות דהויות מהטאב הקודם - מסתירים אותן ומציגים הודעת טעינה
+    # רק בכניסה הראשונה לטאב (אחרי זה כל לחיצה על מסנן מריצה מחדש והסתרה תגרום לעמוד "לקפוץ")
+    # ה-style נכנס לאותו st.markdown של הכותרת (אלמנט נפרד מוסיף רווח ומזיז את הכותרת למטה לעומת שאר הטאבים)
+    if not st.session_state.get("_perf_entered"):
+        _stale_css = '<style>[data-testid="stMain"] [data-stale="true"] { display: none !important; }</style>'
+    else:
+        # שינוי מסנן מריץ מחדש את הדף (~שנייה): בלי הדהייה של Streamlit לאלמנטים הישנים - היא נראית כמו "קפיצה"/הבהוב
+        _stale_css = '<style>[data-testid="stMain"] [data-stale="true"] { opacity: 1 !important; transition: none !important; }</style>'
+    st.markdown(f'{_stale_css}<div class="v3h">{ui_v3.movers_head("ביצועי אסטרטגיה", "", None)}</div>', unsafe_allow_html=True)
+    # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסננים נרשמו מאפס את הבחירות שלהם
+    def _toggle_perf_filters() -> None:
+        st.session_state["perf_filters_open"] = not st.session_state.get("perf_filters_open", False)
+
+    st.button("הרצת בדיקה מחדש", key="perf_refresh_icon", on_click=get_backtest_results.clear)
+    st.button(" ", key="perf_filter_icon", on_click=_toggle_perf_filters)  # אייקון סינון - פותח את אותו לוח כמו שורת הסיכום
 
     all_df = load_alerts(db_path(cfg))
     if all_df.empty:
@@ -5155,16 +5380,19 @@ def _render_perf_v3() -> None:
     _target_default = f"{int(round(strategy_mod.target_pct()))}%"
     _hold_default = next((k for k, v in _PERF_HOLD.items() if v == strategy_mod.HOLD_MAX_DAYS), "3 ימים")
     _ss = st.session_state
+    # הבחירה האחרונה נשמרת בקובץ: חוזרת גם אחרי החלפת טאב/רענון/הפעלה מחדש (Streamlit מוחק מצב של ווידג'ט שלא הוצג)
+    _prefs = _load_ui_prefs()
+    for _k in _PERF_PREF_KEYS:
+        if _ss.get(_k) is None and _prefs.get(_k) is not None:
+            _ss[_k] = _prefs[_k]
     summary_parts = [
-        _ss.get("perf_scope", "כל ההתראות"), _ss.get("perf_market", "כל השווקים"), f"סיגנל: {_ss.get('perf_signal', 'הכל')}",
+        _ss.get("perf_scope", "כל ההתראות"), _ss.get("perf_market", 'בורסת ת"א'), f"סיגנל: {_ss.get('perf_signal', 'לקנות')}",
         f"יעד {_ss.get('perf_target', _target_default)}", f"החזקה: {_ss.get('perf_hold', _hold_default)}",
     ]
     _open = bool(_ss.get("perf_filters_open", False))
     with st.container(key="perf_filters_hd"):
         st.markdown(f'<div class="v3h">{ui_v3.perf_filter_summary(summary_parts, _open)}</div>', unsafe_allow_html=True)
-        if st.button(" ", key="perf_filters_toggle"):
-            _ss["perf_filters_open"] = not _open
-            st.rerun()
+        st.button(" ", key="perf_filters_toggle", on_click=_toggle_perf_filters)
     # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה); כשהפילטרים סגורים הם מוסתרים ב-CSS
     st.markdown(
         '<style>div[class*="st-key-perf_filters_body"] { display:' + ("block" if _open else "none") + '; }</style>', unsafe_allow_html=True,
@@ -5173,44 +5401,51 @@ def _render_perf_v3() -> None:
         def _row(label: str, options: list, key: str, default):
             c1, c2 = st.columns([1, 5])
             c1.markdown(f'<div class="v3pl">{label}</div>', unsafe_allow_html=True)
+            # לחיצה על אפשרות שכבר נבחרה מבטלת אותה - מחזירים את הבחירה האחרונה במקום להפיל לברירת מחדל
+            def _keep_last(_key=key, _default=default) -> None:
+                if st.session_state.get(_key) is None:
+                    st.session_state[_key] = _load_ui_prefs().get(_key, _default)
+
+            _initial = None if _ss.get(key) is not None else default
             with c2:
-                return st.segmented_control(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed") or default
+                return st.segmented_control(
+                    label, options, default=_initial, selection_mode="single", key=key, label_visibility="collapsed", on_change=_keep_last,
+                ) or _ss.get(key) or default
 
         scope = _row("היקף הבדיקה", ["כל ההתראות", "התראות שמומשו"], "perf_scope", "כל ההתראות")
-        market = _row("שוק", ["ישראל", 'ארה"ב', "כל השווקים"], "perf_market", "כל השווקים")
-        sig_choice = _row("סיגנל", ["לקנות", "לחכות", "לא לקנות", "הכל"], "perf_signal", "הכל")
+        market = _row("שוק", ['בורסת ת"א', "וול סטריט", "כל השווקים"], "perf_market", 'בורסת ת"א')
+        sig_choice = _row("סיגנל", ["לקנות", "לחכות", "לא לקנות", "הכל"], "perf_signal", "לקנות")
         target_label = _row("יעד רווח", [f"{t}%" for t in range(2, 11)], "perf_target", _target_default)
         hold_label = _row("זמן החזקה מקסימלי", list(_PERF_HOLD), "perf_hold", _hold_default)
+    _save_ui_prefs({"perf_scope": scope, "perf_market": market, "perf_signal": sig_choice, "perf_target": target_label, "perf_hold": hold_label})
     target_pct = int(target_label.rstrip("%"))
     window_days = _PERF_HOLD[hold_label]
 
     strategy_df = all_df[all_df.get("is_manual_trade") != 1] if "is_manual_trade" in all_df.columns else all_df
     il_indices = ("TA35", "TA125")
-    if market == "ישראל":
+    if market == 'בורסת ת"א':
         strategy_df = strategy_df[strategy_df["index_name"].isin(il_indices)]
-    elif market == 'ארה"ב':
+    elif market == "וול סטריט":
         strategy_df = strategy_df[~strategy_df["index_name"].isin(il_indices)]
 
     if scope == "התראות שמומשו":
-        open_df = strategy_df[strategy_df.get("bought") == 1] if "bought" in strategy_df.columns else strategy_df.iloc[0:0]
-        with st.spinner("בודק נתוני מחיר היסטוריים לכל אחזקה..."):
-            bt_open = get_backtest_results(open_df, window_days)
+        # "מומשו" = התראות שהפכו לעסקה אמיתית (פתוחה או סגורה, בלי ידניות). נמדדות באותו מנוע כמו כל התראה -
+        # כך היעד, האופק והסיגנל שנבחרו משפיעים גם כאן (קודם הן נמדדו מול היעד/סטופ המקוריים ושלושת המסננים נעלמו).
         _cc = store.get_conn(db_path(cfg))
-        bt_closed = backtest.closed_trades_as_outcomes(_cc)
-        _cc.close()
-        if market != "כל השווקים" and not bt_closed.empty and "index_name" in bt_closed.columns:
-            _is_il = bt_closed["index_name"].isin(il_indices)
-            bt_closed = bt_closed[_is_il if market == "ישראל" else ~_is_il]
-        bt = pd.concat([bt_open, bt_closed], ignore_index=True) if not bt_closed.empty else bt_open
-        bt_all_signals = None
-    else:
-        bt = get_post_alert_results(strategy_df, float(target_pct), int(window_days))
-        if not bt.empty:
-            bt["סיגנל"] = bt.apply(lambda r: strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]], axis=1)
-        bt_all_signals = bt
-        if sig_choice in _PERF_SIG_EMOJI and not bt.empty:
-            bt = bt[bt["סיגנל"] == _PERF_SIG_EMOJI[sig_choice]]
+        try:
+            _real_ids = {int(r[0]) for r in _cc.execute("SELECT alert_id FROM closed_trades WHERE alert_id IS NOT NULL AND COALESCE(is_manual_trade, 0) != 1")}
+        finally:
+            _cc.close()
+        _bought = strategy_df["bought"] == 1 if "bought" in strategy_df.columns else pd.Series(False, index=strategy_df.index)
+        strategy_df = strategy_df[_bought | strategy_df["id"].isin(_real_ids)]
+    bt = get_post_alert_results(strategy_df, float(target_pct), int(window_days))
+    if not bt.empty:
+        bt["סיגנל"] = bt.apply(lambda r: strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]], axis=1)
+    bt_all_signals = bt
+    if sig_choice in _PERF_SIG_EMOJI and not bt.empty:
+        bt = bt[bt["סיגנל"] == _PERF_SIG_EMOJI[sig_choice]]
 
+    st.session_state["_perf_entered"] = True
     summary = backtest.overall_summary(bt)
     wr = summary["win_rate_pct"]
     blocks = [ui_v3.perf_kpi(
@@ -5340,7 +5575,7 @@ def _render_perf_v3() -> None:
             oc = "up" if r["outcome"] == backtest.HIT_TARGET else ("down" if r["outcome"] == backtest.HIT_STOP else "dim")
             trs.append([
                 f'<td class="main">{ui_v3.esc(str(r["ticker"]).replace(".TA", ""))}</td>', f'<td>{ui_v3.num(when)}</td>',
-                f'<td class="{ui_v3.cls_for(r["pct_change"])}">{ui_v3.num(ui_v3.signed(r["pct_change"], 1, "%"))}</td>',
+                (f'<td class="{ui_v3.cls_for(r["pct_change"])}">{ui_v3.num(ui_v3.signed(r["pct_change"], 1, "%"))}</td>' if pd.notna(r["pct_change"]) else "<td>—</td>"),
                 f'<td>{ui_v3.num(f"{r["target_base"]:.2f}" if pd.notna(r["target_base"]) else "—")}</td>',
                 f'<td>{ui_v3.num(f"{r["stop_loss"]:.2f}" if pd.notna(r["stop_loss"]) else "—")}</td>',
                 f'<td class="{oc}">{ui_v3.esc(lab)}</td>',
@@ -5366,6 +5601,8 @@ def _color_success_rate(val):
 
 _tab_slot_backtest = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
+if st.session_state.active_tab != "backtest":
+    st.session_state["_perf_entered"] = False  # בכניסה הבאה לטאב: מסתירים שאריות ישנות של הטאב הקודם
 with _tab_slot_backtest.container():
     if UI_V3 and st.session_state.active_tab == "backtest":
         _render_perf_v3()
@@ -5913,6 +6150,18 @@ def _v3_sell_flow(row: dict) -> None:
             st.rerun(scope="fragment")
 
 
+def _sector_items(rows: list[dict]) -> list[dict]:
+    """התפלגות סקטורים לפי שווי נוכחי (% מהתיק), ממוין יורד - משותף לטאב האחזקות ולעמוד הבית."""
+    sec: dict = {}
+    for r in rows:
+        if r.get("current_value"):
+            lbl = _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "לא ידוע")
+            d = sec.setdefault(lbl, {"label": lbl, "pct": 0.0, "names": []})
+            d["pct"] += r.get("portfolio_pct") or 0.0
+            d["names"].append(r["name"])
+    return sorted(sec.values(), key=lambda d: -d["pct"])
+
+
 def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
     """טאב אחזקות בעיצוב v3 (המוקאפ שאושר): התראת סטופ, התיק שלי, פתיחת פוזיציה, רדאר + שורות שנפתחות לפרטים ולמכירה."""
     st.session_state.setdefault("open_holding_id", None)
@@ -5945,14 +6194,15 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 worst = (r["name"], gap, False)
     if worst:
         notice_html = ui_v3.notice(worst[0], worst[1], worst[2])
-    st.markdown(f'<div class="v3h">{notice_html}<div style="height:{44 if notice_html else 0}px"></div>{strip}</div>', unsafe_allow_html=True)
+    # "התיק שלי" והתראת הסטופ הוסרו מהטאב - שניהם מופיעים בעמוד הבית; בטאב עצמו האחזקה שחצתה את הסטופ מסומנת באדום בטבלה וברדאר
 
-    render_open_expander()
+    st.markdown(f'<div class="v3h">{ui_v3.movers_head("אחזקות", "", None)}</div>', unsafe_allow_html=True)
+    # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסנן נרשם מאפס את הבחירה שלו
+    def _toggle_holdings_filters() -> None:
+        st.session_state["holdings_filters_open"] = not st.session_state.get("holdings_filters_open", False)
 
-    st.markdown(f'<div class="v3h">{ui_v3.movers_head("אחזקות", "", 0)}</div>', unsafe_allow_html=True)
-    if st.button("רענון", key="holdings_refresh_icon", help="רענון"):
-        load_alerts.clear()
-        st.rerun(scope="fragment")
+    st.button("רענון", key="holdings_refresh_icon", on_click=load_alerts.clear)
+    st.button(" ", key="holdings_filter_icon", on_click=_toggle_holdings_filters)
 
     radar_rows = []
     for r in rows:
@@ -5967,9 +6217,32 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
     with col_plot:
         st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows)}</div>', unsafe_allow_html=True)
     with col_rows:
+        # סינון ברווח/בהפסד/הכל (משפיע על הטבלה בלבד; הסה"כ והרדאר נשארים של כל התיק). הלוח מוסתר ב-CSS כשהוא סגור - הווידג'ט תמיד מוצג כדי שהבחירה תישמר
+        st.markdown(
+            '<style>div[class*="st-key-holdings_filters"] { display:' + ("block" if st.session_state.get("holdings_filters_open", False) else "none") + '; }</style>',
+            unsafe_allow_html=True,
+        )
+        if st.session_state.get("holdings_filter_pnl") is None:
+            st.session_state["holdings_filter_pnl"] = "הכל"
+
+        def _keep_pnl_filter() -> None:
+            if st.session_state.get("holdings_filter_pnl") is None:
+                st.session_state["holdings_filter_pnl"] = "הכל"
+
+        with st.container(key="holdings_filters"):
+            _pnl_filter = st.segmented_control(
+                "סינון אחזקות", ["ברווח", "בהפסד", "הכל"], selection_mode="single", key="holdings_filter_pnl",
+                label_visibility="collapsed", on_change=_keep_pnl_filter,
+            ) or "הכל"
+        _hd = ui_v3.daily_head_date([r.get("daily_pct_date") for r in rows if r["pnl_pct"] is not None])
+        st.markdown('<div class="v3h">' + ui_v3.holdings_head(_hd) + "</div>", unsafe_allow_html=True)
+        _shown_any = False
         for r in rows:
             if r["pnl_pct"] is None:
                 continue
+            if (_pnl_filter == "ברווח" and r["pnl_pct"] <= 0) or (_pnl_filter == "בהפסד" and r["pnl_pct"] >= 0):
+                continue
+            _shown_any = True
             rid = r["id"]
             is_open = st.session_state["open_holding_id"] == rid
             stop = r.get("holding_stop_price")
@@ -5981,7 +6254,12 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                     st.markdown(
                         '<div class="v3h">' + ui_v3.holding_row(
                             r["name"], str(r["ticker"]).replace(".TA", ""), ui_v3.signed(r["pnl"] or 0), sym_r,
-                            r["pnl_pct"], r.get("daily_pct"), out, is_open,
+                            r["pnl_pct"], r.get("daily_pct"), out, is_open, r.get("daily_pct_date"), _hd,
+                            get_holding_sparkline(r["ticker"], r.get("bought_at")),
+                            r.get("entry") or None,
+                            r.get("daily_change_amt"),
+                            ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
+                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
                         ) + "</div>", unsafe_allow_html=True,
                     )
                     if st.button(" ", key=f"v3_open_holding_{rid}"):
@@ -5997,6 +6275,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                         '<div class="v3h"><div class="hdet">' + ui_v3.holding_detail(
                             f"{r['invested']:,.0f}", f"{(r['current_value'] or 0):,.0f}", r["net_pnl"], net_txt,
                             px(r["entry"]), px(r["current"]) if r["current"] is not None else "—", share, held,
+                            _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else "",
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
                     tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
@@ -6010,6 +6289,21 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                                 )
                         with pc2:
                             _v3_sell_flow(r)
+
+        if not _shown_any:
+            st.markdown('<div class="v3h"><div class="nw"><small>אין אחזקות שמתאימות לסינון.</small></div></div>', unsafe_allow_html=True)
+        _dom_day_pct = (a["dchg"] / a["dbase"] * 100) if a["dbase"] else None
+        st.markdown('<div class="v3h">' + ui_v3.total_pill(
+            a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
+        ) + '</div><div style="height:6px"></div>', unsafe_allow_html=True)
+        # פתיחת פוזיציה - מתחת לסה"כ, באותה עמודה ובאותם קווים
+        render_open_expander()
+
+    # התפלגות סקטוריאלית (לפי שווי נוכחי, % מהתיק)
+    _sec_html = ui_v3.sector_section(_sector_items(rows))
+    if _sec_html:
+        st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="v3h">{_sec_html}</div>', unsafe_allow_html=True)
 
 
 _tab_slot_portfolio = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
@@ -6479,6 +6773,16 @@ def _render_journal_v3() -> None:
     closed_trades = store.get_closed_trades(hist_conn)
     hist_conn.close()
     st.markdown(f'<div class="v3h"><section class="block" style="margin-top:32px">{ui_v3.head("יומן עסקאות")}</section></div>', unsafe_allow_html=True)
+    # אייקון סינון בקצה השמאלי של הכותרת (כמו אייקון הרענון בטאבים אחרים); פותח/סוגר את לוח הסינון והמיון מעל הטבלה
+    def _toggle_journal_filters() -> None:
+        st.session_state["journal_filters_open"] = not st.session_state.get("journal_filters_open", False)
+
+    def _refresh_journal() -> None:  # callback (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסננים נרשמו מאפס את הבחירות
+        _closed_trade_histories_v3.clear()
+        load_alerts.clear()
+
+    st.button("רענון", key="journal_refresh_icon", on_click=_refresh_journal)
+    st.button(" ", key="journal_filter_icon", on_click=_toggle_journal_filters)
     if not closed_trades:
         st.info("עדיין אין עסקאות סגורות. כשתסגור אחזקה בטאב 'אחזקות', היא תופיע כאן.")
         return
@@ -6572,15 +6876,72 @@ def _render_journal_v3() -> None:
     wins = int((df_h["net_pnl"] > 0).sum())
     rate = round(wins / total * 100) if total else 0
     cells = [
-        ("סה\"כ עסקאות סגורות", str(total), ""), ("עסקאות ברווח", str(wins), "up"),
+        ("סה\"כ עסקאות סגורות", str(total), ""),
+        ("ממוצע ימי החזקה", f"{(sum(r['days'] for r in rows) / len(rows)):.1f}" if rows else "—", ""),
+        ("עסקאות ברווח", str(wins), "up"),
         ("שיעור הצלחה בפועל", f"{rate}%", "up" if rate >= 50 else "down"),
     ]
     for ccy, grp in df_h.groupby("currency"):
         g, n = float(grp["gross_pnl"].sum()), float(grp["net_pnl"].sum())
         cells.append(("רווח/הפסד כולל", ui_v3.signed(g), ui_v3.cls_for(g)))
         cells.append(("רווח/הפסד נטו", ui_v3.signed(n), ui_v3.cls_for(n)))
+    # עקומת רווח נקי מצטבר - במטבע הדומיננטי (מספר העסקאות הגדול ביותר), לפי תאריך סגירה
+    _dom = df_h["currency"].value_counts().idxmax()
+    _eq = df_h[df_h["currency"] == _dom].copy()
+    _eq["_x"] = pd.to_datetime(_eq["exit_at"], errors="coerce")
+    _eq = _eq.dropna(subset=["_x"]).sort_values("_x")
+    _eq["_c"] = _eq["net_pnl"].astype(float).cumsum()
+    _eq_html = ui_v3.equity_curve(
+        [(r["_x"].strftime("%d.%m"), float(r["_c"])) for _, r in _eq.iterrows()],
+        ui_v3.CCY_SYMBOL.get(_dom, _dom),
+    )
+    st.markdown(f'<div class="v3h">{ui_v3.journal_kpi(cells)}</div>', unsafe_allow_html=True)
+
+    # סינון ומיון של הטבלה. בכל בורר תמיד מסומנת בחירה: "הכל" (שוק/תוצאה) ו"תאריך" (מיון, לפי תאריך יציאה) כברירת מחדל;
+    # לחיצה על האפשרות הנבחרת לא מבטלת אותה אלא מחזירה לברירת המחדל
+    _jdefaults = {"journal_filter_mkt": "כל השווקים", "journal_filter_res": "הכל", "journal_sort": "תאריך"}
+
+    def _journal_default(_key: str) -> None:
+        if st.session_state.get(_key) is None:
+            st.session_state[_key] = _jdefaults[_key]
+
+    for _k in _jdefaults:
+        _journal_default(_k)
+    # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה) - כשהלוח סגור הוא מוסתר ב-CSS
+    _jopen = bool(st.session_state.get("journal_filters_open", False))
+    st.markdown('<style>div[class*="st-key-journal_filters"] { display:' + ("block" if _jopen else "none") + '; }</style>', unsafe_allow_html=True)
+    with st.container(key="journal_filters"):
+        _j1, _j2, _j3 = st.columns([2, 2, 3])
+        with _j1:
+            _jm = st.segmented_control(
+                "שוק", ['בורסת ת"א', "וול סטריט", "כל השווקים"], selection_mode="single", key="journal_filter_mkt",
+                label_visibility="collapsed", on_change=_journal_default, args=("journal_filter_mkt",),
+            ) or "כל השווקים"
+        with _j2:
+            _jr = st.segmented_control(
+                "תוצאה", ["ברווח", "בהפסד", "הכל"], selection_mode="single", key="journal_filter_res",
+                label_visibility="collapsed", on_change=_journal_default, args=("journal_filter_res",),
+            ) or "הכל"
+        with _j3:
+            _js = st.segmented_control(
+                "מיון", ["תשואה", "רווח/הפסד", "תאריך"], selection_mode="single", key="journal_sort",
+                label_visibility="collapsed", on_change=_journal_default, args=("journal_sort",),
+            ) or "תאריך"
+    _view = rows
+    if _jm != "כל השווקים":
+        _view = [r for r in _view if (r["ccy"] == "ILS") == (_jm == 'בורסת ת"א')]
+    if _jr != "הכל":
+        _view = [r for r in _view if (r["net"] > 0) == (_jr == "ברווח")]
+    if _js == "תשואה":
+        _view = sorted(_view, key=lambda r: -r["pct"])
+    elif _js == "רווח/הפסד":
+        _view = sorted(_view, key=lambda r: -r["net"])
+    _tbl = ui_v3.journal_table(_view) if _view else '<div class="nw"><small>אין עסקאות שמתאימות לסינון.</small></div>'
     st.markdown(
-        f'<div class="v3h">{ui_v3.journal_kpi(cells)}<section class="block" style="margin-top:32px">{ui_v3.journal_table(rows)}</section></div>',
+        '<div class="v3h">'
+        + f'<section class="block" style="margin-top:8px">{_tbl}</section>'
+        + (f'<section class="block" style="margin-top:60px">{_eq_html}</section>' if _eq_html else "")
+        + '</div>',
         unsafe_allow_html=True,
     )
 
@@ -6915,7 +7276,11 @@ def _render_home_v3() -> None:
             strip_html = ui_v3.portfolio_strip(
                 value[1], value[4], portfolio[1], portfolio[2],
                 today[1] if today else None, today[2] if today else None, ccy,
-                day_label=today[0] if today else "שינוי יומי",
+                day_label="שינוי יומי",
+                alloc_html=ui_v3.allocation_bar([
+                    {"name": r["name"], "share": r.get("portfolio_pct") or 0.0, "pnl_pct": r["pnl_pct"]}
+                    for r in _build_holding_rows(holdings) if r.get("current_value")
+                ]),
             )
         minutes = scan_status.age_minutes(_scan_heartbeat_cached())
         radar_html = ui_v3.scanner_radar(scan_status.classify(minutes), minutes)
@@ -6925,7 +7290,7 @@ def _render_home_v3() -> None:
 
     _home_top()
 
-    st.markdown(f'<div class="v3h"><section class="block">{ui_v3.head("מצב המדדים")}</section></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="v3h"><section class="block">{ui_v3.head("מדדים")}</section></div>', unsafe_allow_html=True)
 
     @st.fragment(run_every="60s")
     def _home_indices() -> None:
@@ -6954,6 +7319,7 @@ def _render_home_v3() -> None:
             stop = r.get("holding_stop_price")
             rows.append({
                 "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
+                "daily_pct_date": r.get("daily_pct_date"),
                 "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
             })
         chart_html = ""
@@ -7007,11 +7373,11 @@ def _render_home_v3() -> None:
             news_items = _v3_news_items()
         except Exception:
             news_items = []
-        col_hours, col_news = st.columns([1, 2], gap="large")
-        with col_hours:
-            components.html(ui_v3.hours_iframe(markets), height=170)  # שעון רץ (שניות) בצד הלקוח
-        with col_news:
-            st.markdown(f'<div class="v3h">{ui_v3.news_section(news_items)}</div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)  # אותו מרווח בין סעיפים (60px) כמו בשאר העמוד
+        # זמני מסחר לרוחב כל העמוד (שני השווקים זה לצד זה), החדשות מתחתיהם
+        components.html(ui_v3.hours_iframe(markets), height=110)  # שעון רץ (שניות) בצד הלקוח; הגובה מתכוונן ב-fit()
+        st.markdown('<div style="height:40px"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="v3h">{ui_v3.news_section(news_items)}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="v3h">{ui_v3.home_footer()}</div>', unsafe_allow_html=True)
 
     _home_hours_news()
