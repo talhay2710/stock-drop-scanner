@@ -24,10 +24,10 @@ assumed_holding_days: 3
 holdings_gain_alert_start_pct: 3.0
 holdings_gain_alert_step_pct: 0.5
 telegram:
-  enabled: false
+  enabled: true
   bot_token: ''
   chat_id: ''
-  enabled_since: '2026-10-18T07:56:34+00:00'
+  enabled_since: '2026-10-18T07:58:03+00:00'
 desktop_notifications:
   enabled: false
 fees:
