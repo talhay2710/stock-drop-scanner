@@ -19,3 +19,6 @@ __pycache__/
 # מצב מקומי של desktop_notify_watcher.py (איזו התראה/סיכום כבר הוצג
 # כ-toast במחשב הזה) - ספציפי למכונה, לא משהו לשתף
 .desktop_notify_state.json
+
+# העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש)
+.ui_prefs.json

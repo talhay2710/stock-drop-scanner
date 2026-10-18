@@ -71,17 +71,28 @@ def head(title: str, side: str = "") -> str:
     return f'<div class="head"><div class="h2">{esc(title)}</div>{side}</div>'
 
 
+def _dual(n: int, one: str, two: str, many: str) -> str:
+    """ספירה בעברית: 1 -> 'דקה', 2 -> 'שתי דקות' (נקבה) / 'יומיים' / 'שעתיים', 3+ -> '3 דקות'."""
+    return one if n == 1 else (two if n == 2 else f"{n} {many}")
+
+
+def _and(text: str) -> str:
+    """'ו' החיבור: צמודה למילה ("ושעה"), ובמספר עם מקף ("ו־12 דקות")."""
+    return ("ו־" if text[:1].isdigit() else "ו") + text
+
+
 def fmt_countdown(minutes: int) -> str:
     """כמו ב-JS של המוקאפ: 'יום ו־3 שעות' / '3 שעות ו־12 דקות' / '12 דקות' (יחיד: שעה/דקה/יום)."""
     minutes = max(int(minutes), 0)
     d, rem = divmod(minutes, 1440)
     h, m = divmod(rem, 60)
-    hs = "שעה" if h == 1 else f"{h} שעות"
+    hs = _dual(h, "שעה", "שעתיים", "שעות")
+    ms = _dual(m, "דקה", "שתי דקות", "דקות")
     if d > 0:
-        return ("יום" if d == 1 else f"{d} ימים") + " ו־" + hs
+        return _dual(d, "יום", "יומיים", "ימים") + ((" " + _and(hs)) if h else "")
     if h > 0:
-        return hs + " ו־" + ("דקה" if m == 1 else f"{m} דקות")
-    return "דקה" if m == 1 else f"{m} דקות"
+        return hs + ((" " + _and(ms)) if m else "")
+    return ms
 
 
 # ───────────────────────── עמוד הבית ─────────────────────────
@@ -96,21 +107,27 @@ def notice(name: str, gap_pct: float, is_target: bool) -> str:
     )
 
 
+def money(n_html: str, sym: str) -> str:
+    """סכום + סמל מטבע: ש"ח משמאל למספר, דולר תמיד מימין למספר (בהקשר RTL הסמל הראשון בסדר הלוגי יושב מימין)."""
+    return f"{sym}&nbsp;{n_html}" if sym == CCY_SYMBOL["USD"] else f"{n_html}&nbsp;{sym}"
+
+
 def portfolio_strip(value: float, count: int, pnl: float, pnl_pct: float,
-                    day_change: float | None, day_pct: float | None, ccy: str, day_label: str = "שינוי יומי") -> str:
+                    day_change: float | None, day_pct: float | None, ccy: str, day_label: str = "שינוי יומי",
+                    alloc_html: str = "") -> str:
     sym = CCY_SYMBOL.get(ccy, esc(ccy))
+    under = alloc_html or f'<em style="color:var(--dim)">{num(count)} אחזקות</em>'
     cells = [
-        f'<div><small>שווי תיק</small><strong>{num(plain(value))}&nbsp;{sym}'
-        f'<em style="color:var(--dim)">{num(count)} אחזקות</em></strong></div>',
-        f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl)}">{num(signed(pnl))}&nbsp;{sym}'
-        f'<em>{num(signed(pnl_pct, 1, "%"))}</em></strong></div>',
+        f'<div><small>שווי תיק</small><strong>{money(num(plain(value)), sym)}</strong>{under}</div>',
+        f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl)}">{money(num(signed(pnl)), sym)}</strong>'
+        f'<em class="{cls_for(pnl)}">{num(signed(pnl_pct, 1, "%"))}</em></div>',
     ]
     if day_change is not None and day_pct is not None:
         cells.append(
-            f'<div><small>{esc(day_label)}</small><strong class="{cls_for(day_change)}">{num(signed(day_change))}&nbsp;{sym}'
-            f'<em>{num(signed(day_pct, 1, "%"))}</em></strong></div>'
+            f'<div><small>{esc(day_label)}</small><strong class="{cls_for(day_change)}">{money(num(signed(day_change)), sym)}</strong>'
+            f'<em class="{cls_for(day_change)}">{num(signed(day_pct, 1, "%"))}</em></div>'
         )
-    return f'{head("התיק שלי")}<div class="kpi">{"".join(cells)}</div>'
+    return f'{head("התיק שלי")}<div class="kpi{" pstrip" if alloc_html else ""}">{"".join(cells)}</div>'
 
 
 _RING = (
@@ -132,7 +149,7 @@ def scanner_radar(state: str, minutes: float | None) -> str:
         ago = "אין נתון על הסריקה האחרונה"
     else:
         m = int(minutes)
-        ago = "סריקה אחרונה " + ("הרגע" if m == 0 else ("לפני דקה" if m == 1 else (f"לפני {m} דקות" if m < 120 else f"לפני {m // 60} שעות")))
+        ago = "סריקה אחרונה " + ("הרגע" if m == 0 else (f"לפני {_dual(m, 'דקה', 'שתי דקות', 'דקות')}" if m < 120 else f"לפני {_dual(m // 60, 'שעה', 'שעתיים', 'שעות')}"))
     return (
         f'<div class="radar-solo {"" if state == "ok" else state}">{_RING}'
         f'<div class="scan" role="status"><span class="scan-t"><i class="dot" style="background:{dot}"></i><b>{title}</b></span>'
@@ -158,14 +175,14 @@ def _spread(n: int, lo: float, hi: float) -> list[float]:
     return [lo + (hi - lo) * i / (n - 1) for i in range(n)]
 
 
-def radar_positions(rows: list[dict]) -> list[dict]:
+def radar_positions(rows: list[dict], step: float = 3.0) -> list[dict]:
     """מוסיף לכל שורה x/y/label_y/out לפי pnl_pct ו-stop_pct האישי (ההילה האדומה = חצתה את הסטופ של עצמה)."""
     losers = sorted([r for r in rows if r["pnl_pct"] < 0], key=lambda r: -r["pnl_pct"])
     winners = sorted([r for r in rows if r["pnl_pct"] >= 0], key=lambda r: -r["pnl_pct"])
     placed = []
     for group, lo, hi in ((losers, 128.0, 235.0), (winners, 50.0, -50.0)):
         for r, ang in zip(group, _spread(len(group), lo, hi)):
-            rad = min(abs(r["pnl_pct"]) * _PX_PER_PCT, _R_MAX)
+            rad = min(abs(r["pnl_pct"]) * (53.0 / step), _R_MAX)
             theta = math.radians(ang)
             x = _CX + rad * math.cos(theta)
             y = _CY - rad * math.sin(theta)
@@ -175,17 +192,19 @@ def radar_positions(rows: list[dict]) -> list[dict]:
     return placed
 
 
-def holdings_radar(rows: list[dict]) -> str:
-    placed = radar_positions(rows)
+def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
+    """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו."""
+    placed = radar_positions(rows, step)
+    s1, s2, s3 = (f"{step * k:g}" for k in (1, 2, 3))
     halo = "paint-order:stroke; stroke:var(--bg); stroke-width:5px; stroke-linejoin:round"
     dots = []
     for p in placed:
         label = esc(short_name(p["name"]))
-        ly = p["y"] - (24 if p["out"] else 16)  # תמיד מעל הנקודה (אחידות); מעל ההילה כשיש הילה
+        ly = p["y"] - (17 if p["out"] else 16)  # תמיד מעל הנקודה (אחידות); מעל ההילה כשיש הילה
         if p["out"]:
             dots.append(
-                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="8" fill="var(--loss)" stroke="none"/>'
-                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="15" fill="none" stroke="var(--loss)" opacity=".55"/>'
+                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
+                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="9.5" fill="none" stroke="var(--loss)" stroke-width="2.5" opacity=".55"/>'
                 f'<text x="{p["x"]:.0f}" y="{ly:.0f}" fill="var(--loss)" font-size="14" font-weight="600">{label}</text>'
             )
         else:
@@ -204,32 +223,46 @@ def holdings_radar(rows: list[dict]) -> str:
         '<path d="M190 137 A53 53 0 0 1 190 243" fill="none" stroke="var(--gain)" stroke-width="1.5" stroke-dasharray="4 5"/>'
         '<g style="direction:ltr; unicode-bidi:bidi-override; paint-order:stroke; stroke:var(--bg); stroke-width:4px; stroke-linejoin:round" '
         'font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="middle">'
-        '<text x="137" y="185" fill="var(--loss)">-3%</text><text x="84" y="185" fill="var(--loss)">-6%</text><text x="32" y="185" fill="var(--loss)">-9%</text>'
-        '<text x="243" y="185" fill="var(--gain)">+3%</text><text x="296" y="185" fill="var(--gain)">+6%</text><text x="348" y="185" fill="var(--gain)">+9%</text></g>'
+        f'<text x="137" y="185" fill="var(--loss)">-{s1}%</text><text x="84" y="185" fill="var(--loss)">-{s2}%</text><text x="32" y="185" fill="var(--loss)">-{s3}%</text>'
+        f'<text x="243" y="185" fill="var(--gain)">+{s1}%</text><text x="296" y="185" fill="var(--gain)">+{s2}%</text><text x="348" y="185" fill="var(--gain)">+{s3}%</text></g>'
         f'<text x="222" y="130" text-anchor="middle" style="{halo}; stroke-width:6px" fill="var(--gain)" font-size="13" font-weight="600" font-family="Heebo, sans-serif">יעד</text>'
         '<circle cx="190" cy="190" r="2.5" fill="var(--dim)"/>'
         f'<g style="{halo}" text-anchor="middle" font-family="Heebo, sans-serif" font-size="13">{"".join(dots)}</g></svg></figure>'
     )
 
 
+def daily_head_date(dates) -> None:
+    """התאריך כבר מופיע בכרטיסי המדדים ("סגירה 16.10") - לא חוזרים עליו בכותרת/בשורות האחזקות."""
+    return None
+
+
+def daily_suffix(date, head_date) -> str:
+    return ""
+
+
+def daily_head_text(head_date) -> str:
+    return "יומי"
+
+
 def holdings_rows(rows: list[dict]) -> str:
     out = []
+    head_date = daily_head_date([r.get("daily_pct_date") for r in rows])
     for r in sorted(rows, key=lambda r: -r["pnl_pct"]):
         is_out = r.get("stop_pct") is not None and r["pnl_pct"] < r["stop_pct"]
         daily = r.get("daily_pct")
         if daily is None:
             daily_html = '<span class="st"></span>'
         else:
-            daily_html = f'<span class="st {cls_for(daily)}">{num(signed(daily, 1, "%"))} היום</span>'
+            daily_html = f'<span class="st {cls_for(daily)}">{num(signed(daily, 1, "%"))}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
         out.append(
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
             f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>{daily_html}</div>'
         )
-    return '<div class="rows"><div class="cap">רווח/הפסד מנקודת הקנייה</div>' + "".join(out) + "</div>"
+    return f'<div class="rows"><div class="cap"><span>רווח/הפסד</span><span>כולל</span><span>יומי</span></div>' + "".join(out) + "</div>"
 
 
-def holdings_section(rows: list[dict]) -> str:
-    return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_radar(rows)}{holdings_rows(rows)}</div></section>'
+def holdings_section(rows: list[dict], step: float = 3.0) -> str:
+    return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_rows(rows)}{holdings_radar(rows, step)}</div></section>'
 
 
 def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], portfolio_label: str, bench_label: str) -> str:
@@ -296,7 +329,7 @@ def news_section(items: list[dict]) -> str:
         else:
             rows.append(f'<div class="nw">{inner}</div>')
     body = "".join(rows) if rows else '<div class="nw"><small>לא נמצאו חדשות כרגע.</small></div>'
-    return f'<div class="news">{head("חדשות כלכליות")}{body}</div>'
+    return f'<div class="news">{head("חדשות כלכליות")}<div class="nwg">{body}</div></div>'
 
 
 def hours_and_news(hours_html: str, news_html: str) -> str:
@@ -347,10 +380,10 @@ COMPONENT_CSS = """
         .v3h .radar-solo.late .sweep, .v3h .radar-solo.dead .sweep { animation:none; }
         .v3h .radar-solo.dead { --accent:var(--dim); }
         .v3h .hold { display:flex; flex-wrap:wrap; gap:0 64px; }
-        .v3h .plot { flex:1 1 320px; max-width:440px; padding-top:24px; margin:0; }
+        .v3h .plot { flex:1 1 320px; max-width:440px; padding-top:29px; margin:0; }  /* קצה הגרף העליון בגובה הטקסט של כותרות הטבלה */
         .v3h .plot svg { display:block; width:100%; height:auto; }
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
-        .v3h .rows .cap { font-size:13px; color:var(--dim); padding:14px 0 10px; border-bottom:1px solid var(--rule); }
+        .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 10px 10px; border-bottom:1px solid var(--rule); }
         .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 10px; border-bottom:1px solid var(--rule); }
         .v3h .row:hover { background:var(--hover); }
         .v3h .row .nm { font-size:17px; }
@@ -373,6 +406,8 @@ COMPONENT_CSS = """
         .v3h .mk { display:flex; flex-direction:column; align-items:flex-end; gap:2px; min-width:0; text-align:end !important; }
         .v3h .mk .cd { font-size:13px; color:var(--dim); }
         .v3h .nw { display:block; padding-block:15px; border-bottom:1px solid var(--rule); }
+        .v3h .news .nwg { display:grid; grid-template-columns:1fr 1fr; column-gap:64px; } @media (max-width:560px) { .v3h .news .nwg { grid-template-columns:1fr; } }
+        .v3h .news .nw { display:flex; flex-direction:column; justify-content:space-between; gap:6px; padding-block:10px; box-sizing:border-box; }  /* גובה לפי התוכן (החדשות כבר לא לצד זמני המסחר); שני הפריטים בשורה באותו גובה */
         .v3h a.nw:hover { background:var(--hover); }
         .v3h .nw div { line-height:1.4; }
         .v3h .nw small { display:block; font-size:13px; color:var(--dim); margin-top:4px; }
@@ -449,11 +484,11 @@ MOVERS_CSS = """
         .v3h .v3age::after { content: counter(v3s); }
         .v3h .head > .hr { display:flex; align-items:baseline; gap:20px; font-size:14px; color:var(--dim); }
         .v3h .upd { color:var(--dim); }
-        .v3h .tw { overflow-x:auto; }
+        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .v3h table.tb { width:100%; border-collapse:collapse; }
         .v3h .tb th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:10px 8px; border-bottom:1px solid var(--rule); white-space:nowrap; }
         .v3h .tb td { padding:14px 8px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; color:var(--v3-soft); }
-        .v3h .tb td:first-child, .v3h .tb th:first-child { padding-inline-start:0; }
+        .v3h .tb td:first-child, .v3h .tb th:first-child { padding-inline-start:8px; }
         .v3h .tb tbody tr:hover td { background:var(--hover); }
         .v3h .tb td.n { color:var(--ink); font-size:17px; }
         .v3h .tb td.n .mono { margin-inline-start:10px; }
@@ -484,11 +519,11 @@ def alerts_header() -> str:
 
 
 def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str, sig_label: str, score_text: str,
-              entry: str, target: str, stop: str, hhmm: str, is_open: bool) -> str:
-    new = '<span class="isnew">חדשה</span>' if is_new else ""
+              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "") -> str:
+    new = ""  # תגית "חדשה" הוסרה - השעה בשורה מספיקה
     return (
         f'<div class="arow r{" open" if is_open else ""}">'
-        f'<span class="nmc"><span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{new}{_CHEV}</span></span>'
+        f'<span class="nmc"><span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
         f'<span>{change_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span>{num(score_text)}</span>'
         f'<span>{num(entry)}</span><span>{num(target)}</span><span>{num(stop)}</span><span>{num(hhmm)}</span></div>'
     )
@@ -543,8 +578,8 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
     foot = f'<div class="afoot"><span>{net_text}</span></div>' if net_text else ""
     held_html = '<div class="heldline">כבר באחזקות</div>' if held else ""
     return (
-        f'<div class="adet"><div class="atop"><div class="asec"><small>ניקוד</small><div class="why">{why}</div></div>{spark(prices)}</div>'
-        f'{met}{flag_html}{news_html}{foot}{held_html}</div>'
+        f'<div class="adet">{met}<div class="atop"><div class="asec"><small>ניקוד</small><div class="why">{why}</div></div>{spark(prices)}</div>'
+        f'{flag_html}{news_html}{foot}{held_html}</div>'
     )
 
 
@@ -556,8 +591,11 @@ def num_raw(inner_html: str) -> str:
 ALERTS_CSS = """
         .v3h .kpi.k4 { grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:0; }
         .v3h .kpi.k4 > div { padding:18px 24px 20px; }
-        .v3h .arow { display:grid; grid-template-columns:2.2fr .9fr 1fr .8fr 1fr 1fr 1fr .8fr; align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:640px; }
+        .v3h .arow { display:grid; grid-template-columns:1.9fr 1.4fr .9fr .7fr .95fr .95fr .95fr .7fr; align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:640px; }
         .v3h .arow > span { padding-block:15px; }
+        .v3h .arow > span:has(.nt) { padding-block:8px; }
+        .v3h .arow .nm small.ix { opacity:.75; }
+        .v3h .arow .nt { display:block; font-size:12px; line-height:1.25; color:var(--dim); }
         .v3h .arow.ahead { border-bottom:1px solid var(--rule-strong); }
         .v3h .arow.ahead > span { font-size:13px; color:var(--dim); padding-block:10px; }
         .v3h .arow .nm { display:inline-flex; align-items:baseline; gap:10px; font-size:17px; }
@@ -568,7 +606,7 @@ ALERTS_CSS = """
         .v3h .arow .sig { font-size:15px; }
         .v3h .arow .sig.buy { color:var(--gain); font-weight:500; } .v3h .arow .sig.avoid { color:var(--loss); }
         .v3h .arow .sig.wait { color:var(--ink); }
-        .v3h .adet { display:flex; flex-direction:column; gap:20px; padding:16px 12px 22px; background:var(--surface); border-bottom:1px solid var(--rule); max-width:none; }
+        .v3h .adet { display:flex; flex-direction:column; gap:20px; padding:16px 12px 22px; background:var(--surface); border-bottom:1px solid var(--rule); max-width:none; white-space:normal; }
         .v3h .atop { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 24px; }
         .v3h .asec > small, .v3h .amet small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
@@ -594,14 +632,220 @@ ALERTS_CSS = """
 
 # ───────────────────────── אחזקות ─────────────────────────
 
-def holding_row(name: str, mono: str, amt: str, ccy_sym: str, pct: float, daily: float | None, out: bool, is_open: bool) -> str:
+def holding_row(name: str, mono: str, amt: str, ccy_sym: str, pct: float, daily: float | None, out: bool, is_open: bool, daily_date=None, head_date=None, spark_prices=None, spark_base: float | None = None, daily_amt: float | None = None, reach: str = "", signal: tuple[str, str] | None = None) -> str:
     cls = cls_for(pct)
-    daily_html = (f'<span class="st {cls_for(daily)}">{num(signed(daily, 1, "%"))} היום</span>' if daily is not None else '<span class="st"></span>')
+    daily_html = (f'<span class="st {cls_for(daily)}">{num(signed(daily, 1, "%"))}{daily_suffix(daily_date, head_date)}</span>' if daily is not None else '<span class="st"></span>')
+    cur, n = f'<span class="cur">{ccy_sym}</span>', f'<span class="n">{num(amt)}</span>'
+    amt_html = f'<span class="amt {cls}">{n}{cur}</span>' if ccy_sym == CCY_SYMBOL["USD"] else f'<span class="amt {cls}">{cur}{n}</span>'
+    if daily_amt is None:
+        damt_html = '<span class="damt"></span>'
+    else:
+        dn = f'<span class="n">{num(signed(daily_amt))}</span>'
+        dc = f'<span class="cur">{ccy_sym}</span>'
+        damt_html = f'<span class="damt {cls_for(daily_amt)}">{dn}{dc}</span>' if ccy_sym == CCY_SYMBOL["USD"] else f'<span class="damt {cls_for(daily_amt)}">{dc}{dn}</span>'
     return (
         f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">'
-        f'<span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span>'
-        f'<span class="amt {cls}"><span class="cur">{ccy_sym}</span><span class="n">{num(amt)}</span></span>'
-        f'<span class="p {cls}">{num(signed(pct, 1, "%"))}</span>{daily_html}{_CHEV}</div>'
+        f'<span class="nm" title="{esc(name)}"><span class="l1">{f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל: {esc(signal[0])}"></i>' if signal and signal[1] else ""}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span>{f'<small class="rc">{reach}</small>' if reach else ""}</span>'
+        f'{amt_html}<span class="p {cls}">{num(signed(pct, 1, "%"))}</span>{damt_html}{daily_html}'
+        f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{_CHEV}</div>'
+    )
+
+
+def horizon_text(days_held: int, horizon: int) -> str:
+    """שורת-משנה מתחת לשם האחזקה: כמה ימים מחזיקים מול אופק האסטרטגיה (הנחת ההחזקה, 3 ימים) - חריגה מסומנת באדום."""
+    if days_held is None or not horizon:
+        return ""
+    over = days_held - horizon
+    tail = ' · <b class="warn">חריגה</b>' if over > 0 else ""
+    return f'יום <b>{num(days_held)}</b> מתוך {num(horizon)}{tail}'
+
+
+def range_text(rng) -> str:
+    """שורת-משנה מתחת לשם האחזקה: 'המסלול' מאז הקנייה - השיא והשפל ביחס לשער הכניסה (מידע שלא מופיע בשום מקום אחר בטאב)."""
+    if not rng:
+        return ""
+    hi, lo = rng
+    # שני חלקים בשתי שורות (כל חלק לא נשבר באמצע) - אחרת "שפל" נשאר בשורה אחת והמספר שלו יורד לשורה הבאה
+    return (f'<span style="white-space:nowrap">שיא <b class="{cls_for(hi)}">{num(signed(hi, 1, "%"))}</b></span><br>'
+            f'<span style="white-space:nowrap">שפל <b class="{cls_for(lo)}">{num(signed(lo, 1, "%"))}</b></span>')
+
+
+def sub_text(signal: str, signal_color: str = "", qty: float | None = None) -> str:
+    """שורת-משנה מתחת לשם האחזקה: סיגנל הכניסה (בזמן ההתראה) · כמות היחידות - מידע שאינו בכרטיס הפתוח (הסקטור והמוחזק שם)."""
+    parts = []
+    if signal:
+        style = f' style="color:{esc(signal_color)}"' if signal_color else ""
+        parts.append(f'סיגנל <b{style}>{esc(signal)}</b>')
+    if qty:
+        parts.append(f'כמות {num(f"{qty:,.0f}")}')
+    return " · ".join(parts)
+
+
+def reach_text(stop_gap: float | None, tgt_gap: float | None) -> str:
+    """שורת-משנה מתחת לשם האחזקה: מרחק מהסטופ ומהיעד (באחוזים, יחסית לסטופ/יעד עצמם)."""
+    parts = []
+    if stop_gap is not None:
+        parts.append(f'מתחת לסטופ' if stop_gap < 0 else f'עד הסטופ {num(f"{stop_gap:.1f}%")}')
+    if tgt_gap is not None:
+        parts.append(f'מעל היעד' if tgt_gap < 0 else f'עד היעד {num(f"{tgt_gap:.1f}%")}')
+    return " · ".join(parts)
+
+
+def _cell_money(css: str, value: float, sym: str) -> str:
+    cur, n = f'<span class="cur">{sym}</span>', f'<span class="n">{num(signed(value))}</span>'
+    return (f'<span class="{css} {cls_for(value)}">{n}{cur}</span>' if sym == CCY_SYMBOL["USD"] else f'<span class="{css} {cls_for(value)}">{cur}{n}</span>')
+
+
+def holdings_total_row(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, sym: str) -> str:
+    """שורת סיכום (סה"כ) בתחתית טבלת האחזקות - אותו גריד כמו .hrow."""
+    d_amt = _cell_money("damt", day_amt, sym) if day_amt is not None else '<span class="damt"></span>'
+    d_pct = f'<span class="st {cls_for(day_pct)}">{num(signed(day_pct, 1, "%"))}</span>' if day_pct is not None else '<span class="st"></span>'
+    return (
+        '<div class="hrow tot"><span class="nm">סה"כ</span>'
+        f'{_cell_money("amt", pnl, sym)}<span class="p {cls_for(pnl_pct)}">{num(signed(pnl_pct, 1, "%"))}</span>{d_amt}{d_pct}<span></span><span></span></div>'
+    )
+
+
+def mini_spark(prices, base: float | None = None) -> str:
+    """גרף זעיר לשורת אחזקה: הקו הכהה = מחיר, הקו המקווקו = שער הכניסה, והשטח ביניהם צבוע (ירוק מעל הכניסה, אדום מתחתיה)."""
+    if not prices or len(prices) < 2:
+        return ""
+    vals = list(prices) + ([base] if base else [])
+    mn, mx = min(vals), max(vals)
+    rg = (mx - mn) or 1.0
+    w, h = 96, 34
+
+    def y(v: float) -> float:
+        return h - 5 - (v - mn) / rg * (h - 10)
+
+    pts = [(i * (w - 8) / (len(prices) - 1) + 4, y(v)) for i, v in enumerate(prices)]
+    up = (prices[-1] >= base) if base else (prices[-1] >= prices[0])
+    col = "var(--gain)" if up else "var(--loss)"
+    poly = " ".join(f"{x:.1f},{yy:.1f}" for x, yy in pts)
+    lx, ly = pts[-1]
+    base_svg = area = ""
+    if base:
+        by = y(base)
+        base_svg = f'<line x1="2" y1="{by:.1f}" x2="{w - 2}" y2="{by:.1f}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="2 3"/>'
+        area = f'<polygon points="{pts[0][0]:.1f},{by:.1f} {poly} {lx:.1f},{by:.1f}" fill="{col}" fill-opacity=".14"/>'
+    return (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" aria-hidden="true">{area}{base_svg}'
+            f'<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.5" stroke-linejoin="round"/><circle cx="{lx:.1f}" cy="{ly:.1f}" r="2.6" fill="{col}"/></svg>')
+
+
+_SECTOR_TONES = ["#2F5D50", "#8A6F3C", "#4A6580", "#8C4B3B", "#6B5B7A", "#6F7A4F", "#9A8F7E"]
+
+
+def allocation_bar(items: list[dict]) -> str:
+    """פס הרכב התיק: קו דק לכל אחזקה, רוחב לפי משקלה בתיק, בגוונים נייטרליים (כהה = משקל גדול); מתחת לכל קו השם והאחוז. items: {name, share (% מהתיק), pnl_pct}."""
+    items = sorted([i for i in items if i["share"] > 0], key=lambda i: -i["share"])
+    if not items:
+        return ""
+    total = sum(i["share"] for i in items)
+    alphas = [90, 66, 48, 34, 24, 18]  # גוון כהה יותר = משקל גדול יותר
+    segs = "".join(
+        f'<div class="ab" style="flex:{i["share"]:.3f} 1 0" '
+        f'title="{esc(i["name"])} · {i["share"] / total * 100:.0f}% מהתיק · {signed(i["pnl_pct"] or 0, 1, "%")}">'
+        f'<span class="abs" style="background:color-mix(in srgb, var(--ink) {alphas[min(k, len(alphas) - 1)]}%, transparent)"></span>'
+        f'<span class="abl"><span class="abn">{esc(short_name(i["name"]))}</span><span class="abp">{num(f"{i["share"] / total * 100:.0f}%")}</span></span></div>'
+        for k, i in enumerate(items)
+    )
+    return f'<div class="abar">{segs}</div>'
+
+
+def sector_section(items: list[dict], title: str = "התפלגות סקטוריאלית") -> str:
+    """התפלגות סקטוריאלית: טבעת דקה (עוגה בשפת האתר - קו עדין, גוונים מעומעמים, מרווחים בין הפלחים) + רשימה (נקודה, שם, מניות, אחוז).
+    items: {label, pct, names:[...]}, ממוין יורד."""
+    items = [i for i in items if i["pct"] > 0]
+    if not items:
+        return ""
+    r, circ, gap = 74.0, 2 * math.pi * 74.0, 3.0
+    hhi = sum((i["pct"] / sum(x["pct"] for x in items)) ** 2 for i in items)  # מדד הרפינדל-הירשמן: 1 = הכל בסקטור אחד
+    conc, conc_color = (("מפוזר", "var(--gain)") if hhi < 0.25 else (("בינוני", "#8A6F3C") if hhi < 0.5 else ("מרוכז", "var(--loss)")))
+    segs, offset = [], 0.0
+    for k, i in enumerate(items):
+        length = max(i["pct"] / 100.0 * circ - gap, 1.5)
+        segs.append(
+            f'<circle cx="100" cy="100" r="{r:.0f}" fill="none" stroke="{_SECTOR_TONES[k % len(_SECTOR_TONES)]}" stroke-width="16" '
+            f'stroke-dasharray="{length:.2f} {circ - length:.2f}" stroke-dashoffset="{-offset:.2f}" transform="rotate(-90 100 100)">'
+            f'<title>{esc(i["label"])} {i["pct"]:.0f}%</title></circle>'
+        )
+        offset += i["pct"] / 100.0 * circ
+    donut = (
+        '<figure class="sdonut"><svg viewBox="0 0 200 200" role="img" aria-label="התפלגות סקטוריאלית">'
+        f'<circle cx="100" cy="100" r="{r:.0f}" fill="none" stroke="var(--rule)" stroke-width="1" stroke-dasharray="2 4"/>'
+        + "".join(segs) +
+        f'<text x="100" y="92" text-anchor="middle" font-size="12" letter-spacing=".05em" fill="var(--dim)">ריכוז סקטוריאלי</text>'
+        f'<text x="100" y="121" text-anchor="middle" font-size="23" font-weight="500" letter-spacing=".02em" fill="{conc_color}">{conc}</text>'
+        '</svg></figure>'
+    )
+    rows = "".join(
+        f'<div class="srow"><span class="dot" style="background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></span>'
+        f'<span class="sn">{esc(i["label"])}</span><span class="ss">{esc(", ".join(short_name(n) for n in i["names"]))}</span>'
+        f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
+        for k, i in enumerate(items)
+    )
+    return f'{head(title)}<div class="sgrid">{donut}<div class="slist">{rows}</div></div>'
+
+
+def holdings_overview(invested: float, value: float, count: int, pnl: float, pnl_pct: float,
+                      day_amt: float | None, day_pct: float | None, ccy: str) -> str:
+    """פתיחת טאב האחזקות: סקירה בארבעה תאים (הושקע / שווי נוכחי / רווח-הפסד כולל / שינוי יומי) - ניסוח ופריסה שונים מ'התיק שלי' שבעמוד הבית."""
+    usd = ccy == "USD"
+    def m(v: float, signed_: bool = False) -> str:
+        t = signed(v) if signed_ else plain(v)
+        return f"{t}$" if usd else f"₪ {t}"
+    def cell(label: str, val: str, cls: str = "", sub_html: str = "") -> str:
+        return f'<div><small>{esc(label)}</small><strong class="{cls}">{num(val)}' + (f'<em>{sub_html}</em>' if sub_html else "") + '</strong></div>'
+    day_cell = (cell("שינוי יומי", m(day_amt, True), cls_for(day_amt), num(signed(day_pct, 1, "%")))
+                if day_amt is not None and day_pct is not None else cell("שינוי יומי", "—"))
+    inner = (
+        cell("הושקע", m(invested), "", f"{count} אחזקות")
+        + cell("שווי נוכחי", m(value))
+        + cell("רווח/הפסד כולל", m(pnl, True), cls_for(pnl), num(signed(pnl_pct, 1, "%")))
+        + day_cell
+    )
+    return head("סקירת האחזקות") + f'<div class="kpi k4">{inner}</div>'
+
+
+def portfolio_map(items: list[dict]) -> str:
+    """מפת התיק (heatmap): אריח לכל אחזקה, רוחב לפי חלקה בתיק, צבע וגוון לפי הרווח/הפסד - ירוק/אדום, עוצמה לפי גודל השינוי.
+    items: {name, share (% מהתיק), pnl_pct, daily_pct}."""
+    items = sorted([i for i in items if i["share"] > 0], key=lambda i: -i["share"])
+    if not items:
+        return ""
+    tiles = []
+    for i in items:
+        p = i["pnl_pct"]
+        strength = min(abs(p) / 12.0, 1.0) * 46 + 10
+        tone = "var(--gain)" if p >= 0 else "var(--loss)"
+        tiles.append(
+            f'<div class="tile" style="flex:{i["share"]:.2f} 1 0; background:color-mix(in srgb, {tone} {strength:.0f}%, var(--surface));" '
+            f'title="{esc(i["name"])} · {i["share"]:.0f}% מהתיק">'
+            f'<span class="tn">{esc(short_name(i["name"]))}</span>'
+            f'<b class="{cls_for(p)}">{num(signed(p, 1, "%"))}</b></div>'
+        )
+    return f'<div class="pmap">{"".join(tiles)}</div><div class="pcap">רוחב האריח = משקל בתיק · צבע = רווח/הפסד</div>'
+
+
+def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str) -> str:
+    """סה"כ בתצוגה מודרנית: כרטיס רך עם שני בלוקים (כולל / יומי) - סכום גדול + צ'יפ אחוז בגוון הצבע."""
+    usd = ccy == "USD"
+    def amt(v: float) -> str:
+        return f"{signed(v)}$" if usd else f"₪ {signed(v)}"
+    def block(label: str, a: float, p: float) -> str:
+        c = cls_for(a)
+        return (f'<div class="tb"><small>{esc(label)}</small>'
+                f'<div class="tv"><strong class="{c}">{num(amt(a))}</strong><span class="chip {c}">{num(signed(p, 1, "%"))}</span></div></div>')
+    inner = block("סה\"כ רווח/הפסד", pnl, pnl_pct)
+    if day_amt is not None and day_pct is not None:
+        inner += '<div class="tsep"></div>' + block("יומי", day_amt, day_pct)
+    return f'<div class="tpill">{inner}</div>'
+
+
+def holdings_head(head_date) -> str:
+    """כותרות טבלת האחזקות בשתי שכבות (בקשת המשתמש 17.10.2026): 'שינוי כולל' ו'שינוי יומי' מעל זוגות (ש"ח | %), ו'שינוי מקנייה' מעל הגרף."""
+    return (
+        '<div class="hhead"><span></span><span class="two">רווח/הפסד כולל</span><span class="two">רווח/הפסד יומי</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
     )
 
 
@@ -626,26 +870,81 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
     )
 
 
-def holding_detail(cost: str, value: str, net: float | None, net_txt: str, entry_px: str, cur_px: str, share: float, held: str) -> str:
+def holding_detail(cost: str, value: str, net: float | None, net_txt: str, entry_px: str, cur_px: str, share: float, held: str, sector: str = "") -> str:
     net_cell = (f'<span class="v {cls_for(net)}">{num(net_txt)}</span>' if net is not None else '<span class="v">—</span>')
     return (
         f'<div class="d1"><div><small>עלות</small><span class="v">{num(cost)}</span></div>'
         f'<div><small>שווי</small><span class="v">{num(value)}</span></div>'
-        f'<div><small>רווח/הפסד נטו</small>{net_cell}</div></div>'
+        f'<div><small>רווח/הפסד נטו</small>{net_cell}</div>'
+        f'<div><small>מוחזק</small><span class="v">{esc(held)}</span></div></div>'
         f'<div class="d2"><div><small>שער ביצוע</small><span class="v">{num(entry_px)}</span></div>'
         f'<div><small>שער נוכחי</small><span class="v">{num(cur_px)}</span></div>'
-        f'<div><small>אחוז מהתיק</small><span class="v">{num(f"{share:.0f}%")}</span></div>'
-        f'<div><small>מוחזק</small><span class="v">{esc(held)}</span></div></div>'
+        f'<div><small>סקטור</small><span class="v">{esc(sector) if sector else "—"}</span></div>'
+        f'<div><small>אחוז מהתיק</small><span class="v">{num(f"{share:.0f}%")}</span></div></div>'
     )
 
 
 HOLDINGS_CSS = """
-        .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 14px; align-items:center; gap:12px; padding:18px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .kpi.pstrip > div:not(:first-child) em { margin-top:auto; }  /* האחוזים בתאים האחרים באותו גובה כמו פס ההרכב */
+        .v3h .abar { display:flex; gap:3px; margin-top:14px; width:100%; }
+        .v3h .abar .ab { min-width:0; display:flex; flex-direction:column; gap:3px; }
+        .v3h .abar .abs { height:3px; border-radius:2px; margin-bottom:4px; }
+        .v3h .abar .abl { display:flex; align-items:baseline; gap:5px; min-width:0; line-height:1.3; }
+        .v3h .abar .abn { font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+        .v3h .abar .abp { font-size:12px; color:var(--v3-soft); flex:none; }
+        .v3h .sgrid { display:flex; align-items:center; gap:40px; margin-top:20px; }
+        .v3h .sdonut { margin:0; flex:none; width:190px; }
+        .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
+        .v3h .slist { flex:1 1 auto; min-width:0; }
+        .v3h .srow { display:grid; grid-template-columns:14px minmax(0,1fr) minmax(0,2fr) 56px; align-items:center; gap:12px; padding:13px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .srow .dot { width:9px; height:9px; border-radius:50%; }
+        .v3h .srow .sn { font-size:16px; color:var(--v3-soft); }
+        .v3h .srow .ss { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .v3h .srow .sp2 { font-size:16px; direction:ltr; text-align:right; color:var(--v3-soft); }
+        .v3h .pmap { display:flex; gap:4px; margin:14px 0 6px; height:78px; }
+        .v3h .pmap .tile { min-width:46px; border-radius:10px; padding:9px 10px; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; }
+        .v3h .pmap .tn { font-size:12px; color:var(--v3-ink); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .v3h .pmap .tile b { font-size:16px; font-weight:400; line-height:1.1; direction:ltr; text-align:right; }
+        .v3h .pmap .tile b.up { color:var(--gain); } .v3h .pmap .tile b.down { color:var(--loss); }
+        .v3h .pcap { font-size:11px; color:var(--dim); text-align:right; }
+        .v3h .tpill { display:flex; align-items:stretch; gap:0; margin:18px 0 6px; background:var(--surface); border:1px solid var(--rule); border-radius:8px; }
+        .v3h .tpill .tb { flex:1 1 0; padding:16px 22px 18px; min-width:0; }
+        .v3h .tpill .tb small { display:block; font-size:13px; color:var(--dim); margin-bottom:8px; }
+        .v3h .tpill .tv { display:flex; align-items:baseline; gap:12px; }
+        .v3h .tpill strong { font-size:26px; font-weight:400; direction:ltr; line-height:1; }
+        .v3h .tpill strong.up { color:var(--gain); } .v3h .tpill strong.down { color:var(--loss); }
+        .v3h .tpill .chip { font-size:14px; padding:2px 8px; border-radius:5px; direction:ltr; }
+        .v3h .tpill .chip.up { color:var(--gain); background:color-mix(in srgb, var(--gain) 11%, transparent); }
+        .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
+        .v3h .tpill .tsep { width:1px; background:var(--rule); }
+        .v3h .hhead span { white-space:nowrap; }
+        .v3h .hhead .two, .v3h .hhead .ctr { display:flex; justify-content:center; }
+        .v3h .hhead .two { grid-column:span 2; }
+        /* היסט אופטי: תוכן הזוג (ש"ח | %) מיושר לימין בתוך התאים, ולכן מרכז התא זז מעט משמאל למרכז התוכן הנראה */
+        .v3h .hhead span:nth-child(2) { transform:translateX(7px); } .v3h .hhead span:nth-child(3) { transform:translateX(11px); }
+        .v3h .hhead { display:grid; grid-template-columns:minmax(0,1.2fr) 64px 72px 62px 62px 96px 14px; gap:12px; padding:14px 10px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
+        .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 64px 72px 62px 62px 96px 14px; align-items:center; gap:12px; padding:14px 10px; border-bottom:1px solid var(--rule); }
         .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); }
+        .v3h .hrow .sp svg { display:block; }
         .v3h .hrow .nm .mono { margin-inline-start:10px; }
-        .v3h .hrow .amt { display:inline-flex; align-items:baseline; gap:4px; font-size:18px; font-weight:400; justify-self:start; direction:ltr; }
-        .v3h .hrow .amt .cur { font-size:13px; opacity:.8; }
-        .v3h .hrow .amt .n { display:inline-block; width:52px; text-align:right; }
+        .v3h .hrow .nm .l1 { display:flex; align-items:center; flex-wrap:nowrap; gap:0; white-space:nowrap; }
+        .v3h .hrow .nm .rc b { font-weight:500; }
+        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; vertical-align:middle; }
+        .v3h .hrow .nm .rc b.warn { color:var(--loss); }
+        .v3h .hrow .nm .rc b.up { color:var(--gain); } .v3h .hrow .nm .rc b.down { color:var(--loss); }
+        .v3h .hrow .nm .fl { display:inline-block; width:auto; font-style:normal; font-size:11px; font-weight:500; padding:1px 7px; border-radius:4px; vertical-align:middle; white-space:nowrap; }
+        .v3h .hrow .nm .fl.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 12%, transparent); }
+        .v3h .hrow .nm .fl.up { color:var(--gain); background:color-mix(in srgb, var(--gain) 12%, transparent); }
+        .v3h .hrow .nm .rc { display:block; font-weight:400; font-size:12px; color:var(--dim); margin-top:3px; font-family:inherit; letter-spacing:0; }
+        .v3h .hrow.tot { background:var(--surface); border:0; border-radius:12px; margin-top:16px; padding:16px 10px; }
+        .v3h .hrow.tot:hover { background:var(--surface); }
+        .v3h .hrow.tot .nm { font-size:14px; font-weight:500; color:var(--dim); letter-spacing:.02em; }
+        .v3h .hrow .damt { display:inline-flex; align-items:baseline; gap:4px; font-size:14px; opacity:.9; font-weight:400; justify-self:start; direction:ltr; }
+        .v3h .hrow .damt .cur { font-size:12px; }
+        .v3h .hrow .damt.up { color:var(--gain); } .v3h .hrow .damt.down { color:var(--loss); }
+        .v3h .hrow .amt { display:inline-flex; align-items:baseline; gap:4px; font-size:16px; opacity:.9; font-weight:400; justify-self:start; direction:ltr; }
+        .v3h .hrow .amt .cur { font-size:13px; opacity:1; }
+        .v3h .hrow .amt .n { display:inline-block; text-align:right; }
         .v3h .hrow .p { font-size:18px; font-weight:500; direction:ltr; text-align:right; }
         .v3h .hrow .st { font-size:14px; color:var(--dim); justify-self:start; white-space:nowrap; }
         .v3h .hrow .st.up { color:var(--gain); } .v3h .hrow .st.down { color:var(--loss); }
@@ -656,7 +955,7 @@ HOLDINGS_CSS = """
         .v3h .d2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:28px; }
         .v3h .d1 small, .v3h .d2 small { display:block; font-size:13px; color:var(--dim); }
         .v3h .d1 .v { display:block; font-size:20px; font-weight:500; color:var(--v3-soft); }
-        .v3h .d2 .v { display:block; font-size:15px; color:var(--v3-soft); }
+        .v3h .d2 .v { display:block; font-size:15px; font-weight:400; color:var(--v3-soft); }
         .v3h .d1 .v.down { color:var(--loss); } .v3h .d1 .v.up { color:var(--gain); }
         .v3h .bar { position:relative; height:2px; background:var(--rule); margin:16px 10px 32px; direction:ltr; }
         .v3h .bar .sg { position:absolute; top:0; height:2px; }
@@ -668,7 +967,7 @@ HOLDINGS_CSS = """
         .v3h .bar .lb { position:absolute; top:14px; font-size:12px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; direction:rtl; }
         .v3h .bar .lb.a { transform:none; color:var(--loss); } .v3h .bar .lb.r { right:0; left:auto; transform:none; color:var(--gain); }
         .v3h .hdet { padding:4px 10px 6px; border-bottom:1px solid var(--rule); }
-        @media (max-width:720px) { .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; } .v3h .hrow .amt { display:none; } .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:720px) { .v3h .hhead { grid-template-columns:minmax(0,1fr) auto auto 14px; } .v3h .hhead { display:none; } .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; } .v3h .hrow .amt, .v3h .hrow .damt, .v3h .hrow .sp { display:none; } .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 """
 
 
@@ -681,6 +980,40 @@ def journal_kpi(cells: list[tuple[str, str, str]]) -> str:
 
 
 _OUTCOME_CLS = {"הגיע ליעד": "up", "רווח לפני היעד": "up", "פגע בסטופ": "down"}
+
+
+def equity_curve(points: list[tuple[str, float]], sym: str = "₪") -> str:
+    """עקומת רווח נקי מצטבר: points = [(תאריך סגירה dd.mm, ערך מצטבר)] לפי סדר כרונולוגי. קו עדין, נקודה לכל עסקה, קו אפס מקווקו, שטח צבוע מעל/מתחת לאפס."""
+    if len(points) < 2:
+        return ""
+    vals = [v for _, v in points]
+    lo, hi = min(min(vals), 0.0), max(max(vals), 0.0)
+    if hi - lo < 1:
+        hi, lo = hi + 1, lo - 1
+    pad = (hi - lo) * 0.12
+    lo, hi = lo - pad, hi + pad
+    W, H, T, B = 900, 170, 10, 160
+
+    def yv(v: float) -> float:
+        return T + (hi - v) / (hi - lo) * (B - T)
+
+    n = len(points)
+    xs = [4 + i * (W - 8) / (n - 1) for i in range(n)]
+    pts = [(x, yv(v)) for x, (_, v) in zip(xs, points)]
+    y0 = yv(0.0)
+    col = "var(--gain)" if vals[-1] >= 0 else "var(--loss)"
+    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    area = f'<polygon points="{xs[0]:.1f},{y0:.1f} {poly} {xs[-1]:.1f},{y0:.1f}" fill="{col}" fill-opacity=".10"/>'
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" fill="{col}"><title>{esc(d)} · {signed(v)}</title></circle>' for (x, y), (d, v) in zip(pts, points))
+    end = vals[-1]
+    side = f'<span class="hs {cls_for(end)}">{num(signed(end))} {sym}</span>'
+    return (
+        f'{head("רווח נקי מצטבר", side)}'
+        f'<div class="eq"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח נקי מצטבר">'
+        f'<line x1="0" y1="{y0:.1f}" x2="{W}" y2="{y0:.1f}" stroke="var(--rule-strong)" stroke-dasharray="3 5"/>'
+        f'{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>{dots}</svg>'
+        f'<div class="eqx"><span>{num(points[0][0])}</span><span>{num(points[-1][0])}</span></div></div>'
+    )
 
 
 def journal_table(rows: list[dict]) -> str:
@@ -706,7 +1039,7 @@ def journal_table(rows: list[dict]) -> str:
         f'<col{(" class=" + chr(34) + cl + chr(34)) if cl else ""} style="width:{w}%">'
         for w, cl in zip(cols, ["", "c-entry", "c-exit", "", "c-res", "", "c-gross", "", "c-ccy"])
     ) + "</colgroup>"
-    head_cells = ["מניה", "כניסה", "יציאה", "ימי מסחר", "תחזית מול ביצוע", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
+    head_cells = ["מניה", "כניסה", "יציאה", "ימי החזקה", "תחזית מול ביצוע", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
     cls = ["", "c-entry", "c-exit", "", "c-res", "", "c-gross", "", "c-ccy"]
     ths = "".join(f'<th class="{c}">{h}</th>' for h, c in zip(head_cells, cls))
     return (
@@ -716,6 +1049,13 @@ def journal_table(rows: list[dict]) -> str:
 
 JOURNAL_CSS = """
         .v3h .tablewrap { overflow-x:auto; }
+        .v3h .eq { position:relative; padding:14px 0 6px; }
+        .v3h .eq svg { display:block; width:100%; height:150px; overflow:visible; }
+        .v3h .eq svg circle { vector-effect:non-scaling-stroke; }
+        .v3h .eqx { display:flex; justify-content:space-between; direction:ltr; font-size:12px; color:var(--dim); padding-top:6px; }
+        .v3h .head .hs { font-size:16px; direction:ltr; } .v3h .head .hs.up { color:var(--gain); } .v3h .head .hs.down { color:var(--loss); }
+        .v3h table.jr, .v3h table.tb { border:0 !important; }
+        .v3h .jr th, .v3h .jr td, .v3h .tb th, .v3h .tb td { border-top:0 !important; border-inline:0 !important; }  /* קווים אופקיים בלבד (ברירת המחדל של markdown מציירת רשת מלאה) */
         .v3h table.jr { width:100%; border-collapse:collapse; min-width:760px; table-layout:fixed; }
         .v3h .jr th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:14px 12px 10px; border-bottom:1px solid var(--rule); white-space:nowrap; }
         .v3h .jr td { padding:14px 12px; border-bottom:1px solid var(--rule); vertical-align:middle; white-space:nowrap; }
@@ -743,7 +1083,7 @@ def perf_filter_summary(parts: list[str], is_open: bool) -> str:
     inner = "".join(f'<span class="fp">{esc(p)}</span>' for p in parts)
     return (
         f'<div class="fl{" open" if is_open else ""}"><span class="fsum">{inner}</span>'
-        f'<span class="chg">שינוי{_CHEV}</span></div>'
+        f'<span class="chg" title="שינוי המסננים">{_CHEV}</span></div>'
     )
 
 
@@ -783,7 +1123,7 @@ def collapsible(title: str, hint_parts: list[str], body_html: str) -> str:
     hint = "".join(f'<span class="fp">{h}</span>' for h in hint_parts)
     return (
         f'<details class="more"><summary><span class="mt"><b>{esc(title)}</b><span class="ms">{hint}</span></span>'
-        f'<span class="chg">הצגה{_CHEV}</span></summary><div class="in">{body_html}</div></details>'
+        f'<span class="chg">{_CHEV}</span></summary><div class="in">{body_html}</div></details>'
     )
 
 
@@ -799,36 +1139,36 @@ PERF_CSS = """
         .v3h .pbar { display:flex; gap:2px; height:4px; margin-top:-1px; }
         .v3h .pbar i { display:block; height:100%; }
         .v3h .pbar .g { background:var(--gain); } .v3h .pbar .l { background:var(--loss); } .v3h .pbar .n { background:var(--dim); opacity:.5; } .v3h .pbar .p { background:var(--rule); }
-        .v3h .fl { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 0; border-bottom:1px solid var(--rule); cursor:pointer; }
+        .v3h .fl { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 10px; border-bottom:1px solid var(--rule); cursor:pointer; }
         .v3h .fsum { display:flex; flex-wrap:wrap; align-items:center; row-gap:6px; font-size:16px; color:var(--v3-soft); }
         .v3h .fp { display:inline-block; }
         .v3h .fp + .fp { margin-inline-start:18px; padding-inline-start:18px; border-inline-start:1px solid var(--dim); line-height:1.1; }
-        .v3h .chg { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--accent); }
+        .v3h .chg { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--dim); }
         .v3h .chg svg { transform:scaleX(-1); transition:transform .15s; }
         .v3h .fl.open .chg svg { transform:scaleX(-1) rotate(90deg); }
         .v3h .tb td.r { font-weight:500; }
         .v3h .rate { display:inline-flex; align-items:center; gap:12px; }
         .v3h .rate .num { min-width:42px; text-align:right; }
-        .v3h .rb { position:relative; display:inline-block; width:72px; height:4px; background:var(--rule); direction:ltr; }
+        .v3h .rb { position:relative; display:inline-block; width:96px; height:5px; background:var(--rule); direction:ltr; }
         .v3h .rb i { display:block; height:100%; background:var(--gain); }
         .v3h .rb::after { content:''; position:absolute; left:50%; top:-3px; width:1px; height:10px; background:var(--dim); }
         .v3h .down .rb i { background:var(--loss); }
-        .v3h .sec { margin-top:44px; }
+        .v3h .sec { margin-top:60px; }
         .v3h .sec .sech { margin:0; font-weight:500; font-size:18px; padding-bottom:12px; border-bottom:1px solid var(--rule-strong); display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px 24px; }
         .v3h .sec .sech .hsub { display:inline-flex; flex-wrap:wrap; align-items:center; row-gap:4px; font-size:14px; font-weight:400; color:var(--dim); }
         .v3h .sec .sech .hsub .fp + .fp { margin-inline-start:14px; padding-inline-start:14px; }
-        .v3h .two { display:grid; grid-template-columns:1fr 1fr; gap:0 56px; }
+        .v3h .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 56px; }
         .v3h details.more { border-bottom:1px solid var(--rule); }
-        .v3h details.more > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 0; cursor:pointer; list-style:none; }
+        .v3h details.more > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 10px; cursor:pointer; list-style:none; }
         .v3h details.more > summary::-webkit-details-marker { display:none; }
         .v3h details.more[open] .chg svg { transform:scaleX(-1) rotate(90deg); }
         .v3h .mt { display:flex; flex-direction:column; gap:2px; }
-        .v3h .mt b { font-weight:500; font-size:16px; color:var(--ink); }
+        .v3h .mt b { font-weight:400; font-size:17px; color:var(--v3-soft); }
         .v3h .ms { display:flex; flex-wrap:wrap; align-items:center; row-gap:4px; font-size:13.5px; color:var(--dim); }
         .v3h .ms .fp + .fp { margin-inline-start:12px; padding-inline-start:12px; }
         .v3h details.more .in { padding:0 0 24px; }
-        .v3h .stack { margin-top:44px; border-top:1px solid var(--rule-strong); }
-        @media (max-width:820px) { .v3h .two { grid-template-columns:1fr; } }
+        .v3h .stack { margin-top:60px; border-top:1px solid var(--rule-strong); }
+        @media (max-width:820px) { .v3h .two { grid-template-columns:minmax(0,1fr); } .v3h .two > * { min-width:0; } }
         @media (max-width:720px) { .v3h .kpi.k6 { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3h .kpi.k6 > div:nth-child(odd) { padding-inline-start:0; border-inline-start:0; } .v3h .kpi.k6 > div:nth-child(n+3) { border-top:1px solid var(--rule); } }
 """
 
@@ -840,13 +1180,15 @@ HOURS_IFRAME_TEMPLATE = """<!doctype html><html lang="he" dir="rtl"><head><meta 
 :root[data-theme="dark"] { --ink:#ECE8E0; --dim:#9A948A; --rule:#34302A; --gain:#7DBF9C; --strong:#5A554C; }
 html, body { margin:0; background:transparent; color:var(--ink); font-family:'Heebo',system-ui,sans-serif; direction:rtl; font-variant-numeric:tabular-nums; }
 .head { padding-bottom:12px; border-bottom:1px solid var(--strong); font-weight:500; font-size:18px; line-height:1.5; }
+#rows { display:grid; grid-template-columns:1fr 1fr; column-gap:64px; }
+@media (max-width:560px) { #rows { grid-template-columns:1fr; } }
 .li { display:flex; justify-content:space-between; align-items:center; gap:16px; padding-block:15px; border-bottom:1px solid var(--rule); }
 .nmc { display:flex; flex-direction:column; gap:2px; }
 .nmc .n { font-size:16px; }
 .stt { font-size:13px; color:var(--dim); }
 .stt.up { color:var(--gain); }
-.cd { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
-.cd .lbl { font-size:13px; color:var(--dim); }
+.cd { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.cd .lbl { font-size:13px; color:var(--dim); margin-inline-start:4px; }  /* הקצה הימני של התווית באותו קו עם ה-ש של "שניות" */
 .clk { display:flex; gap:14px; direction:ltr; }
 .u { display:flex; flex-direction:column; align-items:center; min-width:34px; line-height:1.15; }
 .u b { font-size:20px; font-weight:400; direction:ltr; unicode-bidi:isolate; }

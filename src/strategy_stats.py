@@ -44,37 +44,38 @@ def day_bootstrap_ci(df: pd.DataFrame, stat, B: int = 1000, seed: int = 11) -> t
     return float(np.nanpercentile(out, 2.5)), float(np.nanpercentile(out, 97.5))
 
 
+def day_bootstrap_mean_ci(df: pd.DataFrame, mask: pd.Series, value: pd.Series, B: int = 1000, seed: int = 11, scale: float = 1.0) -> tuple[float, float]:
+    """אותו טווח סמך כמו day_bootstrap_ci לממוצע של value על השורות ב-mask, אבל מהיר פי כמה עשרות: מסכמים פעם אחת סכום וכמות
+    לכל יום, ובכל דגימה סוכמים רק את הימים שנבחרו (במקום לשרשר DataFrames - 12 אלף שרשורים לקחו כדקה בטאב ביצועי האסטרטגיה)."""
+    ok = mask & value.notna()
+    agg = pd.DataFrame({"d": df["scan_date"], "s": value.where(ok, 0.0), "c": ok.astype(int)}).groupby("d")[["s", "c"]].sum()
+    n = len(agg)
+    if n < 3:
+        return float("nan"), float("nan")
+    sums, cnts = agg["s"].to_numpy(float), agg["c"].to_numpy(float)
+    idx = np.random.default_rng(seed).integers(0, n, size=(B, n))
+    S, C = sums[idx].sum(axis=1), cnts[idx].sum(axis=1)
+    out = np.where(C > 0, S / np.where(C > 0, C, 1) * scale, np.nan)
+    return float(np.nanpercentile(out, 2.5)), float(np.nanpercentile(out, 97.5))
+
+
 def bucket_summary(df: pd.DataFrame, fees_cfg: dict | None = None, position: float = 5000.0, B: int = 1000) -> pd.DataFrame:
     """שורה לכל קבוצת ניקוד: כמות התראות וימים, שיעור הצלחה, תשואה ברוטו ונטו - עם טווחי סמך לפי ימים."""
     rows = []
+    net_all = df["ret"].map(lambda r: net_return_pct(r, position, fees_cfg)) if fees_cfg else None
     for label, lo, hi in BUCKETS:
-        sub = df[bucket_mask(df, lo, hi)]
+        m = bucket_mask(df, lo, hi)
+        sub = df[m]
         if sub.empty:
             continue
-
-        def _win(g, lo=lo, hi=hi):
-            m = bucket_mask(g, lo, hi)
-            return g.loc[m, "y"].mean() * 100 if m.any() else np.nan
-
-        def _gross(g, lo=lo, hi=hi):
-            m = bucket_mask(g, lo, hi)
-            return g.loc[m, "ret"].mean() if m.any() else np.nan
-
         row = {
             "קבוצה": label, "התראות": len(sub), "ימים": sub["scan_date"].nunique(),
-            "הצלחה %": sub["y"].mean() * 100, "הצלחה CI": day_bootstrap_ci(df, _win, B),
-            "ברוטו %": sub["ret"].mean(), "ברוטו CI": day_bootstrap_ci(df, _gross, B),
+            "הצלחה %": sub["y"].mean() * 100, "הצלחה CI": day_bootstrap_mean_ci(df, m, df["y"], B, scale=100.0),
+            "ברוטו %": sub["ret"].mean(), "ברוטו CI": day_bootstrap_mean_ci(df, m, df["ret"], B),
         }
         if fees_cfg:
-            net = sub["ret"].map(lambda r: net_return_pct(r, position, fees_cfg))
-            row["נטו %"] = float(net.mean())
-            sub_net = df.assign(_net=df["ret"].map(lambda r: net_return_pct(r, position, fees_cfg)))
-
-            def _netstat(g, lo=lo, hi=hi):
-                m = bucket_mask(g, lo, hi)
-                return g.loc[m, "_net"].mean() if m.any() else np.nan
-
-            row["נטו CI"] = day_bootstrap_ci(sub_net, _netstat, B)
+            row["נטו %"] = float(net_all[m].mean())
+            row["נטו CI"] = day_bootstrap_mean_ci(df, m, net_all, B)
         rows.append(row)
     return pd.DataFrame(rows)
 

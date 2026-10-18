@@ -244,7 +244,7 @@ _V3_CSS = """
         div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:last-child { flex: 1 1 auto !important; }
         div[class*="st-key-navtab_"] button {
             background: transparent !important; border: 0 !important; border-bottom: 2px solid transparent !important;
-            border-radius: 0 !important; box-shadow: none !important; padding: 6px 0 !important;
+            border-radius: 0 !important; box-shadow: none !important; padding: 8px 0 2px !important;
             color: var(--v3-dim) !important; font-size: 15px !important; font-weight: 400 !important; min-height: 0 !important;
         }
         div[class*="st-key-navtab_"] button:hover { color: var(--v3-accent) !important; background: transparent !important; }
@@ -317,11 +317,13 @@ _V3_CSS += """
         [data-testid="stSidebar"] [data-testid="stNumberInputContainer"]:has(input:disabled) { cursor: default; }
         /* כפתורי +/- עגולים באמת בכל האתר (קודם נראו כאליפסה - ה-flex כיווץ אותם לרוחב) */
         [data-testid="stNumberInputContainer"] button {
-            flex: 0 0 26px !important; width: 26px !important; min-width: 26px !important; max-width: 26px !important;
-            height: 26px !important; min-height: 26px !important; aspect-ratio: 1 / 1; border-radius: 50% !important; padding: 0 !important;
+            flex: 0 0 18px !important; width: 18px !important; min-width: 18px !important; max-width: 18px !important;
+            height: 18px !important; min-height: 18px !important; aspect-ratio: 1 / 1; border-radius: 50% !important; padding: 0 !important;
             display: inline-flex !important; align-items: center; justify-content: center;
         }
-        [data-testid="stNumberInputContainer"] button svg { width: 10px; height: 10px; }
+        [data-testid="stNumberInputContainer"] button svg { width: 9px; height: 9px; }
+        /* +/- באותו גובה (מרכז אנכי) כמו המספר, בסייד בר */
+        [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] > div:last-child { position: relative; top: 7.5px; }
         /* שדה מספר: מספר + יחידה צמודים, כפתורי +/- בקצה השני (יחידה בימין, המספר משמאלה, כפתורים בקצה השמאלי) */
         [data-testid="stSidebar"] [data-testid="stNumberInput"] { padding-top: 0; }
         [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] {
@@ -354,35 +356,35 @@ _V3_CSS += """
         [data-testid="stSidebar"] [data-testid="stCheckbox"] { padding-top: 12px; }
         /* מתג בנוי מחדש (בלי הידית של Streamlit שיצאה מהמסילה ב-RTL): מסילה + עיגול שזז בתוכה, כמו במוקאפ */
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2) {
-            position: relative; flex: none; width: 30px !important; height: 17px !important; border-radius: 9px !important;
+            position: relative; flex: none; width: 27px !important; height: 15px !important; border-radius: 8px !important;
             border: 1px solid var(--v3-rule-strong) !important; background: transparent !important; box-shadow: none !important;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2) > * { display: none !important; }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2)::after {
-            content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 11px; height: 11px; border-radius: 50%;
+            content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 9px; height: 9px; border-radius: 50%;
             background: var(--v3-ink); transition: inset-inline-start .15s;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2) {
             background: var(--v3-accent) !important; border-color: var(--v3-accent) !important;
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2)::after {
-            inset-inline-start: 15px; background: var(--v3-bg);
+            inset-inline-start: 14px; background: var(--v3-bg);
         }
         /* אותו מתג גם בסוגי ההתראה בטלגרם (במקום תיבות הסימון הכחולות של Streamlit) */
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) {
-            position: relative; flex: none; width: 30px !important; height: 17px !important; border-radius: 9px !important;
+            position: relative; flex: none; width: 27px !important; height: 15px !important; border-radius: 8px !important;
             border: 1px solid var(--v3-rule-strong) !important; background: transparent !important; box-shadow: none !important;
         }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) > * { display: none !important; }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2)::after {
-            content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 11px; height: 11px; border-radius: 50%;
+            content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 9px; height: 9px; border-radius: 50%;
             background: var(--v3-ink); transition: inset-inline-start .15s;
         }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2) {
             background: var(--v3-accent) !important; border-color: var(--v3-accent) !important;
         }
         div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label[data-selected="true"] > div:nth-child(2)::after {
-            inset-inline-start: 15px; background: var(--v3-bg);
+            inset-inline-start: 14px; background: var(--v3-bg);
         }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label, div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label { align-items: center !important; }
         div[class*="st-key-scan_settings_card"] [data-testid="stCheckbox"] label > div:nth-child(2), div[class*="st-key-exp_message_types"] [data-testid="stCheckbox"] label > div:nth-child(2) { top: -1px; }
@@ -413,6 +415,8 @@ _V3_CSS += """
         [data-testid="stSidebar"] [data-testid="stExpander"] summary:hover { background: transparent !important; color: var(--v3-accent); }
         [data-testid="stSidebar"] [data-testid="stExpander"] { margin: 0 !important; }
         [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { font-size: 13px; color: var(--v3-dim); }
+        /* חצי פתיחה/סגירה של הסיידבר (>>): ברירת המחדל של Streamlit אפור-כהה קבוע, ובמצב לילה לא רואים אותו */
+        [data-testid="stSidebarCollapseButton"] button, [data-testid="stSidebarCollapseButton"] svg, [data-testid="stSidebarCollapseButton"] span, [data-testid="stExpandSidebarButton"] button, [data-testid="stExpandSidebarButton"] svg, [data-testid="stExpandSidebarButton"] span, [data-testid="stSidebarCollapsedControl"] button, [data-testid="stSidebarCollapsedControl"] svg, [data-testid="stSidebarCollapsedControl"] span { color: var(--v3-dim) !important; fill: var(--v3-dim) !important; }
         /* ערוצי התראה: צ'יפים */
         div[class*="st-key-channels_card"] [data-testid="stCheckbox"] { padding-top: 0; }
         div[class*="st-key-channels_card"] [data-testid="stHorizontalBlock"] { justify-content: flex-start; gap: 26px !important; }
@@ -4372,6 +4376,60 @@ _ALERT_REASON_LABELS = {
 _SIG_WORD = {"buy": "לקנות", "wait": "לחכות", "avoid": "לא לקנות"}
 
 
+_UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_prefs.json")
+_PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
+
+
+_UI_PREFS_ON = bool(load_config().get("ui_prefs", False)) and os.environ.get("DIPRADAR_NO_PREFS") != "1"  # רק מקומית (ר' cloud_sync)
+
+
+def _load_ui_prefs() -> dict:
+    if not _UI_PREFS_ON:
+        return {}
+    try:
+        return json.loads(open(_UI_PREFS_FILE, encoding="utf-8").read())
+    except Exception:
+        return {}
+
+
+def _save_ui_prefs(updates: dict) -> None:
+    """שומר העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש) - רק כשמשהו השתנה."""
+    if not _UI_PREFS_ON:
+        return
+    prefs = _load_ui_prefs()
+    if all(prefs.get(k) == v for k, v in updates.items()):
+        return
+    prefs.update(updates)
+    try:
+        open(_UI_PREFS_FILE, "w", encoding="utf-8").write(json.dumps(prefs, ensure_ascii=False, indent=1))
+    except Exception:
+        pass
+
+
+def _restore_filter_prefs(spec: dict) -> None:
+    """משחזר את הבחירה האחרונה של מסנני טאב (כשמצב הווידג'ט נמחק - מעבר טאב/רענון); בלי בחירה שמורה (או ערך שכבר לא חוקי) - ברירת מחדל.
+    spec: {מפתח: (ברירת מחדל, [אפשרויות חוקיות])}."""
+    prefs = _load_ui_prefs()
+    for key, (default, options) in spec.items():
+        if st.session_state.get(key) is None:
+            saved = prefs.get(key)
+            st.session_state[key] = saved if saved in options else default
+
+
+def _save_filter_prefs(keys: tuple) -> None:
+    _save_ui_prefs({k: st.session_state.get(k) for k in keys if st.session_state.get(k) is not None})
+
+
+def _filter_dot_css(icon_key: str, active: bool) -> str:
+    """נקודה קטנה על אייקון המשפך כשיש סינון פעיל (והלוח סגור או פתוח - כדי שתמיד ברור שהטבלה מסוננת)."""
+    if not active:
+        return ""
+    return (
+        f'div[class*="st-key-{icon_key}"] button::after {{ content: ""; position: absolute; top: 4px; inset-inline-end: 3px; '
+        f'width: 6px; height: 6px; border-radius: 50%; background: var(--v3-accent); }}'
+    )
+
+
 def _alert_price(value, index_name) -> str:
     """שער בטבלת ההתראות (v3): מספר שלם בלי סמל מטבע - השוק ברור מהסינון והשם, ות"א נסחר באגורות."""
     if pd.isna(value):
@@ -4444,9 +4502,16 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         ]) + "</div>", unsafe_allow_html=True,
     )
 
+    _restore_filter_prefs({
+        "alerts_filter_sig": ("כל הסיגנלים", ["לקנות", "לחכות", "לא לקנות", "כל הסיגנלים"]),
+        "alerts_filter_mkt": ("כל השווקים", ['בורסת ת"א', "וול סטריט", "כל השווקים"]),
+        "alerts_sort_mode": ("זמן", ["סיווג", "זמן"]),
+    })
     # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה) - כשהלוח סגור הוא מוסתר ב-CSS
     st.markdown(
-        '<style>div[class*="st-key-alerts_filters"] { display:' + ("block" if st.session_state.get("alerts_filters_open", False) else "none") + '; }</style>',
+        '<style>div[class*="st-key-alerts_filters"] { display:' + ("block" if st.session_state.get("alerts_filters_open", False) else "none") + '; }'
+        + _filter_dot_css("alerts_filter_icon", st.session_state.get("alerts_filter_sig") != "כל הסיגנלים" or st.session_state.get("alerts_filter_mkt") != "כל השווקים" or st.session_state.get("alerts_sort_mode") != "זמן")
+        + '</style>',
         unsafe_allow_html=True,
     )
     with st.container(key="alerts_filters"):
@@ -4481,6 +4546,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
             _sort_mode = st.segmented_control(
                 "מיון", ["סיווג", "זמן"], selection_mode="single", key="alerts_sort_mode", label_visibility="collapsed", on_change=_keep_sort,
             ) or "זמן"
+    _save_filter_prefs(("alerts_filter_sig", "alerts_filter_mkt", "alerts_sort_mode"))
 
     shown = [i for i in items if (_sig_filter == "כל הסיגנלים" or _SIG_WORD[i["key"]] == _sig_filter)]
     if _mkt_filter == 'בורסת ת"א':
@@ -5329,29 +5395,6 @@ def _perf_bucket(score) -> str:
         return "לא ידוע"
     score = int(score)
     return "80-100" if score >= 80 else "60-79" if score >= 60 else "40-59" if score >= 40 else "20-39" if score >= 20 else "0-19"
-
-
-_UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_prefs.json")
-_PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
-
-
-def _load_ui_prefs() -> dict:
-    try:
-        return json.loads(open(_UI_PREFS_FILE, encoding="utf-8").read())
-    except Exception:
-        return {}
-
-
-def _save_ui_prefs(updates: dict) -> None:
-    """שומר העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש) - רק כשמשהו השתנה."""
-    prefs = _load_ui_prefs()
-    if all(prefs.get(k) == v for k, v in updates.items()):
-        return
-    prefs.update(updates)
-    try:
-        open(_UI_PREFS_FILE, "w", encoding="utf-8").write(json.dumps(prefs, ensure_ascii=False, indent=1))
-    except Exception:
-        pass
 
 
 def _render_perf_v3() -> None:
@@ -6213,17 +6256,17 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
             "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
             "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
         })
-    col_plot, col_rows = st.columns([1, 1.7], gap="large")
+    col_plot, col_rows = st.columns([1, 1.7], gap="medium")
     with col_plot:
-        st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
     with col_rows:
         # סינון ברווח/בהפסד/הכל (משפיע על הטבלה בלבד; הסה"כ והרדאר נשארים של כל התיק). הלוח מוסתר ב-CSS כשהוא סגור - הווידג'ט תמיד מוצג כדי שהבחירה תישמר
         st.markdown(
-            '<style>div[class*="st-key-holdings_filters"] { display:' + ("block" if st.session_state.get("holdings_filters_open", False) else "none") + '; }</style>',
+            '<style>div[class*="st-key-holdings_filters"] { display:' + ("block" if st.session_state.get("holdings_filters_open", False) else "none") + '; }'
+            + '</style>',
             unsafe_allow_html=True,
         )
-        if st.session_state.get("holdings_filter_pnl") is None:
-            st.session_state["holdings_filter_pnl"] = "הכל"
+        _restore_filter_prefs({"holdings_filter_pnl": ("הכל", ["ברווח", "בהפסד", "הכל"])})
 
         def _keep_pnl_filter() -> None:
             if st.session_state.get("holdings_filter_pnl") is None:
@@ -6234,6 +6277,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 "סינון אחזקות", ["ברווח", "בהפסד", "הכל"], selection_mode="single", key="holdings_filter_pnl",
                 label_visibility="collapsed", on_change=_keep_pnl_filter,
             ) or "הכל"
+        _save_filter_prefs(("holdings_filter_pnl",))
         _hd = ui_v3.daily_head_date([r.get("daily_pct_date") for r in rows if r["pnl_pct"] is not None])
         st.markdown('<div class="v3h">' + ui_v3.holdings_head(_hd) + "</div>", unsafe_allow_html=True)
         _shown_any = False
@@ -6905,11 +6949,18 @@ def _render_journal_v3() -> None:
         if st.session_state.get(_key) is None:
             st.session_state[_key] = _jdefaults[_key]
 
-    for _k in _jdefaults:
-        _journal_default(_k)
+    _restore_filter_prefs({
+        "journal_filter_mkt": ("כל השווקים", ['בורסת ת"א', "וול סטריט", "כל השווקים"]),
+        "journal_filter_res": ("הכל", ["ברווח", "בהפסד", "הכל"]),
+        "journal_sort": ("תאריך", ["תשואה", "רווח/הפסד", "תאריך"]),
+    })
     # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה) - כשהלוח סגור הוא מוסתר ב-CSS
     _jopen = bool(st.session_state.get("journal_filters_open", False))
-    st.markdown('<style>div[class*="st-key-journal_filters"] { display:' + ("block" if _jopen else "none") + '; }</style>', unsafe_allow_html=True)
+    st.markdown(
+        '<style>div[class*="st-key-journal_filters"] { display:' + ("block" if _jopen else "none") + '; }'
+        + '</style>',
+        unsafe_allow_html=True,
+    )
     with st.container(key="journal_filters"):
         _j1, _j2, _j3 = st.columns([2, 2, 3])
         with _j1:
@@ -6927,6 +6978,7 @@ def _render_journal_v3() -> None:
                 "מיון", ["תשואה", "רווח/הפסד", "תאריך"], selection_mode="single", key="journal_sort",
                 label_visibility="collapsed", on_change=_journal_default, args=("journal_sort",),
             ) or "תאריך"
+    _save_filter_prefs(("journal_filter_mkt", "journal_filter_res", "journal_sort"))
     _view = rows
     if _jm != "כל השווקים":
         _view = [r for r in _view if (r["ccy"] == "ILS") == (_jm == 'בורסת ת"א')]
@@ -7324,7 +7376,7 @@ def _render_home_v3() -> None:
             })
         chart_html = ""
         if rows:
-            st.markdown(f'<div class="v3h">{ui_v3.holdings_section(rows)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="v3h">{ui_v3.holdings_section(rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
         _comp_df, _comp_as_of, _comp_dom_index, _comp_is_daily = _compute_portfolio_history(holdings)
         if _comp_df is not None and len(_comp_df) >= 2:
             idx = _comp_df.index

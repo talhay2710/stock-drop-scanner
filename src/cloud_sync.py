@@ -27,9 +27,9 @@ def _write_example_config_from_local() -> None:
     for key in _SECRET_KEYS:
         if key in telegram:
             telegram[key] = ""
-    # ui_v3 (עיצוב חדש, 15.10.2026) מקומי בלבד עד שהמשתמש מחליט להפעיל גם בציבורי - בלי זה כל שמירת הגדרה הייתה
-    # מעתיקה את הדגל הדלוק המקומי לקובץ הדוגמה שהאתר הציבורי נטען ממנו
-    cfg["ui_v3"] = False
+    # ui_prefs (שמירת בחירת המסננים האחרונה בקובץ מקומי) - מקומי בלבד: בציבורי הקובץ משותף לכל הגולשים, אז בחירה של
+    # גולש אחד הייתה נראית לכולם. ui_v3 (עיצוב חדש) כבר עולה גם לציבורי (18.10.2026) - הדגל עובר כמו שהוא.
+    cfg["ui_prefs"] = False
     with open(CONFIG_EXAMPLE_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
 
