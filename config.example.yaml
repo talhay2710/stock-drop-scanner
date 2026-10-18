@@ -1,4 +1,5 @@
 indices:
+- TA35
 - SP500
 drop_threshold_pct: 3.5
 drop_alert_step_pct: 2.0
