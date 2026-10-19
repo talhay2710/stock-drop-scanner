@@ -110,14 +110,29 @@ def notice(name: str, gap_pct: float, is_target: bool) -> str:
 _NOTICE_COLORS = {"loss": "var(--loss)", "gain": "var(--gain)", "warn": "var(--v3-warn)", "info": "var(--dim)"}
 
 
-def notices(items: list[tuple[str, str, str]], minute: int = 0) -> str:
-    """הודעה אחת בראש עמוד הבית, מתחלפת כל דקה: items: [(kind loss|gain|warn|info, name, text_html)], minute = מספר הדקה הנוכחי.
-    הרענון כל 60 שניות (fragment) מציג כל פעם את ההודעה הבאה בתור."""
+NOTICE_SECONDS = 10
+
+
+def notices(items: list[tuple[str, str, str]]) -> str:
+    """הודעות בראש עמוד הבית: items = [(kind loss|gain|warn|info, name, text_html)]. הודעה אחת - סטטית; כמה - מתחלפות כל NOTICE_SECONDS שניות.
+    המסגרת קבועה, רק התוכן מוחלף מיידית (בלי דהייה) - כדי שלא יהיה הבהוב."""
     if not items:
         return ""
-    kind, name, text = items[minute % len(items)]
-    b = f"<b>{esc(short_name(name))}</b> " if name else ""
-    return f'<div class="notice"><i style="background:{_NOTICE_COLORS.get(kind, "var(--dim)")}"></i><span>{b}{text}</span></div>'
+
+    def slide(kind: str, name: str, text: str, style: str = "") -> str:
+        b = f"<b>{esc(short_name(name))}</b> " if name else ""
+        return f'<span class="s"{style}><i style="background:{_NOTICE_COLORS.get(kind, "var(--dim)")}"></i><span>{b}{text}</span></span>'
+
+    n = len(items)
+    if n == 1:
+        return f'<div class="notice"><span class="slides">{slide(*items[0]).replace(" class=\"s\"", " class=\"s on\"", 1)}</span></div>'
+    win = 100.0 / n
+    kf = f"@keyframes ntcrot{n}{{0%,{win - 0.01:.2f}%{{visibility:visible}}{win:.2f}%,100%{{visibility:hidden}}}}"
+    slides = "".join(slide(*it, style=f' style="animation-delay:{i * NOTICE_SECONDS}s"') for i, it in enumerate(items))
+    return (
+        f'<style>{kf}.v3h .notice.n{n} .s{{animation:ntcrot{n} {n * NOTICE_SECONDS}s step-end infinite}}</style>'
+        f'<div class="notice n{n}"><span class="slides">{slides}</span></div>'
+    )
 
 
 def money(n_html: str, sym: str) -> str:
@@ -396,6 +411,9 @@ COMPONENT_CSS = """
         .v3h .notice { display:flex; align-items:center; flex-wrap:wrap; gap:6px 14px; padding:12px 16px; border:1px solid var(--rule); border-radius:6px; background:var(--surface); font-size:15px; }
         .v3h .notice i { width:8px; height:8px; display:inline-block; }
         .v3h .notice b { font-weight:600; }
+        .v3h .notice .slides { display:grid; }
+        .v3h .notice .s { grid-area:1 / 1; display:flex; align-items:center; flex-wrap:wrap; gap:6px 14px; visibility:hidden; }
+        .v3h .notice .s.on { visibility:visible; }
         .v3h .topzone { display:flex; align-items:center; gap:56px; margin-top:24px; }
         .v3h .topmain { flex:1 1 auto; min-width:0; }
         .v3h .radar-solo { flex:none; width:230px; }

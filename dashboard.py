@@ -7464,7 +7464,7 @@ def _render_home_v3() -> None:
         holdings = fresh[fresh.get("bought") == 1] if (not fresh.empty and "bought" in fresh.columns) else pd.DataFrame()
         portfolio, today, value, proximity, _exposure = _compute_portfolio_summaries(holdings)
         _home_rows = _build_holding_rows(holdings) if not holdings.empty else []
-        notice_html = ui_v3.notices(_home_notice_items(_home_rows, today[2] if today else None, fresh), int(dt.datetime.now().timestamp() // 60))
+        notice_html = ui_v3.notices(_home_notice_items(_home_rows, today[2] if today else None, fresh))
         strip_html = ""
         if portfolio and value:
             ccy = "USD" if portfolio[3] == "$" else "ILS"
