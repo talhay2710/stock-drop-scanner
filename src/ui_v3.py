@@ -964,7 +964,7 @@ def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float
                 f'<div class="tv"><strong class="{c}">{num(amt(a))}</strong><span class="chip {c}">{num(signed(p, 1, "%"))}</span></div></div>')
     inner = block("סה\"כ רווח/הפסד", pnl, pnl_pct)
     if day_amt is not None and day_pct is not None:
-        inner += '<div class="tsep"></div>' + block("יומי", day_amt, day_pct)
+        inner += '<div class="tsep"></div>' + block("שינוי יומי", day_amt, day_pct)
     return f'<div class="tpill">{inner}</div>'
 
 
