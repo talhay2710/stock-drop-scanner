@@ -1088,7 +1088,7 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         xp = x / W * 100
         side = " r" if xp > 72 else (" l" if xp < 28 else "")
         tip = (
-            f'<b class="eqt"><span class="t">{esc(p["name"])} · {num(p["date"])}</span>'
+            f'<b class="eqt"><span class="t">{esc(p["name"])} · {num(p.get("full") or p["date"])}</span>'
             f'<span>רווח העסקה<em class="{cls}">{sym} {num(signed(p["net"]))}</em></span>'
             f'<span>מצטבר<em class="{cls_for(p["cum"])}">{sym} {num(signed(p["cum"]))}</em></span></b>'
         )
