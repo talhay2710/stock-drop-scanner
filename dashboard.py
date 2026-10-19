@@ -7429,7 +7429,29 @@ def _holdings_open_pct(tickers: tuple[str, ...]) -> dict:
         pc = _last_close_before(hist, sd) if hist is not None else None
         if not pc:
             continue
-        out[t] = ((float(c.iloc[0]) - pc) / pc * 100, (float(c.iloc[-1]) - pc) / pc * 100, sd)
+        last_px = float(c.iloc[-1])
+        enough = len(c) >= 8
+        out[t] = ((float(c.iloc[0]) - pc) / pc * 100, (last_px - pc) / pc * 100, sd,
+                  enough and last_px >= float(c.max()) - 1e-9, enough and last_px <= float(c.min()) + 1e-9)
+    return out
+
+
+@st.cache_data(ttl=60)
+def _idx_changes_cached() -> dict:
+    return get_index_changes()
+
+
+def _home_market_timing_items() -> list[tuple[str, str, str]]:
+    """בורסה שנפתחת/נסגרת בתוך חצי שעה."""
+    out = []
+    for country, label, verb_open, verb_close in (("IL", 'בורסת ת"א', "נפתחת", "נסגרת"), ("US", "וול סטריט", "נפתחת", "נסגרת")):
+        try:
+            st_ = get_market_status(country)
+            mins = (st_["next_change"] - st_["now"]).total_seconds() / 60
+            if 0 < mins <= 30:
+                out.append(("info", "", f"{label} {verb_close if st_['open'] else verb_open} בעוד {format_countdown(st_['next_change'], st_['now'])}"))
+        except Exception:
+            continue
     return out
 
 
@@ -7477,11 +7499,13 @@ def _home_alert_followups(fresh_alerts: pd.DataFrame) -> tuple[list, list]:
     return rec, fall
 
 
-def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame, open_map: dict | None = None) -> list[tuple[str, str, str]]:
+def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame, open_map: dict | None = None,
+                       minute: int = 0) -> list[tuple[str, str, str]]:
     """הודעות לראש עמוד הבית: חצייה/קרבה לסטופ ויעד, התאוששות/המשך ירידה של התראות היום, תנודות יומיות חריגות, שינוי התיק, התראות חדשות.
     עד 6 הודעות, בסבב בין הסוגים כדי שלא יידחקו החוצה (סבב של 6 הודעות = דקה = זמן הרענון)."""
     N = ui_v3.num
     stop_x, near_stop, targets, near_target, movers_out, extra, flips = [], [], [], [], [], [], []
+    highlow, hold_days, vs_index, news_items = [], [], [], []
     for r in rows:
         stop, cur = r.get("holding_stop_price"), r.get("current")
         if stop and cur is not None:
@@ -7527,15 +7551,65 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
             now_txt = "ועומדת על" if is_market_open(idx) else "ונסגרה על"
             frm, to = ("מרווח להפסד", "loss") if op > 0 else ("מהפסד לרווח", "gain")
             flips.append((to, r["name"], f"עברה {frm} {now_txt} {N(ui_v3.signed(cur, 1, '%'))} לעומת {N(ui_v3.signed(op, 1, '%'))} בפתיחת המסחר"))
+    # שיא/שפל של היום
+    for r in rows:
+        o = (open_map or {}).get(r.get("ticker"))
+        if o and len(o) >= 5 and o[2] == dt.date.today():
+            if o[3]:
+                highlow.append(("gain", r["name"], "במחיר הגבוה של היום"))
+            elif o[4]:
+                highlow.append(("loss", r["name"], "במחיר הנמוך של היום"))
+    # ימי החזקה מול אופק האסטרטגיה
+    for r in rows:
+        held = r.get("trading_days_held")
+        if held:
+            if held == strategy_mod.HOLD_MAX_DAYS:
+                hold_days.append(("warn", r["name"], f"יום ההחזקה האחרון לפי האסטרטגיה ({N(str(held))} מתוך {N(str(strategy_mod.HOLD_MAX_DAYS))})"))
+            elif strategy_mod.HOLD_MAX_DAYS < held <= strategy_mod.HOLD_MAX_DAYS + 2:  # רק חריגה טרייה - אחזקות ותיקות לא מציפות את הסבב
+                hold_days.append(("warn", r["name"], f"מוחזקת {N(str(held))} ימי מסחר, מעבר לאופק של {N(str(strategy_mod.HOLD_MAX_DAYS))}"))
+    # התיק מול המדד
+    try:
+        if day_pct is not None and rows:
+            n_il = sum(1 for r in rows if market_data._is_israeli_ticker(r["ticker"]))
+            ref = "TA35" if n_il * 2 >= len(rows) else "SP500"
+            ch = _idx_changes_cached().get(ref)
+            if ch is not None and abs(ch) < 0.05:
+                ch = 0.0
+            if ch is not None and abs(day_pct - ch) >= 0.5:
+                word = "מנצח" if day_pct > ch else "מפגר אחרי"
+                vs_index.append(("gain" if day_pct > ch else "loss", "", f"התיק {word} את {INDEX_LABELS[ref]} היום: {N(ui_v3.signed(day_pct, 1, '%'))} לעומת {N(ui_v3.signed(ch, 1, '%'))}"))
+    except Exception:
+        pass
+    # חדשות על אחזקות
+    try:
+        pairs = [(r["name"], r["ticker"]) for r in rows][:4]
+        if pairs:
+            sn = get_footer_news(pairs, True).get("stock_news", {})
+            for nm, heads in sn.items():
+                for h in heads[:1]:
+                    title = (h.get("title") or "").strip()
+                    if title:
+                        news_items.append(("info", "", f"חדשות על {html.escape(nm)}: {html.escape(title[:80])}"))
+    except Exception:
+        pass
     rec, fall = _home_alert_followups(fresh_alerts)
     rec_items = [("gain", n, t) for _, n, t in rec]
     fall_items = [("loss", n, t) for _, n, t in fall[:2]]
-    cats = [stop_x, near_stop, targets, near_target, flips, rec_items, fall_items, movers_out, extra]
+    # דחופות (סטופ/יעד/היפוך כיוון) קודם, עד 4; את שאר המקומות ממלאים מהסוגים האחרים בסבב שמתחלף בכל דקה כדי שכולם יופיעו
+    urgent = [stop_x, near_stop, targets, near_target, flips]
+    others = [c for c in (rec_items, fall_items, highlow, hold_days, movers_out, vs_index, extra, _home_market_timing_items(), news_items) if c]
     out: list[tuple[str, str, str]] = []
-    for i in range(6):
-        for c in cats:
-            if i < len(c) and len(out) < 6:
+    for i in range(4):
+        for c in urgent:
+            if i < len(c) and len(out) < 4:
                 out.append(c[i])
+    if others:
+        k = minute % len(others)
+        others = others[k:] + others[:k]
+        for i in range(6):
+            for c in others:
+                if i < len(c) and len(out) < 6:
+                    out.append(c[i])
     return out
 
 
@@ -7551,6 +7625,7 @@ def _render_home_v3() -> None:
         notice_html = ui_v3.notices(_home_notice_items(
             _home_rows, today[2] if today else None, fresh,
             _holdings_open_pct(tuple(r["ticker"] for r in _home_rows)) if _home_rows else {},
+            int(dt.datetime.now().timestamp() // 60),
         ))
         strip_html = ""
         if portfolio and value:
