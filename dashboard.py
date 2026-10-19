@@ -7747,29 +7747,6 @@ def _render_home_v3() -> None:
 
     _home_holdings()
 
-    # מעקב קדימה (מדגם עיוור) - מוצג רק כשיש מספיק התראות שנסגרו, כמו באתר הקודם
-    _ft = get_forward_test_summary(forward_test.position_size(cfg))
-    if _ft and "gross" in _ft:
-        _fdate = dt.date.fromisoformat(_ft["freeze_date"]).strftime("%d/%m").lstrip("0")
-        _ci = _ft.get("net_ci")
-        _ci_text = (f" טווח נטו (95%): {ui_v3.signed(_ci[0], 1, '%')} עד {ui_v3.signed(_ci[1], 1, '%')}." if _ci else "")
-        _days = _ft["days_elapsed"]
-        _status = (
-            f"יום {_days} מתוך {_ft['days_needed']} - עד אז זה תיאור ולא החלטה."
-            if _days < _ft["days_needed"] else f"{_ft['days_needed']} ימי המסחר הושלמו - אפשר להעריך."
-        )
-        _cells = [
-            (f"התראות לקנות מאז {_fdate}", str(_ft["alerts"]), "", f"{_ft['resolved']} נסגרו · {_ft['pending']} ממתינות"),
-            (f"הגיעו ליעד +{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%", f"{_ft['hit_rate']:.0f}%", "", f"{_ft['hits']} מתוך {_ft['resolved']}"),
-            ("תשואה ברוטו", ui_v3.signed(_ft["gross"], 1, "%"), ui_v3.cls_for(_ft["gross"]), "ממוצע להתראה"),
-            ("תשואה נטו", ui_v3.signed(_ft["net"], 1, "%"), ui_v3.cls_for(_ft["net"]), f"פוזיציה {_ft['position']:,.0f} ₪ · אחרי עמלות ומס"),
-        ]
-        st.markdown(
-            f'<div class="v3h"><section class="block">{ui_v3.head("מעקב קדימה - האסטרטגיה")}{ui_v3.kpi4(_cells)}'
-            f'<div class="note">מדגם עיוור: הניקוד הוקפא לפני ההתראות האלה ושום כלל לא נקבע לפיהן. {_status}{_ci_text}</div></section></div>',
-            unsafe_allow_html=True,
-        )
-
     @st.fragment(run_every="60s")
     def _home_hours_news() -> None:
         markets = []
