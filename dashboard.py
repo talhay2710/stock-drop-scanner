@@ -7410,49 +7410,98 @@ def _v3_news_items() -> list[dict]:
     return items[:6]
 
 
-def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame) -> list[tuple[str, str, str]]:
-    """הודעות לראש עמוד הבית, לפי הסדר: חצייה/קרבה לסטופ, יעד, תנודות יומיות חריגות, שינוי התיק, התראות חדשות. מתחלפות לפי המצב הנוכחי."""
+def _home_alert_followups(fresh_alerts: pd.DataFrame) -> tuple[list, list]:
+    """התראות של היום בבורסת ת"א מול המצב הנוכחי: מתאוששות (השינוי היומי השתפר לפחות בחצי אחוז מאז ההתראה) וממשיכות לרדת (החמיר לפחות באחוז).
+    כל התראה (לא רק "לקנות"); סיגנל לקנות קודם. (recovering, falling) = [(score, name, text)]."""
     N = ui_v3.num
-    out: list[tuple[str, str, str]] = []
-    near_stop, targets, near_target = [], [], []
+    try:
+        if fresh_alerts is None or fresh_alerts.empty or "scan_date" not in fresh_alerts.columns:
+            return [], []
+        todays = fresh_alerts[fresh_alerts["scan_date"] == dt.date.today().isoformat()]
+        if todays.empty:
+            return [], []
+        todays = todays.sort_values("scan_ts").drop_duplicates("ticker", keep="last")
+        todays = todays[todays["ticker"].map(market_data._is_israeli_ticker)]  # רק בורסת ת"א
+        if todays.empty:
+            return [], []
+        cur_df = get_current_changes_for(tuple(sorted(todays["ticker"].unique())))
+        if cur_df is None or cur_df.empty:
+            return [], []
+        cur_map = dict(zip(cur_df["ticker"], cur_df["pct_change"]))
+        gap_map = dict(zip(cur_df["ticker"], cur_df["prev_close_gap"].fillna(False))) if "prev_close_gap" in cur_df.columns else {}
+    except Exception:
+        return [], []
+    rec, fall = [], []
+    for _, r in todays.iterrows():
+        cur, at = cur_map.get(r["ticker"]), r.get("pct_change")
+        if cur is None or pd.isna(cur) or at is None or pd.isna(at) or gap_map.get(r["ticker"]):
+            continue
+        try:
+            hour = int(str(r.get("scan_ts"))[11:13])
+        except Exception:
+            hour = None
+        score, _ = strategy_mod.signal_score(r.get("index_name"), at, r.get("intraday_recovery_pct"), r.get("dist_from_ma50_pct"), r.get("sector"), hour)
+        buy = score >= strategy_mod.buy_min_score()
+        name = r.get("company_name") or r["ticker"]
+        tail = f"{N(ui_v3.signed(cur, 1, '%'))} עכשיו לעומת {N(ui_v3.signed(at, 1, '%'))} בזמן ההתראה" + (" · סיגנל לקנות" if buy else "")
+        delta = cur - at
+        if delta >= 0.5:
+            rec.append((int(buy) * 100 + delta, name, f"מתאוששת מהירידה היומית: {tail}"))
+        elif delta <= -1.0:
+            fall.append((int(buy) * 100 - delta, name, f"ממשיכה לרדת: {tail}"))
+    rec.sort(reverse=True)
+    fall.sort(reverse=True)
+    return rec, fall
+
+
+def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame) -> list[tuple[str, str, str]]:
+    """הודעות לראש עמוד הבית: חצייה/קרבה לסטופ ויעד, התאוששות/המשך ירידה של התראות היום, תנודות יומיות חריגות, שינוי התיק, התראות חדשות.
+    עד 6 הודעות, בסבב בין הסוגים כדי שלא יידחקו החוצה (סבב של 6 הודעות = דקה = זמן הרענון)."""
+    N = ui_v3.num
+    stop_x, near_stop, targets, near_target, movers_out, extra = [], [], [], [], [], []
     for r in rows:
         stop, cur = r.get("holding_stop_price"), r.get("current")
         if stop and cur is not None:
             gap = stop_distance_pct(cur, stop)
             if gap < 0:
-                out.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב-{N(f'{abs(gap):.1f}%')}"))
+                stop_x.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב-{N(f'{abs(gap):.1f}%')}"))
             elif gap <= 2.0:
                 near_stop.append((gap, r["name"]))
         pnl, tgt = r.get("pnl_pct"), strategy_mod.target_pct()
         if pnl is not None and tgt:
             if pnl >= tgt:
-                targets.append(r["name"])
+                targets.append(("gain", r["name"], "עברה את היעד"))
             elif tgt - pnl <= 1.0:
                 near_target.append((tgt - pnl, r["name"]))
-    for gap, name in sorted(near_stop):
-        out.append(("warn", name, f"קרובה לסטופ-לוס · {N(f'{gap:.1f}%')} ממנו"))
-    for name in targets:
-        out.append(("gain", name, "עברה את היעד"))
-    for gap, name in sorted(near_target):
-        out.append(("gain", name, f"קרובה ליעד · {N(f'{gap:.1f}%')} ממנו"))
+    near_stop = [("warn", n, f"קרובה לסטופ-לוס · {N(f'{g:.1f}%')} ממנו") for g, n in sorted(near_stop)]
+    near_target = [("gain", n, f"קרובה ליעד · {N(f'{g:.1f}%')} ממנו") for g, n in sorted(near_target)]
     movers = [(r["daily_pct"], r["name"]) for r in rows if r.get("daily_pct") is not None]
     if movers:
         up, down = max(movers), min(movers)
         if up[0] >= 2.0:
-            out.append(("gain", up[1], f"עלתה היום ב-{N(f'{up[0]:.1f}%')}"))
+            movers_out.append(("gain", up[1], f"עלתה היום ב-{N(f'{up[0]:.1f}%')}"))
         if down[0] <= -2.0 and down != up:
-            out.append(("loss", down[1], f"ירדה היום ב-{N(f'{abs(down[0]):.1f}%')}"))
+            movers_out.append(("loss", down[1], f"ירדה היום ב-{N(f'{abs(down[0]):.1f}%')}"))
     if day_pct is not None and abs(day_pct) >= 1.0:
-        out.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} היום ב-{N(f'{abs(day_pct):.1f}%')}"))
+        extra.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} היום ב-{N(f'{abs(day_pct):.1f}%')}"))
     try:
         if fresh_alerts is not None and not fresh_alerts.empty and "scan_ts" in fresh_alerts.columns:
             ts = pd.to_datetime(fresh_alerts["scan_ts"], utc=True, errors="coerce")
             n_new = int((ts >= pd.Timestamp.now(tz="UTC") - pd.Timedelta(minutes=60)).sum())
             if n_new:
-                out.append(("info", "", "התראה חדשה בשעה האחרונה" if n_new == 1 else f"{N(str(n_new))} התראות חדשות בשעה האחרונה"))
+                extra.append(("info", "", "התראה חדשה בשעה האחרונה" if n_new == 1 else f"{N(str(n_new))} התראות חדשות בשעה האחרונה"))
     except Exception:
         pass
-    return out[:6]
+    rec, fall = _home_alert_followups(fresh_alerts)
+    rec_items = [("gain", n, t) for _, n, t in rec]
+    fall_items = [("loss", n, t) for _, n, t in fall[:2]]
+    cats = [stop_x, near_stop, targets, near_target, rec_items, fall_items, movers_out, extra]
+    out: list[tuple[str, str, str]] = []
+    for i in range(6):
+        for c in cats:
+            if i < len(c) and len(out) < 6:
+                out.append(c[i])
+    return out
 
 
 def _render_home_v3() -> None:
