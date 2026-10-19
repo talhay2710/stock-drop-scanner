@@ -994,7 +994,7 @@ def hold_card(cost: str, qty: str, fees: str, bought: str, signal: tuple[str, st
     """כרטיס האחזקה שנפתח (8 תאים, שתי שורות): רק מה שאינו בעמודות הטבלה - עלות וכמות, עמלות ומס, תאריך קנייה, סיגנל כניסה וציון,
     גודל הירידה בזמן ההתראה, שיא ושפל מאז הקנייה, סטופ ויעד במחיר, סקטור."""
     def cell(label: str, val: str, sub: str = "") -> str:
-        return f'<div class="hc"><small>{label}</small><span class="v">{val}</span>{f"<em>{sub}</em>" if sub else ""}</div>'
+        return f'<div class="hc"><small>{label}</small><span class="v">{val}{f" <em>· {sub}</em>" if sub else ""}</span></div>'
 
     sig_txt, sig_col = (signal or ("", ""))
     sc, mx = score if score else (None, None)
@@ -1006,12 +1006,12 @@ def hold_card(cost: str, qty: str, fees: str, bought: str, signal: tuple[str, st
     cells = [
         cell("תאריך קנייה", num(bought) if bought else "—"),
         cell("סיגנל כניסה", sig, sig_sub),
-        cell("עלות", num(cost), (num(qty) + " יחידות") if qty else ""),
         cell("ירידה בזמן ההתראה", drop),
-        cell("שיא / שפל מאז הקנייה", range_html or "—"),
+        cell("עלות", num(cost), (num(qty) + " יחידות") if qty else ""),
         cell("יעד · סטופ (מחיר)", tgt_html + " · " + stop_html),
-        cell("עמלות ומס", num(fees) if fees else "—"),
+        cell("שיא / שפל מאז הקנייה", (range_html.replace("<br>", " · ") if range_html else "—")),
         cell("סקטור", esc(sector) if sector else "—"),
+        cell("עמלות ומס", num(fees) if fees else "—"),
     ]
     return f'{mobile_strip}<div class="hcg">{"".join(cells)}</div>'
 
@@ -1121,8 +1121,8 @@ HOLDINGS_CSS = """
         .v3h .hc small { font-size:12px; color:var(--dim); letter-spacing:.01em; }
         .v3h .hc .v { font-size:17px; color:var(--v3-soft); line-height:1.25; white-space:nowrap; }
         .v3h .hc .v .up { color:var(--gain); } .v3h .hc .v .down { color:var(--loss); }
-        .v3h .hc .v .rc, .v3h .hc .v b { font-size:14px; line-height:1.55; }
-        .v3h .hc em { font-style:normal; font-size:12px; color:var(--dim); }
+        .v3h .hc .v b { font-size:15px; font-weight:500; }
+        .v3h .hc .v em { font-style:normal; font-size:13px; color:var(--dim); }
         @media (max-width:720px) {
             .v3h .hhead { display:none; }
             .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
