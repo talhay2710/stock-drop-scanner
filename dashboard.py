@@ -6420,7 +6420,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             r.get("pnl"), r["pnl_pct"], r.get("daily_change_amt"), r.get("daily_pct"), _stop_gap, _tgt_gap,
                             r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS,
                             get_holding_sparkline(r["ticker"], r.get("bought_at")), r.get("entry") or None,
-                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""), out, is_open,
+                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""), out, is_open, r.get("net_pnl"),
                         ) + "</div>", unsafe_allow_html=True,
                     )
                     if st.button(" ", key=f"v3_open_holding_{rid}"):
@@ -6438,13 +6438,13 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                     tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     st.markdown(
                         '<div class="v3h"><div class="hdet">' + ui_v3.holding_detail(
-                            f"{r['invested']:,.0f}", f"{(r.get('qty') or 0):,.0f}", net_txt, r["net_pnl"], fees_txt, _bd,
+                            f"{r['invested']:,.0f}", f"{(r.get('qty') or 0):,.0f}", fees_txt, _bd,
                             (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
                             _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else "",
                             ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
                             px(stop) if stop else "", px(tgt_price) if tgt_price else "",
                             ui_v3.hold_mobile_strip(r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
-                                                    r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl")),
+                                                    r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
                     tgt_pct = ((tgt_price / r["entry"] - 1) * 100) if tgt_price else strategy_mod.target_pct()

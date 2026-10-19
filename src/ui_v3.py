@@ -736,7 +736,7 @@ def _money_cell(value: float, sym: str, with_sign: bool = False, show_sym: bool 
 def hold_head(day_label: str = "היום") -> str:
     """כותרות טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימים | גרף."""
     return (
-        '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">תשואה</span><span class="r">רווח/הפסד</span>'
+        '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">תשואה</span><span class="r">רווח/הפסד</span><span class="r">נטו</span>'
         f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
     )
 
@@ -744,7 +744,7 @@ def hold_head(day_label: str = "היום") -> str:
 def hold_row(name: str, mono: str, sym: str, value: float | None, share: float | None, pnl_amt: float | None, pnl_pct: float,
              day_amt: float | None, day_pct: float | None, stop_gap: float | None, tgt_gap: float | None,
              held: int | None, horizon: int | None, spark_prices=None, spark_base: float | None = None,
-             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False) -> str:
+             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None) -> str:
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
     nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span></span>'
@@ -752,6 +752,7 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
            + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
     ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>'
     pl = f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True, False) if pnl_amt is not None else ""}</b></span>'
+    net = (f'<span class="c {cls_for(net_amt)}"><b>{_money_cell(net_amt, sym, True)}</b></span>' if net_amt is not None else '<span class="c"></span>')
     day = (f'<span class="c {cls_for(day_pct)}"><b>{_money_cell(day_amt, sym, True, False) if day_amt is not None else ""}</b>'
            f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if day_pct is not None else '<span class="c"></span>'
     lines = []
@@ -762,17 +763,19 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     reach = f'<span class="c rc2">{"".join(lines)}</span>'
     hd = f'<span class="c"><b>{num(str(held))}</b></span>' if held is not None else '<span class="c"></span>'
     return (
-        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}'
+        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{net}{day}{reach}{hd}'
         f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{_CHEV}</div>'
     )
 
 
 def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_gap: float | None, tgt_gap: float | None,
-                      held: int | None, horizon: int | None, pnl_amt: float | None = None) -> str:
+                      held: int | None, horizon: int | None, pnl_amt: float | None = None, net_amt: float | None = None) -> str:
     """בנייד העמודות הצפופות מוסתרות מהשורה - הן מופיעות כאן בראש הפרטים של השורה שנפתחת."""
     cells = []
     if pnl_amt is not None:
         cells.append(f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl_amt)}">{_money_cell(pnl_amt, sym, True)}</strong></div>')
+    if net_amt is not None:
+        cells.append(f'<div><small>נטו</small><strong class="{cls_for(net_amt)}">{_money_cell(net_amt, sym, True)}</strong></div>')
     if value is not None:
         cells.append(f'<div><small>שווי</small><strong>{_money_cell(value, sym)}</strong>'
                      + (f'<em>{num(f"{share:.0f}%")} מהתיק</em>' if share is not None else "") + "</div>")
@@ -955,17 +958,16 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
     )
 
 
-def holding_detail(cost: str, qty: str, net_txt: str, net: float | None, fees_txt: str, bought: str, signal: tuple[str, str] | None,
+def holding_detail(cost: str, qty: str, fees_txt: str, bought: str, signal: tuple[str, str] | None,
                    sector: str, range_html: str, stop_px: str, tgt_px: str, mobile_strip: str = "") -> str:
     """כרטיס האחזקה שנפתח: רק מידע שאינו בעמודות הטבלה - עלות וכמות, רווח/הפסד נטו ועמלות ומס, תאריך קנייה וסיגנל כניסה, סקטור,
     שיא/שפל מאז הקנייה ורמות הסטופ והיעד במחיר (בטבלה מופיע רק המרחק מהן)."""
     def cell(label: str, val_html: str) -> str:
         return f'<div><small>{label}</small>{val_html}</div>'
 
-    net_cell = f'<span class="v {cls_for(net)}">{num(net_txt)}</span>' if net is not None and net_txt else '<span class="v">—</span>'
     sig = (f'<span class="v" style="color:{esc(signal[1])}">{esc(signal[0])}</span>' if signal and signal[0] else '<span class="v">—</span>')
     r1 = (cell("עלות", f'<span class="v">{num(cost)}</span>') + cell("כמות", f'<span class="v">{num(qty)}</span>')
-          + cell("רווח/הפסד נטו", net_cell) + cell("עמלות ומס", f'<span class="v">{num(fees_txt) if fees_txt else "—"}</span>'))
+          + cell("עמלות ומס", f'<span class="v">{num(fees_txt) if fees_txt else "—"}</span>'))
     rng = cell("שיא / שפל מאז הקנייה", f'<span class="v" style="font-size:14px;line-height:1.5">{range_html}</span>') if range_html else ""
     r2 = (cell("תאריך קנייה", f'<span class="v">{num(bought) if bought else "—"}</span>') + cell("סיגנל כניסה", sig)
           + cell("סקטור", f'<span class="v">{esc(sector) if sector else "—"}</span>') + rng)
@@ -1017,7 +1019,7 @@ HOLDINGS_CSS = """
         .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
         .v3h .tpill .tsep { width:1px; background:var(--rule); }
         /* טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימי החזקה | גרף | חץ */
-        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.3fr) 104px 74px 90px 98px 100px 74px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
+        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 96px 98px 100px 74px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
         .v3h .hhead { padding-block:12px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
@@ -1043,7 +1045,7 @@ HOLDINGS_CSS = """
         .v3h .hrow .chev { color:var(--dim); transition:transform .15s; transform:scaleX(-1); }
         .v3h .hrow.open .chev { transform:scaleX(-1) rotate(90deg); }
         .v3h .hmob { display:none; }
-        .v3h .d1 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:4px 0 20px; }
+        .v3h .d1 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:4px 0 20px; }
         .v3h .d2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:28px; }
         .v3h .d1 small, .v3h .d2 small { display:block; font-size:13px; color:var(--dim); }
         .v3h .d1 .v { display:block; font-size:20px; font-weight:500; color:var(--v3-soft); }
@@ -1062,7 +1064,7 @@ HOLDINGS_CSS = """
         @media (max-width:720px) {
             .v3h .hhead { display:none; }
             .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
-            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .sp { display:none; }
+            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .c:nth-child(5), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(8), .v3h .hrow > .sp { display:none; }
             .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
             .v3h .hmob { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
             .v3h .hmob small { display:block; font-size:12px; color:var(--dim); margin-bottom:3px; }
