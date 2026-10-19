@@ -290,25 +290,31 @@ def _daily_col_label(dates) -> str:
     return "היום" if last >= _dt.date.today() else last.strftime("%d.%m")
 
 
-def holdings_rows(rows: list[dict]) -> str:
+def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
+    """unit: "pct" (אחוזים) או "value" (סכומים במטבע האחזקה - pnl_amt / daily_amt / ccy בכל שורה)."""
     out = []
     head_date = daily_head_date([r.get("daily_pct_date") for r in rows])
     for r in sorted(rows, key=lambda r: -r["pnl_pct"]):
         is_out = r.get("stop_pct") is not None and r["pnl_pct"] < r["stop_pct"]
         daily = r.get("daily_pct")
+        by_value = unit == "value" and r.get("pnl_amt") is not None
+        sym = CCY_SYMBOL.get(r.get("ccy") or "ILS", "₪")
         if daily is None:
             daily_html = '<span class="st"></span>'
         else:
-            daily_html = f'<span class="st {cls_for(daily)}">{num(signed(daily, 1, "%"))}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
+            dtxt = money(num(signed(r["daily_amt"])), sym) if (by_value and r.get("daily_amt") is not None) else num(signed(daily, 1, "%"))
+            daily_html = f'<span class="st {cls_for(daily)}">{dtxt}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
+        ptxt = money(num(signed(r["pnl_amt"])), sym) if by_value else num(signed(r["pnl_pct"], 1, "%"))
         out.append(
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
-            f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>{daily_html}</div>'
+            f'<span class="pl {cls_for(r["pnl_pct"])}">{ptxt}</span>{daily_html}</div>'
         )
-    return f'<div class="rows"><div class="cap"><span></span><span>תשואה</span><span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
+    first = "סה\"כ" if unit == "value" else "תשואה"
+    return f'<div class="rows"><div class="cap"><span></span><span>{first}</span><span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
 
 
-def holdings_section(rows: list[dict], step: float = 3.0) -> str:
-    return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_rows(rows)}{holdings_radar(rows, step)}</div></section>'
+def holdings_section(rows: list[dict], step: float = 3.0, unit: str = "pct") -> str:
+    return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_rows(rows, unit)}{holdings_radar(rows, step)}</div></section>'
 
 
 def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], portfolio_label: str, bench_label: str) -> str:

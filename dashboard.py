@@ -689,6 +689,9 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.6-5.9'/><path d='M20 4v5h-5'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-movers_refresh_icon"] button:hover, div[class*="st-key-alerts_refresh_icon"] button:hover, div[class*="st-key-holdings_refresh_icon"] button:hover, div[class*="st-key-perf_refresh_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-home_hold_unit"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 3; width: 100% !important; }
+        div[class*="st-key-home_hold_unit"] [data-testid="stElementContainer"] { position: absolute; top: 66px; left: 0; width: auto !important; }
+        div[class*="st-key-home_hold_unit"] button { min-height: 28px !important; padding: 2px 12px !important; font-size: 13px !important; }
         div[class*="st-key-movers_more_"] button {
             width: 100%; justify-content: flex-start; border: 0 !important; border-bottom: 1px solid var(--v3-rule) !important; border-radius: 0 !important;
             background: transparent !important; color: var(--v3-dim) !important; padding: 14px 0 !important; font-size: 14px; min-height: 0 !important;
@@ -7678,11 +7681,22 @@ def _render_home_v3() -> None:
             rows.append({
                 "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
                 "daily_pct_date": r.get("daily_pct_date"),
+                "pnl_amt": r.get("pnl"), "ccy": r.get("ccy"),
+                "daily_amt": (r["current_value"] - r["current_value"] / (1 + r["daily_pct"] / 100))
+                if (r.get("current_value") is not None and r.get("daily_pct") is not None and r["daily_pct"] > -100) else None,
                 "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
             })
         chart_html = ""
         if rows:
-            st.markdown(f'<div class="v3h">{ui_v3.holdings_section(rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
+            # מתג אחוזים / שווי לטבלת האחזקות (מיקום בפינה השמאלית של הכותרת - ר' CSS של home_hold_unit)
+            with st.container(key="home_hold_unit"):
+                _unit = st.segmented_control(
+                    "תצוגת אחזקות", ["%", "שווי"], default="%", selection_mode="single", key="home_hold_unit_sel", label_visibility="collapsed",
+                ) or "%"
+            st.markdown(
+                f'<div class="v3h">{ui_v3.holdings_section(rows, strategy_mod.target_pct(), "value" if _unit == "שווי" else "pct")}</div>',
+                unsafe_allow_html=True,
+            )
         _comp_df, _comp_as_of, _comp_dom_index, _comp_is_daily = _compute_portfolio_history(holdings)
         if _comp_df is not None and len(_comp_df) >= 2:
             idx = _comp_df.index
