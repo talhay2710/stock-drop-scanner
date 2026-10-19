@@ -955,17 +955,25 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
     )
 
 
-def holding_detail(cost: str, value: str, net: float | None, net_txt: str, entry_px: str, cur_px: str, share: float, held: str, sector: str = "", mobile_strip: str = "", range_html: str = "") -> str:
-    net_cell = (f'<span class="v {cls_for(net)}">{num(net_txt)}</span>' if net is not None else '<span class="v">—</span>')
-    rng = f'<div><small>שיא / שפל מאז הקנייה</small><span class="v" style="font-size:14px;line-height:1.5">{range_html}</span></div>' if range_html else ""
-    return (
-        f'{mobile_strip}<div class="d1"><div><small>עלות</small><span class="v">{num(cost)}</span></div>'
-        f'<div><small>שווי</small><span class="v">{num(value)}</span></div>'
-        f'<div><small>רווח/הפסד נטו</small>{net_cell}</div>'
-        f'<div><small>מוחזק</small><span class="v">{esc(held)}</span></div></div>'
-        f'<div class="d2"><div><small>סקטור</small><span class="v">{esc(sector) if sector else "—"}</span></div>'
-        f'<div><small>אחוז מהתיק</small><span class="v">{num(f"{share:.0f}%")}</span></div>{rng}</div>'
-    )
+def holding_detail(cost: str, qty: str, net_txt: str, net: float | None, fees_txt: str, bought: str, signal: tuple[str, str] | None,
+                   sector: str, range_html: str, stop_px: str, tgt_px: str, mobile_strip: str = "") -> str:
+    """כרטיס האחזקה שנפתח: רק מידע שאינו בעמודות הטבלה - עלות וכמות, רווח/הפסד נטו ועמלות ומס, תאריך קנייה וסיגנל כניסה, סקטור,
+    שיא/שפל מאז הקנייה ורמות הסטופ והיעד במחיר (בטבלה מופיע רק המרחק מהן)."""
+    def cell(label: str, val_html: str) -> str:
+        return f'<div><small>{label}</small>{val_html}</div>'
+
+    net_cell = f'<span class="v {cls_for(net)}">{num(net_txt)}</span>' if net is not None and net_txt else '<span class="v">—</span>'
+    sig = (f'<span class="v" style="color:{esc(signal[1])}">{esc(signal[0])}</span>' if signal and signal[0] else '<span class="v">—</span>')
+    r1 = (cell("עלות", f'<span class="v">{num(cost)}</span>') + cell("כמות", f'<span class="v">{num(qty)}</span>')
+          + cell("רווח/הפסד נטו", net_cell) + cell("עמלות ומס", f'<span class="v">{num(fees_txt) if fees_txt else "—"}</span>'))
+    rng = cell("שיא / שפל מאז הקנייה", f'<span class="v" style="font-size:14px;line-height:1.5">{range_html}</span>') if range_html else ""
+    r2 = (cell("תאריך קנייה", f'<span class="v">{num(bought) if bought else "—"}</span>') + cell("סיגנל כניסה", sig)
+          + cell("סקטור", f'<span class="v">{esc(sector) if sector else "—"}</span>') + rng)
+    lv = ""
+    if stop_px or tgt_px:
+        lv = (cell("סטופ (מחיר)", f'<span class="v down">{num(stop_px) if stop_px else "—"}</span>')
+              + cell("יעד (מחיר)", f'<span class="v up">{num(tgt_px) if tgt_px else "—"}</span>'))
+    return f'{mobile_strip}<div class="d1">{r1}</div><div class="d2">{r2}{lv}</div>'
 
 
 HOLDINGS_CSS = """

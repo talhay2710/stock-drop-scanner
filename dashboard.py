@@ -591,8 +591,6 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-journal_filter_icon"] button:hover { background: var(--v3-hover) !important; }
-        }
-        }
         div[class*="st-key-perf_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-perf_filter_icon"] button p, div[class*="st-key-perf_filter_icon"] button div { display: none !important; }
         div[class*="st-key-perf_filter_icon"] button {
@@ -6431,20 +6429,24 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 if is_open:
                     is_il = market_data._is_israeli_ticker(r["ticker"])
                     px = (lambda v: f"{v * 100:,.0f}") if is_il else (lambda v: f"{v:,.2f}")
-                    share = r.get("portfolio_pct", 0.0)
-                    held = "יום" if r["trading_days_held"] == 1 else f"{r['trading_days_held']} ימים"
                     net_txt = ui_v3.signed(r["net_pnl"]) if r["net_pnl"] is not None else ""
+                    fees_txt = f"{abs((r['pnl'] or 0) - r['net_pnl']):,.0f}" if (r.get("net_pnl") is not None and r.get("pnl") is not None) else ""
+                    try:
+                        _bd = dt.datetime.fromisoformat(str(r.get("bought_at"))).strftime("%d.%m.%y") if r.get("bought_at") else ""
+                    except Exception:
+                        _bd = ""
+                    tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     st.markdown(
                         '<div class="v3h"><div class="hdet">' + ui_v3.holding_detail(
-                            f"{r['invested']:,.0f}", f"{(r['current_value'] or 0):,.0f}", r["net_pnl"], net_txt,
-                            px(r["entry"]), px(r["current"]) if r["current"] is not None else "—", share, held,
+                            f"{r['invested']:,.0f}", f"{(r.get('qty') or 0):,.0f}", net_txt, r["net_pnl"], fees_txt, _bd,
+                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
                             _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else "",
+                            ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
+                            px(stop) if stop else "", px(tgt_price) if tgt_price else "",
                             ui_v3.hold_mobile_strip(r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
                                                     r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl")),
-                            ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
-                    tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     tgt_pct = ((tgt_price / r["entry"] - 1) * 100) if tgt_price else strategy_mod.target_pct()
                     with st.container(key=f"v3_hpos_{rid}"):
                         pc1, pc2 = st.columns([4, 1.4])
