@@ -264,7 +264,7 @@ _V3_CSS = """
         :root {
             --v3-bg:#F6F4F0; --v3-surface:#F9F6EF; --v3-ink:#24211D; --v3-soft:#59534C; --v3-dim:#6F6A62; --v3-rule:#DAD5CC;
             --v3-accent:#2F5D50; --v3-gain:#2F6B4F; --v3-loss:#9B3F2F; --v3-warn:#8A6A1F; --v3-hover:#EFECE6;
-            --v3-side:#EFECE6; --v3-rule-strong:#24211D; --v3-dash:#A8A196; --v3-dot-off:#A8A196;
+            --v3-side:#F2EFE9; --v3-rule-strong:#24211D; --v3-dash:#A8A196; --v3-dot-off:#A8A196;
         }
         @media (prefers-color-scheme: dark) {
             :root:not([data-theme="light"]) {
