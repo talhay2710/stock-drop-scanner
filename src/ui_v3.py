@@ -989,24 +989,31 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
     )
 
 
-def holding_detail(cost: str, qty: str, fees_txt: str, bought: str, signal: tuple[str, str] | None,
-                   sector: str, range_html: str, stop_px: str, tgt_px: str, mobile_strip: str = "") -> str:
-    """כרטיס האחזקה שנפתח: רק מידע שאינו בעמודות הטבלה - עלות וכמות, רווח/הפסד נטו ועמלות ומס, תאריך קנייה וסיגנל כניסה, סקטור,
-    שיא/שפל מאז הקנייה ורמות הסטופ והיעד במחיר (בטבלה מופיע רק המרחק מהן)."""
-    def cell(label: str, val_html: str) -> str:
-        return f'<div><small>{label}</small>{val_html}</div>'
+def hold_card(cost: str, qty: str, fees: str, bought: str, signal: tuple[str, str] | None, score: tuple, alert_pct: float | None,
+              range_html: str, stop_px: str, tgt_px: str, sector: str, mobile_strip: str = "") -> str:
+    """כרטיס האחזקה שנפתח (8 תאים, שתי שורות): רק מה שאינו בעמודות הטבלה - עלות וכמות, עמלות ומס, תאריך קנייה, סיגנל כניסה וציון,
+    גודל הירידה בזמן ההתראה, שיא ושפל מאז הקנייה, סטופ ויעד במחיר, סקטור."""
+    def cell(label: str, val: str, sub: str = "") -> str:
+        return f'<div class="hc"><small>{label}</small><span class="v">{val}</span>{f"<em>{sub}</em>" if sub else ""}</div>'
 
-    sig = (f'<span class="v" style="color:{esc(signal[1])}">{esc(signal[0])}</span>' if signal and signal[0] else '<span class="v">—</span>')
-    r1 = (cell("עלות", f'<span class="v">{num(cost)}</span>') + cell("כמות", f'<span class="v">{num(qty)}</span>')
-          + cell("עמלות ומס", f'<span class="v">{num(fees_txt) if fees_txt else "—"}</span>'))
-    rng = cell("שיא / שפל מאז הקנייה", f'<span class="v" style="font-size:14px;line-height:1.5">{range_html}</span>') if range_html else ""
-    r2 = (cell("תאריך קנייה", f'<span class="v">{num(bought) if bought else "—"}</span>') + cell("סיגנל כניסה", sig)
-          + cell("סקטור", f'<span class="v">{esc(sector) if sector else "—"}</span>') + rng)
-    lv = ""
-    if stop_px or tgt_px:
-        lv = (cell("סטופ (מחיר)", f'<span class="v down">{num(stop_px) if stop_px else "—"}</span>')
-              + cell("יעד (מחיר)", f'<span class="v up">{num(tgt_px) if tgt_px else "—"}</span>'))
-    return f'{mobile_strip}<div class="d1">{r1}</div><div class="d2">{r2}{lv}</div>'
+    sig_txt, sig_col = (signal or ("", ""))
+    sc, mx = score if score else (None, None)
+    sig = (f'<span style="color:{esc(sig_col)}">{esc(sig_txt)}</span>' if sig_txt and sig_col else esc(sig_txt)) if sig_txt else "—"
+    sig_sub = ("ציון " + num(f"{max(sc, 0)}/{mx}")) if sc is not None and mx else ""
+    drop = f'<span class="{cls_for(alert_pct)}">{num(signed(alert_pct, 1, "%"))}</span>' if alert_pct is not None else "—"
+    stop_html = f'<span class="down">{num(stop_px)}</span>' if stop_px else "—"
+    tgt_html = f'<span class="up">{num(tgt_px)}</span>' if tgt_px else "—"
+    cells = [
+        cell("עלות", num(cost), (num(qty) + " יחידות") if qty else ""),
+        cell("עמלות ומס", num(fees) if fees else "—"),
+        cell("תאריך קנייה", num(bought) if bought else "—"),
+        cell("סיגנל כניסה", sig, sig_sub),
+        cell("ירידה בזמן ההתראה", drop),
+        cell("שיא / שפל מאז הקנייה", range_html or "—"),
+        cell("יעד · סטופ (מחיר)", tgt_html + " · " + stop_html),
+        cell("סקטור", esc(sector) if sector else "—"),
+    ]
+    return f'{mobile_strip}<div class="hcg">{"".join(cells)}</div>'
 
 
 HOLDINGS_CSS = """
@@ -1098,12 +1105,6 @@ HOLDINGS_CSS = """
         .v3h .hrow .chev { color:var(--dim); transition:transform .15s; transform:scaleX(-1); }
         .v3h .hrow.open .chev { transform:scaleX(-1) rotate(90deg); }
         .v3h .hmob { display:none; }
-        .v3h .d1 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:4px 0 20px; }
-        .v3h .d2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:28px; }
-        .v3h .d1 small, .v3h .d2 small { display:block; font-size:13px; color:var(--dim); }
-        .v3h .d1 .v { display:block; font-size:20px; font-weight:500; color:var(--v3-soft); }
-        .v3h .d2 .v { display:block; font-size:15px; font-weight:400; color:var(--v3-soft); }
-        .v3h .d1 .v.down { color:var(--loss); } .v3h .d1 .v.up { color:var(--gain); }
         .v3h .bar { position:relative; height:2px; background:var(--rule); margin:16px 10px 32px; direction:ltr; }
         .v3h .bar .sg { position:absolute; top:0; height:2px; }
         .v3h .bar .sg.l { background:color-mix(in srgb, var(--loss) 55%, transparent); } .v3h .bar .sg.g { background:color-mix(in srgb, var(--gain) 55%, transparent); }
@@ -1113,12 +1114,20 @@ HOLDINGS_CSS = """
         .v3h .bar .tk.s { background:var(--loss); } .v3h .bar .tk.t { background:var(--gain); }
         .v3h .bar .lb { position:absolute; top:14px; font-size:12px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; direction:rtl; }
         .v3h .bar .lb.a { transform:none; color:var(--loss); } .v3h .bar .lb.r { right:0; left:auto; transform:none; color:var(--gain); }
-        .v3h .hdet { padding:4px 10px 6px; border-bottom:1px solid var(--rule); }
+        .v3h .hdet { padding:6px 10px 14px; border-bottom:1px solid var(--rule); }
+        .v3h .hcg { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; padding-top:6px; }
+        .v3h .hc { padding:14px 18px 14px 0; display:flex; flex-direction:column; gap:5px; min-width:0; }
+        .v3h .hc:nth-child(n+5) { border-top:1px solid var(--rule); }
+        .v3h .hc small { font-size:12px; color:var(--dim); letter-spacing:.01em; }
+        .v3h .hc .v { font-size:17px; color:var(--v3-soft); line-height:1.25; white-space:nowrap; }
+        .v3h .hc .v .up { color:var(--gain); } .v3h .hc .v .down { color:var(--loss); }
+        .v3h .hc .v .rc, .v3h .hc .v b { font-size:14px; line-height:1.55; }
+        .v3h .hc em { font-style:normal; font-size:12px; color:var(--dim); }
         @media (max-width:720px) {
             .v3h .hhead { display:none; }
             .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
             .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .c:nth-child(8), .v3h .hrow > .sp { display:none; }
-            .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .v3h .hcg { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3h .hc:nth-child(n+3) { border-top:1px solid var(--rule); }
             .v3h .hmob { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
             .v3h .hmob small { display:block; font-size:12px; color:var(--dim); margin-bottom:3px; }
             .v3h .hmob strong { font-size:16px; font-weight:500; display:inline-flex; gap:4px; align-items:baseline; direction:ltr; }

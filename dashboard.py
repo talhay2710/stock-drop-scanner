@@ -3746,6 +3746,21 @@ def _alert_signal(r) -> tuple[str, str]:
     )
 
 
+def _alert_score(r) -> int | None:
+    """ניקוד הסיגנל של התראה (מתוך MAX_SIGNAL_SCORE) - אותם נתונים כמו _alert_signal."""
+    try:
+        _hour = int(str(r.get("scan_ts"))[11:13])
+    except Exception:
+        _hour = None
+    try:
+        return strategy_mod.signal_score(
+            r.get("index_name"), r.get("pct_change"), r.get("intraday_recovery_pct"), r.get("dist_from_ma50_pct"),
+            r.get("sector"), _hour,
+        )[0]
+    except Exception:
+        return None
+
+
 def _build_alert_detail_html(r) -> str:
     """כל פרטי ההתראה (סיבה, גרף, הערכת תגובת-יתר, חדשות, לימיט/יעד/סטופ,
     תמונת ברוטו/נטו) כ-HTML טהור, בלי שום רכיב Streamlit אמיתי - כדי שיהיה
@@ -6217,6 +6232,7 @@ def _build_holding_rows(holdings: pd.DataFrame) -> list[dict]:
             "prices": prices, "days_held": days_held,
             "trading_days_held": _trading_days_held(bought_date, country_code),
             "entry_signal": strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]],
+            "alert_pct": r.get("pct_change"), "signal_score": _alert_score(r),
             "entry_signal_text": strategy_mod.SIGNAL_LABEL[_alert_signal(r)[0]],
             "entry_signal_color": SIGNAL_COLORS[_alert_signal(r)[0]],
             "net_pnl": net_pnl, "net_pct": net_pct,
@@ -6430,32 +6446,27 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 if is_open:
                     is_il = market_data._is_israeli_ticker(r["ticker"])
                     px = (lambda v: f"{v * 100:,.0f}") if is_il else (lambda v: f"{v:,.2f}")
-                    net_txt = ui_v3.signed(r["net_pnl"]) if r["net_pnl"] is not None else ""
                     fees_txt = f"{abs((r['pnl'] or 0) - r['net_pnl']):,.0f}" if (r.get("net_pnl") is not None and r.get("pnl") is not None) else ""
                     try:
                         _bd = dt.datetime.fromisoformat(str(r.get("bought_at"))).strftime("%d.%m.%y") if r.get("bought_at") else ""
                     except Exception:
                         _bd = ""
                     tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
+                    _sec = _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else ""
                     st.markdown(
-                        '<div class="v3h"><div class="hdet">' + ui_v3.holding_detail(
-                            f"{r['invested']:,.0f}", f"{(r.get('qty') or 0):,.0f}", fees_txt, _bd,
-                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
-                            _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else "",
-                            ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
-                            px(stop) if stop else "", px(tgt_price) if tgt_price else "",
-                            ui_v3.hold_mobile_strip(r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
-                                                    r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
+                        '<div class="v3h"><div class="hdet">' + ui_v3.hold_card(
+                            cost=f"{r['invested']:,.0f}", qty=f"{(r.get('qty') or 0):,.0f}", fees=fees_txt, bought=_bd,
+                            signal=(r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
+                            score=(r.get("signal_score"), strategy_mod.MAX_SIGNAL_SCORE), alert_pct=r.get("alert_pct"),
+                            range_html=ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
+                            stop_px=px(stop) if stop else "", tgt_px=px(tgt_price) if tgt_price else "", sector=_sec,
+                            mobile_strip=ui_v3.hold_mobile_strip(
+                                r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
+                                r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
-                    tgt_pct = ((tgt_price / r["entry"] - 1) * 100) if tgt_price else strategy_mod.target_pct()
                     with st.container(key=f"v3_hpos_{rid}"):
                         pc1, pc2 = st.columns([4, 1.4])
-                        with pc1:
-                            if stop_pct is not None:
-                                st.markdown(
-                                    f'<div class="v3h">{ui_v3.position_bar(stop_pct, tgt_pct, r["pnl_pct"])}</div>', unsafe_allow_html=True,
-                                )
                         with pc2:
                             _v3_sell_flow(r)
 
