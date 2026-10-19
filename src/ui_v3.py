@@ -1057,10 +1057,13 @@ def equity_curve(points: list[tuple[str, float]], sym: str = "₪") -> str:
     area = f'<polygon points="{xs[0]:.1f},{y0:.1f} {poly} {xs[-1]:.1f},{y0:.1f}" fill="{col}" fill-opacity=".10"/>'
     dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" fill="{col}"><title>{esc(d)} · {signed(v)}</title></circle>' for (x, y), (d, v) in zip(pts, points))
     end = vals[-1]
-    side = f'<span class="hs {cls_for(end)}">{num(signed(end))} {sym}</span>'
+    # הסכום הסופי כתווית בקצה העקומה (₪ משמאל למספר), מעל הנקודה האחרונה - ומתחתיה אם היא קרובה לקצה העליון
+    ey = pts[-1][1] / H * 150 + 14
+    below = " below" if ey < 30 else ""
+    label = f'<span class="eqv {cls_for(end)}{below}" style="top:{ey:.1f}px">{sym} {num(signed(end))}</span>'
     return (
-        f'{head("רווח נקי מצטבר", side)}'
-        f'<div class="eq"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח נקי מצטבר">'
+        f'{head("רווח נקי מצטבר")}'
+        f'<div class="eq">{label}<svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח נקי מצטבר">'
         f'<line x1="0" y1="{y0:.1f}" x2="{W}" y2="{y0:.1f}" stroke="var(--rule-strong)" stroke-dasharray="3 5"/>'
         f'{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>{dots}</svg>'
         f'<div class="eqx"><span>{num(points[0][0])}</span><span>{num(points[-1][0])}</span></div></div>'
@@ -1102,6 +1105,9 @@ JOURNAL_CSS = """
         .v3h .tablewrap { overflow-x:auto; }
         .v3h .eq { position:relative; padding:14px 0 6px; }
         .v3h .eq svg { display:block; width:100%; height:150px; overflow:visible; }
+        .v3h .eqv { position:absolute; right:0; transform:translateY(-135%); direction:ltr; font-size:14px; white-space:nowrap; background:var(--v3-bg); padding:0 4px; border-radius:3px; z-index:1; }
+        .v3h .eqv.below { transform:translateY(55%); }
+        .v3h .eqv.up { color:var(--gain); } .v3h .eqv.down { color:var(--loss); }
         .v3h .eq svg circle { vector-effect:non-scaling-stroke; }
         .v3h .eqx { display:flex; justify-content:space-between; direction:ltr; font-size:12px; color:var(--dim); padding-top:6px; }
         .v3h .head .hs { font-size:16px; direction:ltr; } .v3h .head .hs.up { color:var(--gain); } .v3h .head .hs.down { color:var(--loss); }
