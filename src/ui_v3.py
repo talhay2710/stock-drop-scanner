@@ -1319,8 +1319,7 @@ JOURNAL_CSS = """
 def perf_filter_summary(parts: list[str], is_open: bool) -> str:
     inner = "".join(f'<span class="fp">{esc(p)}</span>' for p in parts)
     return (
-        f'<div class="fl{" open" if is_open else ""}"><span class="fsum">{inner}</span>'
-        f'<span class="chg" title="שינוי המסננים">{_CHEV}</span></div>'
+        f'<div class="fl{" open" if is_open else ""}"><span class="fsum">{inner}</span></div>'
     )
 
 
@@ -1385,7 +1384,7 @@ PERF_CSS = """
         .v3h .pbar { display:flex; gap:2px; height:4px; margin-top:-1px; }
         .v3h .pbar i { display:block; height:100%; }
         .v3h .pbar .g { background:var(--gain); } .v3h .pbar .l { background:var(--loss); } .v3h .pbar .n { background:var(--dim); opacity:.5; } .v3h .pbar .p { background:var(--rule); }
-        .v3h .fl { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 10px; border-bottom:1px solid var(--rule); cursor:pointer; }
+        .v3h .fl { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 10px; border-bottom:1px solid var(--rule); cursor:default; }
         .v3h .fsum { display:flex; flex-wrap:wrap; align-items:center; row-gap:6px; font-size:16px; color:var(--v3-soft); }
         .v3h .fp { display:inline-block; }
         @media (max-width:480px) {

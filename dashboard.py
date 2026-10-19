@@ -738,6 +738,8 @@ _V3_TOOLS_HTML = """<!doctype html><html lang="he" dir="rtl"><head><meta charset
 html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,sans-serif; direction:rtl; }
 .tools { display:flex; align-items:center; gap:16px; height:40px; font-size:14px; color:var(--dim); }
 .num { direction:ltr; unicode-bidi:isolate; display:inline-block; }
+#d { display:inline-flex; align-items:center; direction:ltr; gap:12px; }
+.vl { display:inline-block; width:1px; height:14px; background:var(--dim); }
 .seg { display:inline-flex; border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
 .seg button { font:inherit; font-size:13px; color:var(--dim); background:transparent; border:0; padding:6px 14px; cursor:pointer; }
 .seg button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
@@ -750,7 +752,9 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
   var KEY = 'dr_theme', P = window.parent, proot;
   try { proot = P.document.documentElement; } catch (e) { proot = null; }
   var day = document.getElementById('b-day'), night = document.getElementById('b-night');
-  try { var d = new Date(); document.getElementById('d').innerHTML = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + ' · <span class="num">' + String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear() + '</span>'; } catch (e) {}
+  var MON = ["ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני", "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'"];
+  function stamp() { try { var d = new Date(); var t = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0'); document.getElementById('d').innerHTML = '<span class="num">' + t + '</span><i class="vl"></i><span dir="rtl">' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2) + '</span><i class="vl"></i><span dir="rtl">' + new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + '</span>'; } catch (e) {} }
+  stamp(); setInterval(stamp, 1000);
   function stored() { try { return P.localStorage.getItem(KEY); } catch (e) { return null; } }
   function set(t) { if (!proot) return; if (t) proot.setAttribute('data-theme', t); else proot.removeAttribute('data-theme'); }
   if (stored()) set(stored());
@@ -5544,9 +5548,8 @@ def _render_perf_v3() -> None:
         f"יעד {_ss.get('perf_target', _target_default)}", f"החזקה: {_ss.get('perf_hold', _hold_default)}",
     ]
     _open = bool(_ss.get("perf_filters_open", False))
-    with st.container(key="perf_filters_hd"):
-        st.markdown(f'<div class="v3h">{ui_v3.perf_filter_summary(summary_parts, _open)}</div>', unsafe_allow_html=True)
-        st.button(" ", key="perf_filters_toggle", on_click=_toggle_perf_filters)
+    # שורת הסיכום היא טקסט בלבד - הסינון נפתח רק מאיקון המשפך שבכותרת
+    st.markdown(f'<div class="v3h">{ui_v3.perf_filter_summary(summary_parts, _open)}</div>', unsafe_allow_html=True)
     # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה); כשהפילטרים סגורים הם מוסתרים ב-CSS
     st.markdown(
         '<style>div[class*="st-key-perf_filters_body"] { display:' + ("block" if _open else "none") + '; }</style>', unsafe_allow_html=True,
