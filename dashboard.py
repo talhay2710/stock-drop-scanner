@@ -5442,7 +5442,7 @@ with _tab_slot_today.container():
             if not near_miss_df.empty and UI_V3:
                 with _slot_nearmiss:
                     st.markdown(
-                        f'<div class="v3h"><section class="block">{ui_v3.head(f"קרוב לסף התראה ({len(near_miss_df)})")}'
+                        f'<div class="v3h"><section class="block">{ui_v3.head("קרוב לסף התראה")}'
                         f'{ui_v3.stocks_table(_v3_stock_rows(near_miss_df), cfg.get("multi_day_window_days", 3), show_price=False)}</section></div>',
                         unsafe_allow_html=True,
                     )
