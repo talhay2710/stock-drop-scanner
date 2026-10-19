@@ -1025,7 +1025,7 @@ HOLDINGS_CSS = """
         .v3h .lr .lz.g { background:color-mix(in srgb, var(--gain) 42%, transparent); }
         .v3h .lr .tk { position:absolute; top:3px; width:2px; height:12px; margin-left:-1px; background:var(--dim); }
         .v3h .lr .tk.s { background:var(--loss); } .v3h .lr .tk.t { background:var(--gain); }
-        .v3h .mk { position:absolute; top:4.5px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--ink); display:inline-block; }
+        .v3h .mk { position:absolute; top:4px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--ink); display:inline-block; }
         .v3h .mk.out { background:var(--loss); box-shadow:0 0 0 4px color-mix(in srgb, var(--loss) 22%, transparent); }
         .v3h .mk.hit { background:var(--gain); box-shadow:0 0 0 4px color-mix(in srgb, var(--gain) 22%, transparent); }
         .v3h .lr .lv { font-size:15px; direction:ltr; text-align:end; }
