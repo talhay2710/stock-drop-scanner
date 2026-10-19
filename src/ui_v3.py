@@ -286,7 +286,7 @@ def stop_target_ladder(rows: list[dict]) -> str:
         )
     legend = ('<div class="lg"><span><b class="mk"></b>מצב נוכחי</span><span><i class="tk"></i>כניסה</span>'
               '<span><i class="tk t"></i>יעד</span><span><i class="tk s"></i>סטופ</span></div>')
-    return f'<section class="block">{head("מיקום מול סטופ ויעד")}{legend}<div class="ladder">{"".join(out)}</div></section>'
+    return f'<section class="block">{head("מיקום מול יעד וסטופ-לוס")}{legend}<div class="ladder">{"".join(out)}</div></section>'
 
 
 def daily_head_date(dates) -> None:

@@ -6476,8 +6476,8 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
     # התפלגות סקטוריאלית (לפי שווי נוכחי, % מהתיק)
     _sec_html = ui_v3.sector_section(_sector_items(rows))
     if _sec_html:
-        st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="v3h">{_sec_html}</div>', unsafe_allow_html=True)
+        # ריווח מעל הכותרת כמו בשאר האתר (מחלקת block: 48px)
+        st.markdown(f'<div class="v3h"><section class="block">{_sec_html}</section></div>', unsafe_allow_html=True)
 
 
 _tab_slot_portfolio = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
