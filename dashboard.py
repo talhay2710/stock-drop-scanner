@@ -7549,7 +7549,7 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
         if abs(op) >= 0.5 and abs(cur) >= 0.5 and (op > 0) != (cur > 0):
             idx = "TA35" if market_data._is_israeli_ticker(r["ticker"]) else "SP500"
             now_txt = "ועומדת על" if is_market_open(idx) else "ונסגרה על"
-            frm, to = ("מרווח להפסד", "loss") if op > 0 else ("מהפסד לרווח", "gain")
+            frm, to = ("מעלייה לירידה", "loss") if op > 0 else ("מירידה לעלייה", "gain")  # כיוון השינוי היומי - לא רווח/הפסד של האחזקה מהקנייה
             flips.append((to, r["name"], f"עברה {frm} {now_txt} {N(ui_v3.signed(cur, 1, '%'))} לעומת {N(ui_v3.signed(op, 1, '%'))} בפתיחת המסחר"))
     # שיא/שפל של היום
     for r in rows:
