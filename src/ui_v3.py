@@ -1101,7 +1101,7 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         for t in ticks
     )
     ylab = "".join(
-        f'<span class="eqy" style="top:{py(t):.2f}%">{sym + " " if t == ticks[-1] else ""}{num(("0" if abs(t) < 1e-9 else f"{t:,.0f}"))}</span>'
+        f'<span class="eqy" style="top:{py(t):.2f}%">{sym + " " if abs(t) > 1e-9 else ""}{num(("0" if abs(t) < 1e-9 else f"{t:,.0f}"))}</span>'
         for t in ticks
     )
     dots = []
