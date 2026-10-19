@@ -777,7 +777,7 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
 </script></body></html>"""
 
 _V3_BRAND_HTML = (
-    '<a class="v3brand" href="./" target="_self" title="מסך הבית">'
+    '<a class="v3brand" href="./" target="_self">'
     '<svg width="24" height="24" viewBox="0 0 22 22" aria-hidden="true">'
     '<circle cx="11" cy="11" r="9.5" fill="none" stroke-width="1.3"/><circle cx="11" cy="11" r="5" fill="none" stroke-width="1"/>'
     '<circle class="dot" cx="16" cy="6.5" r="2"/></svg>DipRadar</a>'
@@ -1501,7 +1501,7 @@ with st.container(key="main_title_wrap"):
     st.markdown(
         f"""
         <div style="padding:6px 0 2px;">
-          <a href="./" target="_self" title="מסך הבית" style="text-decoration:none; color:{ACCENT_COLOR}; cursor:pointer; display:block;">
+          <a href="./" target="_self" style="text-decoration:none; color:{ACCENT_COLOR}; cursor:pointer; display:block;">
             <div style="font-size:2.3rem; font-weight:800; letter-spacing:0.02em; color:{ACCENT_COLOR}; line-height:1.25; display:flex; justify-content:center;">DipRadar</div>
           </a>
           <div style="font-size:0.95rem; font-weight:500; opacity:0.55; margin-top:2px; display:flex; align-items:center; justify-content:center; gap:5px;">
