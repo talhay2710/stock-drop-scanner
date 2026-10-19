@@ -4072,7 +4072,7 @@ def _render_movers_v3() -> None:
             fresh = f"סגירה {_rep.strftime('%d.%m')}"
             if market_data.is_data_stale(_rep, "X.TA" if movers_index in ("TA35", "TA125") else ""):
                 fresh += " · נתון ישן"
-    st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", fresh, 0 if fresh == "היום" else None, icons=2)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", "" if fresh == "היום" else fresh, 0 if fresh == "היום" else None, icons=2)}</div>', unsafe_allow_html=True)
 
     def _toggle_movers_filters() -> None:
         st.session_state["movers_filters_open"] = not st.session_state.get("movers_filters_open", False)
