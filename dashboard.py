@@ -6369,9 +6369,11 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
         if r["pnl_pct"] is None or not r["entry"]:
             continue
         stop = r.get("holding_stop_price")
+        _tp = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
         radar_rows.append({
             "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
             "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
+            "tgt_pct": ((_tp / r["entry"] - 1) * 100) if _tp else strategy_mod.target_pct(),
         })
     col_rows = st.container()
     with col_rows:
@@ -6465,10 +6467,11 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
             a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
         ) + '</div><div style="height:6px"></div>', unsafe_allow_html=True)
 
-    # מתחת לטבלה: הרדאר (מיקום כל אחזקה מול הסטופ והיעד)
-    col_plot, _col_gap = st.columns([1, 1.5], gap="medium")
-    with col_plot:
-        st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
+    # מתחת לטבלה: סולם סטופ ויעד (מיקום כל אחזקה מול הסטופ והיעד שלה; הרדאר נשאר רק בדף הבית)
+    _ladder = ui_v3.stop_target_ladder(radar_rows)
+    if _ladder:
+        st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="v3h">{_ladder}</div>', unsafe_allow_html=True)
 
     # התפלגות סקטוריאלית (לפי שווי נוכחי, % מהתיק)
     _sec_html = ui_v3.sector_section(_sector_items(rows))

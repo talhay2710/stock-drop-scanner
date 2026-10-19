@@ -257,6 +257,38 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     )
 
 
+def stop_target_ladder(rows: list[dict]) -> str:
+    """סולם סטופ ויעד (טאב האחזקות): שורה לכל אחזקה על ציר משותף של אחוזים מהכניסה - סטופ משמאל, כניסה (0) באמצע, יעד מימין,
+    והנקודה היא הרווח/הפסד הנוכחי. rows: {name, pnl_pct, stop_pct, tgt_pct}. נקודה אדומה בהילה = מתחת לסטופ, ירוקה = מעל היעד."""
+    rows = [r for r in rows if r.get("pnl_pct") is not None and (r.get("stop_pct") is not None or r.get("tgt_pct") is not None)]
+    if not rows:
+        return ""
+    vals = [0.0] + [r["pnl_pct"] for r in rows] + [r["stop_pct"] for r in rows if r.get("stop_pct") is not None]         + [r["tgt_pct"] for r in rows if r.get("tgt_pct") is not None]
+    lo, hi = min(vals) - 1.5, max(vals) + 1.5
+    span = (hi - lo) or 1.0
+
+    def x(v: float) -> float:
+        return (v - lo) / span * 100.0
+
+    out = []
+    for r in sorted(rows, key=lambda r: r["pnl_pct"]):
+        pnl, stop, tgt = r["pnl_pct"], r.get("stop_pct"), r.get("tgt_pct")
+        below = stop is not None and pnl < stop
+        above = tgt is not None and pnl >= tgt
+        seg_l = f'<i class="lz l" style="left:{x(stop if stop is not None else min(pnl, 0)):.2f}%;width:{x(0) - x(stop if stop is not None else min(pnl, 0)):.2f}%"></i>'
+        seg_g = f'<i class="lz g" style="left:{x(0):.2f}%;width:{x(tgt if tgt is not None else max(pnl, 0)) - x(0):.2f}%"></i>'
+        ticks = (f'<i class="tk s" style="left:{x(stop):.2f}%"></i>' if stop is not None else "") +                 f'<i class="tk" style="left:{x(0):.2f}%"></i>' +                 (f'<i class="tk t" style="left:{x(tgt):.2f}%"></i>' if tgt is not None else "")
+        cls = "out" if below else ("hit" if above else "")
+        out.append(
+            f'<div class="lr"><span class="ln{" out" if below else ""}">{esc(short_name(r["name"]))}</span>'
+            f'<div class="lt">{seg_l}{seg_g}{ticks}<b class="mk {cls}" style="left:{x(pnl):.2f}%"></b></div>'
+            f'<span class="lv {cls_for(pnl)}">{num(signed(pnl, 1, "%"))}</span></div>'
+        )
+    legend = ('<div class="lg"><span><i class="tk s"></i>סטופ</span><span><i class="tk"></i>כניסה</span>'
+              '<span><i class="tk t"></i>יעד</span><span><b class="mk"></b>מצב נוכחי</span></div>')
+    return f'<section class="block">{head("מיקום מול סטופ ויעד")}{legend}<div class="ladder">{"".join(out)}</div></section>'
+
+
 def daily_head_date(dates) -> None:
     """התאריך כבר מופיע בכרטיסי המדדים ("סגירה 16.10") - לא חוזרים עליו בכותרת/בשורות האחזקות."""
     return None
@@ -977,6 +1009,28 @@ def holding_detail(cost: str, qty: str, fees_txt: str, bought: str, signal: tupl
 
 
 HOLDINGS_CSS = """
+        .v3h .lg { display:flex; gap:22px; margin:14px 0 6px; font-size:13px; color:var(--dim); direction:ltr; justify-content:flex-end; }
+        .v3h .lg span { display:inline-flex; align-items:center; gap:7px; }
+        .v3h .lg .tk { display:inline-block; position:static; width:2px; height:12px; background:var(--dim); }
+        .v3h .lg .tk.s { background:var(--loss); } .v3h .lg .tk.t { background:var(--gain); }
+        .v3h .lg .mk { position:static; width:9px; height:9px; margin:0; }
+        .v3h .ladder { display:flex; flex-direction:column; }
+        .v3h .lr { display:grid; grid-template-columns:110px minmax(0,1fr) 64px; align-items:center; gap:16px; padding:16px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .lr .ln { font-size:16px; color:var(--v3-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .v3h .lr .ln.out { color:var(--loss); font-weight:600; }
+        .v3h .lr .lt { position:relative; height:18px; direction:ltr; }
+        .v3h .lr .lt::before { content:''; position:absolute; left:0; right:0; top:8px; height:2px; background:var(--rule); }
+        .v3h .lr .lz { position:absolute; top:7px; height:4px; border-radius:2px; }
+        .v3h .lr .lz.l { background:color-mix(in srgb, var(--loss) 42%, transparent); }
+        .v3h .lr .lz.g { background:color-mix(in srgb, var(--gain) 42%, transparent); }
+        .v3h .lr .tk { position:absolute; top:3px; width:2px; height:12px; margin-left:-1px; background:var(--dim); }
+        .v3h .lr .tk.s { background:var(--loss); } .v3h .lr .tk.t { background:var(--gain); }
+        .v3h .mk { position:absolute; top:4.5px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--ink); display:inline-block; }
+        .v3h .mk.out { background:var(--loss); box-shadow:0 0 0 4px color-mix(in srgb, var(--loss) 22%, transparent); }
+        .v3h .mk.hit { background:var(--gain); box-shadow:0 0 0 4px color-mix(in srgb, var(--gain) 22%, transparent); }
+        .v3h .lr .lv { font-size:15px; direction:ltr; text-align:end; }
+        .v3h .lr .lv.up { color:var(--gain); } .v3h .lr .lv.down { color:var(--loss); }
+        @media (max-width:720px) { .v3h .lr { grid-template-columns:70px minmax(0,1fr) 54px; gap:10px; padding:14px 4px; } .v3h .lr .ln { font-size:15px; } }
         .v3h .kpi.pstrip > div:not(:first-child) em { margin-top:auto; }  /* האחוזים בתאים האחרים באותו גובה כמו פס ההרכב */
         .v3h .abar { display:flex; gap:3px; margin-top:14px; width:100%; }
         .v3h .abar .ab { min-width:0; display:flex; flex-direction:column; gap:3px; }
