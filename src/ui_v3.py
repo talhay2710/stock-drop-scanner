@@ -736,7 +736,7 @@ def _money_cell(value: float, sym: str, with_sign: bool = False, show_sym: bool 
 def hold_head(day_label: str = "היום") -> str:
     """כותרות טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימים | גרף."""
     return (
-        '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">רווח/הפסד</span>'
+        '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">תשואה</span><span class="r">רווח/הפסד</span>'
         f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
     )
 
@@ -748,10 +748,10 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
     nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span></span>'
-    val = (f'<span class="c"><b>{_money_cell(value, sym, show_sym=False)}</b>'
+    val = (f'<span class="c"><b>{_money_cell(value, sym)}</b>'
            + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
-    pl = (f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True, False) if pnl_amt is not None else ""}</b>'
-          f'<small>{num(signed(pnl_pct, 1, "%"))}</small></span>')
+    ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>'
+    pl = f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True, False) if pnl_amt is not None else ""}</b></span>'
     day = (f'<span class="c {cls_for(day_pct)}"><b>{_money_cell(day_amt, sym, True, False) if day_amt is not None else ""}</b>'
            f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if day_pct is not None else '<span class="c"></span>'
     lines = []
@@ -762,15 +762,17 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     reach = f'<span class="c rc2">{"".join(lines)}</span>'
     hd = f'<span class="c"><b>{num(str(held))}</b></span>' if held is not None else '<span class="c"></span>'
     return (
-        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{pl}{day}{reach}{hd}'
+        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}'
         f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{_CHEV}</div>'
     )
 
 
 def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_gap: float | None, tgt_gap: float | None,
-                      held: int | None, horizon: int | None) -> str:
+                      held: int | None, horizon: int | None, pnl_amt: float | None = None) -> str:
     """בנייד העמודות הצפופות מוסתרות מהשורה - הן מופיעות כאן בראש הפרטים של השורה שנפתחת."""
     cells = []
+    if pnl_amt is not None:
+        cells.append(f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl_amt)}">{_money_cell(pnl_amt, sym, True)}</strong></div>')
     if value is not None:
         cells.append(f'<div><small>שווי</small><strong>{_money_cell(value, sym)}</strong>'
                      + (f'<em>{num(f"{share:.0f}%")} מהתיק</em>' if share is not None else "") + "</div>")
@@ -1007,7 +1009,7 @@ HOLDINGS_CSS = """
         .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
         .v3h .tpill .tsep { width:1px; background:var(--rule); }
         /* טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימי החזקה | גרף | חץ */
-        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.4fr) 104px 98px 98px 100px 74px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
+        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.3fr) 104px 74px 90px 98px 100px 74px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
         .v3h .hhead { padding-block:12px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
@@ -1052,12 +1054,13 @@ HOLDINGS_CSS = """
         @media (max-width:720px) {
             .v3h .hhead { display:none; }
             .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
-            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(6), .v3h .hrow > .sp { display:none; }
+            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .sp { display:none; }
             .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
-            .v3h .hmob { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
+            .v3h .hmob { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
             .v3h .hmob small { display:block; font-size:12px; color:var(--dim); margin-bottom:3px; }
             .v3h .hmob strong { font-size:16px; font-weight:500; display:inline-flex; gap:4px; align-items:baseline; direction:ltr; }
             .v3h .hmob strong .cur { font-size:12px; font-weight:400; }
+            .v3h .hmob strong.up { color:var(--gain); } .v3h .hmob strong.down { color:var(--loss); }
             .v3h .hmob strong.two { display:block; direction:rtl; font-size:13px; line-height:1.5; }
             .v3h .hmob em { display:block; font-style:normal; font-size:12px; color:var(--dim); }
         }

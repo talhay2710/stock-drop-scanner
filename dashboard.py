@@ -6422,7 +6422,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             px(r["entry"]), px(r["current"]) if r["current"] is not None else "—", share, held,
                             _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else "",
                             ui_v3.hold_mobile_strip(r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
-                                                    r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS),
+                                                    r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl")),
                             ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
