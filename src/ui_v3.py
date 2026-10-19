@@ -724,32 +724,64 @@ ALERTS_CSS = """
 
 # ───────────────────────── אחזקות ─────────────────────────
 
-def holding_row(name: str, mono: str, amt: str, ccy_sym: str, pct: float, daily: float | None, out: bool, is_open: bool, daily_date=None, head_date=None, spark_prices=None, spark_base: float | None = None, daily_amt: float | None = None, reach: str = "", signal: tuple[str, str] | None = None) -> str:
-    cls = cls_for(pct)
-    daily_html = (f'<span class="st {cls_for(daily)}">{num(signed(daily, 1, "%"))}{daily_suffix(daily_date, head_date)}</span>' if daily is not None else '<span class="st"></span>')
-    cur, n = f'<span class="cur">{ccy_sym}</span>', f'<span class="n">{num(amt)}</span>'
-    amt_html = f'<span class="amt {cls}">{n}{cur}</span>' if ccy_sym == CCY_SYMBOL["USD"] else f'<span class="amt {cls}">{cur}{n}</span>'
-    if daily_amt is None:
-        damt_html = '<span class="damt"></span>'
-    else:
-        dn = f'<span class="n">{num(signed(daily_amt))}</span>'
-        dc = f'<span class="cur">{ccy_sym}</span>'
-        damt_html = f'<span class="damt {cls_for(daily_amt)}">{dn}{dc}</span>' if ccy_sym == CCY_SYMBOL["USD"] else f'<span class="damt {cls_for(daily_amt)}">{dc}{dn}</span>'
+def _money_cell(value: float, sym: str, with_sign: bool = False) -> str:
+    """סכום עם סמל מטבע קטן (₪ משמאל למספר, $ מימין) - לתאי הטבלה."""
+    n = f'<span class="n">{num(signed(value) if with_sign else plain(value))}</span>'
+    c = f'<span class="cur">{sym}</span>'
+    return f"{n}{c}" if sym == CCY_SYMBOL["USD"] else f"{c}{n}"
+
+
+def hold_head(day_label: str = "היום") -> str:
+    """כותרות טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימים | גרף."""
     return (
-        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">'
-        f'<span class="nm" title="{esc(name)}"><span class="l1">{f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל: {esc(signal[0])}"></i>' if signal and signal[1] else ""}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span>{f'<small class="rc">{reach}</small>' if reach else ""}</span>'
-        f'{amt_html}<span class="p {cls}">{num(signed(pct, 1, "%"))}</span>{damt_html}{daily_html}'
+        '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">רווח/הפסד</span>'
+        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="ctr">מאז הקנייה</span><span></span></div>'
+    )
+
+
+def hold_row(name: str, mono: str, sym: str, value: float | None, share: float | None, pnl_amt: float | None, pnl_pct: float,
+             day_amt: float | None, day_pct: float | None, stop_gap: float | None, tgt_gap: float | None,
+             held: int | None, horizon: int | None, spark_prices=None, spark_base: float | None = None,
+             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False) -> str:
+    """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
+    dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
+    nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span></span>'
+    val = (f'<span class="c"><b>{_money_cell(value, sym)}</b>'
+           + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
+    pl = (f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True) if pnl_amt is not None else ""}</b>'
+          f'<small>{num(signed(pnl_pct, 1, "%"))}</small></span>')
+    day = (f'<span class="c {cls_for(day_pct)}"><b>{_money_cell(day_amt, sym, True) if day_amt is not None else ""}</b>'
+           f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if day_pct is not None else '<span class="c"></span>'
+    lines = []
+    if tgt_gap is not None:
+        lines.append('<em class="up">מעל היעד</em>' if tgt_gap < 0 else f'<em>יעד <b class="up">{num(f"+{tgt_gap:.1f}%")}</b></em>')
+    if stop_gap is not None:
+        lines.append('<em class="down">מתחת לסטופ</em>' if stop_gap < 0 else f'<em>סטופ <b class="down">{num(f"-{stop_gap:.1f}%")}</b></em>')
+    reach = f'<span class="c rc2">{"".join(lines)}</span>'
+    hd = f'<span class="c"><b>{num(str(held))}</b></span>' if held is not None else '<span class="c"></span>'
+    return (
+        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{pl}{day}{reach}{hd}'
         f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{_CHEV}</div>'
     )
 
 
-def horizon_text(days_held: int, horizon: int) -> str:
-    """שורת-משנה מתחת לשם האחזקה: כמה ימים מחזיקים מול אופק האסטרטגיה (הנחת ההחזקה, 3 ימים) - חריגה מסומנת באדום."""
-    if days_held is None or not horizon:
-        return ""
-    over = days_held - horizon
-    tail = ' · <b class="warn">חריגה</b>' if over > 0 else ""
-    return f'יום <b>{num(days_held)}</b> מתוך {num(horizon)}{tail}'
+def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_gap: float | None, tgt_gap: float | None,
+                      held: int | None, horizon: int | None) -> str:
+    """בנייד העמודות הצפופות מוסתרות מהשורה - הן מופיעות כאן בראש הפרטים של השורה שנפתחת."""
+    cells = []
+    if value is not None:
+        cells.append(f'<div><small>שווי</small><strong>{_money_cell(value, sym)}</strong>'
+                     + (f'<em>{num(f"{share:.0f}%")} מהתיק</em>' if share is not None else "") + "</div>")
+    if stop_gap is not None or tgt_gap is not None:
+        parts = []
+        if tgt_gap is not None:
+            parts.append("מעל היעד" if tgt_gap < 0 else f'יעד {num(f"+{tgt_gap:.1f}%")}')
+        if stop_gap is not None:
+            parts.append("מתחת לסטופ" if stop_gap < 0 else f'סטופ {num(f"-{stop_gap:.1f}%")}')
+        cells.append(f'<div><small>יעד · סטופ</small><strong class="two">{"<br>".join(parts)}</strong></div>')
+    if held is not None:
+        cells.append(f'<div><small>ימי החזקה</small><strong>{num(str(held))}</strong></div>')
+    return f'<div class="hmob">{"".join(cells)}</div>' if cells else ""
 
 
 def range_text(rng) -> str:
@@ -760,42 +792,6 @@ def range_text(rng) -> str:
     # שני חלקים בשתי שורות (כל חלק לא נשבר באמצע) - אחרת "שפל" נשאר בשורה אחת והמספר שלו יורד לשורה הבאה
     return (f'<span style="white-space:nowrap">שיא <b class="{cls_for(hi)}">{num(signed(hi, 1, "%"))}</b></span><br>'
             f'<span style="white-space:nowrap">שפל <b class="{cls_for(lo)}">{num(signed(lo, 1, "%"))}</b></span>')
-
-
-def sub_text(signal: str, signal_color: str = "", qty: float | None = None) -> str:
-    """שורת-משנה מתחת לשם האחזקה: סיגנל הכניסה (בזמן ההתראה) · כמות היחידות - מידע שאינו בכרטיס הפתוח (הסקטור והמוחזק שם)."""
-    parts = []
-    if signal:
-        style = f' style="color:{esc(signal_color)}"' if signal_color else ""
-        parts.append(f'סיגנל <b{style}>{esc(signal)}</b>')
-    if qty:
-        parts.append(f'כמות {num(f"{qty:,.0f}")}')
-    return " · ".join(parts)
-
-
-def reach_text(stop_gap: float | None, tgt_gap: float | None) -> str:
-    """שורת-משנה מתחת לשם האחזקה: מרחק מהסטופ ומהיעד (באחוזים, יחסית לסטופ/יעד עצמם)."""
-    parts = []
-    if stop_gap is not None:
-        parts.append(f'מתחת לסטופ' if stop_gap < 0 else f'עד הסטופ {num(f"{stop_gap:.1f}%")}')
-    if tgt_gap is not None:
-        parts.append(f'מעל היעד' if tgt_gap < 0 else f'עד היעד {num(f"{tgt_gap:.1f}%")}')
-    return " · ".join(parts)
-
-
-def _cell_money(css: str, value: float, sym: str) -> str:
-    cur, n = f'<span class="cur">{sym}</span>', f'<span class="n">{num(signed(value))}</span>'
-    return (f'<span class="{css} {cls_for(value)}">{n}{cur}</span>' if sym == CCY_SYMBOL["USD"] else f'<span class="{css} {cls_for(value)}">{cur}{n}</span>')
-
-
-def holdings_total_row(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, sym: str) -> str:
-    """שורת סיכום (סה"כ) בתחתית טבלת האחזקות - אותו גריד כמו .hrow."""
-    d_amt = _cell_money("damt", day_amt, sym) if day_amt is not None else '<span class="damt"></span>'
-    d_pct = f'<span class="st {cls_for(day_pct)}">{num(signed(day_pct, 1, "%"))}</span>' if day_pct is not None else '<span class="st"></span>'
-    return (
-        '<div class="hrow tot"><span class="nm">סה"כ</span>'
-        f'{_cell_money("amt", pnl, sym)}<span class="p {cls_for(pnl_pct)}">{num(signed(pnl_pct, 1, "%"))}</span>{d_amt}{d_pct}<span></span><span></span></div>'
-    )
 
 
 def mini_spark(prices, base: float | None = None) -> str:
@@ -934,13 +930,6 @@ def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float
     return f'<div class="tpill">{inner}</div>'
 
 
-def holdings_head(head_date) -> str:
-    """כותרות טבלת האחזקות בשתי שכבות (בקשת המשתמש 17.10.2026): 'שינוי כולל' ו'שינוי יומי' מעל זוגות (ש"ח | %), ו'שינוי מקנייה' מעל הגרף."""
-    return (
-        '<div class="hhead"><span></span><span class="two">רווח/הפסד כולל</span><span class="two">רווח/הפסד יומי</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
-    )
-
-
 def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
     """סרגל מיקום: סטופ משמאל, יעד מימין, כניסה בין השניים. מתחת לסטופ - הנקודה נעצרת בקצה עם תווית "מתחת לסטופ"."""
     s = abs(stop_pct)
@@ -962,17 +951,16 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
     )
 
 
-def holding_detail(cost: str, value: str, net: float | None, net_txt: str, entry_px: str, cur_px: str, share: float, held: str, sector: str = "") -> str:
+def holding_detail(cost: str, value: str, net: float | None, net_txt: str, entry_px: str, cur_px: str, share: float, held: str, sector: str = "", mobile_strip: str = "", range_html: str = "") -> str:
     net_cell = (f'<span class="v {cls_for(net)}">{num(net_txt)}</span>' if net is not None else '<span class="v">—</span>')
+    rng = f'<div><small>שיא / שפל מאז הקנייה</small><span class="v" style="font-size:14px;line-height:1.5">{range_html}</span></div>' if range_html else ""
     return (
-        f'<div class="d1"><div><small>עלות</small><span class="v">{num(cost)}</span></div>'
+        f'{mobile_strip}<div class="d1"><div><small>עלות</small><span class="v">{num(cost)}</span></div>'
         f'<div><small>שווי</small><span class="v">{num(value)}</span></div>'
         f'<div><small>רווח/הפסד נטו</small>{net_cell}</div>'
         f'<div><small>מוחזק</small><span class="v">{esc(held)}</span></div></div>'
-        f'<div class="d2"><div><small>שער ביצוע</small><span class="v">{num(entry_px)}</span></div>'
-        f'<div><small>שער נוכחי</small><span class="v">{num(cur_px)}</span></div>'
-        f'<div><small>סקטור</small><span class="v">{esc(sector) if sector else "—"}</span></div>'
-        f'<div><small>אחוז מהתיק</small><span class="v">{num(f"{share:.0f}%")}</span></div></div>'
+        f'<div class="d2"><div><small>סקטור</small><span class="v">{esc(sector) if sector else "—"}</span></div>'
+        f'<div><small>אחוז מהתיק</small><span class="v">{num(f"{share:.0f}%")}</span></div>{rng}</div>'
     )
 
 
@@ -1016,40 +1004,33 @@ HOLDINGS_CSS = """
         .v3h .tpill .chip.up { color:var(--gain); background:color-mix(in srgb, var(--gain) 11%, transparent); }
         .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
         .v3h .tpill .tsep { width:1px; background:var(--rule); }
+        /* טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימי החזקה | גרף | חץ */
+        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.4fr) 104px 98px 98px 100px 74px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
+        .v3h .hhead { padding-block:12px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
         .v3h .hhead span { white-space:nowrap; }
-        .v3h .hhead .two, .v3h .hhead .ctr { display:flex; justify-content:center; }
-        .v3h .hhead .two { grid-column:span 2; }
-        /* היסט אופטי: תוכן הזוג (ש"ח | %) מיושר לימין בתוך התאים, ולכן מרכז התא זז מעט משמאל למרכז התוכן הנראה */
-        .v3h .hhead span:nth-child(2) { transform:translateX(7px); } .v3h .hhead span:nth-child(3) { transform:translateX(11px); }
-        .v3h .hhead { display:grid; grid-template-columns:minmax(0,1.2fr) 64px 72px 62px 62px 96px 14px; gap:12px; padding:14px 10px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
-        .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 64px 72px 62px 62px 96px 14px; align-items:center; gap:12px; padding:14px 10px; border-bottom:1px solid var(--rule); }
-        .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); }
-        .v3h .hrow .sp svg { display:block; }
+        .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
+        .v3h .hrow { padding-block:14px; border-bottom:1px solid var(--rule); }
+        .v3h .hrow:hover { background:var(--hover); }
+        .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); min-width:0; }
+        .v3h .hrow .nm .l1 { display:flex; align-items:center; white-space:nowrap; }
+        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; flex:none; }
         .v3h .hrow .nm .mono { margin-inline-start:10px; }
-        .v3h .hrow .nm .l1 { display:flex; align-items:center; flex-wrap:nowrap; gap:0; white-space:nowrap; }
-        .v3h .hrow .nm .rc b { font-weight:500; }
-        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; vertical-align:middle; }
-        .v3h .hrow .nm .rc b.warn { color:var(--loss); }
-        .v3h .hrow .nm .rc b.up { color:var(--gain); } .v3h .hrow .nm .rc b.down { color:var(--loss); }
-        .v3h .hrow .nm .fl { display:inline-block; width:auto; font-style:normal; font-size:11px; font-weight:500; padding:1px 7px; border-radius:4px; vertical-align:middle; white-space:nowrap; }
-        .v3h .hrow .nm .fl.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 12%, transparent); }
-        .v3h .hrow .nm .fl.up { color:var(--gain); background:color-mix(in srgb, var(--gain) 12%, transparent); }
-        .v3h .hrow .nm .rc { display:block; font-weight:400; font-size:12px; color:var(--dim); margin-top:3px; font-family:inherit; letter-spacing:0; }
-        .v3h .hrow.tot { background:var(--surface); border:0; border-radius:12px; margin-top:16px; padding:16px 10px; }
-        .v3h .hrow.tot:hover { background:var(--surface); }
-        .v3h .hrow.tot .nm { font-size:14px; font-weight:500; color:var(--dim); letter-spacing:.02em; }
-        .v3h .hrow .damt { display:inline-flex; align-items:baseline; gap:4px; font-size:14px; opacity:.9; font-weight:400; justify-self:start; direction:ltr; }
-        .v3h .hrow .damt .cur { font-size:12px; }
-        .v3h .hrow .damt.up { color:var(--gain); } .v3h .hrow .damt.down { color:var(--loss); }
-        .v3h .hrow .amt { display:inline-flex; align-items:baseline; gap:4px; font-size:16px; opacity:.9; font-weight:400; justify-self:start; direction:ltr; }
-        .v3h .hrow .amt .cur { font-size:13px; opacity:1; }
-        .v3h .hrow .amt .n { display:inline-block; text-align:right; }
-        .v3h .hrow .p { font-size:18px; font-weight:500; direction:ltr; text-align:right; }
-        .v3h .hrow .st { font-size:14px; color:var(--dim); justify-self:start; white-space:nowrap; }
-        .v3h .hrow .st.up { color:var(--gain); } .v3h .hrow .st.down { color:var(--loss); }
+        .v3h .hrow.out .nm { font-weight:600; color:var(--loss); }
+        .v3h .hrow .c { display:flex; flex-direction:column; align-items:flex-end; gap:3px; direction:ltr; line-height:1.15; }
+        .v3h .hrow .c b { display:inline-flex; align-items:baseline; gap:4px; font-size:16px; font-weight:500; white-space:nowrap; }
+        .v3h .hrow .c b .cur { font-size:12px; font-weight:400; opacity:.85; }
+        .v3h .hrow .c small { font-size:12px; color:var(--dim); white-space:nowrap; direction:rtl; }
+        .v3h .hrow .c.up b, .v3h .hrow .c.up small { color:var(--gain); } .v3h .hrow .c.down b, .v3h .hrow .c.down small { color:var(--loss); }
+        .v3h .hrow .c.warn b, .v3h .hrow .c.warn small { color:var(--loss); }
+        .v3h .hrow .rc2 { align-items:flex-start; direction:rtl; gap:4px; }
+        .v3h .hrow .rc2 em { font-style:normal; font-size:13px; color:var(--dim); white-space:nowrap; }
+        .v3h .hrow .rc2 em b { display:inline; font-size:13px; font-weight:500; }
+        .v3h .hrow .rc2 em b.up { color:var(--gain); } .v3h .hrow .rc2 em b.down { color:var(--loss); }
+        .v3h .hrow .rc2 em.down { color:var(--loss); } .v3h .hrow .rc2 em.up { color:var(--gain); }
+        .v3h .hrow .sp { display:flex; justify-content:center; } .v3h .hrow .sp svg { display:block; }
         .v3h .hrow .chev { color:var(--dim); transition:transform .15s; transform:scaleX(-1); }
         .v3h .hrow.open .chev { transform:scaleX(-1) rotate(90deg); }
-        .v3h .hrow.out .nm { font-weight:600; color:var(--loss); }
+        .v3h .hmob { display:none; }
         .v3h .d1 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:4px 0 20px; }
         .v3h .d2 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:28px; }
         .v3h .d1 small, .v3h .d2 small { display:block; font-size:13px; color:var(--dim); }
@@ -1066,7 +1047,18 @@ HOLDINGS_CSS = """
         .v3h .bar .lb { position:absolute; top:14px; font-size:12px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; direction:rtl; }
         .v3h .bar .lb.a { transform:none; color:var(--loss); } .v3h .bar .lb.r { right:0; left:auto; transform:none; color:var(--gain); }
         .v3h .hdet { padding:4px 10px 6px; border-bottom:1px solid var(--rule); }
-        @media (max-width:720px) { .v3h .hhead { grid-template-columns:minmax(0,1fr) auto auto 14px; } .v3h .hhead { display:none; } .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; } .v3h .hrow .amt, .v3h .hrow .damt, .v3h .hrow .sp { display:none; } .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:720px) {
+            .v3h .hhead { display:none; }
+            .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
+            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(6), .v3h .hrow > .sp { display:none; }
+            .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .v3h .hmob { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
+            .v3h .hmob small { display:block; font-size:12px; color:var(--dim); margin-bottom:3px; }
+            .v3h .hmob strong { font-size:16px; font-weight:500; display:inline-flex; gap:4px; align-items:baseline; direction:ltr; }
+            .v3h .hmob strong .cur { font-size:12px; font-weight:400; }
+            .v3h .hmob strong.two { display:block; direction:rtl; font-size:13px; line-height:1.5; }
+            .v3h .hmob em { display:block; font-style:normal; font-size:12px; color:var(--dim); }
+        }
 """
 
 

@@ -6357,9 +6357,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
             "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
             "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
         })
-    col_plot, col_rows = st.columns([1, 1.7], gap="medium")
-    with col_plot:
-        st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
+    col_rows = st.container()
     with col_rows:
         # סינון ברווח/בהפסד/הכל (משפיע על הטבלה בלבד; הסה"כ והרדאר נשארים של כל התיק). הלוח מוסתר ב-CSS כשהוא סגור - הווידג'ט תמיד מוצג כדי שהבחירה תישמר
         st.markdown(
@@ -6379,8 +6377,8 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 label_visibility="collapsed", on_change=_keep_pnl_filter,
             ) or "הכל"
         _save_filter_prefs(("holdings_filter_pnl",))
-        _hd = ui_v3.daily_head_date([r.get("daily_pct_date") for r in rows if r["pnl_pct"] is not None])
-        st.markdown('<div class="v3h">' + ui_v3.holdings_head(_hd) + "</div>", unsafe_allow_html=True)
+        _day_lbl = ui_v3._daily_col_label([r.get("daily_pct_date") for r in rows if r["pnl_pct"] is not None])
+        st.markdown('<div class="v3h tw">' + ui_v3.hold_head(_day_lbl) + "</div>", unsafe_allow_html=True)
         _shown_any = False
         for r in rows:
             if r["pnl_pct"] is None:
@@ -6396,15 +6394,17 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
             sym_r = "₪" if r["ccy"] == "ILS" else ("&#36;" if r["ccy"] == "USD" else r["ccy"])
             with st.container(key=f"v3_hrow_{rid}"):
                 with st.container(key=f"v3_hrowhd_{rid}"):
+                    _cur = r.get("current")
+                    _stop_gap = stop_distance_pct(_cur, stop) if (stop and _cur is not None) else None
+                    _tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
+                    _tgt_gap = target_distance_pct(_cur, _tgt_price) if (_tgt_price and _cur is not None) else None
                     st.markdown(
-                        '<div class="v3h">' + ui_v3.holding_row(
-                            r["name"], str(r["ticker"]).replace(".TA", ""), ui_v3.signed(r["pnl"] or 0), sym_r,
-                            r["pnl_pct"], r.get("daily_pct"), out, is_open, r.get("daily_pct_date"), _hd,
-                            get_holding_sparkline(r["ticker"], r.get("bought_at")),
-                            r.get("entry") or None,
-                            r.get("daily_change_amt"),
-                            ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
-                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
+                        '<div class="v3h">' + ui_v3.hold_row(
+                            r["name"], str(r["ticker"]).replace(".TA", ""), sym_r, r.get("current_value"), r.get("portfolio_pct"),
+                            r.get("pnl"), r["pnl_pct"], r.get("daily_change_amt"), r.get("daily_pct"), _stop_gap, _tgt_gap,
+                            r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS,
+                            get_holding_sparkline(r["ticker"], r.get("bought_at")), r.get("entry") or None,
+                            (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""), out, is_open,
                         ) + "</div>", unsafe_allow_html=True,
                     )
                     if st.button(" ", key=f"v3_open_holding_{rid}"):
@@ -6421,6 +6421,9 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             f"{r['invested']:,.0f}", f"{(r['current_value'] or 0):,.0f}", r["net_pnl"], net_txt,
                             px(r["entry"]), px(r["current"]) if r["current"] is not None else "—", share, held,
                             _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else "",
+                            ui_v3.hold_mobile_strip(r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
+                                                    r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS),
+                            ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
                     tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
@@ -6441,7 +6444,12 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
         st.markdown('<div class="v3h">' + ui_v3.total_pill(
             a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
         ) + '</div><div style="height:6px"></div>', unsafe_allow_html=True)
-        # פתיחת פוזיציה - מתחת לסה"כ, באותה עמודה ובאותם קווים
+
+    # מתחת לטבלה: הרדאר (מיקום כל אחזקה מול הסטופ והיעד) ופתיחת פוזיציה
+    col_plot, col_open = st.columns([1, 1.5], gap="medium")
+    with col_plot:
+        st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
+    with col_open:
         render_open_expander()
 
     # התפלגות סקטוריאלית (לפי שווי נוכחי, % מהתיק)
