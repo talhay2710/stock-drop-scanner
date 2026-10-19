@@ -753,8 +753,8 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
   try { proot = P.document.documentElement; } catch (e) { proot = null; }
   var day = document.getElementById('b-day'), night = document.getElementById('b-night');
   var MON = ["ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני", "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'"];
-  function stamp() { try { var d = new Date(); var t = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0'); document.getElementById('d').innerHTML = '<span class="num">' + t + '</span><i class="vl"></i><span dir="rtl">' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2) + '</span><i class="vl"></i><span dir="rtl">' + new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + '</span>'; } catch (e) {} }
-  stamp(); setInterval(stamp, 1000);
+  function stamp() { try { var d = new Date(); var t = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); document.getElementById('d').innerHTML = '<span class="num">' + t + '</span><i class="vl"></i><span dir="rtl">' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2) + '</span><i class="vl"></i><span dir="rtl">' + new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + '</span>'; } catch (e) {} }
+  stamp(); setInterval(stamp, 15000);
   function stored() { try { return P.localStorage.getItem(KEY); } catch (e) { return null; } }
   function set(t) { if (!proot) return; if (t) proot.setAttribute('data-theme', t); else proot.removeAttribute('data-theme'); }
   if (stored()) set(stored());
