@@ -724,9 +724,11 @@ ALERTS_CSS = """
 
 # ───────────────────────── אחזקות ─────────────────────────
 
-def _money_cell(value: float, sym: str, with_sign: bool = False) -> str:
-    """סכום עם סמל מטבע קטן (₪ משמאל למספר, $ מימין) - לתאי הטבלה."""
+def _money_cell(value: float, sym: str, with_sign: bool = False, show_sym: bool = True) -> str:
+    """סכום עם סמל מטבע קטן (₪ משמאל למספר, $ מימין); show_sym=False - המספר בלבד (בתאי הטבלה עצמה)."""
     n = f'<span class="n">{num(signed(value) if with_sign else plain(value))}</span>'
+    if not show_sym:
+        return n
     c = f'<span class="cur">{sym}</span>'
     return f"{n}{c}" if sym == CCY_SYMBOL["USD"] else f"{c}{n}"
 
@@ -746,11 +748,11 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
     nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span></span>'
-    val = (f'<span class="c"><b>{_money_cell(value, sym)}</b>'
+    val = (f'<span class="c"><b>{_money_cell(value, sym, show_sym=False)}</b>'
            + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
-    pl = (f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True) if pnl_amt is not None else ""}</b>'
+    pl = (f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True, False) if pnl_amt is not None else ""}</b>'
           f'<small>{num(signed(pnl_pct, 1, "%"))}</small></span>')
-    day = (f'<span class="c {cls_for(day_pct)}"><b>{_money_cell(day_amt, sym, True) if day_amt is not None else ""}</b>'
+    day = (f'<span class="c {cls_for(day_pct)}"><b>{_money_cell(day_amt, sym, True, False) if day_amt is not None else ""}</b>'
            f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if day_pct is not None else '<span class="c"></span>'
     lines = []
     if tgt_gap is not None:
