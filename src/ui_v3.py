@@ -143,19 +143,17 @@ def money(n_html: str, sym: str) -> str:
 def portfolio_strip(value: float, count: int, pnl: float, pnl_pct: float,
                     day_change: float | None, day_pct: float | None, ccy: str, day_label: str = "שינוי יומי",
                     alloc_html: str = "") -> str:
+    # סכומים בלבד: בלי פס ההרכב ובלי שורת האחוזים מתחת לסכומים (הוסרו לבקשת המשתמש, 19.10.2026) - האחוזים בטבלת האחזקות שמתחת
     sym = CCY_SYMBOL.get(ccy, esc(ccy))
-    under = alloc_html or f'<em style="color:var(--dim)">{num(count)} אחזקות</em>'
     cells = [
-        f'<div><small>שווי תיק</small><strong>{money(num(plain(value)), sym)}</strong>{under}</div>',
-        f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl)}">{money(num(signed(pnl)), sym)}</strong>'
-        f'<em class="{cls_for(pnl)}">{num(signed(pnl_pct, 1, "%"))}</em></div>',
+        f'<div><small>שווי תיק</small><strong>{money(num(plain(value)), sym)}</strong></div>',
+        f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl)}">{money(num(signed(pnl)), sym)}</strong></div>',
     ]
-    if day_change is not None and day_pct is not None:
+    if day_change is not None:
         cells.append(
-            f'<div><small>{esc(day_label)}</small><strong class="{cls_for(day_change)}">{money(num(signed(day_change)), sym)}</strong>'
-            f'<em class="{cls_for(day_change)}">{num(signed(day_pct, 1, "%"))}</em></div>'
+            f'<div><small>{esc(day_label)}</small><strong class="{cls_for(day_change)}">{money(num(signed(day_change)), sym)}</strong></div>'
         )
-    return f'{head("התיק שלי")}<div class="kpi{" pstrip" if alloc_html else ""}">{"".join(cells)}</div>'
+    return f'{head("התיק שלי")}<div class="kpi">{"".join(cells)}</div>'
 
 
 _RING = (

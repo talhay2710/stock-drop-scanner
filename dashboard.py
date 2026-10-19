@@ -7664,10 +7664,6 @@ def _render_home_v3() -> None:
                 value[1], value[4], portfolio[1], portfolio[2],
                 today[1] if today else None, today[2] if today else None, ccy,
                 day_label="שינוי יומי",
-                alloc_html=ui_v3.allocation_bar([
-                    {"name": r["name"], "share": r.get("portfolio_pct") or 0.0, "pnl_pct": r["pnl_pct"]}
-                    for r in _home_rows if r.get("current_value")
-                ]),
             )
         minutes = scan_status.age_minutes(_scan_heartbeat_cached())
         radar_html = ui_v3.scanner_radar(scan_status.classify(minutes), minutes)
