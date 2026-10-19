@@ -297,19 +297,20 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
     for r in sorted(rows, key=lambda r: -r["pnl_pct"]):
         is_out = r.get("stop_pct") is not None and r["pnl_pct"] < r["stop_pct"]
         daily = r.get("daily_pct")
-        by_value = unit == "value" and r.get("pnl_amt") is not None
+        by_value = unit == "value" and r.get("value") is not None
         sym = CCY_SYMBOL.get(r.get("ccy") or "ILS", "₪")
         if daily is None:
             daily_html = '<span class="st"></span>'
         else:
             dtxt = money(num(signed(r["daily_amt"])), sym) if (by_value and r.get("daily_amt") is not None) else num(signed(daily, 1, "%"))
             daily_html = f'<span class="st {cls_for(daily)}">{dtxt}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
-        ptxt = money(num(signed(r["pnl_amt"])), sym) if by_value else num(signed(r["pnl_pct"], 1, "%"))
+        ptxt = money(num(plain(r["value"])), sym) if by_value else num(signed(r["pnl_pct"], 1, "%"))
+        pcls = "" if by_value else cls_for(r["pnl_pct"])  # שווי - ניטרלי, בלי צבע רווח/הפסד
         out.append(
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
-            f'<span class="pl {cls_for(r["pnl_pct"])}">{ptxt}</span>{daily_html}</div>'
+            f'<span class="pl {pcls}">{ptxt}</span>{daily_html}</div>'
         )
-    first = "סה\"כ" if unit == "value" else "תשואה"
+    first = "שווי" if unit == "value" else "תשואה"
     return f'<div class="rows"><div class="cap"><span></span><span>{first}</span><span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
 
 
