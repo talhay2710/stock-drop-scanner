@@ -7034,7 +7034,8 @@ def _render_journal_v3() -> None:
     _eq = _eq.dropna(subset=["_x"]).sort_values("_x")
     _eq["_c"] = _eq["net_pnl"].astype(float).cumsum()
     _eq_html = ui_v3.equity_curve(
-        [(r["_x"].strftime("%d.%m"), float(r["_c"])) for _, r in _eq.iterrows()],
+        [{"ts": r["_x"].timestamp(), "date": r["_x"].strftime("%d.%m"), "name": r["company_name"] or r["ticker"],
+          "net": float(r["net_pnl"]), "cum": float(r["_c"])} for _, r in _eq.iterrows()],
         ui_v3.CCY_SYMBOL.get(_dom, _dom),
     )
     st.markdown(f'<div class="v3h">{ui_v3.journal_kpi(cells)}</div>', unsafe_allow_html=True)

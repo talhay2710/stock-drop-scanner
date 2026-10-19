@@ -1033,40 +1033,79 @@ JOURNAL_KPI_CSS = """
 _OUTCOME_CLS = {"הגיע ליעד": "up", "רווח לפני היעד": "up", "פגע בסטופ": "down"}
 
 
-def equity_curve(points: list[tuple[str, float]], sym: str = "₪") -> str:
-    """עקומת רווח נקי מצטבר: points = [(תאריך סגירה dd.mm, ערך מצטבר)] לפי סדר כרונולוגי. קו עדין, נקודה לכל עסקה, קו אפס מקווקו, שטח צבוע מעל/מתחת לאפס."""
+def _nice_ticks(lo: float, hi: float, want: int = 4) -> list[float]:
+    raw = (hi - lo) / max(want, 1)
+    if raw <= 0:
+        return [0.0]
+    mag = 10 ** math.floor(math.log10(raw))
+    step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
+    t = math.ceil(lo / step) * step
+    out = []
+    while t <= hi + 1e-9:
+        out.append(round(t, 6))
+        t += step
+    return out
+
+
+def equity_curve(points: list[dict], sym: str = "₪") -> str:
+    """עקומת רווח נקי מצטבר. points (לפי סדר כרונולוגי): {ts: חותמת זמן, date: 'dd.mm', name, net: רווח העסקה, cum: מצטבר}.
+    כל נקודה = עסקה שנסגרה; גובה הנקודה = הרווח הנקי המצטבר עד אליה; ריחוף מציג את פרטי העסקה. צירי ערך ותאריך, קו אפס, תווית סכום בקצה."""
     if len(points) < 2:
         return ""
-    vals = [v for _, v in points]
+    vals = [p["cum"] for p in points]
     lo, hi = min(min(vals), 0.0), max(max(vals), 0.0)
     if hi - lo < 1:
         hi, lo = hi + 1, lo - 1
-    pad = (hi - lo) * 0.12
+    pad = (hi - lo) * 0.10
     lo, hi = lo - pad, hi + pad
-    W, H, T, B = 900, 170, 10, 160
+    t0, t1 = points[0]["ts"], points[-1]["ts"]
+    span = (t1 - t0) or 1.0
 
-    def yv(v: float) -> float:
-        return T + (hi - v) / (hi - lo) * (B - T)
+    def px(t: float) -> float:  # אחוז רוחב (עם שוליים כדי שנקודות הקצה לא ייחתכו)
+        return 1.5 + 97.0 * (t - t0) / span
 
-    n = len(points)
-    xs = [4 + i * (W - 8) / (n - 1) for i in range(n)]
-    pts = [(x, yv(v)) for x, (_, v) in zip(xs, points)]
-    y0 = yv(0.0)
+    def py(v: float) -> float:  # אחוז גובה
+        return (hi - v) / (hi - lo) * 100.0
+
     col = "var(--gain)" if vals[-1] >= 0 else "var(--loss)"
-    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-    area = f'<polygon points="{xs[0]:.1f},{y0:.1f} {poly} {xs[-1]:.1f},{y0:.1f}" fill="{col}" fill-opacity=".10"/>'
-    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" fill="{col}"><title>{esc(d)} · {signed(v)}</title></circle>' for (x, y), (d, v) in zip(pts, points))
+    W, H = 1000, 100
+    coords = [(px(p["ts"]) * W / 100.0, py(p["cum"]) * H / 100.0) for p in points]
+    poly = " ".join(f"{x:.1f},{y:.2f}" for x, y in coords)
+    y0 = py(0.0) * H / 100.0
+    area = f'<polygon points="{coords[0][0]:.1f},{y0:.2f} {poly} {coords[-1][0]:.1f},{y0:.2f}" fill="{col}" fill-opacity=".09"/>'
+    ticks = _nice_ticks(lo, hi)
+    grid = "".join(
+        f'<line x1="0" y1="{py(t) * H / 100:.2f}" x2="{W}" y2="{py(t) * H / 100:.2f}" stroke="var(--rule-strong)" '
+        f'stroke-opacity="{1 if abs(t) < 1e-9 else .35}" stroke-width="1" stroke-dasharray="{"3 5" if abs(t) < 1e-9 else "1 4"}" vector-effect="non-scaling-stroke"/>'
+        for t in ticks
+    )
+    ylab = "".join(
+        f'<span class="eqy" style="top:{py(t):.2f}%">{num(("0" if abs(t) < 1e-9 else f"{t:,.0f}"))}</span>' for t in ticks
+    )
+    dots = []
+    for p, (x, y) in zip(points, coords):
+        cls = "up" if p["net"] >= 0 else "down"
+        tip = f'{p["name"]} · נסגרה {p["date"]}&#10;רווח העסקה: {signed(p["net"])} {sym}&#10;מצטבר: {signed(p["cum"])} {sym}'
+        dots.append(f'<i class="eqd {cls}" style="left:{x / W * 100:.2f}%;top:{y / H * 100:.2f}%" title="{tip}"></i>')
+    # תוויות תאריך: עד חמש, במרחק מינימלי זו מזו
+    xl, last_x = [], -100.0
+    for p in points:
+        x = px(p["ts"])
+        if x - last_x >= 17:
+            xl.append(f'<span style="left:{x:.2f}%">{num(p["date"])}</span>')
+            last_x = x
     end = vals[-1]
-    # הסכום הסופי כתווית בקצה העקומה (₪ משמאל למספר), מעל הנקודה האחרונה - ומתחתיה אם היא קרובה לקצה העליון
-    ey = pts[-1][1] / H * 150 + 14
-    below = " below" if ey < 30 else ""
-    label = f'<span class="eqv {cls_for(end)}{below}" style="top:{ey:.1f}px">{sym} {num(signed(end))}</span>'
+    ey = py(end)
+    below = " below" if ey < 16 else ""
+    label = f'<span class="eqv {cls_for(end)}{below}" style="top:{ey:.2f}%">{sym} {num(signed(end))}</span>'
+    sub = '<span class="hsub">כל נקודה = עסקה שנסגרה · הגובה = הרווח הנקי המצטבר עד אליה</span>'
     return (
-        f'{head("רווח נקי מצטבר")}'
-        f'<div class="eq">{label}<svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח נקי מצטבר">'
-        f'<line x1="0" y1="{y0:.1f}" x2="{W}" y2="{y0:.1f}" stroke="var(--rule-strong)" stroke-dasharray="3 5"/>'
-        f'{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>{dots}</svg>'
-        f'<div class="eqx"><span>{num(points[0][0])}</span><span>{num(points[-1][0])}</span></div></div>'
+        f'{head("רווח נקי מצטבר", sub)}'
+        f'<div class="eq"><div class="eqp"><div class="eqyl">{ylab}</div>'
+        f'<div class="eqa"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח נקי מצטבר">'
+        f'{grid}{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>'
+        f'{"".join(dots)}{label}</div></div>'
+        f'<div class="eqx"><div class="eqxl">{"".join(xl)}</div></div></div>'
     )
 
 
@@ -1103,13 +1142,21 @@ def journal_table(rows: list[dict]) -> str:
 
 JOURNAL_CSS = """
         .v3h .tablewrap { overflow-x:auto; }
-        .v3h .eq { position:relative; padding:14px 0 6px; }
-        .v3h .eq svg { display:block; width:100%; height:150px; overflow:visible; }
-        .v3h .eqv { position:absolute; right:0; transform:translateY(-135%); direction:ltr; font-size:14px; white-space:nowrap; background:var(--v3-bg); padding:0 4px; border-radius:3px; z-index:1; }
-        .v3h .eqv.below { transform:translateY(55%); }
+        .v3h .eq { padding:14px 0 6px; }
+        .v3h .eqp { display:flex; direction:ltr; height:190px; }
+        .v3h .eqyl { position:relative; flex:none; width:56px; }
+        .v3h .eqy { position:absolute; right:8px; transform:translateY(-50%); font-size:12px; color:var(--dim); white-space:nowrap; }
+        .v3h .eqa { position:relative; flex:1 1 auto; }
+        .v3h .eqa svg { display:block; width:100%; height:100%; overflow:visible; }
+        .v3h .eqd { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; background:var(--v3-bg); border:1.6px solid var(--dim); cursor:default; box-sizing:border-box; }
+        .v3h .eqd::after { content:''; position:absolute; inset:-7px; }
+        .v3h .eqd.up { border-color:var(--gain); background:var(--gain); } .v3h .eqd.down { border-color:var(--loss); background:var(--loss); }
+        .v3h .eqv { position:absolute; right:0; transform:translateY(-150%); direction:ltr; font-size:14px; white-space:nowrap; background:var(--v3-bg); padding:0 4px; border-radius:3px; z-index:1; pointer-events:none; }
+        .v3h .eqv.below { transform:translateY(60%); }
         .v3h .eqv.up { color:var(--gain); } .v3h .eqv.down { color:var(--loss); }
-        .v3h .eq svg circle { vector-effect:non-scaling-stroke; }
-        .v3h .eqx { display:flex; justify-content:space-between; direction:ltr; font-size:12px; color:var(--dim); padding-top:6px; }
+        .v3h .eqx { padding-top:8px; padding-inline-start:0; direction:ltr; }
+        .v3h .eqxl { position:relative; height:16px; margin-left:56px; font-size:12px; color:var(--dim); }
+        .v3h .eqxl span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
         .v3h .head .hs { font-size:16px; direction:ltr; } .v3h .head .hs.up { color:var(--gain); } .v3h .head .hs.down { color:var(--loss); }
         .v3h table.jr, .v3h table.tb { border:0 !important; }
         .v3h .jr th, .v3h .jr td, .v3h .tb th, .v3h .tb td { border-top:0 !important; border-inline:0 !important; }  /* קווים אופקיים בלבד (ברירת המחדל של markdown מציירת רשת מלאה) */
