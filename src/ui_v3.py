@@ -284,8 +284,8 @@ def stop_target_ladder(rows: list[dict]) -> str:
             f'<div class="lt">{seg_l}{seg_g}{ticks}<b class="mk {cls}" style="left:{x(pnl):.2f}%"></b></div>'
             f'<span class="lv {cls_for(pnl)}">{num(signed(pnl, 1, "%"))}</span></div>'
         )
-    legend = ('<div class="lg"><span><i class="tk s"></i>סטופ</span><span><i class="tk"></i>כניסה</span>'
-              '<span><i class="tk t"></i>יעד</span><span><b class="mk"></b>מצב נוכחי</span></div>')
+    legend = ('<div class="lg"><span><b class="mk"></b>מצב נוכחי</span><span><i class="tk"></i>כניסה</span>'
+              '<span><i class="tk t"></i>יעד</span><span><i class="tk s"></i>סטופ</span></div>')
     return f'<section class="block">{head("מיקום מול סטופ ויעד")}{legend}<div class="ladder">{"".join(out)}</div></section>'
 
 
@@ -1009,7 +1009,7 @@ def holding_detail(cost: str, qty: str, fees_txt: str, bought: str, signal: tupl
 
 
 HOLDINGS_CSS = """
-        .v3h .lg { display:flex; gap:22px; margin:14px 0 6px; font-size:13px; color:var(--dim); direction:ltr; justify-content:flex-end; }
+        .v3h .lg { display:flex; gap:22px; margin:14px 0 6px; font-size:13px; color:var(--dim); direction:rtl; justify-content:flex-start; }
         .v3h .lg span { display:inline-flex; align-items:center; gap:7px; }
         .v3h .lg .tk { display:inline-block; position:static; width:2px; height:12px; background:var(--dim); }
         .v3h .lg .tk.s { background:var(--loss); } .v3h .lg .tk.t { background:var(--gain); }
