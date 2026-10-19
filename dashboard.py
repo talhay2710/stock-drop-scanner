@@ -7555,9 +7555,10 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
     for r in rows:
         o = (open_map or {}).get(r.get("ticker"))
         if o and len(o) >= 5 and o[2] == dt.date.today():
-            if o[3]:
+            d = r.get("daily_pct")
+            if o[3] and d is not None and d > 0:  # שיא יומי רק כשהמניה גם ירוקה, שפל רק כשהיא גם אדומה - אחרת ההודעה מטעה
                 highlow.append(("gain", r["name"], "במחיר הגבוה של היום"))
-            elif o[4]:
+            elif o[4] and d is not None and d < 0:
                 highlow.append(("loss", r["name"], "במחיר הנמוך של היום"))
     # ימי החזקה מול אופק האסטרטגיה
     for r in rows:
