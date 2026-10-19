@@ -258,7 +258,7 @@ def holdings_rows(rows: list[dict]) -> str:
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
             f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>{daily_html}</div>'
         )
-    return f'<div class="rows"><div class="cap"><span></span><span>כולל</span><span>יומי</span></div>' + "".join(out) + "</div>"
+    return f'<div class="rows"><div class="cap"><span></span><span>תשואה</span><span>שינוי יומי</span></div>' + "".join(out) + "</div>"
 
 
 def holdings_section(rows: list[dict], step: float = 3.0) -> str:
