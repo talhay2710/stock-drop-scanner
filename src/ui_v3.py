@@ -1101,7 +1101,8 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         for t in ticks
     )
     ylab = "".join(
-        f'<span class="eqy" style="top:{py(t):.2f}%">{num(("0" if abs(t) < 1e-9 else f"{t:,.0f}"))}</span>' for t in ticks
+        f'<span class="eqy" style="top:{py(t):.2f}%">{sym + " " if t == ticks[-1] else ""}{num(("0" if abs(t) < 1e-9 else f"{t:,.0f}"))}</span>'
+        for t in ticks
     )
     dots = []
     for p, (x, y) in zip(points, coords):
@@ -1167,7 +1168,7 @@ JOURNAL_CSS = """
         .v3h .tablewrap { overflow-x:auto; }
         .v3h .eq { padding:14px 0 6px; }
         .v3h .eqp { display:flex; direction:ltr; height:190px; }
-        .v3h .eqyl { position:relative; flex:none; width:56px; }
+        .v3h .eqyl { position:relative; flex:none; width:64px; }
         .v3h .eqy { position:absolute; right:8px; transform:translateY(-50%); font-size:12px; color:var(--dim); white-space:nowrap; }
         .v3h .eqa { position:relative; flex:1 1 auto; }
         .v3h .eqa svg { display:block; width:100%; height:100%; overflow:visible; }
@@ -1185,7 +1186,7 @@ JOURNAL_CSS = """
         .v3h .eqv.below { transform:translateY(60%); }
         .v3h .eqv.up { color:var(--gain); } .v3h .eqv.down { color:var(--loss); }
         .v3h .eqx { padding-top:8px; padding-inline-start:0; direction:ltr; }
-        .v3h .eqxl { position:relative; height:16px; margin-left:56px; font-size:12px; color:var(--dim); }
+        .v3h .eqxl { position:relative; height:16px; margin-left:64px; font-size:12px; color:var(--dim); }
         .v3h .eqxl span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
         .v3h .head .hs { font-size:16px; direction:ltr; } .v3h .head .hs.up { color:var(--gain); } .v3h .head .hs.down { color:var(--loss); }
         .v3h table.jr, .v3h table.tb { border:0 !important; }
