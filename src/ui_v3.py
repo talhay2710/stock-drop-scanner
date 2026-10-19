@@ -298,15 +298,14 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
         is_out = r.get("stop_pct") is not None and r["pnl_pct"] < r["stop_pct"]
         daily = r.get("daily_pct")
         by_value = unit == "value" and r.get("pnl_amt") is not None
-        sym = CCY_SYMBOL.get(r.get("ccy") or "ILS", "₪")
         if daily is None:
             daily_html = '<span class="st"></span>'
         else:
-            dtxt = money(num(signed(r["daily_amt"])), sym) if (by_value and r.get("daily_amt") is not None) else num(signed(daily, 1, "%"))
+            dtxt = num(signed(r["daily_amt"])) if (by_value and r.get("daily_amt") is not None) else num(signed(daily, 1, "%"))
             daily_html = f'<span class="st {cls_for(daily)}">{dtxt}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
         if by_value:
             # מצב ₪: רווח/הפסד מהקנייה בשקלים | שינוי היום בשקלים
-            pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{money(num(signed(r["pnl_amt"])), sym)}</span>'
+            pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_amt"]))}</span>'
         else:
             pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>'
         out.append(
