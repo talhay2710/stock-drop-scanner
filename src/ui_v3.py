@@ -244,6 +244,24 @@ def daily_head_text(head_date) -> str:
     return "יומי"
 
 
+def _daily_col_label(dates) -> str:
+    """כותרת עמודת השינוי היומי: "היום" כשהנתון הוא של היום; ביום בלי מסחר (סוף שבוע/חג/לפני הפתיחה) - תאריך הנתון האחרון (dd.mm)."""
+    import datetime as _dt
+    import pandas as _pd
+    ds = []
+    for d in dates:
+        try:
+            t = _pd.to_datetime(d, errors="coerce")
+        except Exception:
+            continue
+        if _pd.notna(t):
+            ds.append(t.date())
+    if not ds:
+        return "היום"
+    last = max(ds)
+    return "היום" if last >= _dt.date.today() else last.strftime("%d.%m")
+
+
 def holdings_rows(rows: list[dict]) -> str:
     out = []
     head_date = daily_head_date([r.get("daily_pct_date") for r in rows])
@@ -258,7 +276,7 @@ def holdings_rows(rows: list[dict]) -> str:
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
             f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>{daily_html}</div>'
         )
-    return f'<div class="rows"><div class="cap"><span></span><span>תשואה</span><span>שינוי יומי</span></div>' + "".join(out) + "</div>"
+    return f'<div class="rows"><div class="cap"><span></span><span>תשואה</span><span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
 
 
 def holdings_section(rows: list[dict], step: float = 3.0) -> str:
