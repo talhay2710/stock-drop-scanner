@@ -1033,6 +1033,9 @@ JOURNAL_KPI_CSS = """
 _OUTCOME_CLS = {"הגיע ליעד": "up", "רווח לפני היעד": "up", "פגע בסטופ": "down"}
 
 
+_HE_MONTHS = ("ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני", "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'")
+
+
 def _nice_ticks(lo: float, hi: float, want: int = 4) -> list[float]:
     raw = (hi - lo) / max(want, 1)
     if raw <= 0:
@@ -1093,13 +1096,14 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
             f'<span>מצטבר<em class="{cls_for(p["cum"])}">{sym} {num(signed(p["cum"]))}</em></span></b>'
         )
         dots.append(f'<i class="eqd {cls}{side}" style="left:{xp:.2f}%;top:{y / H * 100:.2f}%">{tip}</i>')
-    # תוויות תאריך: עד חמש, במרחק מינימלי זו מזו
-    xl, last_x = [], -100.0
-    for p in points:
-        x = px(p["ts"])
-        if x - last_x >= 17:
-            xl.append(f'<span style="left:{x:.2f}%">{num(p["date"])}</span>')
-            last_x = x
+    # ציר תחתון: חודש ושנה (אוק' 26) - מיקום לפי תחילת החודש, ובחודש הראשון לפי תחילת הטווח
+    from datetime import datetime as _dtm
+    first, last = _dtm.fromtimestamp(t0), _dtm.fromtimestamp(t1)
+    xl, y_, m_ = [], first.year, first.month
+    while (y_, m_) <= (last.year, last.month):
+        ts_m = max(_dtm(y_, m_, 1).timestamp(), t0)
+        xl.append(f'<span style="left:{px(ts_m):.2f}%"><bdi dir="rtl">{_HE_MONTHS[m_ - 1]} {y_ % 100:02d}</bdi></span>')
+        y_, m_ = (y_ + 1, 1) if m_ == 12 else (y_, m_ + 1)
     return (
         f'{head("רווח נקי מצטבר")}'
         f'<div class="eq"><div class="eqp"><div class="eqyl">{ylab}</div>'
