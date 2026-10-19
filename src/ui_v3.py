@@ -1085,8 +1085,14 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
     dots = []
     for p, (x, y) in zip(points, coords):
         cls = "up" if p["net"] >= 0 else "down"
-        tip = f'{p["name"]} · נסגרה {p["date"]}&#10;רווח העסקה: {signed(p["net"])} {sym}&#10;מצטבר: {signed(p["cum"])} {sym}'
-        dots.append(f'<i class="eqd {cls}" style="left:{x / W * 100:.2f}%;top:{y / H * 100:.2f}%" title="{tip}"></i>')
+        xp = x / W * 100
+        side = " r" if xp > 72 else (" l" if xp < 28 else "")
+        tip = (
+            f'<b class="eqt"><span class="t">{esc(p["name"])} · {num(p["date"])}</span>'
+            f'<span>רווח העסקה<em class="{cls}">{sym} {num(signed(p["net"]))}</em></span>'
+            f'<span>מצטבר<em class="{cls_for(p["cum"])}">{sym} {num(signed(p["cum"]))}</em></span></b>'
+        )
+        dots.append(f'<i class="eqd {cls}{side}" style="left:{xp:.2f}%;top:{y / H * 100:.2f}%">{tip}</i>')
     # תוויות תאריך: עד חמש, במרחק מינימלי זו מזו
     xl, last_x = [], -100.0
     for p in points:
@@ -1094,17 +1100,12 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         if x - last_x >= 17:
             xl.append(f'<span style="left:{x:.2f}%">{num(p["date"])}</span>')
             last_x = x
-    end = vals[-1]
-    ey = py(end)
-    below = " below" if ey < 16 else ""
-    label = f'<span class="eqv {cls_for(end)}{below}" style="top:{ey:.2f}%">{sym} {num(signed(end))}</span>'
-    sub = '<span class="hsub">כל נקודה = עסקה שנסגרה · הגובה = הרווח הנקי המצטבר עד אליה</span>'
     return (
-        f'{head("רווח נקי מצטבר", sub)}'
+        f'{head("רווח נקי מצטבר")}'
         f'<div class="eq"><div class="eqp"><div class="eqyl">{ylab}</div>'
         f'<div class="eqa"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח נקי מצטבר">'
         f'{grid}{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>'
-        f'{"".join(dots)}{label}</div></div>'
+        f'{"".join(dots)}</div></div>'
         f'<div class="eqx"><div class="eqxl">{"".join(xl)}</div></div></div>'
     )
 
@@ -1150,6 +1151,13 @@ JOURNAL_CSS = """
         .v3h .eqa svg { display:block; width:100%; height:100%; overflow:visible; }
         .v3h .eqd { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; background:var(--v3-bg); border:1.6px solid var(--dim); cursor:default; box-sizing:border-box; }
         .v3h .eqd::after { content:''; position:absolute; inset:-7px; }
+        .v3h .eqt { display:none; position:absolute; bottom:calc(100% + 9px); left:50%; transform:translateX(-50%); z-index:5; min-width:150px; direction:rtl; text-align:right; padding:8px 12px; background:var(--v3-surface); border:1px solid var(--rule-strong); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,.12); font-style:normal; font-weight:400; font-size:13px; line-height:1.5; color:var(--v3-soft); white-space:nowrap; }
+        .v3h .eqd.l .eqt { left:-8px; transform:none; } .v3h .eqd.r .eqt { left:auto; right:-8px; transform:none; }
+        .v3h .eqd:hover { z-index:6; } .v3h .eqd:hover .eqt { display:block; }
+        .v3h .eqt > span { display:flex; justify-content:space-between; align-items:baseline; gap:18px; }
+        .v3h .eqt > .t { font-weight:500; color:var(--ink); margin-bottom:2px; display:block; }
+        .v3h .eqt em { font-style:normal; direction:ltr; white-space:nowrap; display:inline-block; } .v3h .eqt em .num { display:inline; }
+        .v3h .eqt em.up { color:var(--gain); } .v3h .eqt em.down { color:var(--loss); }
         .v3h .eqd.up { border-color:var(--gain); background:var(--gain); } .v3h .eqd.down { border-color:var(--loss); background:var(--loss); }
         .v3h .eqv { position:absolute; right:0; transform:translateY(-150%); direction:ltr; font-size:14px; white-space:nowrap; background:var(--v3-bg); padding:0 4px; border-radius:3px; z-index:1; pointer-events:none; }
         .v3h .eqv.below { transform:translateY(60%); }
