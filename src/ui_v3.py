@@ -103,34 +103,21 @@ def notice(name: str, gap_pct: float, is_target: bool) -> str:
     color = "var(--gain)" if is_target else "var(--loss)"
     return (
         f'<div class="notice"><i style="background:{color}"></i>'
-        f'<span><b>{esc(short_name(name))}</b> {what} ב־{num(f"{abs(gap_pct):.1f}%")}</span></div>'
+        f'<span><b>{esc(short_name(name))}</b> {what} ב-{num(f"{abs(gap_pct):.1f}%")}</span></div>'
     )
 
 
 _NOTICE_COLORS = {"loss": "var(--loss)", "gain": "var(--gain)", "warn": "var(--v3-warn)", "info": "var(--dim)"}
-NOTICE_SECONDS = 6
 
 
-def notices(items: list[tuple[str, str, str]]) -> str:
-    """הודעות מתחלפות בראש עמוד הבית. items: [(kind loss|gain|warn|info, name, text_html)]. הודעה אחת = סטטית; כמה = מתחלפות כל NOTICE_SECONDS שניות (CSS בלבד)."""
+def notices(items: list[tuple[str, str, str]], minute: int = 0) -> str:
+    """הודעה אחת בראש עמוד הבית, מתחלפת כל דקה: items: [(kind loss|gain|warn|info, name, text_html)], minute = מספר הדקה הנוכחי.
+    הרענון כל 60 שניות (fragment) מציג כל פעם את ההודעה הבאה בתור."""
     if not items:
         return ""
-    def one(kind: str, name: str, text: str, extra: str = "") -> str:
-        b = f"<b>{esc(short_name(name))}</b> " if name else ""
-        return f'<div class="notice"{extra}><i style="background:{_NOTICE_COLORS.get(kind, "var(--dim)")}"></i><span>{b}{text}</span></div>'
-    if len(items) == 1:
-        return one(*items[0])
-    n = len(items)
-    win = 100.0 / n
-    kf = (
-        f"@keyframes ntcrot{n}{{0%{{opacity:0;visibility:hidden}}2%{{opacity:1;visibility:visible}}{win - 2:.2f}%{{opacity:1;visibility:visible}}"
-        f"{win:.2f}%{{opacity:0;visibility:hidden}}100%{{opacity:0;visibility:hidden}}}}"
-    )
-    slides = "".join(one(*it, extra=f' style="animation-delay:{i * NOTICE_SECONDS}s"') for i, it in enumerate(items))
-    return (
-        f'<style>{kf}.v3h .notice-rot.n{n} > .notice{{animation:ntcrot{n} {n * NOTICE_SECONDS}s infinite backwards}}</style>'
-        f'<div class="notice-rot n{n}">{slides}</div>'
-    )
+    kind, name, text = items[minute % len(items)]
+    b = f"<b>{esc(short_name(name))}</b> " if name else ""
+    return f'<div class="notice"><i style="background:{_NOTICE_COLORS.get(kind, "var(--dim)")}"></i><span>{b}{text}</span></div>'
 
 
 def money(n_html: str, sym: str) -> str:
@@ -409,8 +396,6 @@ COMPONENT_CSS = """
         .v3h .notice { display:flex; align-items:center; flex-wrap:wrap; gap:6px 14px; padding:12px 16px; border:1px solid var(--rule); border-radius:6px; background:var(--surface); font-size:15px; }
         .v3h .notice i { width:8px; height:8px; display:inline-block; }
         .v3h .notice b { font-weight:600; }
-        .v3h .notice-rot { display:grid; }
-        .v3h .notice-rot > .notice { grid-area:1 / 1; opacity:0; visibility:hidden; }
         .v3h .topzone { display:flex; align-items:center; gap:56px; margin-top:24px; }
         .v3h .topmain { flex:1 1 auto; min-width:0; }
         .v3h .radar-solo { flex:none; width:230px; }

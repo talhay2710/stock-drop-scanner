@@ -7420,7 +7420,7 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
         if stop and cur is not None:
             gap = stop_distance_pct(cur, stop)
             if gap < 0:
-                out.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב־{N(f'{abs(gap):.1f}%')}"))
+                out.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב-{N(f'{abs(gap):.1f}%')}"))
             elif gap <= 2.0:
                 near_stop.append((gap, r["name"]))
         pnl, tgt = r.get("pnl_pct"), strategy_mod.target_pct()
@@ -7439,11 +7439,11 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
     if movers:
         up, down = max(movers), min(movers)
         if up[0] >= 2.0:
-            out.append(("gain", up[1], f"עלתה {N(f'{up[0]:.1f}%')} היום"))
+            out.append(("gain", up[1], f"עלתה היום ב-{N(f'{up[0]:.1f}%')}"))
         if down[0] <= -2.0 and down != up:
-            out.append(("loss", down[1], f"ירדה {N(f'{abs(down[0]):.1f}%')} היום"))
+            out.append(("loss", down[1], f"ירדה היום ב-{N(f'{abs(down[0]):.1f}%')}"))
     if day_pct is not None and abs(day_pct) >= 1.0:
-        out.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} {N(f'{abs(day_pct):.1f}%')} היום"))
+        out.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} היום ב-{N(f'{abs(day_pct):.1f}%')}"))
     try:
         if fresh_alerts is not None and not fresh_alerts.empty and "scan_ts" in fresh_alerts.columns:
             ts = pd.to_datetime(fresh_alerts["scan_ts"], utc=True, errors="coerce")
@@ -7464,7 +7464,7 @@ def _render_home_v3() -> None:
         holdings = fresh[fresh.get("bought") == 1] if (not fresh.empty and "bought" in fresh.columns) else pd.DataFrame()
         portfolio, today, value, proximity, _exposure = _compute_portfolio_summaries(holdings)
         _home_rows = _build_holding_rows(holdings) if not holdings.empty else []
-        notice_html = ui_v3.notices(_home_notice_items(_home_rows, today[2] if today else None, fresh))
+        notice_html = ui_v3.notices(_home_notice_items(_home_rows, today[2] if today else None, fresh), int(dt.datetime.now().timestamp() // 60))
         strip_html = ""
         if portfolio and value:
             ccy = "USD" if portfolio[3] == "$" else "ILS"
