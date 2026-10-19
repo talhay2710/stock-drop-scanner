@@ -297,7 +297,7 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
     for r in sorted(rows, key=lambda r: -r["pnl_pct"]):
         is_out = r.get("stop_pct") is not None and r["pnl_pct"] < r["stop_pct"]
         daily = r.get("daily_pct")
-        by_value = unit == "value" and r.get("value") is not None
+        by_value = unit == "value" and r.get("pnl_amt") is not None
         sym = CCY_SYMBOL.get(r.get("ccy") or "ILS", "₪")
         if daily is None:
             daily_html = '<span class="st"></span>'
@@ -305,21 +305,17 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
             dtxt = money(num(signed(r["daily_amt"])), sym) if (by_value and r.get("daily_amt") is not None) else num(signed(daily, 1, "%"))
             daily_html = f'<span class="st {cls_for(daily)}">{dtxt}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
         if by_value:
-            # מצב ₪: שווי (ניטרלי) | רווח/הפסד מהקנייה | שינוי היום
-            pl_html = (
-                f'<span class="pl">{money(num(plain(r["value"])), sym)}</span>'
-                f'<span class="pl {cls_for(r["pnl_pct"])}">{money(num(signed(r["pnl_amt"])), sym) if r.get("pnl_amt") is not None else ""}</span>'
-            )
+            # מצב ₪: רווח/הפסד מהקנייה בשקלים | שינוי היום בשקלים
+            pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{money(num(signed(r["pnl_amt"])), sym)}</span>'
         else:
             pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>'
         out.append(
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
             f'{pl_html}{daily_html}</div>'
         )
-    wide = unit == "value" and any(r.get("value") is not None for r in rows)
-    first = "<span>שווי</span><span>רווח/הפסד</span>" if wide else "<span>תשואה</span>"
+    first = "<span>רווח/הפסד</span>" if unit == "value" else "<span>תשואה</span>"
     return (
-        f'<div class="rows{" v4" if wide else ""}"><div class="cap"><span></span>{first}'
+        f'<div class="rows"><div class="cap"><span></span>{first}'
         f'<span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
     )
 
@@ -451,7 +447,6 @@ COMPONENT_CSS = """
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
         .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 10px 10px; border-bottom:1px solid var(--rule); }
         .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 10px; border-bottom:1px solid var(--rule); }
-        .v3h .rows.v4 .cap, .v3h .rows.v4 .row { grid-template-columns:1fr 78px 78px 72px; gap:8px; }
         .v3h .row:hover { background:var(--hover); }
         .v3h .row .nm { font-size:17px; }
         .v3h .row .pl { font-size:17px; }
