@@ -307,7 +307,7 @@ _V3_CSS = """
             color: var(--v3-accent) !important; font-weight: 500 !important; border-bottom-color: var(--v3-accent) !important;
         }
         div[class*="st-key-navtab_"] button p { font-size: inherit !important; font-weight: inherit !important; }
-        .v3brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 19px; color: var(--v3-ink) !important;
+        .v3brand { display: inline-flex; align-items: center; gap: 10px; position: relative; top: 3px; font-weight: 600; font-size: 19px; color: var(--v3-ink) !important;
                    text-decoration: none !important; letter-spacing: -0.01em; white-space: nowrap; }
         .v3brand svg circle { stroke: var(--v3-accent); }
         .v3brand svg circle.dot { fill: var(--v3-accent); stroke: none; }
