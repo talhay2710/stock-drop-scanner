@@ -4595,7 +4595,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     _restore_filter_prefs({
         "alerts_filter_sig": ("כל הסיגנלים", ["לקנות", "לחכות", "לא לקנות", "כל הסיגנלים"]),
         "alerts_filter_mkt": ("כל השווקים", ['בורסת ת"א', "וול סטריט", "כל השווקים"]),
-        "alerts_sort_mode": ("זמן", ["סיווג", "זמן"]),
+        "alerts_sort_mode": ("זמן", ["סיגנל", "זמן"]),
     })
     # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה) - כשהלוח סגור הוא מוסתר ב-CSS
     st.markdown(
@@ -4634,7 +4634,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     st.session_state["alerts_sort_mode"] = "זמן"
 
             _sort_mode = st.segmented_control(
-                "מיון", ["סיווג", "זמן"], selection_mode="single", key="alerts_sort_mode", label_visibility="collapsed", on_change=_keep_sort,
+                "מיון", ["סיגנל", "זמן"], selection_mode="single", key="alerts_sort_mode", label_visibility="collapsed", on_change=_keep_sort,
             ) or "זמן"
     _save_filter_prefs(("alerts_filter_sig", "alerts_filter_mkt", "alerts_sort_mode"))
 
@@ -4643,7 +4643,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         shown = [i for i in shown if i["is_il"]]
     elif _mkt_filter == "וול סטריט":
         shown = [i for i in shown if not i["is_il"]]
-    if _sort_mode == "סיווג":
+    if _sort_mode == "סיגנל":
         shown.sort(key=lambda i: (-i["score"], -abs(i["row"]["pct_change"]), -(i["ts"].value if pd.notna(i["ts"]) else 0)))
     else:
         shown.sort(key=lambda i: -(i["ts"].value if pd.notna(i["ts"]) else 0))
@@ -5024,8 +5024,8 @@ with _tab_slot_today.container():
                 todays_display_src["_is_new"] = (
                     (pd.Timestamp.now(tz="UTC") - todays_display_src["_ts"]) <= pd.Timedelta(minutes=30)
                 ).fillna(False).astype(bool)
-                _sort_mode = st.session_state.get("alerts_sort_mode", "סיווג")
-                if _sort_mode == "סיווג":
+                _sort_mode = st.session_state.get("alerts_sort_mode", "סיגנל")
+                if _sort_mode == "סיגנל":
                     todays_display_src = todays_display_src.sort_values(
                         ["_score", "_drop", "_ts"], ascending=[False, False, False], na_position="last",
                     )
@@ -5119,7 +5119,7 @@ with _tab_slot_today.container():
                             st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
                             # מתג המיון - מיד מתחת לכותרת (7.10.2026)
                             st.radio(
-                                "מיון", ["סיווג", "זמן"], horizontal=True, key="alerts_sort_mode",
+                                "מיון", ["סיגנל", "זמן"], horizontal=True, key="alerts_sort_mode",
                                 label_visibility="collapsed",
                             )
                             # שם המניה הוא כפתור Streamlit אמיתי (מעוצב כמו קישור, לא

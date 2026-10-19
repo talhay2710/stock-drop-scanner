@@ -540,7 +540,7 @@ _CHEV = (
 
 
 def alerts_header() -> str:
-    cols = ["מניה", "שינוי בהתראה", "שינוי נוכחי", "סיווג", "ניקוד", "כניסה", "יעד", "סטופ", "שעה"]
+    cols = ["מניה", "שינוי בהתראה", "שינוי נוכחי", "סיגנל", "ניקוד", "כניסה", "יעד", "סטופ", "שעה"]
     return '<div class="arow ahead">' + "".join(f'<span{" class=\"x\"" if 4 <= i <= 7 else ""}>{c}</span>' for i, c in enumerate(cols)) + "</div>"
 
 
