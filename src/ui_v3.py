@@ -1078,7 +1078,7 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
     area = f'<polygon points="{coords[0][0]:.1f},{y0:.2f} {poly} {coords[-1][0]:.1f},{y0:.2f}" fill="{col}" fill-opacity=".09"/>'
     ticks = _nice_ticks(lo, hi)
     grid = "".join(
-        f'<line x1="0" y1="{py(t) * H / 100:.2f}" x2="{W}" y2="{py(t) * H / 100:.2f}" stroke="var(--rule-strong)" '
+        f'<line x1="0" y1="{py(t) * H / 100:.2f}" x2="{coords[-1][0]:.1f}" y2="{py(t) * H / 100:.2f}" stroke="var(--rule-strong)" '
         f'stroke-opacity="{1 if abs(t) < 1e-9 else .35}" stroke-width="1" stroke-dasharray="{"3 5" if abs(t) < 1e-9 else "1 4"}" vector-effect="non-scaling-stroke"/>'
         for t in ticks
     )
