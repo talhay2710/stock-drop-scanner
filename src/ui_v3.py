@@ -1111,8 +1111,8 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         side = " r" if xp > 72 else (" l" if xp < 28 else "")
         tip = (
             f'<b class="eqt"><span class="t">{esc(p["name"])} · {num(p.get("full") or p["date"])}</span>'
-            f'<span>רווח העסקה<em class="{cls}">{sym} {num(signed(p["net"]))}</em></span>'
-            f'<span>מצטבר<em class="{cls_for(p["cum"])}">{sym} {num(signed(p["cum"]))}</em></span></b>'
+            f'<span>רווח העסקה<em class="{cls}">{num(signed(p["net"]))}</em></span>'
+            f'<span>מצטבר<em class="{cls_for(p["cum"])}">{num(signed(p["cum"]))}</em></span></b>'
         )
         dots.append(f'<i class="eqd {cls}{side}" style="left:{xp:.2f}%;top:{y / H * 100:.2f}%">{tip}</i>')
     # ציר תחתון: חודש ושנה (אוק' 26) - מיקום לפי תחילת החודש, ובחודש הראשון לפי תחילת הטווח
