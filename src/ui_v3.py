@@ -737,7 +737,7 @@ def hold_head(day_label: str = "היום") -> str:
     """כותרות טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימים | גרף."""
     return (
         '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">תשואה</span><span class="r">רווח/הפסד</span>'
-        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="ctr">שינוי מקנייה</span><span class="r">נטו</span><span></span></div>'
+        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="r">נטו</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
     )
 
 
@@ -763,8 +763,8 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     reach = f'<span class="c rc2">{"".join(lines)}</span>'
     hd = f'<span class="c"><b>{num(str(held))}</b></span>' if held is not None else '<span class="c"></span>'
     return (
-        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}'
-        f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{net}{_CHEV}</div>'
+        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}{net}'
+        f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{_CHEV}</div>'
     )
 
 
@@ -1019,7 +1019,7 @@ HOLDINGS_CSS = """
         .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
         .v3h .tpill .tsep { width:1px; background:var(--rule); }
         /* טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימי החזקה | גרף | חץ */
-        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 98px 100px 74px 96px 86px 14px; align-items:center; gap:10px; padding-inline:10px; }
+        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 98px 100px 74px 86px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
         .v3h .hhead { padding-block:12px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
@@ -1064,7 +1064,7 @@ HOLDINGS_CSS = """
         @media (max-width:720px) {
             .v3h .hhead { display:none; }
             .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
-            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .sp, .v3h .hrow > .c:nth-child(9) { display:none; }
+            .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .c:nth-child(8), .v3h .hrow > .sp { display:none; }
             .v3h .d1, .v3h .d2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
             .v3h .hmob { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
             .v3h .hmob small { display:block; font-size:12px; color:var(--dim); margin-bottom:3px; }
