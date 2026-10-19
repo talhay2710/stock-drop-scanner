@@ -110,7 +110,7 @@ def notice(name: str, gap_pct: float, is_target: bool) -> str:
 _NOTICE_COLORS = {"loss": "var(--loss)", "gain": "var(--gain)", "warn": "var(--v3-warn)", "info": "var(--dim)"}
 
 
-NOTICE_SECONDS = 10
+NOTICE_SECONDS = 8
 
 
 def notices(items: list[tuple[str, str, str]]) -> str:

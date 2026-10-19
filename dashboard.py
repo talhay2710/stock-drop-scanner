@@ -7410,6 +7410,29 @@ def _v3_news_items() -> list[dict]:
     return items[:6]
 
 
+@st.cache_data(ttl=120)
+def _holdings_open_pct(tickers: tuple[str, ...]) -> dict:
+    """לכל טיקר: (שינוי בפתיחת המסחר, שינוי אחרון, תאריך הסשן) לפי נר 5 הדקות הראשון של הסשן האחרון מול הסגירה הקודמת."""
+    out: dict = {}
+    try:
+        intra = market_data.fetch_universe_intraday_changes(list(tickers))
+        daily = market_data.fetch_universe_daily_changes(list(tickers))
+    except Exception:
+        return out
+    for t in tickers:
+        c = intra.get(t)
+        row = daily[daily["ticker"] == t] if daily is not None and not daily.empty else None
+        if c is None or c.empty or row is None or row.empty:
+            continue
+        hist = row.iloc[0]["history"]
+        sd = c.index[0].date()
+        pc = _last_close_before(hist, sd) if hist is not None else None
+        if not pc:
+            continue
+        out[t] = ((float(c.iloc[0]) - pc) / pc * 100, (float(c.iloc[-1]) - pc) / pc * 100, sd)
+    return out
+
+
 def _home_alert_followups(fresh_alerts: pd.DataFrame) -> tuple[list, list]:
     """התראות של היום בבורסת ת"א מול המצב הנוכחי: מתאוששות (השינוי היומי השתפר לפחות בחצי אחוז מאז ההתראה) וממשיכות לרדת (החמיר לפחות באחוז).
     כל התראה (לא רק "לקנות"); סיגנל לקנות קודם. (recovering, falling) = [(score, name, text)]."""
@@ -7454,11 +7477,11 @@ def _home_alert_followups(fresh_alerts: pd.DataFrame) -> tuple[list, list]:
     return rec, fall
 
 
-def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame) -> list[tuple[str, str, str]]:
+def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame, open_map: dict | None = None) -> list[tuple[str, str, str]]:
     """הודעות לראש עמוד הבית: חצייה/קרבה לסטופ ויעד, התאוששות/המשך ירידה של התראות היום, תנודות יומיות חריגות, שינוי התיק, התראות חדשות.
     עד 6 הודעות, בסבב בין הסוגים כדי שלא יידחקו החוצה (סבב של 6 הודעות = דקה = זמן הרענון)."""
     N = ui_v3.num
-    stop_x, near_stop, targets, near_target, movers_out, extra = [], [], [], [], [], []
+    stop_x, near_stop, targets, near_target, movers_out, extra, flips = [], [], [], [], [], [], []
     for r in rows:
         stop, cur = r.get("holding_stop_price"), r.get("current")
         if stop and cur is not None:
@@ -7492,10 +7515,22 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
                 extra.append(("info", "", "התראה חדשה בשעה האחרונה" if n_new == 1 else f"{N(str(n_new))} התראות חדשות בשעה האחרונה"))
     except Exception:
         pass
+    # אחזקה שהפכה כיוון מאז פתיחת המסחר (רווח -> הפסד או להפך)
+    for r in rows:
+        o = (open_map or {}).get(r.get("ticker"))
+        cur = r.get("daily_pct")
+        if not o or cur is None or o[2] != dt.date.today():
+            continue
+        op = o[0]
+        if abs(op) >= 0.5 and abs(cur) >= 0.5 and (op > 0) != (cur > 0):
+            idx = "TA35" if market_data._is_israeli_ticker(r["ticker"]) else "SP500"
+            now_txt = "ועומדת על" if is_market_open(idx) else "ונסגרה על"
+            frm, to = ("מרווח להפסד", "loss") if op > 0 else ("מהפסד לרווח", "gain")
+            flips.append((to, r["name"], f"עברה {frm} {now_txt} {N(ui_v3.signed(cur, 1, '%'))} לעומת {N(ui_v3.signed(op, 1, '%'))} בפתיחת המסחר"))
     rec, fall = _home_alert_followups(fresh_alerts)
     rec_items = [("gain", n, t) for _, n, t in rec]
     fall_items = [("loss", n, t) for _, n, t in fall[:2]]
-    cats = [stop_x, near_stop, targets, near_target, rec_items, fall_items, movers_out, extra]
+    cats = [stop_x, near_stop, targets, near_target, flips, rec_items, fall_items, movers_out, extra]
     out: list[tuple[str, str, str]] = []
     for i in range(6):
         for c in cats:
@@ -7513,7 +7548,10 @@ def _render_home_v3() -> None:
         holdings = fresh[fresh.get("bought") == 1] if (not fresh.empty and "bought" in fresh.columns) else pd.DataFrame()
         portfolio, today, value, proximity, _exposure = _compute_portfolio_summaries(holdings)
         _home_rows = _build_holding_rows(holdings) if not holdings.empty else []
-        notice_html = ui_v3.notices(_home_notice_items(_home_rows, today[2] if today else None, fresh))
+        notice_html = ui_v3.notices(_home_notice_items(
+            _home_rows, today[2] if today else None, fresh,
+            _holdings_open_pct(tuple(r["ticker"] for r in _home_rows)) if _home_rows else {},
+        ))
         strip_html = ""
         if portfolio and value:
             ccy = "USD" if portfolio[3] == "$" else "ILS"
