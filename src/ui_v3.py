@@ -737,7 +737,7 @@ def hold_head(day_label: str = "היום") -> str:
     """כותרות טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימים | גרף."""
     return (
         '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">רווח/הפסד</span>'
-        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="ctr">מאז הקנייה</span><span></span></div>'
+        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
     )
 
 
