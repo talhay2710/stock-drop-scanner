@@ -7410,6 +7410,51 @@ def _v3_news_items() -> list[dict]:
     return items[:6]
 
 
+def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd.DataFrame) -> list[tuple[str, str, str]]:
+    """הודעות לראש עמוד הבית, לפי הסדר: חצייה/קרבה לסטופ, יעד, תנודות יומיות חריגות, שינוי התיק, התראות חדשות. מתחלפות לפי המצב הנוכחי."""
+    N = ui_v3.num
+    out: list[tuple[str, str, str]] = []
+    near_stop, targets, near_target = [], [], []
+    for r in rows:
+        stop, cur = r.get("holding_stop_price"), r.get("current")
+        if stop and cur is not None:
+            gap = stop_distance_pct(cur, stop)
+            if gap < 0:
+                out.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב־{N(f'{abs(gap):.1f}%')}"))
+            elif gap <= 2.0:
+                near_stop.append((gap, r["name"]))
+        pnl, tgt = r.get("pnl_pct"), strategy_mod.target_pct()
+        if pnl is not None and tgt:
+            if pnl >= tgt:
+                targets.append(r["name"])
+            elif tgt - pnl <= 1.0:
+                near_target.append((tgt - pnl, r["name"]))
+    for gap, name in sorted(near_stop):
+        out.append(("warn", name, f"קרובה לסטופ-לוס · {N(f'{gap:.1f}%')} ממנו"))
+    for name in targets:
+        out.append(("gain", name, "עברה את היעד"))
+    for gap, name in sorted(near_target):
+        out.append(("gain", name, f"קרובה ליעד · {N(f'{gap:.1f}%')} ממנו"))
+    movers = [(r["daily_pct"], r["name"]) for r in rows if r.get("daily_pct") is not None]
+    if movers:
+        up, down = max(movers), min(movers)
+        if up[0] >= 2.0:
+            out.append(("gain", up[1], f"עלתה {N(f'{up[0]:.1f}%')} היום"))
+        if down[0] <= -2.0 and down != up:
+            out.append(("loss", down[1], f"ירדה {N(f'{abs(down[0]):.1f}%')} היום"))
+    if day_pct is not None and abs(day_pct) >= 1.0:
+        out.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} {N(f'{abs(day_pct):.1f}%')} היום"))
+    try:
+        if fresh_alerts is not None and not fresh_alerts.empty and "scan_ts" in fresh_alerts.columns:
+            ts = pd.to_datetime(fresh_alerts["scan_ts"], utc=True, errors="coerce")
+            n_new = int((ts >= pd.Timestamp.now(tz="UTC") - pd.Timedelta(minutes=60)).sum())
+            if n_new:
+                out.append(("info", "", "התראה חדשה בשעה האחרונה" if n_new == 1 else f"{N(str(n_new))} התראות חדשות בשעה האחרונה"))
+    except Exception:
+        pass
+    return out[:6]
+
+
 def _render_home_v3() -> None:
     """עמוד הבית בעיצוב v3 (המוקאפים שאושרו): התיק + רדאר הסורק, מצב המדדים, אחזקות, תשואה תוך-יומית, זמני מסחר, חדשות."""
 
@@ -7418,9 +7463,8 @@ def _render_home_v3() -> None:
         fresh = load_alerts(db_path(cfg))
         holdings = fresh[fresh.get("bought") == 1] if (not fresh.empty and "bought" in fresh.columns) else pd.DataFrame()
         portfolio, today, value, proximity, _exposure = _compute_portfolio_summaries(holdings)
-        notice_html = ""
-        if proximity and proximity[1] < 0:
-            notice_html = ui_v3.notice(proximity[0], proximity[1], proximity[2])
+        _home_rows = _build_holding_rows(holdings) if not holdings.empty else []
+        notice_html = ui_v3.notices(_home_notice_items(_home_rows, today[2] if today else None, fresh))
         strip_html = ""
         if portfolio and value:
             ccy = "USD" if portfolio[3] == "$" else "ILS"
@@ -7430,7 +7474,7 @@ def _render_home_v3() -> None:
                 day_label="שינוי יומי",
                 alloc_html=ui_v3.allocation_bar([
                     {"name": r["name"], "share": r.get("portfolio_pct") or 0.0, "pnl_pct": r["pnl_pct"]}
-                    for r in _build_holding_rows(holdings) if r.get("current_value")
+                    for r in _home_rows if r.get("current_value")
                 ]),
             )
         minutes = scan_status.age_minutes(_scan_heartbeat_cached())
