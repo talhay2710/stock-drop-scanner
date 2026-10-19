@@ -1004,13 +1004,13 @@ def hold_card(cost: str, qty: str, fees: str, bought: str, signal: tuple[str, st
     stop_html = f'<span class="down">{num(stop_px)}</span>' if stop_px else "—"
     tgt_html = f'<span class="up">{num(tgt_px)}</span>' if tgt_px else "—"
     cells = [
-        cell("עלות", num(cost), (num(qty) + " יחידות") if qty else ""),
-        cell("עמלות ומס", num(fees) if fees else "—"),
         cell("תאריך קנייה", num(bought) if bought else "—"),
         cell("סיגנל כניסה", sig, sig_sub),
+        cell("עלות", num(cost), (num(qty) + " יחידות") if qty else ""),
         cell("ירידה בזמן ההתראה", drop),
         cell("שיא / שפל מאז הקנייה", range_html or "—"),
         cell("יעד · סטופ (מחיר)", tgt_html + " · " + stop_html),
+        cell("עמלות ומס", num(fees) if fees else "—"),
         cell("סקטור", esc(sector) if sector else "—"),
     ]
     return f'{mobile_strip}<div class="hcg">{"".join(cells)}</div>'
