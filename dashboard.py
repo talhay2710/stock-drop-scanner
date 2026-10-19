@@ -738,8 +738,6 @@ _V3_TOOLS_HTML = """<!doctype html><html lang="he" dir="rtl"><head><meta charset
 html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,sans-serif; direction:rtl; }
 .tools { display:flex; align-items:center; gap:16px; height:40px; font-size:14px; color:var(--dim); }
 .num { direction:ltr; unicode-bidi:isolate; display:inline-block; }
-#d { display:inline-flex; align-items:center; direction:ltr; gap:8px; }
-.vl { display:inline-block; width:1px; height:14px; background:var(--dim); }
 .seg { display:inline-flex; border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
 .seg button { font:inherit; font-size:13px; color:var(--dim); background:transparent; border:0; padding:6px 14px; cursor:pointer; }
 .seg button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
@@ -752,9 +750,7 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
   var KEY = 'dr_theme', P = window.parent, proot;
   try { proot = P.document.documentElement; } catch (e) { proot = null; }
   var day = document.getElementById('b-day'), night = document.getElementById('b-night');
-  var MON = ["ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני", "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'"];
-  function stamp() { try { var d = new Date(); var t = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); document.getElementById('d').innerHTML = '<span class="num">' + t + '</span><span>־</span><span dir="rtl">' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2) + '</span><span>־</span><span dir="rtl">' + new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + '</span>'; } catch (e) {} }
-  stamp(); setInterval(stamp, 15000);
+  try { var d = new Date(); document.getElementById('d').innerHTML = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + ' · <span class="num">' + String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getFullYear()).slice(-2) + '</span>'; } catch (e) {}
   function stored() { try { return P.localStorage.getItem(KEY); } catch (e) { return null; } }
   function set(t) { if (!proot) return; if (t) proot.setAttribute('data-theme', t); else proot.removeAttribute('data-theme'); }
   if (stored()) set(stored());

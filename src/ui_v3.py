@@ -482,8 +482,9 @@ COMPONENT_CSS = """
         .v3h .row .st { font-size:14px; color:var(--dim); }
         .v3h .row .st.up { color:var(--gain); } .v3h .row .st.down { color:var(--loss); }
         .v3h .row.out .nm { font-weight:600; color:var(--loss); } .v3h .row.out .pl { font-weight:600; }
-        .v3h .legend { display:flex; gap:20px; font-size:13px; color:var(--dim); }
-        .v3h .legend i { display:inline-block; width:16px; vertical-align:middle; margin-inline-start:8px; border-top:2px solid var(--accent); }
+        .v3h .legend { display:flex; gap:20px; font-size:13px; color:var(--dim); align-items:center; }
+        .v3h .legend span { display:inline-flex; align-items:center; }
+        .v3h .legend i { display:block; width:16px; height:0; flex:none; margin-inline-start:8px; border-top:2px solid var(--accent); }
         .v3h .legend i.d { border-top:2px dashed var(--dash); }
         .v3h .chart { position:relative; margin-top:16px; }
         .v3h .chart { padding-bottom:14px; border-bottom:1px solid var(--rule); margin-bottom:48px; }
