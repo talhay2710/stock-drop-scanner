@@ -4588,7 +4588,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     n_avoid = sum(1 for i in items if i["key"] == "avoid")
     st.markdown(
         '<div class="v3h">' + ui_v3.kpi4([
-            ("סך הכל", str(n_total), ""), ("לקנות", str(n_buy), "up"), ("לחכות", str(n_wait), ""), ("לא לקנות", str(n_avoid), "down"),
+            ("לקנות", str(n_buy), "up"), ("לחכות", str(n_wait), ""), ("לא לקנות", str(n_avoid), "down"), ("סה\"כ", str(n_total), ""),
         ], compact=True) + "</div>", unsafe_allow_html=True,
     )
 
