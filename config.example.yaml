@@ -29,7 +29,7 @@ telegram:
   chat_id: ''
   enabled_since: '2026-10-18T07:58:03+00:00'
 desktop_notifications:
-  enabled: true
+  enabled: false
   enabled_since: '2026-10-18T07:58:03+00:00'
 fees:
   IL:
