@@ -284,7 +284,7 @@ def stop_target_ladder(rows: list[dict]) -> str:
             f'<div class="lt">{seg_l}{seg_g}{ticks}<b class="mk {cls}" style="left:{x(pnl):.2f}%"></b></div>'
             f'<span class="lv {cls_for(pnl)}">{num(signed(pnl, 1, "%"))}</span></div>'
         )
-    legend = ('<div class="lg"><span><b class="mk"></b>מצב נוכחי</span><span><i class="tk"></i>כניסה</span>'
+    legend = ('<div class="lg"><span><b class="mk"></b>נוכחי</span><span><i class="tk"></i>כניסה</span>'
               '<span><i class="tk t"></i>יעד</span><span><i class="tk s"></i>סטופ</span></div>')
     return f'<section class="block">{head("מיקום מול יעד וסטופ-לוס")}{legend}<div class="ladder">{"".join(out)}</div></section>'
 
