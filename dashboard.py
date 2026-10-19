@@ -618,6 +618,18 @@ _V3_CSS += """
         }
         div[class*="st-key-holdings_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-holdings_filters"] { padding: 12px 0 14px; }
+        div[class*="st-key-holdings_add_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-holdings_add_icon"] button p, div[class*="st-key-holdings_add_icon"] button div { display: none !important; }
+        div[class*="st-key-holdings_add_icon"] button {
+            position: absolute; top: -60px; left: 68px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-holdings_add_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-holdings_add_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-alerts_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-alerts_filter_icon"] button p, div[class*="st-key-alerts_filter_icon"] button div { display: none !important; }
         div[class*="st-key-alerts_filter_icon"] button {
@@ -6345,8 +6357,14 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
     def _toggle_holdings_filters() -> None:
         st.session_state["holdings_filters_open"] = not st.session_state.get("holdings_filters_open", False)
 
+    def _toggle_holdings_add() -> None:
+        st.session_state["holdings_add_open"] = not st.session_state.get("holdings_add_open", False)
+
     st.button("רענון", key="holdings_refresh_icon", on_click=load_alerts.clear)
     st.button(" ", key="holdings_filter_icon", on_click=_toggle_holdings_filters)
+    st.button(" ", key="holdings_add_icon", on_click=_toggle_holdings_add)
+    if st.session_state.get("holdings_add_open", False):
+        render_open_expander(True)  # פתיחת פוזיציה: נפתחת מהפלוס שבכותרת
 
     radar_rows = []
     for r in rows:
@@ -6445,12 +6463,10 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
             a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
         ) + '</div><div style="height:6px"></div>', unsafe_allow_html=True)
 
-    # מתחת לטבלה: הרדאר (מיקום כל אחזקה מול הסטופ והיעד) ופתיחת פוזיציה
-    col_plot, col_open = st.columns([1, 1.5], gap="medium")
+    # מתחת לטבלה: הרדאר (מיקום כל אחזקה מול הסטופ והיעד)
+    col_plot, _col_gap = st.columns([1, 1.5], gap="medium")
     with col_plot:
         st.markdown(f'<div class="v3h">{ui_v3.holdings_radar(radar_rows, strategy_mod.target_pct())}</div>', unsafe_allow_html=True)
-    with col_open:
-        render_open_expander()
 
     # התפלגות סקטוריאלית (לפי שווי נוכחי, % מהתיק)
     _sec_html = ui_v3.sector_section(_sector_items(rows))
@@ -6472,8 +6488,8 @@ with _tab_slot_portfolio.container():
             ברקע לא הייתה מופיעה כאן בלי ריענון ידני של כל הדף."""
             df = load_alerts(db_path(cfg))
 
-            def _render_open_position_expander() -> None:
-                with st.expander(_nm("➕ פתיחת פוזיציה"), key="open_position_expander"):
+            def _render_open_position_expander(expanded: bool = False) -> None:
+                with st.expander(_nm("➕ פתיחת פוזיציה"), expanded=expanded, key="open_position_expander"):
                     if df.empty:
                         st.caption("אין עדיין התראות להוסיף מהן אחזקה.")
                     else:
