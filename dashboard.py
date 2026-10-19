@@ -615,6 +615,18 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-holdings_filter_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-movers_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-movers_filter_icon"] button p, div[class*="st-key-movers_filter_icon"] button div { display: none !important; }
+        div[class*="st-key-movers_filter_icon"] button {
+            position: absolute; top: -48px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-movers_filter_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-movers_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-holdings_filters"] { padding: 12px 0 14px; }
         div[class*="st-key-holdings_add_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-holdings_add_icon"] button p, div[class*="st-key-holdings_add_icon"] button div { display: none !important; }
@@ -4060,7 +4072,10 @@ def _render_movers_v3() -> None:
             fresh = f"סגירה {_rep.strftime('%d.%m')}"
             if market_data.is_data_stale(_rep, "X.TA" if movers_index in ("TA35", "TA125") else ""):
                 fresh += " · נתון ישן"
-    st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", fresh, 0 if fresh == "היום" else None)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", fresh, 0 if fresh == "היום" else None, icons=2)}</div>', unsafe_allow_html=True)
+
+    def _toggle_movers_filters() -> None:
+        st.session_state["movers_filters_open"] = not st.session_state.get("movers_filters_open", False)
 
     def _movers_index_keep() -> None:  # לחיצה על המדד שכבר נבחר מבטלת אותו - חוזרים לאחרון ששמור
         if st.session_state.get("movers_index_select") is None:
@@ -4068,6 +4083,12 @@ def _render_movers_v3() -> None:
 
     # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהפקדים נרשמו מאפס את הבחירות שלהם
     st.button("רענון", key="movers_refresh_icon", on_click=get_all_changes.clear)
+    st.button(" ", key="movers_filter_icon", on_click=_toggle_movers_filters)
+    # הווידג'טים תמיד מוצגים (אחרת Streamlit מאפס את הבחירה); כשהסינון סגור הם מוסתרים ב-CSS
+    st.markdown(
+        '<style>div[class*="st-key-movers_controls"] { display:' + ("block" if st.session_state.get("movers_filters_open", False) else "none") + '; }</style>',
+        unsafe_allow_html=True,
+    )
 
     with st.container(key="movers_controls"):
         _c_idx, _c_days = st.columns([3, 2])
