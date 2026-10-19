@@ -7681,7 +7681,7 @@ def _render_home_v3() -> None:
             rows.append({
                 "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
                 "daily_pct_date": r.get("daily_pct_date"),
-                "value": r.get("current_value"), "ccy": r.get("ccy"),
+                "value": r.get("current_value"), "pnl_amt": r.get("pnl"), "ccy": r.get("ccy"),
                 "daily_amt": (r["current_value"] - r["current_value"] / (1 + r["daily_pct"] / 100))
                 if (r.get("current_value") is not None and r.get("daily_pct") is not None and r["daily_pct"] > -100) else None,
                 "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,

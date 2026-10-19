@@ -304,14 +304,24 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
         else:
             dtxt = money(num(signed(r["daily_amt"])), sym) if (by_value and r.get("daily_amt") is not None) else num(signed(daily, 1, "%"))
             daily_html = f'<span class="st {cls_for(daily)}">{dtxt}{daily_suffix(r.get("daily_pct_date"), head_date)}</span>'
-        ptxt = money(num(plain(r["value"])), sym) if by_value else num(signed(r["pnl_pct"], 1, "%"))
-        pcls = "" if by_value else cls_for(r["pnl_pct"])  # שווי - ניטרלי, בלי צבע רווח/הפסד
+        if by_value:
+            # מצב ₪: שווי (ניטרלי) | רווח/הפסד מהקנייה | שינוי היום
+            pl_html = (
+                f'<span class="pl">{money(num(plain(r["value"])), sym)}</span>'
+                f'<span class="pl {cls_for(r["pnl_pct"])}">{money(num(signed(r["pnl_amt"])), sym) if r.get("pnl_amt") is not None else ""}</span>'
+            )
+        else:
+            pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>'
         out.append(
             f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
-            f'<span class="pl {pcls}">{ptxt}</span>{daily_html}</div>'
+            f'{pl_html}{daily_html}</div>'
         )
-    first = "שווי" if unit == "value" else "תשואה"
-    return f'<div class="rows"><div class="cap"><span></span><span>{first}</span><span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
+    wide = unit == "value" and any(r.get("value") is not None for r in rows)
+    first = "<span>שווי</span><span>רווח/הפסד</span>" if wide else "<span>תשואה</span>"
+    return (
+        f'<div class="rows{" v4" if wide else ""}"><div class="cap"><span></span>{first}'
+        f'<span>{num(_daily_col_label([r.get("daily_pct_date") for r in rows]))}</span></div>' + "".join(out) + "</div>"
+    )
 
 
 def holdings_section(rows: list[dict], step: float = 3.0, unit: str = "pct") -> str:
@@ -441,6 +451,7 @@ COMPONENT_CSS = """
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
         .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 10px 10px; border-bottom:1px solid var(--rule); }
         .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .rows.v4 .cap, .v3h .rows.v4 .row { grid-template-columns:1fr 78px 78px 72px; gap:8px; }
         .v3h .row:hover { background:var(--hover); }
         .v3h .row .nm { font-size:17px; }
         .v3h .row .pl { font-size:17px; }
