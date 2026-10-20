@@ -904,9 +904,11 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         f'<text x="100" y="121" text-anchor="middle" font-size="23" font-weight="500" letter-spacing=".02em" fill="{conc_color}">{conc}</text>'
         '</svg></figure>'
     )
+    top = max(i["pct"] for i in items) or 1.0
     rows = "".join(
         f'<div class="srow"><span class="dot" style="background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></span>'
-        f'<span class="sn">{esc(i["label"])}</span><span class="ss">{esc(", ".join(short_name(n) for n in i["names"]))}</span>'
+        f'<span class="sn"><b>{esc(i["label"])}</b><small>{esc(", ".join(short_name(n) for n in i["names"]))}</small></span>'
+        f'<span class="sbar"><i style="width:{i["pct"] / top * 100:.0f}%;background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></i></span>'
         f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
         for k, i in enumerate(items)
     )
@@ -1046,20 +1048,24 @@ HOLDINGS_CSS = """
         .v3h .abar .abl { display:flex; align-items:baseline; gap:5px; min-width:0; line-height:1.3; }
         .v3h .abar .abn { font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .v3h .abar .abp { font-size:12px; color:var(--v3-soft); flex:none; }
-        .v3h .sgrid { display:flex; align-items:center; gap:40px; margin-top:20px; }
-        .v3h .sdonut { margin:0; flex:none; width:190px; }
+        .v3h .sgrid { display:flex; align-items:center; gap:64px; margin-top:24px; }
+        .v3h .sdonut { margin:0; flex:none; width:220px; }
         .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
         .v3h .slist { flex:1 1 auto; min-width:0; }
-        .v3h .srow { display:grid; grid-template-columns:14px minmax(0,1fr) minmax(0,2fr) 56px; align-items:center; gap:12px; padding:13px 10px; border-bottom:1px solid var(--rule); }
-        .v3h .srow .dot { width:9px; height:9px; border-radius:50%; }
-        .v3h .srow .sn { font-size:16px; color:var(--v3-soft); }
-        .v3h .srow .ss { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .v3h .srow .sp2 { font-size:16px; direction:ltr; text-align:right; color:var(--v3-soft); }
+        .v3h .srow { display:grid; grid-template-columns:12px minmax(0,1.2fr) minmax(110px,1fr) 64px; align-items:center; gap:18px; padding:18px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .srow:first-child { border-top:1px solid var(--rule); }
+        .v3h .srow .dot { width:10px; height:10px; border-radius:50%; }
+        .v3h .srow .sn b { display:block; font-size:17px; font-weight:400; color:var(--v3-ink); }
+        .v3h .srow .sn small { display:block; margin-top:3px; font-size:12.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .v3h .srow .sbar { display:block; height:5px; border-radius:3px; background:color-mix(in srgb, var(--rule) 75%, transparent); }
+        .v3h .srow .sbar i { display:block; height:100%; border-radius:3px; }
+        .v3h .srow .sp2 { font-size:21px; font-weight:300; direction:ltr; text-align:end; color:var(--v3-ink); font-variant-numeric:tabular-nums; }
         @media (max-width:720px) {
             .v3h .sgrid { flex-direction:column; align-items:stretch; gap:16px; }
             .v3h .sdonut { width:200px; max-width:100%; margin-inline:auto; order:-1; }
-            .v3h .srow { grid-template-columns:14px minmax(0,1fr) 48px; gap:2px 12px; }
-            .v3h .srow .ss { grid-column:2 / 3; grid-row:2; white-space:normal; }
+            .v3h .srow { grid-template-columns:12px minmax(0,1fr) 56px; gap:8px 12px; padding:14px 6px; }
+            .v3h .srow .sn { grid-column:2; grid-row:1; }
+            .v3h .srow .sbar { grid-column:2; grid-row:2; }
             .v3h .srow .sp2 { grid-column:3; grid-row:1 / 3; }
         }
         .v3h .pmap { display:flex; gap:4px; margin:14px 0 6px; height:78px; }
