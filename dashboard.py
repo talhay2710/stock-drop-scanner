@@ -653,6 +653,12 @@ _V3_CSS += """
         }
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
+        div[class*="st-key-v3_hpos_"] [data-testid="stHorizontalBlock"] { max-width: 520px; }
+        div[class*="st-key-sell_holding_"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 3; width: 100% !important; }
+        div[class*="st-key-sell_holding_"] button p, div[class*="st-key-sell_holding_"] button div { display: none !important; }
+        div[class*="st-key-sell_holding_"] button { position: absolute; top: 14px; left: 4px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 1px solid var(--v3-rule) !important; background: transparent !important; border-radius: 50% !important; color: var(--v3-dim) !important; font-size: 0 !important; }
+        div[class*="st-key-sell_holding_"] button::before { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; margin: -1px 0 0 -6px; background: currentColor; border-radius: 1px; }
+        div[class*="st-key-sell_holding_"] button:hover { color: var(--v3-loss, #9B3F2F) !important; border-color: var(--v3-loss, #9B3F2F) !important; background: transparent !important; }
         div[class*="st-key-sell_holding_"] button {
             margin-top: 10px; padding: 6px 14px !important; border: 1px solid var(--v3-rule) !important; border-radius: 6px !important;
             background: transparent !important; color: var(--v3-soft) !important; font-size: 14px !important; font-weight: 400 !important; min-height: 0 !important;
@@ -6286,7 +6292,7 @@ def _v3_sell_flow(row: dict) -> None:
     """מכירה / סגירת פוזיציה (v3): כפתור שקט; אחריו אישור עם שער ותאריך. אותה לוגיקה ואותם מפתחות כמו בכרטיס הישן."""
     sell_key = f"confirm_sell_{row['id']}"
     if not st.session_state.get(sell_key):
-        if st.button("סגירת פוזיציה", key=f"sell_holding_{row['id']}"):
+        if st.button(" ", key=f"sell_holding_{row['id']}"):  # אייקון מינוס עגול (ר' CSS של sell_holding_) - סגירת הפוזיציה
             st.session_state[sell_key] = True
             st.rerun(scope="fragment")
         return
@@ -6474,6 +6480,9 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                         _bd = ""
                     tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     _sec = _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else ""
+                    # סגירת פוזיציה: אייקון מינוס בפינת הכרטיס (זוג לפלוס שבכותרת) - מוצב לפני הכרטיס ומוחזק בגובה אפס
+                    with st.container(key=f"v3_hpos_{rid}"):
+                        _v3_sell_flow(r)
                     st.markdown(
                         '<div class="v3h"><div class="hdet">' + ui_v3.hold_card(
                             cost=f"{r['invested']:,.0f}", qty=f"{(r.get('qty') or 0):,.0f}", fees=fees_txt, bought=_bd,
@@ -6486,10 +6495,6 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                                 r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
-                    with st.container(key=f"v3_hpos_{rid}"):
-                        pc1, pc2 = st.columns([4, 1.4])
-                        with pc2:
-                            _v3_sell_flow(r)
 
         if not _shown_any:
             st.markdown('<div class="v3h"><div class="nw"><small>אין אחזקות שמתאימות לסינון.</small></div></div>', unsafe_allow_html=True)
