@@ -533,7 +533,7 @@ def movers_head(title: str, fresh: str, age_seconds: int | None, icons: int = 1)
 def colored_head(title: str, count: int, kind: str) -> str:
     var = "var(--gain)" if kind == "up" else "var(--loss)"
     return (
-        f'<div class="head" style="border-bottom-color:{var}"><div class="h2 {kind}">{esc(title)} {num(f"({count})")}</div></div>'
+        f'<div class="head" style="border-bottom-color:{var}"><div class="h2 {kind}">{esc(title)}</div></div>'
     )
 
 
@@ -1194,8 +1194,8 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
     t0, t1 = points[0]["ts"], points[-1]["ts"]
     span = (t1 - t0) or 1.0
 
-    def px(t: float) -> float:  # אחוז רוחב (עם שוליים כדי שנקודות הקצה לא ייחתכו)
-        return 1.5 + 97.0 * (t - t0) / span
+    def px(t: float) -> float:  # אחוז רוחב: הנקודה הראשונה והאחרונה בקצוות האזור (השוליים של 5px בעיצוב משאירים את הנקודות בתוך קו הכותרת)
+        return 100.0 * (t - t0) / span
 
     def py(v: float) -> float:  # אחוז גובה
         return (hi - v) / (hi - lo) * 100.0
@@ -1236,9 +1236,9 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         xl.append(f'<span style="left:{px(ts_m):.2f}%"><bdi dir="rtl">{_HE_MONTHS[m_ - 1]} {y_ % 100:02d}</bdi></span>')
         y_, m_ = (y_ + 1, 1) if m_ == 12 else (y_, m_ + 1)
     return (
-        f'{head("רווח/הפסד מצטבר")}'
+        f'{head("עסקאות לאורך זמן")}'
         f'<div class="eq"><div class="eqp"><div class="eqyl">{ylab}</div>'
-        f'<div class="eqa"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="רווח/הפסד מצטבר">'
+        f'<div class="eqa"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="עסקאות לאורך זמן">'
         f'{grid}{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>'
         f'{"".join(dots)}</div></div>'
         f'<div class="eqx"><div class="eqxl">{"".join(xl)}</div></div></div>'
@@ -1282,7 +1282,7 @@ JOURNAL_CSS = """
         .v3h .eqp { display:flex; direction:ltr; height:190px; }
         .v3h .eqyl { position:relative; flex:none; width:64px; }
         .v3h .eqy { position:absolute; right:8px; transform:translateY(-50%); font-size:12px; color:var(--dim); white-space:nowrap; }
-        .v3h .eqa { position:relative; flex:1 1 auto; }
+        .v3h .eqa { position:relative; flex:1 1 auto; margin-inline:5px; }
         .v3h .eqa svg { display:block; width:100%; height:100%; overflow:visible; }
         .v3h .eqd { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; background:var(--v3-bg); border:1.6px solid var(--dim); cursor:default; box-sizing:border-box; }
         .v3h .eqd::after { content:''; position:absolute; inset:-7px; }
@@ -1298,7 +1298,7 @@ JOURNAL_CSS = """
         .v3h .eqv.below { transform:translateY(60%); }
         .v3h .eqv.up { color:var(--gain); } .v3h .eqv.down { color:var(--loss); }
         .v3h .eqx { padding-top:8px; padding-inline-start:0; direction:ltr; }
-        .v3h .eqxl { position:relative; height:16px; margin-left:64px; font-size:12px; color:var(--dim); }
+        .v3h .eqxl { position:relative; height:16px; margin-left:69px; margin-right:5px; font-size:12px; color:var(--dim); }
         .v3h .eqxl span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
         .v3h .head .hs { font-size:16px; direction:ltr; } .v3h .head .hs.up { color:var(--gain); } .v3h .head .hs.down { color:var(--loss); }
         .v3h table.jr, .v3h table.tb { border:0 !important; }

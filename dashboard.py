@@ -653,7 +653,17 @@ _V3_CSS += """
         }
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
-        div[class*="st-key-v3_hpos_"] [data-testid="stHorizontalBlock"] { max-width: 520px; }
+        div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
+        div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
+        div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
+        div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] input { text-align: end; font-size: 17px; }
+        div[class*="st-key-sell_form_"] [data-testid="stNumberInputStepUp"], div[class*="st-key-sell_form_"] [data-testid="stNumberInputStepDown"] { display: none !important; }
+        div[class*="st-key-sell_form_"] [data-testid="stDateInput"] [data-baseweb="input"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
+        div[class*="st-key-sell_form_"] [data-testid="stDateInput"] input { font-size: 17px; text-align: end; }
+        div[class*="st-key-sell_form_"] button[kind="primary"] { background: var(--v3-ink) !important; color: var(--v3-bg) !important; border: 0 !important; border-radius: 8px !important; min-height: 40px; padding: 0 24px !important; }
+        div[class*="st-key-sell_form_"] button[kind="primary"] p { font-size: 15px; }
+        div[class*="st-key-sell_form_"] button[kind="tertiary"] { color: var(--v3-dim) !important; min-height: 40px; padding: 0 12px !important; }
+        div[class*="st-key-sell_form_"] button[kind="tertiary"]:hover { color: var(--v3-ink) !important; background: transparent !important; }
         div[class*="st-key-sell_holding_"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 3; width: 100% !important; }
         div[class*="st-key-sell_holding_"] button p, div[class*="st-key-sell_holding_"] button div { display: none !important; }
         div[class*="st-key-sell_holding_"] button { position: absolute; top: 14px; left: 4px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 1px solid var(--v3-rule) !important; background: transparent !important; border-radius: 50% !important; color: var(--v3-dim) !important; font-size: 0 !important; }
@@ -768,7 +778,8 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
   var KEY = 'dr_theme', P = window.parent, proot;
   try { proot = P.document.documentElement; } catch (e) { proot = null; }
   var day = document.getElementById('b-day'), night = document.getElementById('b-night');
-  try { var d = new Date(); document.getElementById('d').innerHTML = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + ' · <span class="num">' + String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getFullYear()).slice(-2) + '</span>'; } catch (e) {}
+  function stamp() { try { var d = new Date(); document.getElementById('d').innerHTML = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d) + ' · <span class="num">' + String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getFullYear()).slice(-2) + '</span> · <span class="num">' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + '</span>'; } catch (e) {} }
+  stamp(); setInterval(stamp, 15000);
   function stored() { try { return P.localStorage.getItem(KEY); } catch (e) { return null; } }
   function set(t) { if (!proot) return; if (t) proot.setAttribute('data-theme', t); else proot.removeAttribute('data-theme'); }
   if (stored()) set(stored());
@@ -4175,7 +4186,7 @@ def _render_movers_v3() -> None:
 
     with st.container(key="movers_watch_section"):
         st.markdown(
-            f'<div class="v3h"><section class="block">{ui_v3.head(f"מניות במעקב ({len(_wl_items)})")}'
+            f'<div class="v3h"><section class="block">{ui_v3.head("מניות במעקב")}'
             f'{ui_v3.watchlist_head() if _wl_rows else ""}</section></div>',
             unsafe_allow_html=True,
         )
@@ -6288,62 +6299,64 @@ def _build_holding_rows(holdings: pd.DataFrame) -> list[dict]:
     return rows
 
 
-def _v3_sell_flow(row: dict) -> None:
-    """מכירה / סגירת פוזיציה (v3): כפתור שקט; אחריו אישור עם שער ותאריך. אותה לוגיקה ואותם מפתחות כמו בכרטיס הישן."""
+def _v3_sell_flow(row: dict, part: str = "icon") -> None:
+    """מכירה / סגירת פוזיציה (v3). part="icon": אייקון מינוס בפינת הכרטיס שמחליף את מצב הטופס; part="form": שורת טופס מתחת
+    לכרטיס (שער, תאריך, אישור, ביטול). אותה לוגיקת שמירה ואותם מפתחות כמו בכרטיס הישן."""
     sell_key = f"confirm_sell_{row['id']}"
+    if part == "icon":
+        def _toggle() -> None:
+            st.session_state[sell_key] = not st.session_state.get(sell_key, False)
+
+        st.button(" ", key=f"sell_holding_{row['id']}", on_click=_toggle)  # אייקון מינוס עגול (ר' CSS של sell_holding_)
+        return
     if not st.session_state.get(sell_key):
-        if st.button(" ", key=f"sell_holding_{row['id']}"):  # אייקון מינוס עגול (ר' CSS של sell_holding_) - סגירת הפוזיציה
-            st.session_state[sell_key] = True
-            st.rerun(scope="fragment")
         return
     is_il = market_data._is_israeli_ticker(row["ticker"])
-    st.markdown("**אישור מכירה**")
-    ec1, ec2 = st.columns(2)
     default_exit = (row["current"] if row["current"] is not None else row["entry"]) or 0.0
     default_exit = default_exit * (100.0 if is_il else 1.0)
-    exit_price_raw = ec1.number_input(
-        "שער מכירה", min_value=0.0, value=float(default_exit), step=1.0 if is_il else 0.01,
-        format="%.0f" if is_il else "%.2f", key=f"exit_price_{row['id']}",
-    )
+    with st.container(key=f"sell_form_{row['id']}", horizontal=True, vertical_alignment="bottom"):
+        exit_price_raw = st.number_input(
+            "שער מכירה", min_value=0.0, value=float(default_exit), step=1.0 if is_il else 0.01,
+            format="%.0f" if is_il else "%.2f", key=f"exit_price_{row['id']}",
+        )
+        exit_date = st.date_input("תאריך מכירה", value=dt.date.today(), key=f"exit_date_{row['id']}", format="DD/MM/YYYY")
+        do_confirm = st.button("אישור מכירה", key=f"confirm_sell_btn_{row['id']}", type="primary")
+        do_cancel = st.button("ביטול", key=f"cancel_sell_btn_{row['id']}", type="tertiary")
     exit_price = (exit_price_raw / 100.0) if is_il else exit_price_raw
-    exit_date = ec2.date_input("תאריך מכירה", value=dt.date.today(), key=f"exit_date_{row['id']}", format="DD/MM/YYYY")
-    cc1, cc2 = st.columns(2)
-    with cc1:
-        if st.button("אישור מכירה", key=f"confirm_sell_btn_{row['id']}", width='stretch'):
-            exit_at = dt.datetime.combine(exit_date, dt.datetime.now().time()).isoformat(timespec="seconds")
-            entry_at = row["bought_at"]
-            try:
-                entry_date_only = dt.datetime.fromisoformat(entry_at).date() if entry_at else exit_date
-            except Exception:
-                entry_date_only = exit_date
-            holding_days = max((exit_date - entry_date_only).days, 0) + 1
-            net = fees.compute_net_result(
-                country_code=row["country_code"], buy_price=row["entry"], sell_price=exit_price,
-                position_size_ccy=row["entry"] * row["qty"], holding_days=holding_days, fees_cfg=cfg["fees"],
-            )
-            cloud_sync.refresh_alerts_db_if_clean()
-            close_conn = store.get_conn(db_path(cfg))
-            store.save_closed_trade(close_conn, {
-                "alert_id": row["id"], "ticker": row["ticker"], "company_name": row["name"],
-                "index_name": row["index_name"], "currency": row["ccy"],
-                "entry_price": row["entry"], "qty": row["qty"], "entry_at": entry_at,
-                "exit_price": exit_price, "exit_at": exit_at,
-                "forecast_entry_limit": row["forecast_entry_limit"],
-                "forecast_target": row["forecast_target"], "forecast_stop": row["forecast_stop"],
-                "forecast_score": row["forecast_score"], "forecast_verdict": row["forecast_verdict"],
-                "holding_days": holding_days, "gross_pnl": net.gross_pnl, "net_pnl": net.net_pnl,
-                "net_pct": net.net_return_pct, "is_manual_trade": row.get("is_manual_trade", False),
-            })
-            store.unmark_as_bought(close_conn, row["id"])
-            close_conn.close()
-            _sync_and_warn("position closed", include_db=True)
-            st.session_state.pop(sell_key, None)
-            load_alerts.clear()
-            st.rerun()
-    with cc2:
-        if st.button("ביטול", key=f"cancel_sell_btn_{row['id']}", width='stretch'):
-            st.session_state.pop(sell_key, None)
-            st.rerun(scope="fragment")
+    if do_confirm:
+        exit_at = dt.datetime.combine(exit_date, dt.datetime.now().time()).isoformat(timespec="seconds")
+        entry_at = row["bought_at"]
+        try:
+            entry_date_only = dt.datetime.fromisoformat(entry_at).date() if entry_at else exit_date
+        except Exception:
+            entry_date_only = exit_date
+        holding_days = max((exit_date - entry_date_only).days, 0) + 1
+        net = fees.compute_net_result(
+            country_code=row["country_code"], buy_price=row["entry"], sell_price=exit_price,
+            position_size_ccy=row["entry"] * row["qty"], holding_days=holding_days, fees_cfg=cfg["fees"],
+        )
+        cloud_sync.refresh_alerts_db_if_clean()
+        close_conn = store.get_conn(db_path(cfg))
+        store.save_closed_trade(close_conn, {
+            "alert_id": row["id"], "ticker": row["ticker"], "company_name": row["name"],
+            "index_name": row["index_name"], "currency": row["ccy"],
+            "entry_price": row["entry"], "qty": row["qty"], "entry_at": entry_at,
+            "exit_price": exit_price, "exit_at": exit_at,
+            "forecast_entry_limit": row["forecast_entry_limit"],
+            "forecast_target": row["forecast_target"], "forecast_stop": row["forecast_stop"],
+            "forecast_score": row["forecast_score"], "forecast_verdict": row["forecast_verdict"],
+            "holding_days": holding_days, "gross_pnl": net.gross_pnl, "net_pnl": net.net_pnl,
+            "net_pct": net.net_return_pct, "is_manual_trade": row.get("is_manual_trade", False),
+        })
+        store.unmark_as_bought(close_conn, row["id"])
+        close_conn.close()
+        _sync_and_warn("position closed", include_db=True)
+        st.session_state.pop(sell_key, None)
+        load_alerts.clear()
+        st.rerun()
+    if do_cancel:
+        st.session_state.pop(sell_key, None)
+        st.rerun(scope="fragment")
 
 
 def _sector_items(rows: list[dict]) -> list[dict]:
@@ -6495,6 +6508,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                                 r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
+                    _v3_sell_flow(r, "form")
 
         if not _shown_any:
             st.markdown('<div class="v3h"><div class="nw"><small>אין אחזקות שמתאימות לסינון.</small></div></div>', unsafe_allow_html=True)
