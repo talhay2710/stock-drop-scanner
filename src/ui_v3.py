@@ -1236,9 +1236,9 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
         xl.append(f'<span style="left:{px(ts_m):.2f}%"><bdi dir="rtl">{_HE_MONTHS[m_ - 1]} {y_ % 100:02d}</bdi></span>')
         y_, m_ = (y_ + 1, 1) if m_ == 12 else (y_, m_ + 1)
     return (
-        f'{head("מסלול הרווח")}'
+        f'{head("מסלול רווח/הפסד")}'
         f'<div class="eq"><div class="eqp"><div class="eqyl">{ylab}</div>'
-        f'<div class="eqa"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="מסלול הרווח">'
+        f'<div class="eqa"><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="מסלול רווח/הפסד">'
         f'{grid}{area}<polyline points="{poly}" fill="none" stroke="{col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>'
         f'{"".join(dots)}</div></div>'
         f'<div class="eqx"><div class="eqxl">{"".join(xl)}</div></div></div>'
