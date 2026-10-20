@@ -1058,7 +1058,7 @@ HOLDINGS_CSS = """
         .v3h .srow .sn small { display:block; margin-top:3px; font-size:12.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .v3h .srow .sbar { display:block; height:5px; border-radius:3px; background:color-mix(in srgb, var(--rule) 75%, transparent); }
         .v3h .srow .sbar i { display:block; height:100%; border-radius:3px; }
-        .v3h .srow .sp2 { font-size:21px; font-weight:300; direction:ltr; text-align:end; color:var(--v3-ink); font-variant-numeric:tabular-nums; }
+        .v3h .srow .sp2 { font-size:16px; font-weight:400; direction:ltr; text-align:end; color:var(--v3-ink); font-variant-numeric:tabular-nums; }
         @media (max-width:720px) {
             .v3h .sgrid { flex-direction:column; align-items:stretch; gap:16px; }
             .v3h .sdonut { width:200px; max-width:100%; margin-inline:auto; order:-1; }
