@@ -891,7 +891,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
     for k, i in enumerate(items):
         length = max(i["pct"] / 100.0 * circ - gap, 1.5)
         segs.append(
-            f'<circle cx="100" cy="100" r="{r:.0f}" fill="none" stroke="{_SECTOR_TONES[k % len(_SECTOR_TONES)]}" stroke-width="16" '
+            f'<circle cx="100" cy="100" r="{r:.0f}" fill="none" stroke="{_SECTOR_TONES[k % len(_SECTOR_TONES)]}" stroke-width="11" '
             f'stroke-dasharray="{length:.2f} {circ - length:.2f}" stroke-dashoffset="{-offset:.2f}" transform="rotate(-90 100 100)">'
             f'<title>{esc(i["label"])} {i["pct"]:.0f}%</title></circle>'
         )
@@ -901,7 +901,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         f'<circle cx="100" cy="100" r="{r:.0f}" fill="none" stroke="var(--rule)" stroke-width="1" stroke-dasharray="2 4"/>'
         + "".join(segs) +
         f'<text x="100" y="92" text-anchor="middle" font-size="12" letter-spacing=".05em" fill="var(--dim)">ריכוז סקטוריאלי</text>'
-        f'<text x="100" y="121" text-anchor="middle" font-size="23" font-weight="500" letter-spacing=".02em" fill="{conc_color}">{conc}</text>'
+        f'<text x="100" y="121" text-anchor="middle" font-size="20" font-weight="400" letter-spacing=".02em" fill="{conc_color}">{conc}</text>'
         '</svg></figure>'
     )
     top = max(i["pct"] for i in items) or 1.0
@@ -1048,21 +1048,21 @@ HOLDINGS_CSS = """
         .v3h .abar .abl { display:flex; align-items:baseline; gap:5px; min-width:0; line-height:1.3; }
         .v3h .abar .abn { font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .v3h .abar .abp { font-size:12px; color:var(--v3-soft); flex:none; }
-        .v3h .sgrid { display:flex; align-items:center; gap:64px; margin-top:24px; }
-        .v3h .sdonut { margin:0; flex:none; width:220px; }
+        .v3h .sgrid { display:flex; align-items:center; gap:56px; margin-top:22px; }
+        .v3h .sdonut { margin:0; flex:none; width:190px; }
         .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
         .v3h .slist { flex:1 1 auto; min-width:0; }
-        .v3h .srow { display:grid; grid-template-columns:12px 190px minmax(120px,1fr) 64px; align-items:center; gap:18px; padding:18px 10px; border-bottom:1px solid var(--rule); }
-        .v3h .srow .dot { width:10px; height:10px; border-radius:50%; }
-        .v3h .srow .sn b { display:block; font-size:17px; font-weight:400; color:var(--v3-ink); }
-        .v3h .srow .sn small { display:block; margin-top:3px; font-size:12.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .v3h .srow .sbar { display:block; height:5px; border-radius:3px; background:color-mix(in srgb, var(--rule) 75%, transparent); }
-        .v3h .srow .sbar i { display:block; height:100%; border-radius:3px; }
-        .v3h .srow .sp2 { font-size:16px; font-weight:400; direction:ltr; text-align:end; color:var(--v3-ink); font-variant-numeric:tabular-nums; }
+        .v3h .srow { display:grid; grid-template-columns:10px 104px minmax(60px,1fr) 44px; align-items:center; gap:14px; padding:15px 8px; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
+        .v3h .srow .dot { width:8px; height:8px; border-radius:50%; opacity:.85; }
+        .v3h .srow .sn b { display:block; font-size:15px; font-weight:400; color:var(--v3-soft); }
+        .v3h .srow .sn small { display:block; margin-top:2px; font-size:12px; color:var(--dim); opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .v3h .srow .sbar { display:block; height:3px; border-radius:2px; background:color-mix(in srgb, var(--rule) 55%, transparent); }
+        .v3h .srow .sbar i { display:block; height:100%; border-radius:2px; opacity:.8; }
+        .v3h .srow .sp2 { font-size:14px; font-weight:400; direction:ltr; text-align:end; color:var(--dim); font-variant-numeric:tabular-nums; }
         @media (max-width:720px) {
             .v3h .sgrid { flex-direction:column; align-items:stretch; gap:16px; }
             .v3h .sdonut { width:200px; max-width:100%; margin-inline:auto; order:-1; }
-            .v3h .srow { grid-template-columns:12px minmax(0,1fr) 56px; gap:8px 12px; padding:14px 6px; }
+            .v3h .srow { grid-template-columns:10px minmax(0,1fr) 44px; gap:8px 12px; padding:13px 6px; }
             .v3h .srow .sn { grid-column:2; grid-row:1; }
             .v3h .srow .sbar { grid-column:2; grid-row:2; }
             .v3h .srow .sp2 { grid-column:3; grid-row:1 / 3; }
