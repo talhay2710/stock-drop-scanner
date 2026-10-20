@@ -912,7 +912,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
         for k, i in enumerate(items)
     )
-    return f'{head(title)}<div class="sgrid">{donut}<div class="slist">{rows}</div></div>'
+    return f'{head(title)}<div class="sgrid"><div class="slist">{rows}</div>{donut}</div>'
 
 
 def holdings_overview(invested: float, value: float, count: int, pnl: float, pnl_pct: float,
@@ -1049,7 +1049,7 @@ HOLDINGS_CSS = """
         .v3h .abar .abn { font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .v3h .abar .abp { font-size:12px; color:var(--v3-soft); flex:none; }
         .v3h .sgrid { display:flex; align-items:center; gap:56px; margin-top:22px; }
-        .v3h .sdonut { margin:0; flex:none; width:190px; }
+        .v3h .sdonut { margin:0; flex:none; width:216px; }
         .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
         .v3h .slist { flex:1 1 auto; min-width:0; }
         .v3h .srow { display:grid; grid-template-columns:10px 104px minmax(60px,1fr) 44px; align-items:center; gap:14px; padding:15px 8px; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
