@@ -7447,7 +7447,7 @@ def _v3_index_cards(index_changes: dict) -> list[dict]:
         "TA125": ('ת״א <span class="num">125</span>', "TA125", [0, 1, 3, 7, 30, 90]),
     }
     cards = []
-    for idx in ALL_INDICES:
+    for idx in ("NASDAQ100", "SP500", "TA35", "TA125"):  # סדר הכרטיסים בדף הבית (מימין לשמאל): נאסד״ק, S&P, ת״א 35, ת״א 125
         label_html, mono, options = _meta[idx]
         trading_open = is_market_open(idx)
         # "יום אחרון" רק כשהשוק פתוח: כשהוא סגור זה אותו יום כמו עצירה 0 ("סגירה dd.mm"), אותו אחוז - כפל מיותר
