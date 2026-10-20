@@ -146,7 +146,7 @@ def portfolio_strip(value: float, count: int, pnl: float, pnl_pct: float,
     # סכומים בלבד: בלי פס ההרכב ובלי שורת האחוזים מתחת לסכומים (הוסרו לבקשת המשתמש, 19.10.2026) - האחוזים בטבלת האחזקות שמתחת
     sym = CCY_SYMBOL.get(ccy, esc(ccy))
     cells = [
-        f'<div><small>שווי תיק</small><strong>{money(num(plain(value)), sym)}</strong></div>',
+        f'<div><small>שווי נוכחי</small><strong>{money(num(plain(value)), sym)}</strong></div>',
         f'<div><small>רווח/הפסד</small><strong class="{cls_for(pnl)}">{money(num(signed(pnl)), sym)}</strong></div>',
     ]
     if day_change is not None:
