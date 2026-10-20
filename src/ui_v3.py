@@ -912,7 +912,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
         for k, i in enumerate(items)
     )
-    return f'{head(title)}<div class="sgrid"><div class="slist">{rows}</div>{donut}</div>'
+    return f'{head(title)}<div class="sgrid">{donut}<div class="slist">{rows}</div></div>'
 
 
 def holdings_overview(invested: float, value: float, count: int, pnl: float, pnl_pct: float,
