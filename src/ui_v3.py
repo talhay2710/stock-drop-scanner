@@ -799,20 +799,6 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     )
 
 
-def hold_total_row(value: float, sym: str, pnl_pct: float, pnl: float, day_amt: float | None, day_pct: float | None,
-                   net: float | None) -> str:
-    """שורת סה"כ בתחתית הטבלה, באותו גריד ובאותן עמודות: שווי, תשואה, רווח/הפסד, היום, נטו - כל סכום מתחת לעמודה שלו."""
-    ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>'
-    pl = f'<span class="c {cls_for(pnl)}"><b>{_money_cell(pnl, sym, True, False)}</b></span>'
-    day = (f'<span class="c {cls_for(day_amt)}"><b>{_money_cell(day_amt, sym, True, False)}</b><small>{num(signed(day_pct, 1, "%"))}</small></span>'
-           if day_amt is not None and day_pct is not None else '<span class="c"></span>')
-    nt = f'<span class="c {cls_for(net)}"><b>{_money_cell(net, sym, True)}</b></span>' if net is not None else '<span class="c"></span>'
-    return (
-        f'<div class="hrow tot"><span class="nm">סה"כ</span><span class="c"><b>{_money_cell(value, sym)}</b></span>{ret}{pl}{day}'
-        f'<span class="c rc2"></span><span class="c"></span>{nt}<span class="sp"></span><span></span></div>'
-    )
-
-
 def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_gap: float | None, tgt_gap: float | None,
                       held: int | None, horizon: int | None, pnl_amt: float | None = None, net_amt: float | None = None) -> str:
     """בנייד העמודות הצפופות מוסתרות מהשורה - הן מופיעות כאן בראש הפרטים של השורה שנפתחת."""
@@ -1121,10 +1107,6 @@ HOLDINGS_CSS = """
         .v3h .hrow .c small { font-size:12px; color:var(--dim); white-space:nowrap; direction:rtl; }
         .v3h .hrow .c.up b, .v3h .hrow .c.up small { color:var(--gain); } .v3h .hrow .c.down b, .v3h .hrow .c.down small { color:var(--loss); }
         .v3h .hrow .c.warn b, .v3h .hrow .c.warn small { color:var(--loss); }
-        .v3h .hrow.tot { border-top:1px solid var(--rule-strong); border-bottom:0; background:transparent; padding-block:18px 10px; }
-        .v3h .hrow.tot:hover { background:transparent; }
-        .v3h .hrow.tot .nm { font-size:14px; color:var(--dim); letter-spacing:.02em; }
-        .v3h .hrow.tot .c b { font-size:17px; }
         .v3h .hrow .rc2 { align-items:flex-start; direction:rtl; gap:4px; }
         .v3h .hrow .rc2 em { font-style:normal; font-size:13px; color:var(--dim); white-space:nowrap; }
         .v3h .hrow .rc2 em b { display:inline; font-size:13px; font-weight:500; }
