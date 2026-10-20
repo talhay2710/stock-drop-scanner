@@ -1052,7 +1052,7 @@ HOLDINGS_CSS = """
         .v3h .sdonut { margin:0; flex:none; width:220px; }
         .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
         .v3h .slist { flex:1 1 auto; min-width:0; }
-        .v3h .srow { display:grid; grid-template-columns:12px minmax(0,1.2fr) minmax(110px,1fr) 64px; align-items:center; gap:18px; padding:18px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .srow { display:grid; grid-template-columns:12px 190px minmax(120px,1fr) 64px; align-items:center; gap:18px; padding:18px 10px; border-bottom:1px solid var(--rule); }
         .v3h .srow .dot { width:10px; height:10px; border-radius:50%; }
         .v3h .srow .sn b { display:block; font-size:17px; font-weight:400; color:var(--v3-ink); }
         .v3h .srow .sn small { display:block; margin-top:3px; font-size:12.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
