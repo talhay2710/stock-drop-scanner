@@ -955,6 +955,21 @@ def portfolio_map(items: list[dict]) -> str:
     return f'<div class="pmap">{"".join(tiles)}</div><div class="pcap">רוחב האריח = משקל בתיק · צבע = רווח/הפסד</div>'
 
 
+def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str) -> str:
+    """סיכום שקט בשורה אחת מתחת לטבלת האחזקות: "סה"כ רווח/הפסד -2,535 ₪ · -7.5%   ·   היום -160 ₪ · -0.5%" - בלי קווים ובלי קופסאות."""
+    sym = CCY_SYMBOL.get(ccy, esc(ccy))
+
+    def part(label: str, a: float, p: float) -> str:
+        c = cls_for(a)
+        return (f'<span class="tl"><small>{esc(label)}</small><b class="{c}">{money(num(signed(a)), sym)}</b>'
+                f'<i class="{c}">{num(signed(p, 1, "%"))}</i></span>')
+
+    inner = part('סה"כ רווח/הפסד', pnl, pnl_pct)
+    if day_amt is not None and day_pct is not None:
+        inner += part("שינוי יומי", day_amt, day_pct)
+    return f'<div class="tline">{inner}</div>'
+
+
 def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str) -> str:
     """סה"כ מתחת לטבלת האחזקות, בשפת שאר האתר: פס KPI דק (בלי כרטיס ובלי צ'יפים) - סכום גדול ואחוז קטן מתחתיו בצבע הסימן."""
     sym = CCY_SYMBOL.get(ccy, esc(ccy))
@@ -1073,7 +1088,13 @@ HOLDINGS_CSS = """
         .v3h .pmap .tile b { font-size:16px; font-weight:400; line-height:1.1; direction:ltr; text-align:right; }
         .v3h .pmap .tile b.up { color:var(--gain); } .v3h .pmap .tile b.down { color:var(--loss); }
         .v3h .pcap { font-size:11px; color:var(--dim); text-align:right; }
-                .v3h .kpi.ktot { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:22px; border-top:0; }
+                .v3h .tline { display:flex; flex-wrap:wrap; gap:6px 40px; padding:18px 10px 4px; align-items:baseline; }
+        .v3h .tl { display:inline-flex; align-items:baseline; gap:10px; }
+        .v3h .tl small { font-size:13px; color:var(--dim); }
+        .v3h .tl b { font-size:19px; font-weight:400; }
+        .v3h .tl i { font-style:normal; font-size:14px; }
+        .v3h .tl .up { color:var(--gain); } .v3h .tl .down { color:var(--loss); }
+        .v3h .kpi.ktot { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:22px; border-top:0; }
         .v3h .kpi.ktot > div { padding:16px 18px 18px; border-top:0 !important; }
         .v3h .kpi.ktot > div:first-child { grid-column:auto; padding-inline-start:0; border-inline-start:0; }
         .v3h .kpi.ktot > div:nth-child(2) { border-inline-start:1px solid var(--rule); padding-inline-start:18px; }
