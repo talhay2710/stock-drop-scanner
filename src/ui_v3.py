@@ -956,18 +956,18 @@ def portfolio_map(items: list[dict]) -> str:
 
 
 def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str) -> str:
-    """סה"כ בתצוגה מודרנית: כרטיס רך עם שני בלוקים (כולל / יומי) - סכום גדול + צ'יפ אחוז בגוון הצבע."""
-    usd = ccy == "USD"
-    def amt(v: float) -> str:
-        return f"{signed(v)}$" if usd else f"₪ {signed(v)}"
-    def block(label: str, a: float, p: float) -> str:
+    """סה"כ מתחת לטבלת האחזקות, בשפת שאר האתר: פס KPI דק (בלי כרטיס ובלי צ'יפים) - סכום גדול ואחוז קטן מתחתיו בצבע הסימן."""
+    sym = CCY_SYMBOL.get(ccy, esc(ccy))
+
+    def cell(label: str, a: float, p: float) -> str:
         c = cls_for(a)
-        return (f'<div class="tb"><small>{esc(label)}</small>'
-                f'<div class="tv"><strong class="{c}">{num(amt(a))}</strong><span class="chip {c}">{num(signed(p, 1, "%"))}</span></div></div>')
-    inner = block("סה\"כ רווח/הפסד", pnl, pnl_pct)
+        return (f'<div><small>{esc(label)}</small><strong class="{c}">{money(num(signed(a)), sym)}</strong>'
+                f'<em class="{c}">{num(signed(p, 1, "%"))}</em></div>')
+
+    inner = cell('סה"כ רווח/הפסד', pnl, pnl_pct)
     if day_amt is not None and day_pct is not None:
-        inner += '<div class="tsep"></div>' + block("שינוי יומי", day_amt, day_pct)
-    return f'<div class="tpill">{inner}</div>'
+        inner += cell("שינוי יומי", day_amt, day_pct)
+    return f'<div class="kpi ktot">{inner}</div>'
 
 
 def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
@@ -1073,7 +1073,13 @@ HOLDINGS_CSS = """
         .v3h .pmap .tile b { font-size:16px; font-weight:400; line-height:1.1; direction:ltr; text-align:right; }
         .v3h .pmap .tile b.up { color:var(--gain); } .v3h .pmap .tile b.down { color:var(--loss); }
         .v3h .pcap { font-size:11px; color:var(--dim); text-align:right; }
-        .v3h .tpill { display:flex; align-items:stretch; gap:0; margin:18px 0 6px; background:var(--surface); border:1px solid var(--rule); border-radius:8px; }
+                .v3h .kpi.ktot { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:22px; border-top:1px solid var(--rule-strong); }
+        .v3h .kpi.ktot > div { padding:16px 18px 18px; border-top:0 !important; }
+        .v3h .kpi.ktot > div:first-child { grid-column:auto; padding-inline-start:0; border-inline-start:0; }
+        .v3h .kpi.ktot > div:nth-child(2) { border-inline-start:1px solid var(--rule); padding-inline-start:18px; }
+        .v3h .kpi.ktot strong { font-size:clamp(22px,2.4vw,28px); font-weight:400; }
+        .v3h .kpi.ktot em { font-size:15px; }
+.v3h .tpill { display:flex; align-items:stretch; gap:0; margin:18px 0 6px; background:var(--surface); border:1px solid var(--rule); border-radius:8px; }
         .v3h .tpill .tb { flex:1 1 0; padding:16px 22px 18px; min-width:0; }
         .v3h .tpill .tb small { display:block; font-size:13px; color:var(--dim); margin-bottom:8px; }
         .v3h .tpill .tv { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; }
