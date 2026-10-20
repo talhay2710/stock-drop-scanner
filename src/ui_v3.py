@@ -1073,7 +1073,7 @@ HOLDINGS_CSS = """
         .v3h .pmap .tile b { font-size:16px; font-weight:400; line-height:1.1; direction:ltr; text-align:right; }
         .v3h .pmap .tile b.up { color:var(--gain); } .v3h .pmap .tile b.down { color:var(--loss); }
         .v3h .pcap { font-size:11px; color:var(--dim); text-align:right; }
-                .v3h .kpi.ktot { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:22px; border-top:1px solid var(--rule-strong); }
+                .v3h .kpi.ktot { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:22px; border-top:0; }
         .v3h .kpi.ktot > div { padding:16px 18px 18px; border-top:0 !important; }
         .v3h .kpi.ktot > div:first-child { grid-column:auto; padding-inline-start:0; border-inline-start:0; }
         .v3h .kpi.ktot > div:nth-child(2) { border-inline-start:1px solid var(--rule); padding-inline-start:18px; }
