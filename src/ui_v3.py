@@ -1091,8 +1091,8 @@ HOLDINGS_CSS = """
         .v3h .hrow { padding-block:14px; border-bottom:1px solid var(--rule); }
         .v3h .hrow:hover { background:var(--hover); }
         .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); min-width:0; }
-        .v3h .hrow .nm .l1 { display:flex; align-items:center; white-space:nowrap; }
-        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; flex:none; }
+        .v3h .hrow .nm .l1 { display:flex; align-items:baseline; white-space:nowrap; }
+        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; flex:none; align-self:center; }
         .v3h .hrow .nm .mono { margin-inline-start:10px; }
         .v3h .hrow.out .nm { font-weight:600; color:var(--loss); }
         .v3h .hrow .c { display:flex; flex-direction:column; align-items:flex-end; gap:3px; direction:ltr; line-height:1.15; }
