@@ -964,7 +964,7 @@ def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float
         return (f'<span class="tl"><small>{esc(label)}</small><b class="{c}">{money(num(signed(a)), sym)}</b>'
                 f'<i class="{c}">{num(signed(p, 1, "%"))}</i></span>')
 
-    inner = part('סה"כ רווח/הפסד', pnl, pnl_pct)
+    inner = part("רווח/הפסד", pnl, pnl_pct)
     if day_amt is not None and day_pct is not None:
         inner += part("שינוי יומי", day_amt, day_pct)
     return f'<div class="tline">{inner}</div>'
