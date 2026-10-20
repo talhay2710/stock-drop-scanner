@@ -7103,7 +7103,7 @@ def _render_journal_v3() -> None:
         ("סה\"כ עסקאות סגורות", str(total), ""),
         ("ממוצע ימי החזקה", f"{(sum(r['days'] for r in rows) / len(rows)):.1f}" if rows else "—", ""),
         ("עסקאות ברווח", str(wins), "up"),
-        ("שיעור הצלחה בפועל", f"{rate}%", "up" if rate >= 50 else "down"),
+        ("שיעור הצלחה", f"{rate}%", "up" if rate >= 50 else "down"),
     ]
     for ccy, grp in df_h.groupby("currency"):
         g, n = float(grp["gross_pnl"].sum()), float(grp["net_pnl"].sum())
