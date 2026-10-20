@@ -910,7 +910,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
         for k, i in enumerate(items)
     )
-    return f'{head(title)}<div class="sgrid">{donut}<div class="slist">{rows}</div></div>'
+    return f'{head(title)}<div class="sgrid"><div class="slist">{rows}</div>{donut}</div>'
 
 
 def holdings_overview(invested: float, value: float, count: int, pnl: float, pnl_pct: float,
@@ -1057,7 +1057,7 @@ HOLDINGS_CSS = """
         .v3h .srow .sp2 { font-size:16px; direction:ltr; text-align:right; color:var(--v3-soft); }
         @media (max-width:720px) {
             .v3h .sgrid { flex-direction:column; align-items:stretch; gap:16px; }
-            .v3h .sdonut { width:200px; max-width:100%; margin-inline:auto; }
+            .v3h .sdonut { width:200px; max-width:100%; margin-inline:auto; order:-1; }
             .v3h .srow { grid-template-columns:14px minmax(0,1fr) 48px; gap:2px 12px; }
             .v3h .srow .ss { grid-column:2 / 3; grid-row:2; white-space:normal; }
             .v3h .srow .sp2 { grid-column:3; grid-row:1 / 3; }
