@@ -226,33 +226,35 @@ def _hit(a: tuple, b: tuple) -> bool:
 
 def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו.
-    כלום לא מסתיר טקסט: תווית מניה שחופפת לתווית ציר או לתווית אחרת עוברת מתחת לנקודה; תווית ציר שנקודה יושבת עליה יורדת מתחת לנקודה."""
+    כלום לא מסתיר טקסט: תוויות הציר תמיד על אותו קו; תווית מניה שחופפת להן (או לתווית אחרת) עולה גבוה יותר או עוברת מתחת לנקודה."""
     placed = radar_positions(rows, step)
     s1, s2, s3 = (f"{step * k:g}" for k in (1, 2, 3))
     halo = "paint-order:stroke; stroke:var(--bg); stroke-width:5px; stroke-linejoin:round"
     ticks = [(137, f"-{s1}%", "loss"), (84, f"-{s2}%", "loss"), (32, f"-{s3}%", "loss"),
              (243, f"+{s1}%", "gain"), (296, f"+{s2}%", "gain"), (348, f"+{s3}%", "gain")]
-    tick_y = [185.0] * len(ticks)
+    tick_y = [185.0] * len(ticks)  # תוויות הציר תמיד על אותו קו - הנקודה זזה, לא התווית
     tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
-    # נקודה (כולל ההילה) מכסה תווית ציר? - התווית יורדת מתחת לנקודה
-    for i in range(len(ticks)):
-        for p in placed:
-            rr = 11.0 if p["out"] else 8.0
-            dot = (p["x"] - rr, p["y"] - rr, 2 * rr, 2 * rr)
-            if _hit(dot, tick_box(i)):
-                tick_y[i] = max(tick_y[i], p["y"] + rr + 11)
     taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
     dots = []
     for p in placed:
         label = esc(short_name(p["name"]))
         w = max(26.0, len(short_name(p["name"])) * 7.6)
-        above = p["y"] - (17 if p["out"] else 16)  # ברירת מחדל: מעל הנקודה (מעל ההילה כשיש הילה)
-        below = p["y"] + (27 if p["out"] else 23)
-        ly = above
-        box = lambda y: (p["x"] - w / 2, y - 13, w, 17)
-        if any(_hit(box(above), t) for t in taken) and not any(_hit(box(below), t) for t in taken):
-            ly = below
-        taken.append(box(ly))
+        rr = 11.0 if p["out"] else 8.0
+        rad = math.hypot(p["x"] - _CX, _CY - p["y"])
+        ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
+
+        def spot(d: float, below: bool = False) -> tuple[float, float, float, tuple, tuple]:
+            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית (מעליה, או מתחתיה)."""
+            th = math.radians(ang + d)
+            x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
+            ly = y + (27 if p["out"] else 23) if below else y - (17 if p["out"] else 16)
+            return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
+
+        # הזזת הנקודה לאורך הטבעת עד שהיא והתווית שלה לא מסתירות כלום (קודם תווית מעל, אחר כך מתחת)
+        cands = [(d, b) for d in [0.0] + [k * sg for k in range(1, 61) for sg in (1, -1)] for b in (False, True)]
+        pick, pick_below = next(((d, b) for d, b in cands if not any(_hit(spot(d, b)[3], t) or _hit(spot(d, b)[4], t) for t in taken)), (0.0, False))
+        p["x"], p["y"], ly, dbox, lbox = spot(pick, pick_below)
+        taken += [dbox, lbox]
         if p["out"]:
             dots.append(
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
