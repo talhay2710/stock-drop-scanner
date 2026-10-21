@@ -248,11 +248,11 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
             """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift)."""
             th = math.radians(ang + d)
             x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-            ly = y - (17 if p["out"] else 16) - lift
+            ly = y - (17 if p["out"] else 12) - lift
             return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
 
         # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
-        cands = [(d, lift) for lift in (0.0, 15.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
+        cands = [(d, lift) for lift in (0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 20.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
         pick, lift = next(((d, lf) for d, lf in cands
                            if not any(_hit(spot(d, lf)[3], t) for t in taken)
                            and not any(_hit(spot(d, lf)[4], t) for t in taken + [tick_band])), (0.0, 0.0))
