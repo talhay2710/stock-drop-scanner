@@ -281,7 +281,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
         f'<figure class="plot"><svg style="overflow:visible" viewBox="0 0 380 392" role="img" aria-label="{esc(aria)}">'
         '<circle cx="190" cy="190" r="53" fill="none" stroke="var(--rule)"/><circle cx="190" cy="190" r="106" fill="none" stroke="var(--rule)"/>'
         '<circle cx="190" cy="190" r="158" fill="none" stroke="var(--rule)"/>'
-        '<line x1="190" y1="14" x2="190" y2="366" stroke="var(--rule)"/><line x1="14" y1="190" x2="366" y2="190" stroke="var(--rule)"/>'
+        '<line x1="190" y1="14" x2="190" y2="366" stroke="var(--rule)"/><line x1="32" y1="190" x2="348" y2="190" stroke="var(--rule)"/>'
         '<path d="M190 14 A176 176 0 0 0 190 366" fill="none" stroke="var(--loss)" stroke-width="1" stroke-dasharray="4 5" opacity=".35"/>'
         '<path d="M190 137 A53 53 0 0 1 190 243" fill="none" stroke="var(--gain)" stroke-width="1.5" stroke-dasharray="4 5"/>'
         '<g style="direction:ltr; unicode-bidi:bidi-override; paint-order:stroke; stroke:var(--bg); stroke-width:4px; stroke-linejoin:round" '
