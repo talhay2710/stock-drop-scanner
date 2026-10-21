@@ -3775,6 +3775,16 @@ def _alert_signal(r) -> tuple[str, str]:
     )
 
 
+def _alert_caution(r) -> bool:
+    """אזהרה לצד סיגנל "לקנות": הירידה היא מימוש רווחים אחרי עלייה חדה, או שניתוח תגובת היתר ממליץ להיזהר. לא משנה את הניקוד."""
+    try:
+        if "profit_taking" in str(r.get("reasons_json") or ""):
+            return True
+        return "להיזהר" in str(r.get("overreaction_verdict") or "")
+    except Exception:
+        return False
+
+
 def _alert_score(r) -> int | None:
     """ניקוד הסיגנל של התראה (מתוך MAX_SIGNAL_SCORE) - אותם נתונים כמו _alert_signal."""
     try:
@@ -4740,6 +4750,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     _alert_price(r.get("entry_limit"), idx_name),
                     _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
                     _alert_price(r.get("stop_loss"), idx_name), it["hhmm"], is_open, {"SP500": "SPX", "NASDAQ100": "NDX"}.get(idx_name, idx_name or ""), cur_html,
+                    warn=it["key"] == "buy" and _alert_caution(r),
                 ) + "</div>", unsafe_allow_html=True,
             )
             if st.button(" ", key=f"v3_open_alert_{rid}"):

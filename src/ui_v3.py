@@ -619,12 +619,12 @@ def alerts_header() -> str:
 
 
 def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str, sig_label: str, score_text: str,
-              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "", cur_html: str = "") -> str:
+              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "", cur_html: str = "", warn: bool = False) -> str:
     new = ""  # תגית "חדשה" הוסרה - השעה בשורה מספיקה
     return (
         f'<div class="arow r{" open" if is_open else ""}">'
         f'<span class="nmc"><span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
-        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span class="x">{num(score_text)}</span>'
+        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}{'<small class="wn">זהירות</small>' if warn else ""}</span><span class="x">{num(score_text)}</span>'
         f'<span class="x">{num(entry)}</span><span class="x">{num(target)}</span><span class="x">{num(stop)}</span><span>{num(hhmm)}</span></div>'
     )
 
@@ -702,6 +702,7 @@ ALERTS_CSS = """
         .v3h .arow > span { padding-block:15px; }
         .v3h .arow > span:has(.nt) { padding-block:8px; }
         .v3h .arow .nm small.ix { opacity:.75; }
+        .v3h .arow .sig .wn { display:block; margin-top:2px; font-size:11px; font-weight:400; color:var(--v3-warn); letter-spacing:.02em; }
         .v3h .arow .nt { display:block; font-size:12px; line-height:1.25; color:var(--dim); }
         .v3h .arow.ahead { border-bottom:1px solid var(--rule-strong); }
         .v3h .arow.ahead > span { font-size:13px; color:var(--dim); padding-block:10px; }
@@ -886,7 +887,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         return ""
     r, circ, gap = 74.0, 2 * math.pi * 74.0, 3.0
     hhi = sum((i["pct"] / sum(x["pct"] for x in items)) ** 2 for i in items)  # מדד הרפינדל-הירשמן: 1 = הכל בסקטור אחד
-    conc, conc_color = (("מפוזר", "var(--gain)") if hhi < 0.25 else (("בינוני", "#8A6F3C") if hhi < 0.5 else ("מרוכז", "var(--loss)")))
+    conc, conc_color = (("נמוך", "var(--gain)") if hhi < 0.25 else (("בינוני", "#8A6F3C") if hhi < 0.5 else ("גבוה", "var(--loss)")))
     segs, offset = [], 0.0
     for k, i in enumerate(items):
         length = max(i["pct"] / 100.0 * circ - gap, 1.5)
