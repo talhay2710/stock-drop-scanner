@@ -735,7 +735,7 @@ ALERTS_CSS = """
         .v3h .nws > div { padding:6px 0; border-bottom:1px solid var(--rule); } .v3h .nws > div:last-child { border-bottom:0; }
         .v3h .src { color:var(--dim); font-size:13px; margin-inline-start:8px; }
         .v3h .afoot { font-size:15px; color:var(--v3-soft); }
-        .v3h .heldline { font-size:15px; color:var(--dim); padding-block:6px; border-top:1px solid var(--rule); }
+        .v3h .heldline { font-size:15px; color:var(--dim); padding-block:16px; margin-bottom:-22px; border-top:1px solid var(--rule); }
         @media (max-width:720px) { .v3h .amet { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3h .kpi.k4 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         .v3h .alev { display:none; }
         @media (max-width:480px) {
