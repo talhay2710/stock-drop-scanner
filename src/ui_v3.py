@@ -209,6 +209,9 @@ def radar_positions(rows: list[dict], step: float = 3.0) -> list[dict]:
     placed = []
     for group, lo, hi in ((losers, 128.0, 235.0), (winners, 50.0, -50.0)):
         for r, ang in zip(group, _spread(len(group), lo, hi)):
+            off = ang - (180.0 if ang > 90 else 0.0)  # סטייה מהציר האופקי (שם יושבות תוויות האחוזים)
+            if abs(off) < 16.0:
+                ang += (16.0 if off >= 0 else -16.0) - off
             rad = min(abs(r["pnl_pct"]) * (53.0 / step), _R_MAX)
             theta = math.radians(ang)
             x = _CX + rad * math.cos(theta)
@@ -235,7 +238,8 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     tick_y = [185.0] * len(ticks)  # תוויות הציר תמיד על אותו קו - הנקודה זזה, לא התווית
     tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
     taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
-    tick_band = (14.0, 171.0, 352.0, 18.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה
+    pad = lambda b, k: (b[0] - k, b[1] - 2, b[2] + 2 * k, b[3] + 4)
+    tick_pad = [pad(tick_box(i), 14.0) for i in range(len(ticks))]  # שוליים סביב תוויות האחוזים - שמות לא מתקרבים אליהן
     dots = []
     for p in placed:
         label = esc(short_name(p["name"]))
@@ -248,14 +252,14 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
             """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift)."""
             th = math.radians(ang + d)
             x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-            ly = y - (17 if p["out"] else 12) - lift
+            ly = y - (14 if p["out"] else 11) - lift
             return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
 
         # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
         cands = [(d, lift) for lift in (0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 20.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
         pick, lift = next(((d, lf) for d, lf in cands
                            if not any(_hit(spot(d, lf)[3], t) for t in taken)
-                           and not any(_hit(spot(d, lf)[4], t) for t in taken + [tick_band])), (0.0, 0.0))
+                           and not any(_hit(spot(d, lf)[4], t) for t in taken + tick_pad)), (0.0, 0.0))
         p["x"], p["y"], ly, dbox, lbox = spot(pick, lift)
         taken += [dbox, lbox]
         if p["out"]:
