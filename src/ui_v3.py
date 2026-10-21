@@ -235,11 +235,11 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     halo = "paint-order:stroke; stroke:var(--bg); stroke-width:5px; stroke-linejoin:round"
     ticks = [(137, f"-{s1}%", "loss"), (84, f"-{s2}%", "loss"), (32, f"-{s3}%", "loss"),
              (243, f"+{s1}%", "gain"), (296, f"+{s2}%", "gain"), (348, f"+{s3}%", "gain")]
-    tick_y = [185.0] * len(ticks)  # תוויות הציר תמיד על אותו קו - הנקודה זזה, לא התווית
+    tick_y = [193.5] * len(ticks)  # תוויות הציר תמיד על אותו קו - הנקודה זזה, לא התווית
     tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
     taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
     pad = lambda b, k: (b[0] - k, b[1] - 2, b[2] + 2 * k, b[3] + 4)
-    tick_band = (14.0, 172.0, 352.0, 17.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה בכלל
+    tick_band = (14.0, 181.0, 352.0, 17.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה בכלל
     tick_pad = [pad(tick_box(i), 14.0) for i in range(len(ticks))]  # שוליים סביב תוויות האחוזים - שמות לא מתקרבים אליהן
     dots = []
     for p in placed:
@@ -274,7 +274,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--ink)" stroke="none"/>'
                 f'<text x="{p["x"]:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
             )
-    tick_html = "".join(f'<text x="{x}" y="{tick_y[i]:.0f}" fill="var(--{col})">{t}</text>' for i, (x, t, col) in enumerate(ticks))
+    tick_html = "".join(f'<text x="{x}" y="{tick_y[i]:.1f}" fill="var(--{col})">{t}</text>' for i, (x, t, col) in enumerate(ticks))
     n_out = sum(1 for p in placed if p["out"])
     aria = "רדאר אחזקות לפי רווח והפסד. צד שמאל הפסד, צד ימין רווח." + (f" {n_out} אחזקות חצו את הסטופ שלהן." if n_out else "")
     return (
