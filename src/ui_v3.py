@@ -239,6 +239,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
     taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
     pad = lambda b, k: (b[0] - k, b[1] - 2, b[2] + 2 * k, b[3] + 4)
+    tick_band = (14.0, 172.0, 352.0, 17.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה בכלל
     tick_pad = [pad(tick_box(i), 14.0) for i in range(len(ticks))]  # שוליים סביב תוויות האחוזים - שמות לא מתקרבים אליהן
     dots = []
     for p in placed:
@@ -259,7 +260,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
         cands = [(d, lift) for lift in (0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 20.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
         pick, lift = next(((d, lf) for d, lf in cands
                            if not any(_hit(spot(d, lf)[3], t) for t in taken)
-                           and not any(_hit(spot(d, lf)[4], t) for t in taken + tick_pad)), (0.0, 0.0))
+                           and not any(_hit(spot(d, lf)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0))
         p["x"], p["y"], ly, dbox, lbox = spot(pick, lift)
         taken += [dbox, lbox]
         if p["out"]:
