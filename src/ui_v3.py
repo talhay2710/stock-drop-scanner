@@ -219,15 +219,40 @@ def radar_positions(rows: list[dict], step: float = 3.0) -> list[dict]:
     return placed
 
 
+def _hit(a: tuple, b: tuple) -> bool:
+    """חפיפה בין שני מלבנים (x, y, w, h)."""
+    return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
+
+
 def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
-    """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו."""
+    """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו.
+    כלום לא מסתיר טקסט: תווית מניה שחופפת לתווית ציר או לתווית אחרת עוברת מתחת לנקודה; תווית ציר שנקודה יושבת עליה יורדת מתחת לנקודה."""
     placed = radar_positions(rows, step)
     s1, s2, s3 = (f"{step * k:g}" for k in (1, 2, 3))
     halo = "paint-order:stroke; stroke:var(--bg); stroke-width:5px; stroke-linejoin:round"
+    ticks = [(137, f"-{s1}%", "loss"), (84, f"-{s2}%", "loss"), (32, f"-{s3}%", "loss"),
+             (243, f"+{s1}%", "gain"), (296, f"+{s2}%", "gain"), (348, f"+{s3}%", "gain")]
+    tick_y = [185.0] * len(ticks)
+    tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
+    # נקודה (כולל ההילה) מכסה תווית ציר? - התווית יורדת מתחת לנקודה
+    for i in range(len(ticks)):
+        for p in placed:
+            rr = 11.0 if p["out"] else 8.0
+            dot = (p["x"] - rr, p["y"] - rr, 2 * rr, 2 * rr)
+            if _hit(dot, tick_box(i)):
+                tick_y[i] = max(tick_y[i], p["y"] + rr + 11)
+    taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
     dots = []
     for p in placed:
         label = esc(short_name(p["name"]))
-        ly = p["y"] - (17 if p["out"] else 16)  # תמיד מעל הנקודה (אחידות); מעל ההילה כשיש הילה
+        w = max(26.0, len(short_name(p["name"])) * 7.6)
+        above = p["y"] - (17 if p["out"] else 16)  # ברירת מחדל: מעל הנקודה (מעל ההילה כשיש הילה)
+        below = p["y"] + (27 if p["out"] else 23)
+        ly = above
+        box = lambda y: (p["x"] - w / 2, y - 13, w, 17)
+        if any(_hit(box(above), t) for t in taken) and not any(_hit(box(below), t) for t in taken):
+            ly = below
+        taken.append(box(ly))
         if p["out"]:
             dots.append(
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
@@ -239,6 +264,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--ink)" stroke="none"/>'
                 f'<text x="{p["x"]:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
             )
+    tick_html = "".join(f'<text x="{x}" y="{tick_y[i]:.0f}" fill="var(--{col})">{t}</text>' for i, (x, t, col) in enumerate(ticks))
     n_out = sum(1 for p in placed if p["out"])
     aria = "רדאר אחזקות לפי רווח והפסד. צד שמאל הפסד, צד ימין רווח." + (f" {n_out} אחזקות חצו את הסטופ שלהן." if n_out else "")
     return (
@@ -250,8 +276,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
         '<path d="M190 137 A53 53 0 0 1 190 243" fill="none" stroke="var(--gain)" stroke-width="1.5" stroke-dasharray="4 5"/>'
         '<g style="direction:ltr; unicode-bidi:bidi-override; paint-order:stroke; stroke:var(--bg); stroke-width:4px; stroke-linejoin:round" '
         'font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="middle">'
-        f'<text x="137" y="185" fill="var(--loss)">-{s1}%</text><text x="84" y="185" fill="var(--loss)">-{s2}%</text><text x="32" y="185" fill="var(--loss)">-{s3}%</text>'
-        f'<text x="243" y="185" fill="var(--gain)">+{s1}%</text><text x="296" y="185" fill="var(--gain)">+{s2}%</text><text x="348" y="185" fill="var(--gain)">+{s3}%</text></g>'
+        f'{tick_html}</g>'
         f'<text x="222" y="130" text-anchor="middle" style="{halo}; stroke-width:6px" fill="var(--gain)" font-size="13" font-weight="600" font-family="Heebo, sans-serif">יעד</text>'
         '<circle cx="190" cy="190" r="2.5" fill="var(--dim)"/>'
         f'<g style="{halo}" text-anchor="middle" font-family="Heebo, sans-serif" font-size="13">{"".join(dots)}</g></svg></figure>'
