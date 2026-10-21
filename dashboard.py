@@ -7772,7 +7772,7 @@ def _render_home_v3() -> None:
             rows.append({
                 "name": r["name"], "pnl_pct": r["pnl_pct"], "daily_pct": r.get("daily_pct"),
                 "daily_pct_date": r.get("daily_pct_date"),
-                "pnl_amt": r.get("pnl"), "ccy": r.get("ccy"), "days": r.get("trading_days_held"),
+                "pnl_amt": r.get("pnl"), "ccy": r.get("ccy"),
                 "daily_amt": (r["current_value"] - r["current_value"] / (1 + r["daily_pct"] / 100))
                 if (r.get("current_value") is not None and r.get("daily_pct") is not None and r["daily_pct"] > -100) else None,
                 "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
@@ -7785,7 +7785,7 @@ def _render_home_v3() -> None:
                     "תצוגת אחזקות", ["₪", "%"], default="%", selection_mode="single", key="home_hold_unit_sel", label_visibility="collapsed",
                 ) or "%"
             st.markdown(
-                f'<div class="v3h">{ui_v3.holdings_section(rows, strategy_mod.target_pct(), "value" if _unit == "₪" else "pct", strategy_mod.HOLD_MAX_DAYS)}</div>',
+                f'<div class="v3h">{ui_v3.holdings_section(rows, strategy_mod.target_pct(), "value" if _unit == "₪" else "pct")}</div>',
                 unsafe_allow_html=True,
             )
         _comp_df, _comp_as_of, _comp_dom_index, _comp_is_daily = _compute_portfolio_history(holdings)
