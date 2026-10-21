@@ -976,6 +976,13 @@ def _tase_badge_html(row: dict) -> str:
     )
 
 
+def _level_text(value: float, is_il: bool, usd: bool = False) -> str:
+    """שער יעד/סטופ/לימיט (לא נתוני אמת): מספר עגול - מ-100 ומעלה לעשרות הקרובות, מתחת לשלם. ת"א באגורות."""
+    v = value * 100 if is_il else value
+    v = round(v / 10) * 10 if abs(v) >= 100 else round(v)
+    return f"${v:,.0f}" if usd else f"{v:,.0f}"
+
+
 def _price_text(value, index_name, whole: bool = False) -> str:
     """שער (לא סכום כסף כולל) לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני),
     בדיוק כמו שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py, וכרטיס
@@ -985,9 +992,11 @@ def _price_text(value, index_name, whole: bool = False) -> str:
     if pd.isna(value):
         return "—"
     ccy = constituents.INDEX_CURRENCY.get(index_name, "ILS")
+    if whole:
+        return _level_text(value, ccy == "ILS", usd=ccy != "ILS")
     if ccy == "ILS":
         return f"{value*100:,.0f}"
-    return f"${value:,.0f}" if whole else f"${value:,.2f}"
+    return f"${value:,.2f}"
 
 
 def _stat_card(label: str, value: str, color: str, bg: str, sub: str = "") -> str:
@@ -4590,7 +4599,7 @@ def _alert_price(value, index_name) -> str:
     """שער בטבלת ההתראות (v3): מספר שלם בלי סמל מטבע - השוק ברור מהסינון והשם, ות"א נסחר באגורות."""
     if pd.isna(value):
         return "—"
-    return f"{value * 100:,.0f}" if constituents.INDEX_CURRENCY.get(index_name, "ILS") == "ILS" else f"{value:,.0f}"
+    return _level_text(value, constituents.INDEX_CURRENCY.get(index_name, "ILS") == "ILS")
 
 
 def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_scan_date: str | None) -> None:
@@ -5785,8 +5794,8 @@ def _render_perf_v3() -> None:
             trs.append([
                 f'<td class="main">{ui_v3.esc(str(r["ticker"]).replace(".TA", ""))}</td>', f'<td>{ui_v3.num(when)}</td>',
                 (f'<td class="{ui_v3.cls_for(r["pct_change"])}">{ui_v3.num(ui_v3.signed(r["pct_change"], 1, "%"))}</td>' if pd.notna(r["pct_change"]) else "<td>—</td>"),
-                f'<td>{ui_v3.num(f"{r["target_base"]:,.0f}" if pd.notna(r["target_base"]) else "—")}</td>',
-                f'<td>{ui_v3.num(f"{r["stop_loss"]:,.0f}" if pd.notna(r["stop_loss"]) else "—")}</td>',
+                f'<td>{ui_v3.num(_level_text(r["target_base"], str(r["ticker"]).endswith(".TA")) if pd.notna(r["target_base"]) else "—")}</td>',
+                f'<td>{ui_v3.num(_level_text(r["stop_loss"], str(r["ticker"]).endswith(".TA")) if pd.notna(r["stop_loss"]) else "—")}</td>',
                 f'<td class="{oc}">{ui_v3.esc(lab)}</td>',
             ])
         more.append(ui_v3.collapsible(
@@ -6489,7 +6498,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 if is_open:
                     is_il = market_data._is_israeli_ticker(r["ticker"])
                     px = (lambda v: f"{v * 100:,.0f}") if is_il else (lambda v: f"{v:,.2f}")
-                    px0 = (lambda v: f"{v * 100:,.0f}") if is_il else (lambda v: f"{v:,.0f}")  # סטופ/יעד - שלמים
+                    px0 = lambda v: _level_text(v, is_il)  # סטופ/יעד - עגולים
                     fees_txt = f"{abs((r['pnl'] or 0) - r['net_pnl']):,.0f}" if (r.get("net_pnl") is not None and r.get("pnl") is not None) else ""
                     try:
                         _bd = dt.datetime.fromisoformat(str(r.get("bought_at"))).strftime("%d.%m.%y") if r.get("bought_at") else ""
@@ -6702,9 +6711,9 @@ with _tab_slot_portfolio.container():
                 _STOPLOSS_LABEL = "ס‌טופ-לוס"
                 _stored_stop = row.get("holding_stop_price")
                 stop_price = _stored_stop if (_stored_stop is not None and pd.notna(_stored_stop) and _stored_stop) else (row["entry"] * STOP_LOSS_FACTOR)
-                stop_price_text = f"{stop_price*100:,.0f}" if is_il else f"{stop_price:,.0f}"
+                stop_price_text = _level_text(stop_price, is_il)
                 target_price = live_target_price(row["entry"], stop_price, row.get("forecast_target"))
-                target_price_text = f"{target_price*100:,.0f}" if is_il else f"{target_price:,.0f}"
+                target_price_text = _level_text(target_price, is_il)
 
                 range_html = ""
                 if current is not None:
