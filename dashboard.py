@@ -653,8 +653,8 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
-        div[class*="st-key-v3_hpos_"] { padding-inline: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--v3-rule); }
-        div[class*="st-key-sell_form_"] { padding: 16px 0 8px; gap: 18px !important; }
+        div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
+        div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] input { text-align: end; font-size: 17px; }
@@ -665,14 +665,16 @@ _V3_CSS += """
         div[class*="st-key-sell_form_"] button[kind="primary"] p { font-size: 15px; }
         div[class*="st-key-sell_form_"] button[kind="tertiary"] { color: var(--v3-dim) !important; min-height: 40px; padding: 0 12px !important; }
         div[class*="st-key-sell_form_"] button[kind="tertiary"]:hover { color: var(--v3-ink) !important; background: transparent !important; }
-        div[class*="st-key-sell_holding_"] { margin: 0 !important; padding: 12px 10px 4px !important; width: 100% !important; direction: ltr; }
-        div[class*="st-key-sell_holding_"] [data-testid="stButton"] { display: flex; justify-content: flex-start; }
+        div[class*="st-key-sell_holding_"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 3; width: 100% !important; }
         div[class*="st-key-sell_holding_"] button p, div[class*="st-key-sell_holding_"] button div { display: none !important; }
-        div[class*="st-key-sell_holding_"] button { display: inline-flex !important; align-items: center; gap: 10px; width: auto !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; color: var(--v3-dim) !important; font-size: 0 !important; }
-        div[class*="st-key-sell_holding_"] button::before { content: ""; width: 26px; height: 26px; box-sizing: border-box; border: 1px solid var(--v3-rule); border-radius: 50%; background: linear-gradient(currentColor, currentColor) center / 12px 2px no-repeat; }
-        div[class*="st-key-sell_holding_"] button::after { content: "סגירת פוזיציה"; font-size: 14px; direction: rtl; }
-        div[class*="st-key-sell_holding_"] button:hover { color: var(--v3-loss, #9B3F2F) !important; background: transparent !important; }
-        div[class*="st-key-sell_holding_"] button:hover::before { border-color: var(--v3-loss, #9B3F2F); }
+        div[class*="st-key-sell_holding_"] button { position: absolute; top: 14px; left: 4px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 1px solid var(--v3-rule) !important; background: transparent !important; border-radius: 50% !important; color: var(--v3-dim) !important; font-size: 0 !important; }
+        div[class*="st-key-sell_holding_"] button::before { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; margin: -1px 0 0 -6px; background: currentColor; border-radius: 1px; }
+        div[class*="st-key-sell_holding_"] button:hover { color: var(--v3-loss, #9B3F2F) !important; border-color: var(--v3-loss, #9B3F2F) !important; background: transparent !important; }
+        div[class*="st-key-sell_holding_"] button {
+            margin-top: 10px; padding: 6px 14px !important; border: 1px solid var(--v3-rule) !important; border-radius: 6px !important;
+            background: transparent !important; color: var(--v3-soft) !important; font-size: 14px !important; font-weight: 400 !important; min-height: 0 !important;
+        }
+        div[class*="st-key-sell_holding_"] button:hover { border-color: var(--v3-ink) !important; color: var(--v3-ink) !important; }
         div[class*="st-key-alerts_refresh_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-alerts_refresh_icon"] button p, div[class*="st-key-alerts_refresh_icon"] button div { display: none !important; }
         div[class*="st-key-alerts_refresh_icon"] button {
@@ -6507,6 +6509,9 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                     tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     _sec = _SECTOR_LABELS_HE.get(r.get("sector"), r.get("sector") or "") if r.get("sector") and r.get("sector") != "לא ידוע" else ""
                     # סגירת פוזיציה: אייקון מינוס בפינת הכרטיס (זוג לפלוס שבכותרת) - מוצב לפני הכרטיס ומוחזק בגובה אפס
+                    # סגירת פוזיציה: אייקון מינוס בפינת הכרטיס (זוג לפלוס שבכותרת) - מוצב לפני הכרטיס ומוחזק בגובה אפס
+                    with st.container(key=f"v3_hpos_{rid}"):
+                        _v3_sell_flow(r)
                     st.markdown(
                         '<div class="v3h"><div class="hdet">' + ui_v3.hold_card(
                             cost=f"{r['invested']:,.0f}", qty=f"{(r.get('qty') or 0):,.0f}", fees=fees_txt, bought=_bd,
@@ -6519,9 +6524,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                                 r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
-                    with st.container(key=f"v3_hpos_{rid}"):
-                        _v3_sell_flow(r)  # "סגירת פוזיציה" + אייקון מינוס בתחתית הכרטיס, משמאל - מעל הקו התחתון
-                        _v3_sell_flow(r, "form")
+                    _v3_sell_flow(r, "form")
 
         if not _shown_any:
             st.markdown('<div class="v3h"><div class="nw"><small>אין אחזקות שמתאימות לסינון.</small></div></div>', unsafe_allow_html=True)
