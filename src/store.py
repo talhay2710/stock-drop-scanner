@@ -264,7 +264,12 @@ def get_closed_trades(conn: sqlite3.Connection) -> list[dict]:
     המעשיים שלך מול השוק, לשימוש בטאב 'היסטוריית עסקאות'."""
     cur = conn.execute("SELECT * FROM closed_trades ORDER BY exit_at DESC, id DESC")
     columns = [c[0] for c in cur.description]
-    return [dict(zip(columns, row)) for row in cur.fetchall()]
+    from .names import fix_name
+    rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+    for r in rows:
+        if "company_name" in r:
+            r["company_name"] = fix_name(r["company_name"])
+    return rows
 
 
 def get_closed_trades_on_date(conn: sqlite3.Connection, date_iso: str) -> list[dict]:

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import html
+from .names import fix_name
 import math
 import re
 
@@ -23,7 +24,7 @@ _GENERIC_FIRST = {"בנק", "קבוצת", "חברת", "הבנק", "בית", "ק�
 def short_name(name) -> str:
     """שם מניה מקוצר: מילה אחת ("אלביט מערכות" -> "אלביט", "Intel Corporation" -> "Intel").
     אם המילה הראשונה כללית (בנק, קבוצת...) לוקחים גם את השנייה ("בנק הפועלים")."""
-    text = str(name if name is not None else "").strip()
+    text = fix_name(str(name if name is not None else "").strip())
     if not text:
         return ""
     words = re.split(r"\s+", text)

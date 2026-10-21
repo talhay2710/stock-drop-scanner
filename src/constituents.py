@@ -112,7 +112,8 @@ def get_il_name_map(index: str) -> dict:
     path = os.path.join(DATA_DIR, filename)
     try:
         df = pd.read_csv(path, comment="#")
-        return dict(zip(df["yahoo_ticker"], df["name"]))
+        from .names import fix_name
+        return {k: fix_name(v) for k, v in zip(df["yahoo_ticker"], df["name"])}
     except Exception:
         return {}
 

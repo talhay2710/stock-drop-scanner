@@ -89,6 +89,7 @@ from src.config import load_config, db_path, CONFIG_PATH, ROOT_DIR
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
 from src import strategy as strategy_mod, post_alert, strategy_stats, forward_test, ui_v3, scan_status
+from src.names import fix_name
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
 
@@ -1729,6 +1730,8 @@ def load_alerts(path: str) -> pd.DataFrame:
     conn = store.get_conn(path)
     df = pd.read_sql_query("SELECT * FROM alerts ORDER BY scan_ts DESC", conn)
     conn.close()
+    if "company_name" in df.columns:
+        df["company_name"] = df["company_name"].map(fix_name)
     return df
 
 
