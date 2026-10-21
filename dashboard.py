@@ -976,17 +976,18 @@ def _tase_badge_html(row: dict) -> str:
     )
 
 
-def _price_text(value, index_name) -> str:
+def _price_text(value, index_name, whole: bool = False) -> str:
     """שער (לא סכום כסף כולל) לפי מדד - ת"א נסחר באגורות (ולא בש"ח עשרוני),
     בדיוק כמו שכבר נהוג בכל שאר האתר (למשל _format_price ב-scanner.py, וכרטיס
     האחזקה בטאב "אחזקות") - כדי שאפשר יהיה להשוות ישירות למסך הברוקר. משותף בין
-    כל מקום בדשבורד שמציג שער בודד של מניה, כדי לא לשכפל את הבדיקה שוב ושוב."""
+    כל מקום בדשבורד שמציג שער בודד של מניה, כדי לא לשכפל את הבדיקה שוב ושוב.
+    whole=True: שערי יעד/סטופ/לימיט (לא נתוני אמת) - מספר שלם."""
     if pd.isna(value):
         return "—"
     ccy = constituents.INDEX_CURRENCY.get(index_name, "ILS")
     if ccy == "ILS":
         return f"{value*100:,.0f}"
-    return f"${value:,.2f}"
+    return f"${value:,.0f}" if whole else f"${value:,.2f}"
 
 
 def _stat_card(label: str, value: str, color: str, bg: str, sub: str = "") -> str:
@@ -3889,18 +3890,18 @@ def _build_alert_detail_html(r) -> str:
 
     _entry_target_stop_html = "".join([
         _stat_card(
-            "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name")),
+            "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name"), whole=True),
             NEUTRAL_COLOR, NEUTRAL_BG, sub=f'{_signed_num(r["pct_change"], 1, "%")} שינוי יומי',
         ),
         _stat_card(
-            "יעד מכירה", _price_text(r["target_base"], r.get("index_name")), POS_COLOR, POS_BG,
+            "יעד מכירה", _price_text(r["target_base"], r.get("index_name"), whole=True), POS_COLOR, POS_BG,
             sub=(
                 f'{_signed_num((r["target_base"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
                 if r.get("entry_limit") else ""
             ),
         ),
         _stat_card(
-            "סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name")), NEG_COLOR, NEG_BG,
+            "סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name"), whole=True), NEG_COLOR, NEG_BG,
             sub=(
                 f'{_signed_num((r["stop_loss"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
                 if r.get("entry_limit") else ""
@@ -5002,7 +5003,7 @@ with _tab_slot_today.container():
                 todays_display_src["target_base"] = (todays_display_src["last_close"] * (1 + strategy_mod.target_frac())).round(2)
                 for _price_col in ("entry_limit", "target_base", "stop_loss"):
                     todays_display_src[_price_col] = todays_display_src.apply(
-                        lambda r, c=_price_col: _price_text(r[c], r.get("index_name")), axis=1,
+                        lambda r, c=_price_col: _price_text(r[c], r.get("index_name"), whole=True), axis=1,
                     )
                 # סיווג ריבאונד (A/B/C) = הרמזור של האסטרטגיה + הניקוד המשוקלל, צבוע לפי הרמזור; הפירוט
                 # (איזה גורם נתן כמה נקודות) בריחוף - ר' strategy.signal_score (7.10.2026).
@@ -5784,8 +5785,8 @@ def _render_perf_v3() -> None:
             trs.append([
                 f'<td class="main">{ui_v3.esc(str(r["ticker"]).replace(".TA", ""))}</td>', f'<td>{ui_v3.num(when)}</td>',
                 (f'<td class="{ui_v3.cls_for(r["pct_change"])}">{ui_v3.num(ui_v3.signed(r["pct_change"], 1, "%"))}</td>' if pd.notna(r["pct_change"]) else "<td>—</td>"),
-                f'<td>{ui_v3.num(f"{r["target_base"]:.2f}" if pd.notna(r["target_base"]) else "—")}</td>',
-                f'<td>{ui_v3.num(f"{r["stop_loss"]:.2f}" if pd.notna(r["stop_loss"]) else "—")}</td>',
+                f'<td>{ui_v3.num(f"{r["target_base"]:,.0f}" if pd.notna(r["target_base"]) else "—")}</td>',
+                f'<td>{ui_v3.num(f"{r["stop_loss"]:,.0f}" if pd.notna(r["stop_loss"]) else "—")}</td>',
                 f'<td class="{oc}">{ui_v3.esc(lab)}</td>',
             ])
         more.append(ui_v3.collapsible(
@@ -6488,6 +6489,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                 if is_open:
                     is_il = market_data._is_israeli_ticker(r["ticker"])
                     px = (lambda v: f"{v * 100:,.0f}") if is_il else (lambda v: f"{v:,.2f}")
+                    px0 = (lambda v: f"{v * 100:,.0f}") if is_il else (lambda v: f"{v:,.0f}")  # סטופ/יעד - שלמים
                     fees_txt = f"{abs((r['pnl'] or 0) - r['net_pnl']):,.0f}" if (r.get("net_pnl") is not None and r.get("pnl") is not None) else ""
                     try:
                         _bd = dt.datetime.fromisoformat(str(r.get("bought_at"))).strftime("%d.%m.%y") if r.get("bought_at") else ""
@@ -6502,7 +6504,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             signal=(r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
                             score=(r.get("signal_score"), strategy_mod.MAX_SIGNAL_SCORE), alert_pct=r.get("alert_pct"),
                             range_html=ui_v3.range_text(get_holding_range(r["ticker"], r.get("bought_at"), r.get("entry"))),
-                            stop_px=px(stop) if stop else "", tgt_px=px(tgt_price) if tgt_price else "", sector=_sec,
+                            stop_px=px0(stop) if stop else "", tgt_px=px0(tgt_price) if tgt_price else "", sector=_sec,
                             mobile_strip=ui_v3.hold_mobile_strip(
                                 r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
                                 r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
@@ -6700,9 +6702,9 @@ with _tab_slot_portfolio.container():
                 _STOPLOSS_LABEL = "ס‌טופ-לוס"
                 _stored_stop = row.get("holding_stop_price")
                 stop_price = _stored_stop if (_stored_stop is not None and pd.notna(_stored_stop) and _stored_stop) else (row["entry"] * STOP_LOSS_FACTOR)
-                stop_price_text = f"{stop_price*100:,.0f}" if is_il else f"{stop_price:,.2f}"
+                stop_price_text = f"{stop_price*100:,.0f}" if is_il else f"{stop_price:,.0f}"
                 target_price = live_target_price(row["entry"], stop_price, row.get("forecast_target"))
-                target_price_text = f"{target_price*100:,.0f}" if is_il else f"{target_price:,.2f}"
+                target_price_text = f"{target_price*100:,.0f}" if is_il else f"{target_price:,.0f}"
 
                 range_html = ""
                 if current is not None:
