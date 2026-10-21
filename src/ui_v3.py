@@ -250,10 +250,10 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
             ly = y + (27 if p["out"] else 23) if below else y - (17 if p["out"] else 16)
             return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
 
-        # הזזת הנקודה לאורך הטבעת עד שהיא והתווית שלה לא מסתירות כלום (קודם תווית מעל, אחר כך מתחת)
-        cands = [(d, b) for d in [0.0] + [k * sg for k in range(1, 61) for sg in (1, -1)] for b in (False, True)]
-        pick, pick_below = next(((d, b) for d, b in cands if not any(_hit(spot(d, b)[3], t) or _hit(spot(d, b)[4], t) for t in taken)), (0.0, False))
-        p["x"], p["y"], ly, dbox, lbox = spot(pick, pick_below)
+        # הזזת הנקודה לאורך הטבעת עד שהיא והתווית שלה לא מסתירות כלום - השם תמיד מעל הנקודה
+        pick = next((d for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
+                     if not any(_hit(spot(d)[3], t) or _hit(spot(d)[4], t) for t in taken)), 0.0)
+        p["x"], p["y"], ly, dbox, lbox = spot(pick)
         taken += [dbox, lbox]
         if p["out"]:
             dots.append(
