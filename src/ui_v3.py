@@ -1326,7 +1326,7 @@ def journal_table(rows: list[dict]) -> str:
         sig = f'סיגנל <span class="{ {"buy": "up", "wait": "warn", "avoid": "down"}.get(r["sig_key"], "")}">{esc(r["sig_label"])}</span>' if r.get("sig_label") else ""
         sub_bits = [b for b in (sig, "ידנית" if r.get("manual") else "") if b]
         sub = f'<span class="sub">{" · ".join(sub_bits)}</span>' if sub_bits else ""
-        oc = _OUTCOME_CLS.get(r["outcome"], "dim")
+        oc = _OUTCOME_CLS.get(r["outcome"]) or cls_for(r["gross"]) or "dim"  # תוצאה ניטרלית (נמכרה ידנית / חזרה מסטופ) נצבעת לפי הרווח או ההפסד בפועל
         body.append(
             f'<tr><td><span class="nm" title="{esc(r["name"])}"><bdi>{esc(short_name(r["name"]))}</bdi><span class="mono">{esc(r["mono"])}</span></span>{sub}</td>'
             f'<td class="c-entry"><span class="px">{num(r["entry_px"])}</span><span class="sub">{num(r["entry_dt"])}</span></td>'
