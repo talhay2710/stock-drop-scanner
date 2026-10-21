@@ -1323,7 +1323,7 @@ def journal_table(rows: list[dict]) -> str:
     """rows: name, mono, sig_key, sig_label, manual, entry_px, entry_dt, exit_px, exit_dt, days, outcome, pct, gross, net, ccy."""
     body = []
     for r in rows:
-        sig = f'סיגנל <span class="{ {"buy": "up", "wait": "warn"}.get(r["sig_key"], "")}">{esc(r["sig_label"])}</span>' if r.get("sig_label") else ""
+        sig = f'סיגנל <span class="{ {"buy": "up", "wait": "warn", "avoid": "down"}.get(r["sig_key"], "")}">{esc(r["sig_label"])}</span>' if r.get("sig_label") else ""
         sub_bits = [b for b in (sig, "ידנית" if r.get("manual") else "") if b]
         sub = f'<span class="sub">{" · ".join(sub_bits)}</span>' if sub_bits else ""
         oc = _OUTCOME_CLS.get(r["outcome"], "dim")
