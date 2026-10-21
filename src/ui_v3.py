@@ -1203,13 +1203,17 @@ HOLDINGS_CSS = """
 
 # ───────────────────────── יומן עסקאות ─────────────────────────
 
-def journal_kpi(cells: list[tuple[str, str, str]]) -> str:
-    """cells: [(label, value_text, css_class)] - שורת סיכומים בעמודות שוות (מספר העמודות נקבע לפי מספר התאים)."""
-    inner = "".join(f'<div><small>{esc(l)}</small><strong class="{c}">{num(v)}</strong></div>' for l, v, c in cells)
+def journal_kpi(cells: list[tuple]) -> str:
+    """cells: [(label, value_text, css_class[, sub_text])] - שורת סיכומים בעמודות שוות (מספר העמודות נקבע לפי מספר התאים)."""
+    inner = "".join(
+        f'<div><small>{esc(c[0])}</small><strong class="{c[2]}">{num(c[1])}</strong>' + (f'<em class="ms">{c[3]}</em>' if len(c) > 3 else "") + "</div>"
+        for c in cells
+    )
     return f'<div class="kpi kn" style="grid-template-columns:repeat({len(cells)},minmax(0,1fr))">{inner}</div>'
 
 
 JOURNAL_KPI_CSS = """
+        .v3h .kpi.kn em.ms { display:block; margin-top:2px; font-style:normal; font-size:13px; color:var(--dim); }
         @media (max-width:480px) {
             .v3h .kpi.kn { grid-template-columns:repeat(2,minmax(0,1fr)) !important; margin-top:16px; }
             .v3h .kpi.kn > div { padding:12px 12px 14px; border-top:1px solid var(--rule) !important; border-inline-start:1px solid var(--rule); }

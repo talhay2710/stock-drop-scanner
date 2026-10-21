@@ -7117,7 +7117,8 @@ def _render_journal_v3() -> None:
     rate = round(wins / total * 100) if total else 0
     cells = [
         ("סה\"כ עסקאות סגורות", str(total), ""),
-        ("חציון ימי החזקה", f"{float(pd.Series([r['days'] for r in rows]).median()):g}" if rows else "—", ""),
+        ("חציון ימי החזקה", f"{float(pd.Series([r['days'] for r in rows]).median()):g}" if rows else "—", "",
+         f"ממוצע {ui_v3.num(f'{sum(r['days'] for r in rows) / len(rows):.1f}')}" if rows else ""),
         ("עסקאות ברווח", str(wins), "up"),
         ("שיעור הצלחה", f"{rate}%", "up" if rate >= 50 else "down"),
     ]
