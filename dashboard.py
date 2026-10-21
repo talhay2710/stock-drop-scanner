@@ -653,8 +653,8 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
-        div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
-        div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
+        div[class*="st-key-v3_hpos_"] { padding-inline: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--v3-rule); }
+        div[class*="st-key-sell_form_"] { padding: 16px 0 8px; gap: 18px !important; }
         div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] input { text-align: end; font-size: 17px; }
@@ -6509,8 +6509,8 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
                     with st.container(key=f"v3_hpos_{rid}"):
-                        _v3_sell_flow(r)  # "סגירת פוזיציה" + אייקון מינוס בתחתית הכרטיס, משמאל
-                    _v3_sell_flow(r, "form")
+                        _v3_sell_flow(r)  # "סגירת פוזיציה" + אייקון מינוס בתחתית הכרטיס, משמאל - מעל הקו התחתון
+                        _v3_sell_flow(r, "form")
 
         if not _shown_any:
             st.markdown('<div class="v3h"><div class="nw"><small>אין אחזקות שמתאימות לסינון.</small></div></div>', unsafe_allow_html=True)

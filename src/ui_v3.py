@@ -660,8 +660,8 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
         f'<div><small>צפי לנמוך היומי</small><strong class="down">{num(f"-{exp_drop:.1f}%")}</strong></div>' if exp_drop is not None
         else '<div><small>צפי לנמוך היומי</small><strong>—</strong></div>'
     )
-    # quiet (סיגנל "לקנות"): בלי ציון תגובת יתר/איכות ובלי דגלי אזהרה - הסיגנל אחד וברור, בלי מסרים סותרים
-    scores = "" if quiet else f'{metric("תגובת יתר", over, over_cls)}{metric("איכות פונדמנטלית", quality, quality_cls)}'
+    # quiet (סיגנל "לקנות"): הציונים נשארים, רק בלי דגלי אזהרה - הסיגנל אחד וברור, בלי מסרים סותרים
+    scores = f'{metric("תגובת יתר", over, over_cls)}{metric("איכות פונדמנטלית", quality, quality_cls)}'
     met = (
         f'<div class="amet{" q" if quiet else ""}"><div><small>סיבת הירידה</small><strong class="r">{esc(reason)}</strong></div>'
         f'{scores}{drop_html}</div>'
@@ -722,7 +722,6 @@ ALERTS_CSS = """
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
         .v3h .why span b { font-weight:500; margin-inline-start:6px; }
         .v3h .why .p { color:var(--gain); } .v3h .why .m { color:var(--loss); }
-        .v3h .amet.q { grid-template-columns:1.4fr 1fr; }
         .v3h .amet { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:16px; padding-block:14px; border-block:1px solid var(--rule); }
         .v3h .amet strong { font-size:20px; font-weight:400; display:block; }
         .v3h .amet strong.r { font-size:17px; color:var(--v3-soft); }
@@ -1150,7 +1149,7 @@ HOLDINGS_CSS = """
         .v3h .bar .tk.s { background:var(--loss); } .v3h .bar .tk.t { background:var(--gain); }
         .v3h .bar .lb { position:absolute; top:14px; font-size:12px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; direction:rtl; }
         .v3h .bar .lb.a { transform:none; color:var(--loss); } .v3h .bar .lb.r { right:0; left:auto; transform:none; color:var(--gain); }
-        .v3h .hdet { padding:6px 10px 14px; border-bottom:1px solid var(--rule); }
+        .v3h .hdet { padding:6px 10px 4px; border-bottom:0; }
         .v3h .hcg { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; padding-top:6px; }
         .v3h .hc { padding:14px 18px 14px 0; display:flex; flex-direction:column; gap:5px; min-width:0; }
         .v3h .hc:nth-child(n+5) { border-top:1px solid var(--rule); }
