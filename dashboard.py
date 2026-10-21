@@ -660,8 +660,9 @@ _V3_CSS += """
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] input { text-align: end; font-size: 17px; }
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputStepUp"], div[class*="st-key-sell_form_"] [data-testid="stNumberInputStepDown"] { display: none !important; }
         div[class*="st-key-sell_form_"] [data-testid="stDateInput"] [data-baseweb="input"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
-        div[class*="st-key-sell_form_"] [data-testid="stDateInput"] input { font-size: 17px; text-align: end; }
+        div[class*="st-key-sell_form_"] [data-testid="stDateInput"] input { font-size: 17px; text-align: right !important; direction: ltr; }
         div[class*="st-key-sell_form_"] button[kind="primary"] { background: var(--v3-ink) !important; color: var(--v3-bg) !important; border: 0 !important; border-radius: 8px !important; min-height: 40px; padding: 0 24px !important; }
+        div[class*="st-key-sell_form_"] button[kind="primary"] p, div[class*="st-key-sell_form_"] button[kind="tertiary"] p { color: inherit !important; }
         div[class*="st-key-sell_form_"] button[kind="primary"] p { font-size: 15px; }
         div[class*="st-key-sell_form_"] button[kind="tertiary"] { color: var(--v3-dim) !important; min-height: 40px; padding: 0 12px !important; }
         div[class*="st-key-sell_form_"] button[kind="tertiary"]:hover { color: var(--v3-ink) !important; background: transparent !important; }
