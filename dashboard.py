@@ -5457,7 +5457,7 @@ with _tab_slot_today.container():
                                             st.markdown(_build_alert_detail_html(_sel_row.iloc[0]), unsafe_allow_html=True)
                                             _sel = _sel_row.iloc[0]
                                             if _sel.get("bought") == 1:
-                                                st.caption("✅ כבר באחזקות")
+                                                st.caption("✅ פוזיציה פתוחה")
                                             else:
                                                 with st.expander("➕ פתח פוזיציה", key=f"open_pos_exp_{_rid}"):
                                                     _lim = _sel.get("entry_limit")

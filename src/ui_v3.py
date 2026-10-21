@@ -679,7 +679,7 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
     else:
         news_html = ""
     foot = f'<div class="afoot"><span>{net_text}</span></div>' if net_text else ""
-    held_html = '<div class="heldline">כבר באחזקות</div>' if held else ""
+    held_html = '<div class="heldline">פוזיציה פתוחה</div>' if held else ""
     lev = (
         '<div class="alev">' + "".join(f'<div><small>{lbl}</small><strong>{num(v)}</strong></div>' for lbl, v in zip(("כניסה", "יעד", "סטופ"), levels)) + '</div>'
         if levels else ""
