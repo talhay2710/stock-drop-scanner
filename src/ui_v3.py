@@ -202,24 +202,25 @@ def _spread(n: int, lo: float, hi: float) -> list[float]:
     return [lo + (hi - lo) * i / (n - 1) for i in range(n)]
 
 
-def radar_positions(rows: list[dict], step: float = 3.0) -> list[dict]:
-    """מוסיף לכל שורה x/y/label_y/out לפי pnl_pct ו-stop_pct האישי (ההילה האדומה = חצתה את הסטופ של עצמה)."""
-    losers = sorted([r for r in rows if r["pnl_pct"] < 0], key=lambda r: -r["pnl_pct"])
-    winners = sorted([r for r in rows if r["pnl_pct"] >= 0], key=lambda r: -r["pnl_pct"])
+def _days_angle(days: float, dmax: float) -> float:
+    """זווית מהציר האופקי כלפי מעלה לפי ימי החזקה: חדשה קרוב לציר (10°), הארוכה ביותר בראש הטבעת (90°)."""
+    return 10.0 + 80.0 * min(max(days, 0.0), dmax) / dmax
+
+
+def radar_positions(rows: list[dict], step: float = 3.0, horizon: int = 3) -> tuple[list[dict], float]:
+    """מוסיף לכל שורה x/y/out. המרחק מהמרכז = רווח/הפסד (שמאל = הפסד, ימין = רווח), והגובה לאורך הטבעת = ימי החזקה
+    (למעלה = יותר ימים). out = חצתה את הסטופ האישי שלה (ההילה האדומה). מחזיר גם את dmax (ימי ראש הטבעת)."""
+    days = [float(r.get("days") or 0) for r in rows]
+    dmax = float(max(2 * horizon, max(days, default=0.0)))
     placed = []
-    for group, lo, hi in ((losers, 128.0, 235.0), (winners, 50.0, -50.0)):
-        for r, ang in zip(group, _spread(len(group), lo, hi)):
-            off = ang - (180.0 if ang > 90 else 0.0)  # סטייה מהציר האופקי (שם יושבות תוויות האחוזים)
-            if abs(off) < 16.0:
-                ang += (16.0 if off >= 0 else -16.0) - off
-            rad = min(abs(r["pnl_pct"]) * (53.0 / step), _R_MAX)
-            theta = math.radians(ang)
-            x = _CX + rad * math.cos(theta)
-            y = _CY - rad * math.sin(theta)
-            stop = r.get("stop_pct")
-            out = stop is not None and r["pnl_pct"] < stop
-            placed.append({**r, "x": x, "y": y, "out": out, "below": y > 300})
-    return placed
+    for r, d in zip(rows, days):
+        rad = min(abs(r["pnl_pct"]) * (53.0 / step), _R_MAX)
+        a = _days_angle(d, dmax)
+        theta = math.radians(a if r["pnl_pct"] >= 0 else 180.0 - a)
+        stop = r.get("stop_pct")
+        placed.append({**r, "x": _CX + rad * math.cos(theta), "y": _CY - rad * math.sin(theta),
+                       "out": stop is not None and r["pnl_pct"] < stop})
+    return placed, dmax
 
 
 def _hit(a: tuple, b: tuple) -> bool:
@@ -227,42 +228,28 @@ def _hit(a: tuple, b: tuple) -> bool:
     return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
 
 
-def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
-    """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו.
-    כלום לא מסתיר טקסט: תוויות הציר תמיד על אותו קו; תווית מניה שחופפת להן (או לתווית אחרת) עולה גבוה יותר או עוברת מתחת לנקודה."""
-    placed = radar_positions(rows, step)
+def holdings_radar(rows: list[dict], step: float = 3.0, horizon: int = 3) -> str:
+    """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו. המרחק מהמרכז = רווח/הפסד,
+    והגובה לאורך הטבעת = ימי החזקה (קרן מקווקוו = אופק האסטרטגיה, `horizon` ימים). תוויות האחוזים בחצי התחתון (שם אין נקודות),
+    ושם המניה תמיד מעל הנקודה שלו."""
+    placed, dmax = radar_positions(rows, step, horizon)
     s1, s2, s3 = (f"{step * k:g}" for k in (1, 2, 3))
     halo = "paint-order:stroke; stroke:var(--bg); stroke-width:5px; stroke-linejoin:round"
-    ticks = [(137, f"-{s1}%", "loss"), (84, f"-{s2}%", "loss"), (32, f"-{s3}%", "loss"),
-             (243, f"+{s1}%", "gain"), (296, f"+{s2}%", "gain"), (348, f"+{s3}%", "gain")]
-    tick_y = [185.0] * len(ticks)  # תוויות הציר תמיד על אותו קו - הנקודה זזה, לא התווית
-    tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
-    taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
-    pad = lambda b, k: (b[0] - k, b[1] - 2, b[2] + 2 * k, b[3] + 4)
-    tick_band = (14.0, 172.0, 352.0, 17.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה בכלל
-    tick_pad = [pad(tick_box(i), 14.0) for i in range(len(ticks))]  # שוליים סביב תוויות האחוזים - שמות לא מתקרבים אליהן
+    ha = math.radians(_days_angle(horizon, dmax))
+    hx, hy = _CX + 172 * math.cos(ha), _CY - 172 * math.sin(ha)
+    hlabel = (hx - 80, hy - 17, 78, 14)
+    taken = [(205, 118, 36, 15), hlabel, (_CX - 60, 0, 120, 14)] + [(p["x"] - 11, p["y"] - 11, 22, 22) for p in placed]
     dots = []
     for p in placed:
         label = esc(short_name(p["name"]))
         w = max(26.0, len(short_name(p["name"])) * 7.6)
-        rr = 11.0 if p["out"] else 8.0
-        rad = math.hypot(p["x"] - _CX, _CY - p["y"])
-        ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
-
-        def spot(d: float, lift: float = 0.0) -> tuple[float, float, float, tuple, tuple]:
-            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift)."""
-            th = math.radians(ang + d)
-            x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-            ly = y - (14 if p["out"] else 11) - lift
-            return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
-
-        # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
-        cands = [(d, lift) for lift in (0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 20.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
-        pick, lift = next(((d, lf) for d, lf in cands
-                           if not any(_hit(spot(d, lf)[3], t) for t in taken)
-                           and not any(_hit(spot(d, lf)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0))
-        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift)
-        taken += [dbox, lbox]
+        own = (p["x"] - 11, p["y"] - 11, 22, 22)
+        others = [t for t in taken if t != own]
+        base = 14 if p["out"] else 11  # צמוד לנקודה (מעל ההילה כשיש הילה)
+        box = lambda y: (p["x"] - w / 2, y - 13, w, 17)
+        cands = [p["y"] - base - lift for lift in (0, 3, 6, 9, 12, 15, 20, 30)] + [p["y"] + (27 if p["out"] else 23)]
+        ly = next((y for y in cands if not any(_hit(box(y), t) for t in others)), cands[0])
+        taken.append(box(ly))
         if p["out"]:
             dots.append(
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
@@ -274,20 +261,29 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--ink)" stroke="none"/>'
                 f'<text x="{p["x"]:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
             )
-    tick_html = "".join(f'<text x="{x}" y="{tick_y[i]:.0f}" fill="var(--{col})">{t}</text>' for i, (x, t, col) in enumerate(ticks))
+    ticks = [(137, f"-{s1}%", "loss"), (84, f"-{s2}%", "loss"), (32, f"-{s3}%", "loss"),
+             (243, f"+{s1}%", "gain"), (296, f"+{s2}%", "gain"), (348, f"+{s3}%", "gain")]
+    tick_html = "".join(f'<text x="{x}" y="206" fill="var(--{col})">{t}</text>' for x, t, col in ticks)  # בחצי התחתון - אין שם נקודות
     n_out = sum(1 for p in placed if p["out"])
-    aria = "רדאר אחזקות לפי רווח והפסד. צד שמאל הפסד, צד ימין רווח." + (f" {n_out} אחזקות חצו את הסטופ שלהן." if n_out else "")
+    aria = ("רדאר אחזקות: המרחק מהמרכז הוא הרווח או ההפסד (שמאל הפסד, ימין רווח), ולאורך הטבעת - ימי החזקה, למעלה יותר ימים."
+            + (f" {n_out} אחזקות חצו את הסטופ שלהן." if n_out else ""))
+    ray = lambda sx: (f'<line x1="190" y1="190" x2="{190 + sx * 176 * math.cos(ha):.0f}" y2="{190 - 176 * math.sin(ha):.0f}" '
+                      'stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 5" opacity=".6"/>')
     return (
         f'<figure class="plot"><svg style="overflow:visible" viewBox="0 0 380 392" role="img" aria-label="{esc(aria)}">'
         '<circle cx="190" cy="190" r="53" fill="none" stroke="var(--rule)"/><circle cx="190" cy="190" r="106" fill="none" stroke="var(--rule)"/>'
         '<circle cx="190" cy="190" r="158" fill="none" stroke="var(--rule)"/>'
         '<line x1="190" y1="14" x2="190" y2="366" stroke="var(--rule)"/><line x1="14" y1="190" x2="366" y2="190" stroke="var(--rule)"/>'
+        f'{ray(1)}{ray(-1)}'
         '<path d="M190 14 A176 176 0 0 0 190 366" fill="none" stroke="var(--loss)" stroke-width="1" stroke-dasharray="4 5" opacity=".35"/>'
         '<path d="M190 137 A53 53 0 0 1 190 243" fill="none" stroke="var(--gain)" stroke-width="1.5" stroke-dasharray="4 5"/>'
         '<g style="direction:ltr; unicode-bidi:bidi-override; paint-order:stroke; stroke:var(--bg); stroke-width:4px; stroke-linejoin:round" '
         'font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="middle">'
         f'{tick_html}</g>'
         f'<text x="222" y="130" text-anchor="middle" style="{halo}; stroke-width:6px" fill="var(--gain)" font-size="13" font-weight="600" font-family="Heebo, sans-serif">יעד</text>'
+        f'<g font-family="Heebo, sans-serif" font-size="11" fill="var(--dim)" style="{halo}; stroke-width:4px">'
+        f'<text x="{hx - 2:.0f}" y="{hy - 6:.0f}" text-anchor="end">אופק {horizon} ימים</text>'
+        '<text x="190" y="9" text-anchor="middle">למעלה = יותר ימי החזקה</text></g>'
         '<circle cx="190" cy="190" r="2.5" fill="var(--dim)"/>'
         f'<g style="{halo}" text-anchor="middle" font-family="Heebo, sans-serif" font-size="13">{"".join(dots)}</g></svg></figure>'
     )
@@ -385,8 +381,8 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
     )
 
 
-def holdings_section(rows: list[dict], step: float = 3.0, unit: str = "pct") -> str:
-    return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_rows(rows, unit)}{holdings_radar(rows, step)}</div></section>'
+def holdings_section(rows: list[dict], step: float = 3.0, unit: str = "pct", horizon: int = 3) -> str:
+    return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_rows(rows, unit)}{holdings_radar(rows, step, horizon)}</div></section>'
 
 
 def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], portfolio_label: str, bench_label: str) -> str:
