@@ -235,6 +235,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     tick_y = [185.0] * len(ticks)  # תוויות הציר תמיד על אותו קו - הנקודה זזה, לא התווית
     tick_box = lambda i: (ticks[i][0] - len(ticks[i][1]) * 3.0, tick_y[i] - 10, len(ticks[i][1]) * 6.0, 13)
     taken = [tick_box(i) for i in range(len(ticks))] + [(205, 118, 36, 15)]  # תוויות הציר + "יעד"
+    tick_band = (14.0, 171.0, 352.0, 18.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה
     dots = []
     for p in placed:
         label = esc(short_name(p["name"]))
@@ -243,17 +244,19 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
         rad = math.hypot(p["x"] - _CX, _CY - p["y"])
         ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
 
-        def spot(d: float, below: bool = False) -> tuple[float, float, float, tuple, tuple]:
-            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית (מעליה, או מתחתיה)."""
+        def spot(d: float, lift: float = 0.0) -> tuple[float, float, float, tuple, tuple]:
+            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift)."""
             th = math.radians(ang + d)
             x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-            ly = y + (27 if p["out"] else 23) if below else y - (17 if p["out"] else 16)
+            ly = y - (17 if p["out"] else 16) - lift
             return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
 
-        # הזזת הנקודה לאורך הטבעת עד שהיא והתווית שלה לא מסתירות כלום - השם תמיד מעל הנקודה
-        pick = next((d for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
-                     if not any(_hit(spot(d)[3], t) or _hit(spot(d)[4], t) for t in taken)), 0.0)
-        p["x"], p["y"], ly, dbox, lbox = spot(pick)
+        # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
+        cands = [(d, lift) for lift in (0.0, 15.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
+        pick, lift = next(((d, lf) for d, lf in cands
+                           if not any(_hit(spot(d, lf)[3], t) for t in taken)
+                           and not any(_hit(spot(d, lf)[4], t) for t in taken + [tick_band])), (0.0, 0.0))
+        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift)
         taken += [dbox, lbox]
         if p["out"]:
             dots.append(
