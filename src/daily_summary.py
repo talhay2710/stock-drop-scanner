@@ -170,6 +170,8 @@ def build_morning_summary(
     lines.extend(_build_index_section(index_changes))
     lines.extend(_build_holdings_section(holdings or []))
     lines.extend(_build_movers_section(movers_by_index, top_n_movers))
+    # שורה אחרונה בעברית רגילה: בלעדיה טלגרם מיישר את השורה האחרונה (שנגמרת במספר) שמאלה
+    lines.append("נכון לפתיחת המסחר")
     return "\n".join(lines).rstrip()
 
 
@@ -222,7 +224,7 @@ def build_daily_summary(
     שלך). מחזיר None אם אין התראות, אין אחזקות, ואין מכירות מהיום."""
     cur = conn.execute(
         "SELECT ticker, company_name, index_name, pct_change, scan_ts, intraday_recovery_pct, dist_from_ma50_pct, sector "
-        "FROM alerts WHERE scan_date = ?",
+        "FROM alerts WHERE scan_date = ? AND index_name != 'SP500'",  # S&P לא מוצג בסיכום היומי
         (scan_date,),
     )
     columns = [c[0] for c in cur.description]
