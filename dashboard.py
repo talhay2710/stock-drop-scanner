@@ -692,6 +692,7 @@ _V3_CSS += """
         .cumline b { font-size: 15px; font-weight: 400; color: var(--v3-soft); }
         .cumline b.up { color: var(--v3-gain); } .cumline b.down { color: var(--v3-loss); }
         [data-testid="stSpinner"] { display: none !important; }
+        /* deploy-probe-1: מסמן גרסה כדי לוודא שדחיפה מגיעה לציבורי אוטומטית */
         /* הסבר בריחוף על אייקוני הכותרות - CSS בלבד (בלי help של Streamlit שעוטף את הכפתור ומשבש את מיקומו; בלי שינוי הסמן) */
         div[class*="st-key-movers_refresh_icon"] button:hover::after { content: "רענון"; position: absolute; top: 34px; left: 50%; transform: translateX(-50%); white-space: nowrap; direction: rtl; font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 6px; background: var(--v3-ink); color: var(--v3-bg); pointer-events: none; z-index: 30; animation: dr-tip-in .15s .35s both; }
         div[class*="st-key-alerts_refresh_icon"] button:hover::after { content: "רענון"; position: absolute; top: 34px; left: 50%; transform: translateX(-50%); white-space: nowrap; direction: rtl; font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 6px; background: var(--v3-ink); color: var(--v3-bg); pointer-events: none; z-index: 30; animation: dr-tip-in .15s .35s both; }
