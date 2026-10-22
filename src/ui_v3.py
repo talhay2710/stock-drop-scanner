@@ -429,7 +429,7 @@ def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], port
             f'<polyline vector-effect="non-scaling-stroke" points="{pts(series[1][1])}" fill="none" stroke="var(--dash)" '
             'stroke-width="1.5" stroke-dasharray="6 5"/>'
         )
-    legend = f'<div class="legend"><span>{esc(portfolio_label)}<i></i></span><span>{esc(bench_label)}<i class="d"></i></span></div>'
+    legend = f'<div class="legend"><span>{esc(bench_label)}<i class="d"></i></span><span>{esc(portfolio_label)}<i></i></span></div>'
     ticks = "".join(f"<span>{esc(t)}</span>" for t in times)
     return (
         f'<section class="block">{head("תשואה תוך-יומית", legend)}<div class="chart">'
