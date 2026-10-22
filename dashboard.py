@@ -677,7 +677,7 @@ _V3_CSS += """
         div[class*="st-key-alert_card_"] .heldline { margin-bottom: -14px; }
         div[class*="st-key-alert_card_"] .amet { padding-top: 15.4px; }
         div[class*="st-key-alert_cum_row_"] { padding-top: 12px; }  /* אותו רווח מעל השורה הראשונה כמו מתחת לאחרונה */
-        div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] { padding-inline: 0; }
+        div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] { padding-inline: 0; margin-top: 14.5px; }  /* רווח בין השורה התחתונה לקו שמתחתיה = הרווח מהקו העליון לשורה הראשונה */
         div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] [data-testid="stExpander"] details { border-bottom: 0 !important; border-top: 1px solid var(--v3-rule) !important; }
         div[class*="st-key-alert_card_"] [data-testid="stButtonGroup"] { justify-content: flex-start; }
         div[class*="st-key-alert_card_"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* ברירת המחדל מושכת את האלמנט הבא למעלה ב-16px */
