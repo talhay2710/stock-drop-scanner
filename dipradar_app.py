@@ -315,7 +315,9 @@ _V3_CSS = """
         @media (max-width: 480px) {
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 18px !important; flex-wrap: wrap !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:first-child { flex: 1 1 100% !important; }
-            div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:last-child { display: none !important; }
+            /* בורר יום/לילה בנייד: בקצה השמאלי של שורת הלוגו (התאריך מוסתר בתוך ה-iframe הצר) */
+            div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { position: relative !important; }
+            div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:last-child { position: absolute !important; left: 0 !important; top: -4px !important; width: 110px !important; flex: none !important; z-index: 2; }
             /* חמש לשוניות בשורה אחת, תאים שווים, שמות קצרים */
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 0 !important; align-items: stretch !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:not(:first-child):not(:last-child) { flex: 1 1 18% !important; width: auto !important; min-width: 0 !important; max-width: 20% !important; }
@@ -830,6 +832,7 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
 .seg button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
 .seg button:focus-visible { outline:2px solid var(--dim); outline-offset:-2px; }
 .tools { justify-content:flex-end; }
+@media (max-width:260px) { #d { display:none; } .tools { justify-content:flex-start; } }
 </style></head><body>
 <div class="tools"><span id="d"></span><div class="seg" role="group" aria-label="מצב תצוגה"><button type="button" id="b-day" aria-pressed="true">יום</button><button type="button" id="b-night" aria-pressed="false">לילה</button></div></div>
 <script>
