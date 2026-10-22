@@ -976,131 +976,68 @@ def _format_header_price(value: float, currency: str) -> str:
     return f"(${value:,.2f})"
 
 
+def _level_text(value: float, currency: str) -> str:
+    """שער כניסה/יעד/סטופ בהודעה: מספר עגול - מ-100 ומעלה לעשרות הקרובות, מתחת לשלם (ת"א באגורות, ארה"ב בדולרים)."""
+    v = value * 100 if currency == "ILS" else value
+    v = round(v / 10) * 10 if abs(v) >= 100 else round(v)
+    return f"{v:,.0f}" if currency == "ILS" else f"${v:,.0f}"
+
+
 def _format_message(ticker, company_name, index, row, analysis, trade_idea,
                      net_profit, net_loss, currency, position_size,
                      multi_day_window=3, sector_peers=0, is_multi_day_only=False,
                      market_regime_label: str | None = None,
                      expected_max_drop_pct: float | None = None) -> str:
-    """הודעה קצרה וממוקדת: מה קרה, למה (בקצרה), האם נראה תגובת יתר, והמלצת
-    כניסה/יציאה עם התוצאה נטו - בלי לגלול. פרטים מלאים (חדשות, z-score/RSI
-    וכו') זמינים בדשבורד."""
+    """התראת ירידה בקצרה (באותה שפה של האתר): כותרת, סיגנל וניקוד, כניסה/יעד/סטופ בשערים עגולים, שני הציונים והסיבה.
+    שורת אזהרה וחדשות מופיעות רק כשיש מה להראות. פרטים מלאים - בדשבורד."""
     display_name = company_name or ticker
-    ccy = CURRENCY_DISPLAY.get(currency, currency)
-
-    # אם ההתראה הופעלה רק בגלל הירידה המצטברת (לא ירידה יומית חדה) - השינוי היומי
-    # לבדו יכול להיראות קטן או אפילו חיובי, ולכן חייבים לתייג את זה כבר בכותרת
-    # עצמה, לא רק בשורה משנית - אחרת ההתראה נראית כאילו טעות/לא עקבית.
-    header_tag = "📉 ירידה מצטברת" if is_multi_day_only else "⚠️"
-    lines = [
-        f"{header_tag} <b>{display_name} {_signed(row['pct_change'], 1, '%')} {_format_header_price(row['last_close'], currency)}</b>",
-    ]
-    # מוצג רק כשהחציון ההיסטורי עדיין "רחוק" יותר מהירידה שכבר קרתה בפועל -
-    # אחרת (למשל התראה על ירידה של 21.6%, אבל החציון ההיסטורי הוא רק 4.9%)
-    # השורה נשמעת כאילו היא "צופה" ירידה קלה יותר ממה שכבר קרה, סותרת את
-    # עצמה (ר' תלונת המשתמש 1.9.2026 על EIX: "אתה כותב שהשפל גבוה יותר
-    # מהמצב הנוכחי של ההתראה. זה לא הגיוני").
-    if expected_max_drop_pct is not None and expected_max_drop_pct > abs(row["pct_change"]):
-        # לא "-" גולמי בתוך טקסט עברי (RTL) - בדיוק כמו שאר הסימנים בקובץ הזה
-        # (ר' _signed) - סימן גולמי בלי isolate LRI/PDI עלול "לברוח" למקום הלא
-        # נכון ביחס למספר בתצוגה. expected_max_drop_pct הוא גודל חיובי (ירידה
-        # תמיד), אז שולחים אותו כשלילי ל-_signed כדי לקבל "-" תמיד, לא "+".
-        lines.append(f"📉 <b>צפי לנמוך היומי: {_signed(-expected_max_drop_pct, 1, '%')}</b>")
-    _sig, _sig_why = strategy_mod.entry_signal(
-        index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct,
-        sector=analysis.sector, alert_hour=israel_now().hour,
-    )
-    lines += [
-        f"{ticker} · מדד {index}",
-        f"<b>{strategy_mod.SIGNAL_EMOJI[_sig]} {strategy_mod.SIGNAL_LABEL[_sig]}</b>",
-        _sig_why,
-        "",
-    ]
-
     n_day_change = row.get("n_day_change")
     if is_multi_day_only and pd.notna(n_day_change):
-        lines.append(
-            f"📉 ירדה מצטבר {_signed(n_day_change, 1, '%')} ב-{multi_day_window} ימי מסחר אחרונים - "
-            f"השינוי היום לבדו ({_signed(row['pct_change'], 1, '%')}) לא חצה את הסף היומי"
-        )
-    elif pd.notna(n_day_change) and abs(n_day_change) > abs(row["pct_change"]) * 1.3:
-        lines.append(f"📉 ירידה מצטברת של {_signed(n_day_change, 1, '%')} ב-{multi_day_window} ימי מסחר אחרונים")
-
-    if sector_peers >= 2 and analysis.sector:
-        lines.append(
-            f"⚠️ ריכוז סקטוריאלי: עוד {sector_peers} מניות מסקטור {analysis.sector} ירדו היום - "
-            f"ייתכן אירוע רחב ולא הזדמנות ספציפית"
-        )
-
-    if market_regime_label:
-        lines.append(f"מצב שוק כללי: {market_regime_label}")
-
-    if analysis.residual_drop_pct is not None:
-        lines.append(f"📌 ירידה עודפת (מעבר למדד/סקטור): {_signed(analysis.residual_drop_pct, 1, '%')}")
-
-    if analysis.dist_from_ma50_pct is not None:
-        lines.append(f"📌 מרחק מהממוצע הנע 50 יום: {_signed(analysis.dist_from_ma50_pct, 1, '%')}")
-
-    lines.append(f"📌 {analysis.reason_text.split(' | ')[0]}")
-
-    # שלושה ציונים נפרדים, כל אחד עונה על שאלה אחרת - לא ציון אחד מעורבב:
-    # (1) האם זו בכלל תגובת יתר טכנית, (2) האם החברה מאחורי הירידה בריאה
-    # פונדמנטלית, (3) ההמלצה הסופית - שילוב של שניהם (מחושבת ב-_classify_rebound,
-    # לא כאן - כאן רק מציגים את שלושתם בנפרד במקום שורה אחת ממוזגת).
-    # אייקון רמזור (🟢/🟡/🔴) לכל אחד משלושת הציונים - אותם ספי 70/45 שכבר
-    # קובעים את ה-verdict המילולי ב-_score_overreaction, רק כצבע במקום מילים.
-    if analysis.overreaction_score >= 70:
-        _score1_light = "🟢"
-    elif analysis.overreaction_score >= 45:
-        _score1_light = "🟡"
+        header = f"📉 <b>{display_name} {_signed(n_day_change, 1, '%')} ב-{multi_day_window} ימים</b>"
     else:
-        _score1_light = "🔴"
-    lines.append(f"1️⃣ {_score1_light} ציון תגובת יתר: {analysis.overreaction_score}/{analysis_mod.MAX_OVERREACTION_SCORE}")
+        header = f"⚠️ <b>{display_name} {_signed(row['pct_change'], 1, '%')}</b>"
+    sub = f"{ticker.replace('.TA', '')} · {index}"  # טיקר ומדד (ובת"א גם מספר ני"ע) צמודים לשם המניה
+    if ticker.endswith(".TA"):
+        _sid = constituents.get_tase_security_id_map().get(ticker)
+        if _sid is not None and pd.notna(_sid):
+            sub += f" · {int(_sid)}"
 
-    _quality_light = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(
-        analysis.quality.tier if analysis.quality else None, "⚪"
+    _hour = israel_now().hour
+    _sig, _ = strategy_mod.entry_signal(
+        index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct,
+        sector=analysis.sector, alert_hour=_hour,
     )
+    _score = strategy_mod.signal_score(
+        index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct, analysis.sector, _hour,
+    )[0]
+    # קבוצות מופרדות בשורה ריקה, ופריט בשורה - לא שורה רצופה
+    lines = [
+        header,
+        sub,
+        "",
+        f"{strategy_mod.SIGNAL_EMOJI[_sig]} <b>{strategy_mod.SIGNAL_LABEL[_sig]}</b> · ניקוד {max(_score, 0)}/{strategy_mod.MAX_SIGNAL_SCORE}",
+        "",
+        f"כניסה  {_level_text(trade_idea.entry_limit, currency)}",
+        f"יעד  {_level_text(row['last_close'] * (1 + strategy_mod.target_frac()), currency)}",
+        f"סטופ  {_level_text(trade_idea.stop_loss, currency)}",
+        "",
+        f"תגובת יתר  {analysis.overreaction_score}/100",
+    ]
     if analysis.quality and analysis.quality.tier != "unknown":
-        q = analysis.quality
-        flags_part = f" - {q.flags[0]}" if q.flags else ""
-        lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: {q.tier_label} ({q.score}/100){flags_part}")
-    else:
-        lines.append(f"2️⃣ {_quality_light} איכות פונדמנטלית: לא ידוע (נתונים חסרים)")
+        lines.append(f"איכות פונדמנטלית  {analysis.quality.score}/100")
+    if expected_max_drop_pct is not None and expected_max_drop_pct > abs(row["pct_change"]):
+        lines.append(f"צפי נמוך  {_signed(-expected_max_drop_pct, 1, '%')}")
+    lines += ["", f"📌 {analysis.reason_text.split(' | ')[0]}"]
 
-    _rebound_emoji = analysis.rebound_label.split(" ", 1)[0]  # כבר 🟢/🟡/🔴 לפי A/B/C, ר' _classify_rebound
-    lines.append(f"3️⃣ {strategy_mod.SIGNAL_EMOJI[_sig]} סיווג ריבאונד: {strategy_mod.rebound_class(_sig)}")
-
-    _liquidity_emoji = {"high": "💧", "medium": "🌊", "low": "🏜️", "unknown": "⚪"}
-    if trade_idea.liquidity_tier in ("medium", "low"):
-        lines.append(f"{_liquidity_emoji.get(trade_idea.liquidity_tier, '⚪')} {trade_idea.liquidity_note}")
-
+    extra = []
+    if sector_peers >= 2 and analysis.sector:
+        extra.append(f"⚠️ עוד {sector_peers} מניות מהסקטור ({analysis.sector}) ירדו היום")
     if analysis.has_headlines:
-        links = ", ".join(
+        links = " · ".join(
             f'<a href="{h["link"]}">{h.get("source", "חדשות")}</a>' if h.get("link") else h.get("source", "חדשות")
-            for h in analysis.headlines[:3]
+            for h in analysis.headlines[:2]
         )
-        lines.append(f"📰 {len(analysis.headlines)} כתבות רלוונטיות: {links}")
-    else:
-        lines.append("📰 לא נמצאו חדשות רלוונטיות")
-
-    target_gross_pct = (trade_idea.target_base / trade_idea.entry_limit - 1) * 100
-    stop_gross_pct = (trade_idea.stop_loss / trade_idea.entry_limit - 1) * 100
-
-    lines += [
-        "",
-        "🎯 <b>תרחיש עסקה</b>",
-        f"כניסה (לימיט): {_format_price(trade_idea.entry_limit, currency, with_unit=False)}  |  "
-        f"שינוי יומי: {_signed(row['pct_change'], 1, '%')}",
-        f"יעד: {_format_price(trade_idea.target_base, currency, with_unit=False)}  ({_signed(target_gross_pct, 1, '%')})",
-        f"סטופ: {_format_price(trade_idea.stop_loss, currency, with_unit=False)}  ({_signed(stop_gross_pct, 1, '%')})",
-    ]
-    if stop_gross_pct:
-        lines.append(f"יחס סיכוי/סיכון: 1:{abs(target_gross_pct / stop_gross_pct):.1f}")
-    lines += [
-        f"אחזקה משוערת: {net_profit.holding_days} ימים",
-        "",
-        "💰 <b>נטו</b>",
-        f"השקעה: {position_size:,.0f} {ccy}  ({net_profit.qty:.0f} מניות)",
-        f"רווח ביעד: {_signed(net_profit.net_pnl)} {ccy}",
-        f"הפסד בסטופ: {_signed(net_loss.net_pnl)} {ccy}",
-    ]
+        extra.append(f"📰 {links}")
+    if extra:
+        lines += [""] + extra
     return "\n".join(lines)
