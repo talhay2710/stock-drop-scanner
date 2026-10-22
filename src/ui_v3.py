@@ -801,6 +801,7 @@ ALERTS_CSS = """
             .v3h .kpi.k4, .v3h .kpi.k4.sm { grid-template-columns:repeat(4,minmax(0,1fr)); }
             .v3h .kpi.k4 > div, .v3h .kpi.k4.sm > div { padding:10px 8px 11px; border-top:0 !important; }
             .v3h .kpi.k4 > div:first-child { grid-column:auto; padding-inline-start:0; }
+            .v3h .kpi.k4 > div:nth-child(2) { border-inline-start:1px solid var(--rule); padding-inline-start:8px; }
             .v3h .kpi.k4 small { font-size:12px; white-space:nowrap; }
             .v3h .kpi.k4 strong, .v3h .kpi.k4.sm strong { font-size:22px; }
             .v3h .arow { grid-template-columns:minmax(0,1.9fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,.8fr); min-width:0; font-size:15px; padding:0 4px; gap:0 6px; }
@@ -810,7 +811,7 @@ ALERTS_CSS = """
             .v3h .arow .nm small:not(.ix) { grid-area:mono; }
             .v3h .arow .nm small.ix { grid-area:ix; }
             .v3h .arow .nm .chev { grid-area:chev; justify-self:start; }
-            .v3h .arow.ahead > span { font-size:12px; }
+            .v3h .arow.ahead > span { font-size:12px; white-space:normal; line-height:1.25; align-self:end; }
             .v3h .alev { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding-block:12px; border-bottom:1px solid var(--rule); }
             .v3h .alev small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
             .v3h .alev strong { font-size:18px; font-weight:400; }
@@ -965,9 +966,8 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
         '<figure class="sdonut"><svg viewBox="0 0 200 200" role="img" aria-label="התפלגות סקטוריאלית">'
         f'<circle cx="100" cy="100" r="{r:.0f}" fill="none" stroke="var(--rule)" stroke-width="1" stroke-dasharray="2 4"/>'
         + "".join(segs) +
-        f'<text x="100" y="92" text-anchor="middle" font-size="12" letter-spacing=".05em" fill="var(--dim)">ריכוז סקטוריאלי</text>'
-        f'<text x="100" y="121" text-anchor="middle" font-size="20" font-weight="400" letter-spacing=".02em" fill="{conc_color}">{conc}</text>'
-        '</svg></figure>'
+        '</svg>'
+        f'<figcaption class="sdc"><span>ריכוז סקטוריאלי</span><strong style="color:{conc_color}">{conc}</strong></figcaption></figure>'
     )
     top = max(i["pct"] for i in items) or 1.0
     rows = "".join(
@@ -1129,7 +1129,10 @@ HOLDINGS_CSS = """
         .v3h .abar .abn { font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .v3h .abar .abp { font-size:12px; color:var(--v3-soft); flex:none; }
         .v3h .sgrid { display:flex; align-items:center; gap:56px; margin-top:22px; }
-        .v3h .sdonut { margin:0; flex:none; width:216px; }
+        .v3h .sdonut { margin:0; flex:none; width:216px; position:relative; }
+        .v3h .sdonut .sdc { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; pointer-events:none; }
+        .v3h .sdonut .sdc span { font-size:12px; color:var(--dim); }
+        .v3h .sdonut .sdc strong { font-size:21px; font-weight:400; }
         .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
         .v3h .slist { flex:1 1 auto; min-width:0; }
         .v3h .srow { display:grid; grid-template-columns:10px 104px minmax(60px,1fr) 44px; align-items:center; gap:14px; padding:15px 8px; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
