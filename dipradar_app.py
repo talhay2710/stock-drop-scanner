@@ -337,6 +337,8 @@ _V3_CSS = """
             [data-testid="stMainBlockContainer"] { max-width: 100% !important; overflow-x: clip; }
             /* פס אנכי דק שנראה לפעמים בטלפון: קו הצד של הסיידבר כשהוא סגור/מוסתר */
             [data-testid="stSidebar"] { border: 0 !important; box-shadow: none !important; }
+            /* סיידבר בנייד: נפתח על כל המסך (בלי תוכן חצי-חתוך מאחוריו) */
+            [data-testid="stSidebar"][aria-expanded="true"] { width: 100vw !important; min-width: 100vw !important; max-width: 100vw !important; }
         }
 """
 
