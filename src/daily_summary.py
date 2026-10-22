@@ -5,6 +5,8 @@
 import datetime as dt
 import sqlite3
 
+from . import strategy as strategy_mod
+
 INDEX_LABELS = {"SP500": "S&P 500", "NASDAQ100": "NASDAQ-100", "TA35": 'ת"א 35', "TA125": 'ת"א 125'}
 REASON_UNCLEAR = "לא נמצאה סיבה ברורה"
 # שורת תוכן אמיתית (לא רק \n/RLM סמויים) בסוף ההודעה - זה מה שבפועל תיקן
@@ -55,73 +57,42 @@ def _rtl_line(text: str) -> str:
 
 
 def _build_holdings_section(holdings: list[dict], closed_today: list[dict] | None = None) -> list[str]:
-    """holdings: רשימת dict-ים עם ticker, name, net_pnl, net_pct, ccy_symbol,
-    today_pct (שינוי המניה היום בלבד, לא קשור לתאריך הקנייה). רק מה שקרה היום
-    ואיפה זה עומד מול נקודת הכניסה - בלי היסטוריה/טרק-רקורד.
-    closed_today: פוזיציות שנסגרו היום ממש (ר' _build_closed_today_section) -
-    צריך את today_pnl שלהן (שינוי המחיר היום בלבד, לא הרווח הכולל מאז הכניסה)
-    כדי ש"מה התיק עשה היום" יכלול גם אותן, לא רק את האחזקות שעדיין פתוחות
-    (30.9.2026, "לקחת בחשבון את המכירה ברווח?" - מכירה שהתבצעה היום באמת
-    השפיעה על השווי של היום, גם אם היא כבר לא מופיעה בין האחזקות הפתוחות)."""
+    """תיק בקצרה: שורת סיכום אחת (היום / מהכניסה) ושורה קצרה לכל אחזקה - שם ושינוי היום. closed_today משפיע על "היום"."""
     if not holdings and not closed_today:
         return []
 
     total_net = sum(h["net_pnl"] for h in holdings if h["net_pnl"] is not None)
-    total_word = "ברווח" if total_net >= 0 else "בהפסד"
-    lines = ["💼 <b>האחזקות שלך</b>"]
-    # קודם מה שקרה היום (30.9.2026, "תתחיל קודם כל במה התיק עשה היום"), ורק
-    # אחר כך המצב הכללי/הכולל מאז הכניסה - לא לערבב את שני המספרים באותו משפט.
+    lines = ["💼 <b>התיק</b>"]
     today_values = [h["today_pnl"] for h in holdings if h.get("today_pnl") is not None]
     today_values += [c["today_pnl"] for c in (closed_today or []) if c.get("today_pnl") is not None]
-    # סכום חלקי (חסר נתון יומי לאחזקה אחת או יותר) הוא לא "מה התיק עשה היום" -
-    # עדיף בלי השורה מאשר מספר שנראה שלם ואינו כזה.
+    # שורה לכל סכום: היום, ושינוי כולל (מהכניסה)
     if today_values and len(today_values) == len(holdings) + len(closed_today or []):
-        total_today = sum(today_values)
-        today_word = "ברווח" if total_today >= 0 else "בהפסד"
-        lines.append(f"היום התיק שלך {today_word} של {abs(total_today):,.0f} ש\"ח")
+        lines.append(f"היום {_signed(sum(today_values), 0)} ש\"ח")
     if holdings:
-        lines.append(f"בסך הכל התיק שלך {total_word} כולל של {abs(total_net):,.0f} ש\"ח")
+        lines.append(f"שינוי כולל {_signed(total_net, 0)} ש\"ח")
     lines.append("")
     for h in sorted(holdings, key=lambda h: h["net_pnl"] if h["net_pnl"] is not None else float("-inf"), reverse=True):
-        if h["net_pnl"] is None:
-            lines.append(f"⚪ <b>{h['name']}</b> - אין כרגע מחיר עדכני")
-            continue
-        emoji = "🟢" if h["net_pnl"] >= 0 else "🔴"
-        # "מתחת ל" + " נקודת" (עם רווח) יצר "ל" תלויה עם רווח מיותר לפניה - "ל"
-        # צריכה להידבק ישירות למילה הבאה ("מתחת לנקודת"). הרחבת ה-isolate לכלול
-        # גם מילים עבריות ("היום") לצד המספר גרמה לרגרסיה (הפכה את מיקום +/-) -
-        # isolate תמיד חייב לעטוף רק את המספר/הסימן עצמם, לא טקסט עברי סביבו.
-        today_part = f"היום {_signed(h['today_pct'], 1, '%')}" if h["today_pct"] is not None else "אין נתון על היום"
-        since_phrase = "מעל נקודת הכניסה שלך" if h["net_pnl"] >= 0 else "מתחת לנקודת הכניסה שלך"
-        net_part = f"({_signed(h['net_pnl'], 0)} {h['ccy_symbol']})"
-        lines.append(
-            f"{emoji} <b>{h['name']}</b> - {today_part}, {since_phrase} "
-            f"ב-{abs(h['net_pct']):.1f}% {net_part}"
-        )
+        emoji = "⚪" if h["net_pnl"] is None else ("🟢" if h["net_pnl"] >= 0 else "🔴")
+        today = _signed(h["today_pct"], 1, "%") if h["today_pct"] is not None else "—"
+        lines.append(f"{emoji} <b>{h['name']}</b>  {today}")
     lines.append("")
     return lines
 
 
 def _build_closed_today_section(closed_today: list[dict]) -> list[str]:
-    """עסקאות שנסגרו (מכירה בפועל, מ-closed_trades) היום ממש - נפרד מהאחזקות
-    שעדיין פתוחות (_build_holdings_section), כדי שמכירה לא "תיעלם" מהסיכום
-    היומי רק כי היא כבר לא מופיעה בין האחזקות הפעילות."""
+    """עסקאות שנסגרו היום (מ-closed_trades) - שורה לכל מכירה, כדי שמכירה לא "תיעלם" מהסיכום."""
     if not closed_today:
         return []
-    lines = ["💰 <b>מכרת היום</b>", ""]
+    lines = ["💰 <b>נמכרו היום</b>"]
     for c in closed_today:
         name = c.get("company_name") or c["ticker"]
         net_pnl, net_pct = c.get("net_pnl"), c.get("net_pct")
         ccy_symbol = {"ILS": 'ש"ח', "USD": "$"}.get(c.get("currency"), c.get("currency") or "")
         if net_pnl is None or net_pct is None:
-            lines.append(f"⚪ מכרת את <b>{name}</b> - אין נתון רווח/הפסד")
+            lines.append(f"⚪ <b>{name}</b>")
             continue
         emoji = "🟢" if net_pnl >= 0 else "🔴"
-        verb = "הרווחת" if net_pnl >= 0 else "הפסדת"
-        lines.append(
-            f"{emoji} מכרת את <b>{name}</b> ב-{_signed(net_pct, 1, '%')} - "
-            f"{verb} {abs(net_pnl):,.0f} {ccy_symbol}"
-        )
+        lines.append(f"{emoji} <b>{name}</b>  {_signed(net_pnl, 0)} {ccy_symbol}")
     lines.append("")
     return lines
 
@@ -149,25 +120,23 @@ def _build_watch_section(rows: list[dict], excluded_tickers: set[str], top_n: in
 
 
 def _build_index_section(index_changes: dict[str, float | None]) -> list[str]:
-    """index_changes: {index_name: שינוי % של פרוקסי המדד} - איך נפתח/עומד המסחר
-    ברמת המדד עצמו, לפני שיורדים לרמת האחזקות/מניות בודדות."""
+    """index_changes: {index_name: שינוי % של פרוקסי המדד} - שורה קצרה לכל מדד."""
     if not index_changes:
         return []
-    lines = ["📊 <b>המדדים</b>", ""]
+    lines = ["📊 <b>המדדים</b>"]
     for index_name, change in index_changes.items():
+        label = INDEX_LABELS.get(index_name, index_name)
         if change is None:
-            lines.append(f"⚪ {INDEX_LABELS.get(index_name, index_name)} - אין נתון")
+            lines.append(f"⚪ {label}  —")
             continue
         emoji = "🟢" if change >= 0 else "🔴"
-        lines.append(_rtl_line(f"{emoji} {_isolate_rtl(INDEX_LABELS.get(index_name, index_name))} {_signed(change, 2, '%')}"))
+        lines.append(_rtl_line(f"{emoji} {_isolate_rtl(label)}  {_signed(change, 2, '%')}"))
     lines.append("")
     return lines
 
 
-def _build_movers_section(movers_by_index: dict[str, list[dict]], top_n: int = 3) -> list[str]:
-    """movers_by_index: {index_name: [{"ticker", "name", "pct_change"}, ...]} - שורה
-    לכל מניה במדד, ללא מיון מוקדם. בוחר את top_n העולות וtop_n היורדות ביותר מכל
-    מדד - תמונת מצב מיידית של מי זז הכי הרבה, לא קשור לסף התראה כלשהו."""
+def _build_movers_section(movers_by_index: dict[str, list[dict]], top_n: int = 1) -> list[str]:
+    """הכי עולה והכי יורדת בכל מדד (שורה לכל אחת) - תמונת מצב קצרה, לא קשור לסף התראה."""
     lines: list[str] = []
     for index_name, rows in movers_by_index.items():
         if not rows:
@@ -179,33 +148,28 @@ def _build_movers_section(movers_by_index: dict[str, list[dict]], top_n: int = 3
             continue
         lines.append(f"<b>{INDEX_LABELS.get(index_name, index_name)}</b>")
         for r in gainers:
-            lines.append(_rtl_line(f"🟢 {_isolate_rtl(r['name'])} {_signed(r['pct_change'], 2, '%')}"))
+            lines.append(_rtl_line(f"🟢 {_isolate_rtl(r['name'])}  {_signed(r['pct_change'], 1, '%')}"))
         for r in losers:
-            lines.append(_rtl_line(f"🔴 {_isolate_rtl(r['name'])} {_signed(r['pct_change'], 2, '%')}"))
+            lines.append(_rtl_line(f"🔴 {_isolate_rtl(r['name'])}  {_signed(r['pct_change'], 1, '%')}"))
         lines.append("")
     if not lines:
         return []
-    return ["🔝 <b>מניות בולטות</b>", ""] + lines
+    return ["🔝 <b>בולטות</b>"] + lines
 
 
 def build_morning_summary(
     scan_date: str, index_changes: dict[str, float | None], holdings: list[dict] | None,
-    movers_by_index: dict[str, list[dict]], top_n_movers: int = 3,
+    movers_by_index: dict[str, list[dict]], top_n_movers: int = 1,
 ) -> str | None:
-    """בונה טקסט 'תמונת מצב - תחילת יום': איך נפתח המסחר ברמת המדד, אחר כך
-    האחזקות שלך (אותו חלק בדיוק כמו בסיכום היומי), ולבסוף המניות הכי בולטות
-    (עולות/יורדות) בכל מדד שנסרק. בניגוד ל-build_daily_summary זה לא מתבסס על
-    טבלת alerts (התראות שכבר נשלחו) - זה snapshot חי של המחירים ברגע השליחה,
-    לתחילת יום המסחר. מחזיר None אם אין שום נתון (לא מדדים, לא אחזקות, לא מניות בולטות)."""
+    """'תחילת יום' בקצרה: מדדים, התיק (אותו חלק כמו בסיכום היומי) והמניות הבולטות. snapshot חי של המחירים ברגע השליחה.
+    מחזיר None אם אין שום נתון."""
     if not index_changes and not holdings and not any(movers_by_index.values()):
         return None
 
-    lines = [f"🌅 <b>תמונת מצב - תחילת יום ({_israeli_date(scan_date)})</b>", ""]
+    lines = [f"🌅 <b>תחילת יום</b> · {_israeli_date(scan_date)}", ""]
     lines.extend(_build_index_section(index_changes))
     lines.extend(_build_holdings_section(holdings or []))
     lines.extend(_build_movers_section(movers_by_index, top_n_movers))
-    lines.append("")
-    lines.append(_FOOTER_LINE)
     return "\n".join(lines).rstrip()
 
 
@@ -257,8 +221,8 @@ def build_daily_summary(
     מכל מדד שנסרק, ולבסוף 1-2 מניות "לשים לב" ליום הבא (לא מתוך האחזקות
     שלך). מחזיר None אם אין התראות, אין אחזקות, ואין מכירות מהיום."""
     cur = conn.execute(
-        "SELECT ticker, company_name, index_name, pct_change, overreaction_score, "
-        "reason_text, entry_limit FROM alerts WHERE scan_date = ?",
+        "SELECT ticker, company_name, index_name, pct_change, scan_ts, intraday_recovery_pct, dist_from_ma50_pct, sector "
+        "FROM alerts WHERE scan_date = ?",
         (scan_date,),
     )
     columns = [c[0] for c in cur.description]
@@ -267,35 +231,32 @@ def build_daily_summary(
     if not rows and not holdings and not closed_today:
         return None
 
-    owned_tickers = {h["ticker"] for h in (holdings or [])}
-
-    lines = [f"📅 <b>סיכום יומי - {_israeli_date(scan_date)}</b>", ""]
+    lines = [f"📅 <b>סיכום יומי</b> · {_israeli_date(scan_date)}", ""]
     lines.extend(_build_holdings_section(holdings or [], closed_today))
     lines.extend(_build_closed_today_section(closed_today or []))
 
     if rows:
-        by_index: dict[str, list[dict]] = {}
+        owned_tickers = {h["ticker"] for h in (holdings or [])}
+        scored = []
         for r in rows:
-            by_index.setdefault(r["index_name"], []).append(r)
-
-        shown_tickers = set(owned_tickers)
-        lines.append(f"🔎 <b>ההתראות הבולטות ({len(rows)} סה\"כ)</b>")
-        for index_name, idx_rows in by_index.items():
-            top_rows = sorted(idx_rows, key=lambda r: r["overreaction_score"], reverse=True)[:top_n_per_index]
-            lines.append("")
-            lines.append(f"<b>{INDEX_LABELS.get(index_name, index_name)}</b>")
-            for r in top_rows:
-                display_name = r["company_name"] or r["ticker"]
-                main_reason = (r["reason_text"] or "").split(" | ")[0]
-                reason_part = f" - {main_reason}" if main_reason and main_reason != REASON_UNCLEAR else ""
-                verb = "עלתה" if r["pct_change"] >= 0 else "ירדה"
-                lines.append(f"{_verdict_emoji(r['overreaction_score'])} <b>{display_name}</b> {verb} {abs(r['pct_change']):.1f}%{reason_part}")
-                shown_tickers.add(r["ticker"])
+            try:
+                hour = int(str(r["scan_ts"])[11:13])
+            except (ValueError, TypeError):
+                hour = None
+            score = strategy_mod.signal_score(
+                r["index_name"], r["pct_change"], r["intraday_recovery_pct"], r["dist_from_ma50_pct"], r["sector"], hour,
+            )[0]
+            sig = (strategy_mod.SIGNAL_BUY if score >= strategy_mod.buy_min_score()
+                   else strategy_mod.SIGNAL_WAIT if score >= strategy_mod.wait_min_score() else strategy_mod.SIGNAL_AVOID)
+            scored.append((score, sig, r))
+        counts = {s: sum(1 for t in scored if t[1] == s) for s in (strategy_mod.SIGNAL_BUY, strategy_mod.SIGNAL_WAIT, strategy_mod.SIGNAL_AVOID)}
+        lines.append(f"🔎 <b>{len(rows)} התראות</b>")
+        lines.append("  ·  ".join(f"{strategy_mod.SIGNAL_EMOJI[s]} {n}" for s, n in counts.items()))
+        # הבולטת: הניקוד הגבוה ביותר (אחזקות שכבר ברשותך לא נספרות)
+        best = [t for t in sorted(scored, key=lambda t: t[0], reverse=True) if t[2]["ticker"] not in owned_tickers][:1]
+        for score, sig, r in best:
+            name = r["company_name"] or r["ticker"]
+            lines.append(f"הבולטת: <b>{name}</b> {_signed(r['pct_change'], 1, '%')}  ({max(score, 0)}/{strategy_mod.MAX_SIGNAL_SCORE})")
         lines.append("")
 
-        lines.extend(_build_watch_section(rows, shown_tickers))
-
-    lines.extend(_build_quality_section(conn, scan_date))
-    lines.append("")
-    lines.append(_FOOTER_LINE)
     return "\n".join(lines).rstrip()

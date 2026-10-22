@@ -31,15 +31,19 @@ def build_weekly_report(conn: sqlite3.Connection, days: int = 7) -> str | None:
     grouped["rate"] = (grouped["hits"] / grouped["total"] * 100).round(0)
     grouped = grouped.sort_values("rate", ascending=False)
 
+    # שורה לכל נתון, עם אייקון; כל סיבה בבלוק משלה (שם + מספרים) ושורה ריקה ביניהן
     lines = [
-        f"📊 <b>דוח שבועי - {days} ימים אחרונים</b>",
+        f"📊 <b>דוח שבועי</b> · {days} ימים",
         "",
-        f"סה\"כ {total} התראות עם תוצאה, {hits} מתוכן הגיעו ליעד ({overall_rate:.0f}%)",
+        f"🔔 {total} התראות עם תוצאה",
+        f"🎯 {hits} הגיעו ליעד ({overall_rate:.0f}%)",
         "",
-        "<b>שיעור הצלחה לפי סיבה:</b>",
     ]
-    for tag, row in grouped.iterrows():
-        label = REASON_LABELS.get(tag, tag)
-        lines.append(f"• {label}: {row['hits']:.0f}/{row['total']:.0f} ({row['rate']:.0f}%)")
+    top = grouped.sort_values("total", ascending=False).head(4)
+    for tag, row in top.iterrows():
+        label = REASON_LABELS.get(tag, tag).split(" - ")[0]
+        if label.startswith("ייתכן שיש "):  # "ייתכן שיש חדשות ספציפיות למניה" -> "חדשות ספציפיות למניה"
+            label = label[len("ייתכן שיש "):]
+        lines += [f"<b>{label}</b>", f"{row['hits']:.0f}/{row['total']:.0f}  ·  {row['rate']:.0f}%", ""]
 
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip()
