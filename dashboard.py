@@ -795,6 +795,32 @@ html, body { margin:0; background:transparent; font-family:'Heebo',system-ui,san
   sync();
   if (proot && window.MutationObserver) new MutationObserver(sync).observe(proot, { attributes: true, attributeFilter: ['data-theme'] });
 })();
+
+(function () {
+  // מעבר טאב: מסתירים את התוכן הדהוי של הטאב הקודם כבר ברגע הלחיצה (ולא רק כשהסקריפט מגיע לכותרת), עד שהריצה מסתיימת
+  try {
+    var D = window.parent.document;
+    if (!D.getElementById('dr-nav-css')) {
+      var st = D.createElement('style'); st.id = 'dr-nav-css';
+      st.textContent = 'html[data-dr-nav] [data-testid="stMain"] [data-stale="true"] { display: none !important; }';
+      D.head.appendChild(st);
+    }
+    if (!window.parent.__drNavHook) {
+      window.parent.__drNavHook = true;
+      D.addEventListener('click', function (e) {
+        var b = e.target && e.target.closest && e.target.closest('[class*="st-key-navtab_"] button');
+        if (!b) return;
+        var root = D.documentElement; root.setAttribute('data-dr-nav', '1');
+        var t0 = Date.now(), quiet = 0;
+        var iv = setInterval(function () {
+          var running = !!D.querySelector('[data-testid="stStatusWidget"]');
+          quiet = running ? 0 : quiet + 1;
+          if ((quiet >= 3 && Date.now() - t0 > 900) || Date.now() - t0 > 90000) { root.removeAttribute('data-dr-nav'); clearInterval(iv); }
+        }, 300);
+      }, true);
+    }
+  } catch (e) {}
+})();
 </script></body></html>"""
 
 _V3_BRAND_HTML = (
