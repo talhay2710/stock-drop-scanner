@@ -607,7 +607,7 @@ _V3_CSS += """
         div[class*="st-key-holdings_filter_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-holdings_filter_icon"] button p, div[class*="st-key-holdings_filter_icon"] button div { display: none !important; }
         div[class*="st-key-holdings_filter_icon"] button {
-            position: absolute; top: -48px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            position: absolute; top: -36px; left: 34px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
             background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
         }
         div[class*="st-key-holdings_filter_icon"] button::before {
@@ -632,7 +632,7 @@ _V3_CSS += """
         div[class*="st-key-holdings_add_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
         div[class*="st-key-holdings_add_icon"] button p, div[class*="st-key-holdings_add_icon"] button div { display: none !important; }
         div[class*="st-key-holdings_add_icon"] button {
-            position: absolute; top: -60px; left: 68px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            position: absolute; top: -36px; left: 68px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
             background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
         }
         div[class*="st-key-holdings_add_icon"] button::before {
@@ -653,6 +653,21 @@ _V3_CSS += """
             mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 5h18l-7 8.5V19l-4 2v-7.5z'/></svg>") center / contain no-repeat;
         }
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-alerts_add_icon"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 2; width: 100% !important; }
+        div[class*="st-key-alerts_add_icon"] button p, div[class*="st-key-alerts_add_icon"] button div { display: none !important; }
+        div[class*="st-key-alerts_add_icon"] button {
+            position: absolute; top: -48px; left: 68px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 0 !important;
+            background: transparent !important; font-size: 0 !important; border-radius: 50% !important;
+        }
+        div[class*="st-key-alerts_add_icon"] button::before {
+            content: ""; position: absolute; inset: 5px; background-color: var(--v3-accent);
+            -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>") center / contain no-repeat;
+        }
+        div[class*="st-key-alerts_add_icon"] button:hover { background: var(--v3-hover) !important; }
+        div[class*="st-key-alerts_refresh_icon"], div[class*="st-key-alerts_filter_icon"], div[class*="st-key-alerts_add_icon"] { margin-bottom: -12px !important; }
+        div[class*="st-key-exp_price_alert_closed"] { display: none !important; }
+        div[class*="st-key-exp_price_alert"]:not([class*="st-key-exp_price_alert_closed"]):not([data-testid="stExpander"]) { padding: 12px 12px 18px; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
         div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
         div[class*="st-key-alert_card_"] { background: var(--v3-surface); padding: 16px 12px 22px; border-bottom: 1px solid var(--v3-rule); gap: 20px !important; }
@@ -660,6 +675,7 @@ _V3_CSS += """
         div[class*="st-key-alert_card_"] { padding-bottom: 18px; }
         div[class*="st-key-alert_card_"]:has(div[class*="st-key-open_pos_exp_"]) { padding-bottom: 0; }  /* השורה האחרונה (פתיחת פוזיציה) כבר כוללת רווח תחתון משלה */
         div[class*="st-key-alert_card_"] .heldline { margin-bottom: -18px; }
+        div[class*="st-key-alert_card_"] .amet { padding-top: 15.4px; }
         div[class*="st-key-alert_cum_row_"] { padding-top: 12px; }  /* אותו רווח מעל השורה הראשונה כמו מתחת לאחרונה */
         div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] { padding-inline: 0; }
         div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] [data-testid="stExpander"] details { border-bottom: 0 !important; border-top: 1px solid var(--v3-rule) !important; }
@@ -4686,8 +4702,12 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     def _toggle_alerts_filters() -> None:
         st.session_state["alerts_filters_open"] = not st.session_state.get("alerts_filters_open", False)
 
+    def _toggle_alerts_add() -> None:
+        st.session_state["alerts_add_open"] = not st.session_state.get("alerts_add_open", False)
+
     st.button("רענון", key="alerts_refresh_icon", on_click=load_alerts.clear)
     st.button(" ", key="alerts_filter_icon", on_click=_toggle_alerts_filters)
+    st.button(" ", key="alerts_add_icon", on_click=_toggle_alerts_add)  # התראת מחיר ידנית: נפתחת מהפלוס שבכותרת
 
     # נתוני שורה: סיגנל, ניקוד, גורמים, מחירים מעוצבים, שעה
     _tickers = tuple(sorted(todays_alerts["ticker"].unique())) if n_total else ()
@@ -4917,7 +4937,9 @@ with _tab_slot_today.container():
             _pa_label = (f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית")
             if UI_V3:
                 _pa_label = _nm(_pa_label)
-            with _slot_manual, st.expander(_pa_label, key="exp_price_alert"):
+            _pa_key = "exp_price_alert" if (not UI_V3 or st.session_state.get("alerts_add_open", False)) else "exp_price_alert_closed"
+            _pa_ctx = st.expander(_pa_label, key=_pa_key) if not UI_V3 else st.container(key=_pa_key)
+            with _slot_manual, _pa_ctx:
                 st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת")
                 _pa_conn = store.get_conn(db_path(cfg))
                 _active_price_alerts = store.get_active_price_alerts(_pa_conn)
