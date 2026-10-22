@@ -1,3 +1,4 @@
+# deploy nudge 2026-10-22: forces Streamlit Cloud to reinstall + reboot the app so it picks up new code
 yfinance>=0.2.40
 pandas>=2.0
 requests>=2.31
