@@ -4900,7 +4900,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     _tgt_px = r["last_close"] * (1 + strategy_mod.target_frac())
                     _g = _size * (_tgt_px / _entry_px - 1) if (pd.notna(_entry_px) and _entry_px) else (_prof.get("gross_pnl", 0) or 0)
                     _net_text = (
-                        f'<b class="up">{ui_v3.num(f"+{_g:,.0f}")}&nbsp;{_sym}</b> בהגעה ליעד ובפוזיציה של {ui_v3.num(f"{_size:,.0f}")} {_sym}'
+                        f'<b class="up">{ui_v3.num(f"{_g:,.0f}")}&nbsp;{_sym}</b> בהגעה ליעד ובפוזיציה של {ui_v3.num(f"{_size:,.0f}")} {_sym}'
                     )
                 with st.container(key=f"alert_card_{rid}"):
                     _card_top, _card_bottom = ui_v3.alert_detail(
