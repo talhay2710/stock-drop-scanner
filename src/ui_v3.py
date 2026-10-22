@@ -771,6 +771,8 @@ ALERTS_CSS = """
         .v3h .atop { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 24px; }
         .v3h .asec > small, .v3h .amet small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
+        .v3h .asec { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 18px; }  /* "ניקוד" באותה שורה עם הגורמים */
+        .v3h .asec > small { margin-bottom:0; }
         .v3h .why span b { font-weight:500; margin-inline-start:6px; }
         .v3h .why .p { color:var(--gain); } .v3h .why .m { color:var(--loss); }
         .v3h .amet { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:16px; padding-block:14px; border-block:1px solid var(--rule); }
