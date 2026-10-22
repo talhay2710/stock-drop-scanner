@@ -4614,7 +4614,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     _closed_date_text = ""
     if is_fallback_day and last_scan_date:
         try:
-            _closed_date_text = "מיום " + dt.date.fromisoformat(last_scan_date).strftime("%d.%m")
+            _closed_date_text = "סגירה " + dt.date.fromisoformat(last_scan_date).strftime("%d.%m")
         except Exception:
             pass
     st.markdown(
