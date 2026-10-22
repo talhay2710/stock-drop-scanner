@@ -1613,6 +1613,7 @@ with st.container(key="nav_tabs_row"):
                 type="primary" if st.session_state.active_tab == _nav_key else "secondary",
             ):
                 st.session_state.active_tab = None if st.session_state.active_tab == _nav_key else _nav_key
+                st.session_state["_nav_fresh"] = True  # מעבר טאב: הכותרת של הטאב החדש מסתירה שאריות דהויות של הטאב הקודם
                 st.rerun()
 
 
@@ -2438,8 +2439,10 @@ def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_inde
     if session_date is None:
         return None
 
-    weighted_by_ts: dict = {}
-    weight_by_ts: dict = {}
+    # סדרת % לכל אחזקה (פרוסות של 5 דקות, האחרון בכל פרוסה). אחזקה בלי פס בפרוסה מסוימת (מסחר דל) נשארת על ערכה האחרון
+    # (ffill; לפני הפס הראשון - הערך הראשון) - אחרת הממוצע המשוקלל בפרוסה הזו נעשה רק על חלק מהאחזקות ויוצר קפיצות חדות.
+    pct_by_ticker: dict = {}
+    invested_by_ticker: dict = {}
     for _, r in relevant_holdings.iterrows():
         closes = intraday.get(r["ticker"])
         if closes is None or closes.empty:
@@ -2448,21 +2451,22 @@ def _build_intraday_comparison_df(relevant_holdings: pd.DataFrame, dominant_inde
         entry = r.get("actual_entry_price")
         if not qty or not entry:
             continue
-        invested = entry * qty
         daily_hist = daily_hist_by_ticker.get(r["ticker"])
         prev_close = _last_close_before(daily_hist, session_date) if daily_hist is not None else None
         if not prev_close:
             continue
-        for ts, price in closes.items():
-            bucket = ts.floor("5min")
-            pct = (float(price) - prev_close) / prev_close * 100
-            weighted_by_ts[bucket] = weighted_by_ts.get(bucket, 0.0) + pct * invested
-            weight_by_ts[bucket] = weight_by_ts.get(bucket, 0.0) + invested
-    if not weighted_by_ts:
+        pct = pd.Series(
+            [(float(price) - prev_close) / prev_close * 100 for price in closes.values],
+            index=[ts.floor("5min") for ts in closes.index],
+        )
+        pct = pct[~pct.index.duplicated(keep="last")]
+        pct_by_ticker[r["ticker"]] = pct
+        invested_by_ticker[r["ticker"]] = entry * qty
+    if not pct_by_ticker:
         return None
-    portfolio_pct = pd.Series({
-        t: weighted_by_ts[t] / weight_by_ts[t] for t in weighted_by_ts
-    }).sort_index()
+    pct_df = pd.DataFrame(pct_by_ticker).sort_index().ffill().bfill()
+    weights = pd.Series(invested_by_ticker)[pct_df.columns]
+    portfolio_pct = (pct_df * weights).sum(axis=1) / weights.sum()
 
     if bench_hist is None or bench_hist.empty:
         return None
@@ -4088,6 +4092,14 @@ def _v3_stock_rows(sub_df: pd.DataFrame) -> list[dict]:
     return out
 
 
+def _nav_stale_css() -> str:
+    """אחרי מעבר טאב Streamlit משאיר על המסך את התוכן הדהוי של הטאב הקודם עד שהריצה נגמרת (עשרות שניות בריצה קרה).
+    בריצה הראשונה אחרי הלחיצה מסתירים אותו; בריצות הבאות (מסננים וכו') לא - הסתרה שם הייתה גורמת לעמוד "לקפוץ"."""
+    if st.session_state.pop("_nav_fresh", False):
+        return '<style>[data-testid="stMain"] [data-stale="true"] { display: none !important; }</style>'
+    return ""
+
+
 def _render_movers_v3() -> None:
     """טאב 'מניות מובילות' בעיצוב v3 (המוקאפ שאושר): כותרת + טריות, מדד + ימים, שתי טבלאות (ירידה/עלייה), מניות במעקב."""
     scanning_indices = cfg.get("indices") or ALL_INDICES
@@ -4107,7 +4119,7 @@ def _render_movers_v3() -> None:
             fresh = f"סגירה {_rep.strftime('%d.%m')}"
             if market_data.is_data_stale(_rep, "X.TA" if movers_index in ("TA35", "TA125") else ""):
                 fresh += " · נתון ישן"
-    st.markdown(f'<div class="v3h">{ui_v3.movers_head("מניות מובילות", "" if fresh == "היום" else fresh, 0 if fresh == "היום" else None, icons=2)}</div>', unsafe_allow_html=True)
+    st.markdown(f'{_nav_stale_css()}<div class="v3h">{ui_v3.movers_head("מניות מובילות", "" if fresh == "היום" else fresh, 0 if fresh == "היום" else None, icons=2)}</div>', unsafe_allow_html=True)
 
     def _toggle_movers_filters() -> None:
         st.session_state["movers_filters_open"] = not st.session_state.get("movers_filters_open", False)
@@ -4622,7 +4634,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         except Exception:
             pass
     st.markdown(
-        f'<div class="v3h">{ui_v3.movers_head(title, _closed_date_text, None, icons=2)}</div>', unsafe_allow_html=True,
+        f'{_nav_stale_css()}<div class="v3h">{ui_v3.movers_head(title, _closed_date_text, None, icons=2)}</div>', unsafe_allow_html=True,
     )
     # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסננים נרשמו מאפס את הבחירות שלהם
     def _toggle_alerts_filters() -> None:
@@ -6431,7 +6443,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
         notice_html = ui_v3.notice(worst[0], worst[1], worst[2])
     # "התיק שלי" והתראת הסטופ הוסרו מהטאב - שניהם מופיעים בעמוד הבית; בטאב עצמו האחזקה שחצתה את הסטופ מסומנת באדום בטבלה וברדאר
 
-    st.markdown(f'<div class="v3h">{ui_v3.movers_head("אחזקות", "", None)}</div>', unsafe_allow_html=True)
+    st.markdown(f'{_nav_stale_css()}<div class="v3h">{ui_v3.movers_head("אחזקות", "", None)}</div>', unsafe_allow_html=True)
     # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסנן נרשם מאפס את הבחירה שלו
     def _toggle_holdings_filters() -> None:
         st.session_state["holdings_filters_open"] = not st.session_state.get("holdings_filters_open", False)
@@ -7024,7 +7036,7 @@ def _render_journal_v3() -> None:
     hist_conn = store.get_conn(db_path(cfg))
     closed_trades = store.get_closed_trades(hist_conn)
     hist_conn.close()
-    st.markdown(f'<div class="v3h"><section class="block" style="margin-top:32px">{ui_v3.head("יומן עסקאות")}</section></div>', unsafe_allow_html=True)
+    st.markdown(f'{_nav_stale_css()}<div class="v3h"><section class="block" style="margin-top:32px">{ui_v3.head("יומן עסקאות")}</section></div>', unsafe_allow_html=True)
     # אייקון סינון בקצה השמאלי של הכותרת (כמו אייקון הרענון בטאבים אחרים); פותח/סוגר את לוח הסינון והמיון מעל הטבלה
     def _toggle_journal_filters() -> None:
         st.session_state["journal_filters_open"] = not st.session_state.get("journal_filters_open", False)
