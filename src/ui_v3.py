@@ -691,7 +691,8 @@ def spark(prices: list[float]) -> str:
 
 def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str, over: float | None, quality: float | None,
                  over_cls: str, quality_cls: str, exp_drop: float | None, flags: list[str], news: list[dict],
-                 net_text: str, held: bool, levels: tuple[str, str, str] | None = None, quiet: bool = False) -> str:
+                 net_text: str, held: bool, levels: tuple[str, str, str] | None = None, quiet: bool = False,
+                 cum: tuple[int, float | None] | None = None) -> str:
     why = "".join(
         f'<span>{ltr_nums(esc(n))}<b class="{"p" if p > 0 else "m"}">{num(f"{p:+d}")}</b></span>' for n, p in parts
     ) or '<span class="dim">אין גורם תומך</span>'
@@ -702,11 +703,16 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
         f'<div><small>צפי לנמוך היומי</small><strong class="down">{num(f"-{exp_drop:.1f}%")}</strong></div>' if exp_drop is not None
         else '<div><small>צפי לנמוך היומי</small><strong>—</strong></div>'
     )
+    cum_html = ""
+    if cum is not None:
+        _days, _pct = cum
+        _val = '<strong>—</strong>' if _pct is None else f'<strong class="{cls_for(_pct)}">{num(signed(_pct, 1, "%"))}</strong>'
+        cum_html = f'<div><small>מצטבר · {num(str(_days))} ימים</small>{_val}</div>'
     # quiet (סיגנל "לקנות"): הציונים נשארים, רק בלי דגלי אזהרה - הסיגנל אחד וברור, בלי מסרים סותרים
     scores = f'{metric("תגובת יתר", over, over_cls)}{metric("איכות פונדמנטלית", quality, quality_cls)}'
     met = (
         f'<div class="amet{" q" if quiet else ""}"><div><small>סיבת הירידה</small><strong class="r">{esc(reason)}</strong></div>'
-        f'{scores}{drop_html}</div>'
+        f'{scores}{drop_html}{cum_html}</div>'
     )
     flag_html = "" if quiet else "".join(f'<div class="flagline"><i></i>{esc(f)}</div>' for f in flags)
     if news:
@@ -764,7 +770,7 @@ ALERTS_CSS = """
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
         .v3h .why span b { font-weight:500; margin-inline-start:6px; }
         .v3h .why .p { color:var(--gain); } .v3h .why .m { color:var(--loss); }
-        .v3h .amet { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:16px; padding-block:14px; border-block:1px solid var(--rule); }
+        .v3h .amet { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr 1fr; gap:16px; padding-block:14px; border-block:1px solid var(--rule); }
         .v3h .amet strong { font-size:20px; font-weight:400; display:block; }
         .v3h .amet strong.r { font-size:17px; color:var(--v3-soft); }
         .v3h .amet .of { font-size:13px; color:var(--dim); margin-inline-start:2px; }

@@ -4680,6 +4680,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
             _nd_map[_t] = market_data.compute_n_day_change_pct(_h, _md_days)
 
     _cur_map, _cur_gap = {}, {}
+    _hist_map = dict(zip(_cur_df["ticker"], _cur_df["history"])) if (not _cur_df.empty and "history" in _cur_df.columns) else {}
     if not _cur_df.empty:
         _cur_map = dict(zip(_cur_df["ticker"], _cur_df["pct_change"]))
         if "prev_close_gap" in _cur_df.columns:
@@ -4831,19 +4832,29 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                         f'אם יגיע ליעד, בפוזיציה של {ui_v3.num(f"{_size:,.0f}")} {_sym}: '
                         f'<b class="{ui_v3.cls_for(_n)}">{ui_v3.num(ui_v3.signed(_n))}&nbsp;{_sym}</b> נטו אחרי עמלות ומס'
                     )
-                st.markdown(
-                    '<div class="v3h">' + ui_v3.alert_detail(
-                        it["parts"], get_sparkline_prices(r["ticker"]), _reason, None if pd.isna(_over) else float(_over),
-                        float(r["quality_score"]) if _q_known else None, _over_cls,
-                        {"high": "up", "low": "down"}.get(_qt, "") if _q_known else "",
-                        float(_exp) if (pd.notna(_exp) and _exp > abs(r["pct_change"])) else None, _flags, _news, _net_text,
-                        bool(r.get("bought") == 1),
-                        levels=(_alert_price(r.get("entry_limit"), idx_name),
-                                _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
-                                _alert_price(r.get("stop_loss"), idx_name)),
-                        quiet=it["key"] == "buy",
-                    ) + "</div>", unsafe_allow_html=True,
-                )
+                _card_slot = st.container()
+                _cum_ctl_slot = st.container()
+                with _cum_ctl_slot:
+                    _cum_days = st.segmented_control(
+                        "ימים לירידה מצטברת", [2, 3, 5, 10], default=_md_days if _md_days in (2, 3, 5, 10) else 3, selection_mode="single",
+                        key="alert_cum_days", format_func=lambda v: f"{v} ימים", label_visibility="collapsed",
+                    ) or (_md_days if _md_days in (2, 3, 5, 10) else 3)
+                _cum_pct = market_data.compute_n_day_change_pct(_hist_map.get(r["ticker"]), int(_cum_days)) if _hist_map.get(r["ticker"]) is not None else None
+                with _card_slot:
+                    st.markdown(
+                        '<div class="v3h">' + ui_v3.alert_detail(
+                            it["parts"], get_sparkline_prices(r["ticker"]), _reason, None if pd.isna(_over) else float(_over),
+                            float(r["quality_score"]) if _q_known else None, _over_cls,
+                            {"high": "up", "low": "down"}.get(_qt, "") if _q_known else "",
+                            float(_exp) if (pd.notna(_exp) and _exp > abs(r["pct_change"])) else None, _flags, _news, _net_text,
+                            bool(r.get("bought") == 1),
+                            levels=(_alert_price(r.get("entry_limit"), idx_name),
+                                    _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
+                                    _alert_price(r.get("stop_loss"), idx_name)),
+                            quiet=it["key"] == "buy",
+                            cum=(int(_cum_days), _cum_pct),
+                        ) + "</div>", unsafe_allow_html=True,
+                    )
                 if r.get("bought") != 1:
                     with st.expander("פתיחת פוזיציה", key=f"open_pos_exp_{rid}"):
                         _lim = r.get("entry_limit")
