@@ -665,8 +665,10 @@ _V3_CSS += """
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"] p { font-size: 15px; font-weight: 300; }
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"][data-selected="true"] { background: transparent !important; color: var(--v3-ink) !important; border-bottom-color: var(--v3-accent) !important; }
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"][data-selected="true"] p { color: var(--v3-ink) !important; font-weight: 400; }
-        .v3h .cumline { font-size: 15px; color: var(--v3-soft); white-space: nowrap; }
-        .v3h .cumline b { font-weight: 500; } .v3h .cumline b.up { color: var(--v3-gain); } .v3h .cumline b.down { color: var(--v3-loss); }
+        .cumline { white-space: nowrap; }  /* אותם גדלים כמו "סיבת הירידה": תווית 13px, ערך 17px */
+        .cumline small { font-size: 13px; color: var(--v3-dim); }
+        .cumline b { font-size: 17px; font-weight: 400; color: var(--v3-soft); }
+        .cumline b.up { color: var(--v3-gain); } .cumline b.down { color: var(--v3-loss); }
         [data-testid="stSpinner"] { display: none !important; }  /* "Running get_all_changes(...)" של cache_data - לא להציג למשתמש */
         div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
@@ -4865,7 +4867,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                         ) or (_md_days if _md_days in (2, 3, 5, 10) else 3)
                     _cum_pct = market_data.compute_n_day_change_pct(_hist_map.get(r["ticker"]), int(_cum_days)) if _hist_map.get(r["ticker"]) is not None else None
                     _cum_txt = "—" if _cum_pct is None else f'<b class="{ui_v3.cls_for(_cum_pct)}">{ui_v3.num(ui_v3.signed(_cum_pct, 1, "%"))}</b>'
-                    _cum_lbl.markdown(f'<div class="v3h cumline">ירידה מצטברת: {_cum_txt}</div>', unsafe_allow_html=True)
+                    _cum_lbl.markdown(f'<div class="v3h cumline"><small>ירידה מצטברת:</small> {_cum_txt}</div>', unsafe_allow_html=True)
                     st.markdown('<div class="v3h">' + _card_bottom + '</div>', unsafe_allow_html=True)
                 if r.get("bought") != 1:
                     with st.expander("פתיחת פוזיציה", key=f"open_pos_exp_{rid}"):
