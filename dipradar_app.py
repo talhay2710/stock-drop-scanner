@@ -8373,3 +8373,5 @@ with _market_panel_box:
     st.divider()
     _section_title("📰 חדשות כלכליות")
     _render_news_section()
+
+# deploy probe: confirms pushes apply on the public app without a reboot
