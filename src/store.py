@@ -527,7 +527,7 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
                 intraday_recovery_pct=:intraday_recovery_pct, market_regime=:market_regime,
                 reversal_low_price=:reversal_low_price, reversal_alert_sent=:reversal_alert_sent,
                 residual_drop_pct=:residual_drop_pct, dist_from_ma50_pct=:dist_from_ma50_pct,
-                day_low_price=:day_low_price
+                day_low_price=:day_low_price, expected_max_drop_pct=:expected_max_drop_pct
                WHERE id = :id""",
             {**record, "id": alert_id},
         )
@@ -541,13 +541,13 @@ def save_alert(conn: sqlite3.Connection, record: dict) -> int:
          entry_limit, target_base, stop_loss, net_result_json, sector,
          quality_tier, quality_score, quality_flags_json, rebound_tier, last_close_date,
          zscore, rsi, volume_ratio, vix_level, intraday_recovery_pct, market_regime,
-         reversal_low_price, reversal_alert_sent, residual_drop_pct, dist_from_ma50_pct, day_low_price)
+         reversal_low_price, reversal_alert_sent, residual_drop_pct, dist_from_ma50_pct, day_low_price, expected_max_drop_pct)
         VALUES (:scan_date, :scan_ts, :ticker, :company_name, :index_name, :pct_change, :last_close, :prev_close,
                 :reason_text, :reasons_json, :headlines_json, :overreaction_verdict, :overreaction_score,
                 :entry_limit, :target_base, :stop_loss, :net_result_json, :sector,
                 :quality_tier, :quality_score, :quality_flags_json, :rebound_tier, :last_close_date,
                 :zscore, :rsi, :volume_ratio, :vix_level, :intraday_recovery_pct, :market_regime,
-                :reversal_low_price, :reversal_alert_sent, :residual_drop_pct, :dist_from_ma50_pct, :day_low_price)""",
+                :reversal_low_price, :reversal_alert_sent, :residual_drop_pct, :dist_from_ma50_pct, :day_low_price, :expected_max_drop_pct)""",
         record,
     )
     conn.commit()

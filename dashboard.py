@@ -4698,6 +4698,17 @@ def _alert_price(value, index_name) -> str:
     return _level_text(value, constituents.INDEX_CURRENCY.get(index_name, "ILS") == "ILS")
 
 
+@st.cache_data(ttl=600)
+def _live_expected_max_drop_pct() -> float | None:
+    """"צפי לנמוך היומי": חציון הירידה (מסגירה קודמת עד שפל היום) בכל ההתראות ההיסטוריות - אותו חישוב כמו בסורק."""
+    from src import scanner as _scanner
+    _c = store.get_conn(db_path(cfg))
+    try:
+        return _scanner._historical_expected_max_drop_pct(_c)
+    finally:
+        _c.close()
+
+
 def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_scan_date: str | None) -> None:
     """טבלת 'התראות היום' בעיצוב v3 (המוקאפ שאושר): סיכום, מסננים, שורות שנפתחות לפרטי ההתראה, פתיחת פוזיציה."""
     st.session_state.setdefault("open_alert_id", None)
@@ -4872,6 +4883,8 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                 _qt = r.get("quality_tier")
                 _q_known = bool(_qt) and _qt != "unknown" and pd.notna(r.get("quality_score"))
                 _exp = r.get("expected_max_drop_pct")
+                if _exp is None or pd.isna(_exp):  # התראות שנשמרו לפני שהשדה נשמר בפועל - החציון ההיסטורי החי
+                    _exp = _live_expected_max_drop_pct()
                 _flags_raw = r.get("quality_flags_json")
                 _flags = json.loads(_flags_raw) if isinstance(_flags_raw, str) else []
                 _news = json.loads(r.get("headlines_json") or "[]")
@@ -4882,10 +4895,12 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     _sym = CURRENCY_SYMBOLS.get(_prof.get("currency"), _prof.get("currency", ""))
                     _sym = "₪" if _sym == 'ש"ח' else _sym
                     _size = (_prof.get("qty", 0) or 0) * (_prof.get("buy_price", 0) or 0)
-                    _n = _prof.get("net_pnl", 0) or 0
+                    # רווח ברוטו בהגעה ליעד המוצג בטבלה (אותו כניסה ויעד), בפוזיציה של הגודל שחושב להתראה
+                    _entry_px = r.get("entry_limit")
+                    _tgt_px = r["last_close"] * (1 + strategy_mod.target_frac())
+                    _g = _size * (_tgt_px / _entry_px - 1) if (pd.notna(_entry_px) and _entry_px) else (_prof.get("gross_pnl", 0) or 0)
                     _net_text = (
-                        f'אם יגיע ליעד, בפוזיציה של {ui_v3.num(f"{_size:,.0f}")} {_sym}: '
-                        f'<b class="{ui_v3.cls_for(_n)}">{ui_v3.num(ui_v3.signed(_n))}&nbsp;{_sym}</b> נטו אחרי עמלות ומס'
+                        f'<b class="up">{ui_v3.num(f"+{_g:,.0f}")}&nbsp;{_sym}</b> בהגעה ליעד ובפוזיציה של {ui_v3.num(f"{_size:,.0f}")} {_sym}'
                     )
                 with st.container(key=f"alert_card_{rid}"):
                     _card_top, _card_bottom = ui_v3.alert_detail(
@@ -4903,9 +4918,9 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     with st.container(horizontal=True, vertical_alignment="center", gap="small", key=f"alert_cum_row_{rid}"):
                         _cum_lbl = st.empty()  # הטקסט נכתב אחרי שהבורר החזיר את מספר הימים (הוא מוצג לפניו, באותה שורה)
                         _cum_days = st.segmented_control(
-                            "ימים לירידה מצטברת", [2, 3, 5, 10], default=_md_days if _md_days in (2, 3, 5, 10) else 3, selection_mode="single",
+                            "ימים לירידה מצטברת", [2, 3, 5, 10], default=3, selection_mode="single",
                             key="alert_cum_days", format_func=lambda v: f"{v} ימים", label_visibility="collapsed",
-                        ) or (_md_days if _md_days in (2, 3, 5, 10) else 3)
+                        ) or 3
                     _cum_pct = market_data.compute_n_day_change_pct(_hist_map.get(r["ticker"]), int(_cum_days)) if _hist_map.get(r["ticker"]) is not None else None
                     _cum_txt = "—" if _cum_pct is None else f'<b class="{ui_v3.cls_for(_cum_pct)}">{ui_v3.num(ui_v3.signed(_cum_pct, 1, "%"))}</b>'
                     _cum_lbl.markdown(f'<div class="v3h cumline"><small>ירידה מצטברת:</small> {_cum_txt}</div>', unsafe_allow_html=True)
