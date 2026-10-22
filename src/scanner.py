@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 
 from . import constituents
+from .names import sector_he
 from . import market_data
 from . import analysis as analysis_mod
 from . import strategy as strategy_mod
@@ -1017,21 +1018,21 @@ def _format_message(ticker, company_name, index, row, analysis, trade_idea,
         "",
         f"{strategy_mod.SIGNAL_EMOJI[_sig]} <b>{strategy_mod.SIGNAL_LABEL[_sig]}</b> · ניקוד {max(_score, 0)}/{strategy_mod.MAX_SIGNAL_SCORE}",
         "",
-        f"כניסה  {_level_text(trade_idea.entry_limit, currency)}",
-        f"יעד  {_level_text(row['last_close'] * (1 + strategy_mod.target_frac()), currency)}",
-        f"סטופ  {_level_text(trade_idea.stop_loss, currency)}",
+        f"כניסה: {_level_text(trade_idea.entry_limit, currency)}",
+        f"יעד: {_level_text(row['last_close'] * (1 + strategy_mod.target_frac()), currency)}",
+        f"סטופ: {_level_text(trade_idea.stop_loss, currency)}",
         "",
-        f"תגובת יתר  {analysis.overreaction_score}/100",
+        f"תגובת יתר: {analysis.overreaction_score}/100",
     ]
     if analysis.quality and analysis.quality.tier != "unknown":
-        lines.append(f"איכות פונדמנטלית  {analysis.quality.score}/100")
+        lines.append(f"איכות פונדמנטלית: {analysis.quality.score}/100")
     if expected_max_drop_pct is not None and expected_max_drop_pct > abs(row["pct_change"]):
-        lines.append(f"צפי נמוך  {_signed(-expected_max_drop_pct, 1, '%')}")
+        lines.append(f"צפי נמוך: {_signed(-expected_max_drop_pct, 1, '%')}")
     lines += ["", f"📌 {analysis.reason_text.split(' | ')[0]}"]
 
     extra = []
     if sector_peers >= 2 and analysis.sector:
-        extra.append(f"⚠️ עוד {sector_peers} מניות מהסקטור ({analysis.sector}) ירדו היום")
+        extra.append(f"🔻 עוד {sector_peers} מניות מהסקטור ({sector_he(analysis.sector)}) ירדו היום")
     if analysis.has_headlines:
         links = " · ".join(
             f'<a href="{h["link"]}">{h.get("source", "חדשות")}</a>' if h.get("link") else h.get("source", "חדשות")
