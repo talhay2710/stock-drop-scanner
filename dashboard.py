@@ -655,6 +655,18 @@ _V3_CSS += """
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
         div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
+        div[class*="st-key-alert_card_"] { background: var(--v3-surface); padding: 16px 12px 22px; border-bottom: 1px solid var(--v3-rule); gap: 20px !important; }
+        div[class*="st-key-alert_card_"] .adet { background: none; padding: 0; border-bottom: 0; }
+        div[class*="st-key-alert_card_"] [data-testid="stButtonGroup"] { justify-content: flex-start; }
+        div[class*="st-key-alert_card_"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* ברירת המחדל מושכת את האלמנט הבא למעלה ב-16px */
+        div[class*="st-key-alert_cum_row_"] { align-items: center; }
+        div[class*="st-key-alert_cum_row_"] [data-testid="stButtonGroup"] > div[role="toolbar"], div[class*="st-key-alert_cum_row_"] [data-testid="stButtonGroup"] > div[role="radiogroup"] { border: 0 !important; border-radius: 0 !important; gap: 18px !important; flex-wrap: wrap; overflow: visible; }
+        div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"] { background: transparent !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; padding: 2px 0 !important; min-height: 0 !important; color: var(--v3-dim) !important; box-shadow: none !important; }
+        div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"] p { font-size: 15px; font-weight: 300; }
+        div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"][data-selected="true"] { background: transparent !important; color: var(--v3-ink) !important; border-bottom-color: var(--v3-accent) !important; }
+        div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"][data-selected="true"] p { color: var(--v3-ink) !important; font-weight: 400; }
+        .v3h .cumline { font-size: 15px; color: var(--v3-soft); white-space: nowrap; }
+        .v3h .cumline b { font-weight: 500; } .v3h .cumline b.up { color: var(--v3-gain); } .v3h .cumline b.down { color: var(--v3-loss); }
         [data-testid="stSpinner"] { display: none !important; }  /* "Running get_all_changes(...)" של cache_data - לא להציג למשתמש */
         div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
@@ -4832,29 +4844,29 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                         f'אם יגיע ליעד, בפוזיציה של {ui_v3.num(f"{_size:,.0f}")} {_sym}: '
                         f'<b class="{ui_v3.cls_for(_n)}">{ui_v3.num(ui_v3.signed(_n))}&nbsp;{_sym}</b> נטו אחרי עמלות ומס'
                     )
-                _card_slot = st.container()
-                _cum_ctl_slot = st.container()
-                with _cum_ctl_slot:
-                    _cum_days = st.segmented_control(
-                        "ימים לירידה מצטברת", [2, 3, 5, 10], default=_md_days if _md_days in (2, 3, 5, 10) else 3, selection_mode="single",
-                        key="alert_cum_days", format_func=lambda v: f"{v} ימים", label_visibility="collapsed",
-                    ) or (_md_days if _md_days in (2, 3, 5, 10) else 3)
-                _cum_pct = market_data.compute_n_day_change_pct(_hist_map.get(r["ticker"]), int(_cum_days)) if _hist_map.get(r["ticker"]) is not None else None
-                with _card_slot:
-                    st.markdown(
-                        '<div class="v3h">' + ui_v3.alert_detail(
-                            it["parts"], get_sparkline_prices(r["ticker"]), _reason, None if pd.isna(_over) else float(_over),
-                            float(r["quality_score"]) if _q_known else None, _over_cls,
-                            {"high": "up", "low": "down"}.get(_qt, "") if _q_known else "",
-                            float(_exp) if (pd.notna(_exp) and _exp > abs(r["pct_change"])) else None, _flags, _news, _net_text,
-                            bool(r.get("bought") == 1),
-                            levels=(_alert_price(r.get("entry_limit"), idx_name),
-                                    _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
-                                    _alert_price(r.get("stop_loss"), idx_name)),
-                            quiet=it["key"] == "buy",
-                            cum=(int(_cum_days), _cum_pct),
-                        ) + "</div>", unsafe_allow_html=True,
+                with st.container(key=f"alert_card_{rid}"):
+                    _card_top, _card_bottom = ui_v3.alert_detail(
+                        it["parts"], get_sparkline_prices(r["ticker"]), _reason, None if pd.isna(_over) else float(_over),
+                        float(r["quality_score"]) if _q_known else None, _over_cls,
+                        {"high": "up", "low": "down"}.get(_qt, "") if _q_known else "",
+                        float(_exp) if (pd.notna(_exp) and _exp > abs(r["pct_change"])) else None, _flags, _news, _net_text,
+                        bool(r.get("bought") == 1),
+                        levels=(_alert_price(r.get("entry_limit"), idx_name),
+                                _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
+                                _alert_price(r.get("stop_loss"), idx_name)),
+                        quiet=it["key"] == "buy", split=True,
                     )
+                    st.markdown('<div class="v3h">' + _card_top + '</div>', unsafe_allow_html=True)
+                    with st.container(horizontal=True, vertical_alignment="center", gap="small", key=f"alert_cum_row_{rid}"):
+                        _cum_lbl = st.empty()  # הטקסט נכתב אחרי שהבורר החזיר את מספר הימים (הוא מוצג לפניו, באותה שורה)
+                        _cum_days = st.segmented_control(
+                            "ימים לירידה מצטברת", [2, 3, 5, 10], default=_md_days if _md_days in (2, 3, 5, 10) else 3, selection_mode="single",
+                            key="alert_cum_days", format_func=lambda v: f"{v} ימים", label_visibility="collapsed",
+                        ) or (_md_days if _md_days in (2, 3, 5, 10) else 3)
+                    _cum_pct = market_data.compute_n_day_change_pct(_hist_map.get(r["ticker"]), int(_cum_days)) if _hist_map.get(r["ticker"]) is not None else None
+                    _cum_txt = "—" if _cum_pct is None else f'<b class="{ui_v3.cls_for(_cum_pct)}">{ui_v3.num(ui_v3.signed(_cum_pct, 1, "%"))}</b>'
+                    _cum_lbl.markdown(f'<div class="v3h cumline">ירידה מצטברת: {_cum_txt}</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="v3h">' + _card_bottom + '</div>', unsafe_allow_html=True)
                 if r.get("bought") != 1:
                     with st.expander("פתיחת פוזיציה", key=f"open_pos_exp_{rid}"):
                         _lim = r.get("entry_limit")

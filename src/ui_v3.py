@@ -692,7 +692,7 @@ def spark(prices: list[float]) -> str:
 def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str, over: float | None, quality: float | None,
                  over_cls: str, quality_cls: str, exp_drop: float | None, flags: list[str], news: list[dict],
                  net_text: str, held: bool, levels: tuple[str, str, str] | None = None, quiet: bool = False,
-                 cum: tuple[int, float | None] | None = None) -> str:
+                 cum: tuple[int, float | None] | None = None, split: bool = False):
     why = "".join(
         f'<span>{ltr_nums(esc(n))}<b class="{"p" if p > 0 else "m"}">{num(f"{p:+d}")}</b></span>' for n, p in parts
     ) or '<span class="dim">אין גורם תומך</span>'
@@ -732,10 +732,13 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
         '<div class="alev">' + "".join(f'<div><small>{lbl}</small><strong>{num(v)}</strong></div>' for lbl, v in zip(("כניסה", "יעד", "סטופ"), levels)) + '</div>'
         if levels else ""
     )
-    return (
-        f'<div class="adet">{met}{lev}<div class="atop"><div class="asec"><small>ניקוד</small><div class="why">{why}</div></div>{spark(prices)}</div>'
-        f'{flag_html}{news_html}{foot}{held_html}</div>'
+    _rest = (
+        f'{lev}<div class="atop"><div class="asec"><small>ניקוד</small><div class="why">{why}</div></div>{spark(prices)}</div>'
+        f'{flag_html}{news_html}{foot}{held_html}'
     )
+    if split:  # הכרטיס נחתך לשניים - בין חלקיו מוצבת שורת הירידה המצטברת עם בורר הימים
+        return f'<div class="adet">{met}</div>', f'<div class="adet">{_rest}</div>'
+    return f'<div class="adet">{met}{_rest}</div>'
 
 
 def num_raw(inner_html: str) -> str:
@@ -770,7 +773,7 @@ ALERTS_CSS = """
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
         .v3h .why span b { font-weight:500; margin-inline-start:6px; }
         .v3h .why .p { color:var(--gain); } .v3h .why .m { color:var(--loss); }
-        .v3h .amet { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr 1fr; gap:16px; padding-block:14px; border-block:1px solid var(--rule); }
+        .v3h .amet { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:16px; padding-block:14px; border-block:1px solid var(--rule); }
         .v3h .amet strong { font-size:20px; font-weight:400; display:block; }
         .v3h .amet strong.r { font-size:17px; color:var(--v3-soft); }
         .v3h .amet .of { font-size:13px; color:var(--dim); margin-inline-start:2px; }
