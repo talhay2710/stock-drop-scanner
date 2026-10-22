@@ -657,6 +657,12 @@ _V3_CSS += """
         div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
         div[class*="st-key-alert_card_"] { background: var(--v3-surface); padding: 16px 12px 22px; border-bottom: 1px solid var(--v3-rule); gap: 20px !important; }
         div[class*="st-key-alert_card_"] .adet { background: none; padding: 0; border-bottom: 0; }
+        div[class*="st-key-alert_card_"] { padding-bottom: 18px; }
+        div[class*="st-key-alert_card_"]:has(div[class*="st-key-open_pos_exp_"]) { padding-bottom: 0; }  /* השורה האחרונה (פתיחת פוזיציה) כבר כוללת רווח תחתון משלה */
+        div[class*="st-key-alert_card_"] .heldline { margin-bottom: -18px; }
+        div[class*="st-key-alert_cum_row_"] { padding-top: 12px; }  /* אותו רווח מעל השורה הראשונה כמו מתחת לאחרונה */
+        div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] { padding-inline: 0; }
+        div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] [data-testid="stExpander"] details { border-bottom: 0 !important; border-top: 1px solid var(--v3-rule) !important; }
         div[class*="st-key-alert_card_"] [data-testid="stButtonGroup"] { justify-content: flex-start; }
         div[class*="st-key-alert_card_"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* ברירת המחדל מושכת את האלמנט הבא למעלה ב-16px */
         div[class*="st-key-alert_cum_row_"] { align-items: center; }
@@ -4869,13 +4875,13 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     _cum_txt = "—" if _cum_pct is None else f'<b class="{ui_v3.cls_for(_cum_pct)}">{ui_v3.num(ui_v3.signed(_cum_pct, 1, "%"))}</b>'
                     _cum_lbl.markdown(f'<div class="v3h cumline"><small>ירידה מצטברת:</small> {_cum_txt}</div>', unsafe_allow_html=True)
                     st.markdown('<div class="v3h">' + _card_bottom + '</div>', unsafe_allow_html=True)
-                if r.get("bought") != 1:
-                    with st.expander("פתיחת פוזיציה", key=f"open_pos_exp_{rid}"):
-                        _lim = r.get("entry_limit")
-                        if pd.notna(_lim):
-                            _il = market_data._is_israeli_ticker(r["ticker"])
-                            st.caption(f"לימיט כניסה מוצע: {_lim * 100:,.0f} אג'" if _il else f"לימיט כניסה מוצע: {_lim:,.2f}")
-                        _open_position_form(r, f"alert_pos_{rid}")
+                    if r.get("bought") != 1:
+                        with st.expander("פתיחת פוזיציה", key=f"open_pos_exp_{rid}"):
+                            _lim = r.get("entry_limit")
+                            if pd.notna(_lim):
+                                _il = market_data._is_israeli_ticker(r["ticker"])
+                                st.caption(f"לימיט כניסה מוצע: {_lim * 100:,.0f} אג'" if _il else f"לימיט כניסה מוצע: {_lim:,.2f}")
+                            _open_position_form(r, f"alert_pos_{rid}")
 
 
 def esc_note(note: str) -> str:
