@@ -1366,16 +1366,16 @@ def journal_table(rows: list[dict]) -> str:
             f'<td>{num(r["days"])}</td><td class="c-res"><span class="res {oc}">{esc(r["outcome"])}</span></td>'
             f'<td><span class="pct {cls_for(r["gross"])}">{num(signed(r["pct"], 1, "%"))}</span></td>'
             f'<td class="c-gross"><span class="amt {cls_for(r["gross"])}">{num(signed(r["gross"]))}</span></td>'
-            f'<td><span class="net {cls_for(r["net"])}">{num(signed(r["net"]))}</span></td>'
+            f'<td class="c-net"><span class="net {cls_for(r["net"])}">{num(signed(r["net"]))}</span></td>'
             f'<td class="c-ccy"><span class="mono">{esc(r["ccy"])}</span></td></tr>'
         )
     cols = ["20", "11", "11", "8", "15", "9", "10", "10", "6"]
     colgroup = "<colgroup>" + "".join(
         f'<col{(" class=" + chr(34) + cl + chr(34)) if cl else ""} style="width:{w}%">'
-        for w, cl in zip(cols, ["", "c-entry", "c-exit", "", "c-res", "", "c-gross", "", "c-ccy"])
+        for w, cl in zip(cols, ["", "c-entry", "c-exit", "", "c-res", "", "c-gross", "c-net", "c-ccy"])
     ) + "</colgroup>"
     head_cells = ["מניה", "כניסה", "יציאה", "ימי החזקה", "תחזית מול ביצוע", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
-    cls = ["", "c-entry", "c-exit", "", "c-res", "", "c-gross", "", "c-ccy"]
+    cls = ["", "c-entry", "c-exit", "", "c-res", "", "c-gross", "c-net", "c-ccy"]
     ths = "".join(f'<th class="{c}">{h}</th>' for h, c in zip(head_cells, cls))
     return (
         f'<div class="tablewrap"><table class="jr">{colgroup}<thead><tr>{ths}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
@@ -1423,7 +1423,8 @@ JOURNAL_CSS = """
         .v3h .jr .res { font-size:15px; }
         .v3h .jr .warn { color:var(--v3-warn); } .v3h .jr .dim { color:var(--dim); }
         @media (max-width:560px) {
-            .v3h .jr .c-entry, .v3h .jr .c-exit, .v3h .jr .c-res, .v3h .jr .c-gross, .v3h .jr .c-ccy { display:none; }
+            .v3h .jr .c-entry, .v3h .jr .c-exit, .v3h .jr .c-res, .v3h .jr .c-net, .v3h .jr .c-ccy { display:none; }  /* בנייד: רווח/הפסד (ברוטו) במקום נטו */
+            .v3h .jr .amt { font-weight:500; }
             .v3h table.jr { min-width:0; table-layout:auto; } .v3h .jr col { width:auto !important; }
             .v3h .jr td, .v3h .jr th { padding-inline:6px; } .v3h .jr td:first-child { white-space:normal; }
         }
