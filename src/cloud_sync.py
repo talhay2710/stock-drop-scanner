@@ -73,6 +73,26 @@ def refresh_alerts_db_if_clean() -> bool:
         return False
 
 
+def _premerge_alerts_db(_git: list[str]) -> None:
+    """לפני דחיפת alerts.db: ממזג את העותק המקומי מעל alerts.db הטרי שב-origin (נתוני הסריקה מ-origin, טבלאות/עמודות
+    בבעלות המשתמש מהמקומי) - כך שגם כשהקובץ המקומי ישן, דחיפה של פעולת משתמש (מעקב, התראת מחיר, פוזיציה) אף פעם
+    לא דורסת נתוני סריקה עדכניים של הבוט (ר' db_merge)."""
+    alerts_path = os.path.join(ROOT_DIR, "alerts.db")
+    if not os.path.exists(alerts_path):
+        return
+    _git_run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+    user_copy, fresh_copy = alerts_path + ".local_user_data", alerts_path + ".origin_fresh"
+    try:
+        shutil.copy(alerts_path, user_copy)
+        with open(fresh_copy, "wb") as f:
+            f.write(_git_run(_git + ["show", "origin/master:alerts.db"], check=True, capture_output=True, timeout=15).stdout)
+        db_merge.merge(fresh_copy, user_copy, alerts_path)
+    finally:
+        for tmp in (user_copy, fresh_copy):
+            if os.path.exists(tmp):
+                os.remove(tmp)
+
+
 def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     """מעדכן config.example.yaml מתוך config.yaml המקומי (בלי סודות), ודוחף
     אותו ל-git אם יש שינוי אמיתי. מחזיר "pushed"/"no_change"/"failed" - לא
@@ -113,6 +133,8 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     paths = ["config.example.yaml", "alerts.db"] if include_db else ["config.example.yaml"]
     try:
         _write_example_config_from_local()
+        if include_db:
+            _premerge_alerts_db(_git)
         _git_run(_git + ["add"] + paths, check=True, capture_output=True, timeout=15)
         diff = _git_run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
         if diff.returncode == 0:

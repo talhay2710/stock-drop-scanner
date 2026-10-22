@@ -338,7 +338,7 @@ _V3_CSS = """
             /* פס אנכי דק שנראה לפעמים בטלפון: קו הצד של הסיידבר כשהוא סגור/מוסתר */
             [data-testid="stSidebar"] { border: 0 !important; box-shadow: none !important; }
             /* סיידבר בנייד: נפתח על כל המסך (בלי תוכן חצי-חתוך מאחוריו) */
-            [data-testid="stSidebar"][aria-expanded="true"] { width: 100vw !important; min-width: 100vw !important; max-width: 100vw !important; }
+            [data-testid="stSidebar"][aria-expanded="true"], [data-testid="stSidebar"][data-collapsed="false"] { width: 100vw !important; min-width: 100vw !important; max-width: 100vw !important; }
         }
 """
 
@@ -362,6 +362,7 @@ _V3_CSS += """
         /* סיידבר v3: בלי כרטיסים - כותרות סעיף, צ'יפים, שדות עם קו תחתון, שורות מתקפלות (המוקאפ שאושר) */
         [data-testid="stSidebar"] { background: var(--v3-side) !important; }
         [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 6px !important; }
+        @media (min-width: 769px) { [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 40px !important; } }  /* כותרת הסיידבר באותו גובה כמו כותרת האתר (DipRadar) */
         div[class*="st-key-scan_settings_card"], div[class*="st-key-exp_group_card"], div[class*="st-key-channels_card"] {
             border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; padding: 0 !important;
         }
@@ -4293,6 +4294,7 @@ def _render_movers_v3() -> None:
             store.remove_watchlist_item(_c, item_id)
         finally:
             _c.close()
+        _sync_and_warn("watchlist changed", include_db=True)
 
     with st.container(key="movers_watch_section"):
         st.markdown(
@@ -4329,6 +4331,7 @@ def _render_movers_v3() -> None:
                             _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen), _wl_add_index, _wl_entry_price,
                         )
                         _wl_add_conn.close()
+                        _sync_and_warn("watchlist changed", include_db=True)
                         st.rerun()
 
 
@@ -4569,6 +4572,7 @@ with _tab_slot_movers.container():
                                 _wl_remove_conn = store.get_conn(db_path(cfg))
                                 store.remove_watchlist_item(_wl_remove_conn, _wl_row["id"])
                                 _wl_remove_conn.close()
+                                _sync_and_warn("watchlist changed", include_db=True)
                                 st.rerun()
 
                 with st.expander("➕ הוספת מניה למעקב"):
@@ -4596,6 +4600,7 @@ with _tab_slot_movers.container():
                                 _wl_add_index, _wl_entry_price,
                             )
                             _wl_add_conn.close()
+                            _sync_and_warn("watchlist changed", include_db=True)
                             st.rerun()
 
         _render_movers_tab()
@@ -4989,6 +4994,7 @@ with _tab_slot_today.container():
                         with _a_col2:
                             if st.button("❌", key=f"cancel_price_alert_{_a['id']}"):
                                 store.deactivate_price_alert(_pa_conn, _a["id"])
+                                _sync_and_warn("price alert cancelled", include_db=True)
                                 st.rerun(scope="fragment")
                     st.divider()
 
@@ -5088,6 +5094,7 @@ with _tab_slot_today.container():
                             _pa_conn, _pa_chosen, _pa_name_map.get(_pa_chosen), _pa_index,
                             _pa_target, _pa_direction,
                         )
+                        _sync_and_warn("price alert added", include_db=True)
                         st.session_state.pop("price_alert_target", None)
                         st.session_state.pop("price_alert_target_pct", None)
                         st.rerun(scope="fragment")
