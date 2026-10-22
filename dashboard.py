@@ -4610,8 +4610,15 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
     st.session_state.setdefault("open_alert_id", None)
     n_total = len(todays_alerts)
     title = "התראות"  # כותרת במילה אחת, כמו בשאר הטאבים
+    # מסחר סגור (סופ"ש/חג/לפני הפתיחה): התאריך של יום המסחר שההתראות שייכות לו מופיע בכותרת
+    _closed_date_text = ""
+    if is_fallback_day and last_scan_date:
+        try:
+            _closed_date_text = "מיום " + dt.date.fromisoformat(last_scan_date).strftime("%d.%m")
+        except Exception:
+            pass
     st.markdown(
-        f'<div class="v3h">{ui_v3.movers_head(title, "", None)}</div>', unsafe_allow_html=True,
+        f'<div class="v3h">{ui_v3.movers_head(title, _closed_date_text, None, icons=2)}</div>', unsafe_allow_html=True,
     )
     # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסננים נרשמו מאפס את הבחירות שלהם
     def _toggle_alerts_filters() -> None:
