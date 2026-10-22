@@ -673,19 +673,23 @@ def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str
 
 
 def spark(prices: list[float]) -> str:
+    """גרף הסגירות האחרונות בכרטיס ההתראה: רחב וממורכז, עם קו ייחוס מקווקו ברמת הפתיחה ונקודה בקצה."""
     if not prices or len(prices) < 2:
         return ""
     mn, mx = min(prices), max(prices)
     rg = (mx - mn) or 1.0
-    pts = [(i * 126 / (len(prices) - 1), 36 - (v - mn) / rg * 30) for i, v in enumerate(prices)]
+    W, H, PX, PT, PB = 360.0, 64.0, 8.0, 8.0, 8.0
+    pts = [(PX + i * (W - 2 * PX) / (len(prices) - 1), H - PB - (v - mn) / rg * (H - PT - PB)) for i, v in enumerate(prices)]
     up = prices[-1] >= prices[0]
     col = "var(--gain)" if up else "var(--loss)"
     poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
     lx, ly = pts[-1]
+    by = pts[0][1]
     return (
-        f'<svg class="spk" width="140" height="40" viewBox="0 0 126 40" preserveAspectRatio="none" aria-hidden="true">'
-        f'<polyline vector-effect="non-scaling-stroke" points="{poly}" fill="none" stroke="{col}" stroke-width="1.4"/>'
-        f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="2.6" fill="{col}"/></svg>'
+        f'<svg class="spk" viewBox="0 0 {W:.0f} {H:.0f}" aria-hidden="true">'
+        f'<line x1="{PX:.0f}" y1="{by:.1f}" x2="{W - PX:.0f}" y2="{by:.1f}" stroke="var(--rule)" stroke-width="1" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>'
+        f'<polyline vector-effect="non-scaling-stroke" points="{poly}" fill="none" stroke="{col}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'
+        f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="3.2" fill="{col}"/></svg>'
     )
 
 
@@ -768,7 +772,8 @@ ALERTS_CSS = """
         .v3h .arow .sig.buy { color:var(--gain); font-weight:500; } .v3h .arow .sig.avoid { color:var(--loss); }
         .v3h .arow .sig.wait { color:var(--ink); }
         .v3h .adet { display:flex; flex-direction:column; gap:20px; padding:16px 12px 22px; background:var(--surface); border-bottom:1px solid var(--rule); max-width:none; white-space:normal; }
-        .v3h .atop { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 24px; }
+        .v3h .atop { display:flex; flex-direction:column; align-items:stretch; gap:14px; }
+        .v3h .atop .spk { display:block; width:100%; max-width:520px; height:auto; margin:0 auto; }
         .v3h .asec > small, .v3h .amet small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
         .v3h .asec { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 18px; }  /* "ניקוד" באותה שורה עם הגורמים */
