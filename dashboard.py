@@ -672,9 +672,9 @@ _V3_CSS += """
         div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
         div[class*="st-key-alert_card_"] { background: var(--v3-surface); padding: 16px 12px 22px; border-bottom: 1px solid var(--v3-rule); gap: 20px !important; }
         div[class*="st-key-alert_card_"] .adet { background: none; padding: 0; border-bottom: 0; }
-        div[class*="st-key-alert_card_"] { padding-bottom: 18px; }
+        div[class*="st-key-alert_card_"] { padding-bottom: 14px; }
         div[class*="st-key-alert_card_"]:has(div[class*="st-key-open_pos_exp_"]) { padding-bottom: 0; }  /* השורה האחרונה (פתיחת פוזיציה) כבר כוללת רווח תחתון משלה */
-        div[class*="st-key-alert_card_"] .heldline { margin-bottom: -18px; }
+        div[class*="st-key-alert_card_"] .heldline { margin-bottom: -14px; }
         div[class*="st-key-alert_card_"] .amet { padding-top: 15.4px; }
         div[class*="st-key-alert_cum_row_"] { padding-top: 12px; }  /* אותו רווח מעל השורה הראשונה כמו מתחת לאחרונה */
         div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] { padding-inline: 0; }
