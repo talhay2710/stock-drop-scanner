@@ -18,7 +18,8 @@ def esc(text) -> str:
 
 
 _STOP_SHORT = {"בית", "הון", "קרן", "ים", "בע\"מ", "חב'"}
-_GENERIC_FIRST = {"בנק", "קבוצת", "חברת", "הבנק", "בית", "קרן", "The", "Bank"}
+_GENERIC_FIRST = {"בנק", "חברת", "הבנק", "בית", "קרן", "The", "Bank"}
+_DROP_FIRST = {"קבוצת"}  # "קבוצת אקרשטיין" -> "אקרשטיין"
 
 
 def short_name(name) -> str:
@@ -29,6 +30,8 @@ def short_name(name) -> str:
         return ""
     words = re.split(r"\s+", text)
     first = words[0].strip(",.;")
+    if first in _DROP_FIRST and len(words) > 1:
+        return words[1].strip(",.;")
     if first in _GENERIC_FIRST and len(words) > 1:
         return f"{first} {words[1].strip(',.;')}"
     # שם עברי שמורכב מאותיות מילוליות קצרות ("איי סי אל", "אי בי אי") - לוקחים את כולן ולא רק "איי"
@@ -752,21 +755,23 @@ ALERTS_CSS = """
         .v3h .kpi.k4.sm > div { padding:10px 20px 11px; }
         .v3h .kpi.k4.sm small { font-size:12px; }
         .v3h .kpi.k4.sm strong { font-size:20px; line-height:1.15; margin-top:1px; }
-        .v3h .arow { display:grid; grid-template-columns:1.9fr 1.4fr 1fr .9fr .7fr .95fr .95fr .95fr .7fr; align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:720px; }
+        .v3h .arow { display:grid; grid-template-columns:minmax(0,1.9fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,.7fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.7fr); align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:720px; }
         .v3h .arow > span { padding-block:15px; }
         .v3h .arow > span:has(.nt) { padding-block:8px; }
         .v3h .arow .nm small.ix { opacity:.75; }
         .v3h .arow .nt { display:block; font-size:12px; line-height:1.25; color:var(--dim); }
         .v3h .arow.ahead { border-bottom:1px solid var(--rule-strong); }
         .v3h .arow.ahead > span { font-size:13px; color:var(--dim); padding-block:10px; }
-        .v3h .arow .nm { display:inline-flex; align-items:baseline; gap:10px; font-size:17px; }
+        .v3h .arow .nmc { min-width:0; overflow:hidden; }
+        .v3h .arow .nm { display:inline-flex; align-items:baseline; gap:10px; font-size:17px; max-width:100%; }
+        .v3h .arow .nm bdi { overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .v3h .arow .nm small { font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
         .v3h .arow .nm .chev { align-self:center; color:var(--dim); transition:transform .15s; }
         .v3h .arow.open .nm .chev { transform:scaleX(-1) rotate(90deg) !important; }
         .v3h .arow .isnew { font-size:12px; color:var(--accent); }
         .v3h .arow .sig { font-size:15px; }
         .v3h .arow .sig.buy { color:var(--gain); font-weight:500; } .v3h .arow .sig.avoid { color:var(--loss); }
-        .v3h .arow .sig.wait { color:var(--ink); }
+        .v3h .arow .sig.wait { color:var(--v3-warn); }
         .v3h .adet { display:flex; flex-direction:column; gap:20px; padding:16px 12px 22px; background:var(--surface); border-bottom:1px solid var(--rule); max-width:none; white-space:normal; }
         .v3h .atop { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:flex-start; gap:12px 56px; }  /* הגרף הקטן צמוד לניקוד ולא בקצה השמאלי */
         .v3h .asec > small, .v3h .amet small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
@@ -798,7 +803,7 @@ ALERTS_CSS = """
             .v3h .kpi.k4 > div:first-child { grid-column:auto; padding-inline-start:0; }
             .v3h .kpi.k4 small { font-size:12px; white-space:nowrap; }
             .v3h .kpi.k4 strong, .v3h .kpi.k4.sm strong { font-size:22px; }
-            .v3h .arow { grid-template-columns:1.9fr 1fr 1fr 1.1fr .8fr; min-width:0; font-size:15px; padding:0 4px; gap:0 6px; }
+            .v3h .arow { grid-template-columns:minmax(0,1.9fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,.8fr); min-width:0; font-size:15px; padding:0 4px; gap:0 6px; }
             .v3h .arow .x { display:none; }
             .v3h .arow .nm { font-size:15px; display:grid; grid-template-areas:"name mono" "ix chev"; justify-content:start; align-items:baseline; column-gap:6px; row-gap:2px; }
             .v3h .arow .nm bdi { grid-area:name; }
