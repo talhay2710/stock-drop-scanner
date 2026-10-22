@@ -673,23 +673,19 @@ def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str
 
 
 def spark(prices: list[float]) -> str:
-    """גרף הסגירות האחרונות בכרטיס ההתראה: רחב וממורכז, עם קו ייחוס מקווקו ברמת הפתיחה ונקודה בקצה."""
     if not prices or len(prices) < 2:
         return ""
     mn, mx = min(prices), max(prices)
     rg = (mx - mn) or 1.0
-    W, H, PX, PT, PB = 360.0, 64.0, 8.0, 8.0, 8.0
-    pts = [(PX + i * (W - 2 * PX) / (len(prices) - 1), H - PB - (v - mn) / rg * (H - PT - PB)) for i, v in enumerate(prices)]
+    pts = [(i * 126 / (len(prices) - 1), 36 - (v - mn) / rg * 30) for i, v in enumerate(prices)]
     up = prices[-1] >= prices[0]
     col = "var(--gain)" if up else "var(--loss)"
     poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
     lx, ly = pts[-1]
-    by = pts[0][1]
     return (
-        f'<svg class="spk" viewBox="0 0 {W:.0f} {H:.0f}" aria-hidden="true">'
-        f'<line x1="{PX:.0f}" y1="{by:.1f}" x2="{W - PX:.0f}" y2="{by:.1f}" stroke="var(--rule)" stroke-width="1" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>'
-        f'<polyline vector-effect="non-scaling-stroke" points="{poly}" fill="none" stroke="{col}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'
-        f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="3.2" fill="{col}"/></svg>'
+        f'<svg class="spk" width="140" height="40" viewBox="0 0 126 40" preserveAspectRatio="none" aria-hidden="true">'
+        f'<polyline vector-effect="non-scaling-stroke" points="{poly}" fill="none" stroke="{col}" stroke-width="1.4"/>'
+        f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="2.6" fill="{col}"/></svg>'
     )
 
 
@@ -772,8 +768,7 @@ ALERTS_CSS = """
         .v3h .arow .sig.buy { color:var(--gain); font-weight:500; } .v3h .arow .sig.avoid { color:var(--loss); }
         .v3h .arow .sig.wait { color:var(--ink); }
         .v3h .adet { display:flex; flex-direction:column; gap:20px; padding:16px 12px 22px; background:var(--surface); border-bottom:1px solid var(--rule); max-width:none; white-space:normal; }
-        .v3h .atop { display:flex; flex-direction:column; align-items:stretch; gap:14px; }
-        .v3h .atop .spk { display:block; width:100%; max-width:520px; height:auto; margin:0 auto; }
+        .v3h .atop { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:flex-start; gap:12px 56px; }  /* הגרף הקטן צמוד לניקוד ולא בקצה השמאלי */
         .v3h .asec > small, .v3h .amet small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
         .v3h .why { display:flex; flex-wrap:wrap; gap:6px 28px; font-size:15px; }
         .v3h .asec { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 18px; }  /* "ניקוד" באותה שורה עם הגורמים */
@@ -833,7 +828,7 @@ def hold_head(day_label: str = "היום") -> str:
     """כותרות טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימים | גרף."""
     return (
         '<div class="hhead"><span>מניה</span><span class="r">שווי</span><span class="r">תשואה</span><span class="r">רווח/הפסד</span>'
-        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="r">נטו</span><span class="ctr">שינוי מקנייה</span><span></span></div>'
+        f'<span class="r">{esc(day_label)}</span><span>יעד · סטופ</span><span class="r">ימי החזקה</span><span class="r">נטו</span><span class="ctr">שינוי מקנייה</span></div>'
     )
 
 
@@ -843,7 +838,7 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
              signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None) -> str:
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
-    nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span></span></span>'
+    nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span>{_CHEV}</span></span>'
     val = (f'<span class="c"><b>{_money_cell(value, sym)}</b>'
            + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
     ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>'
@@ -860,7 +855,7 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     hd = f'<span class="c"><b>{num(str(held))}</b></span>' if held is not None else '<span class="c"></span>'
     return (
         f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}{net}'
-        f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span>{_CHEV}</div>'
+        f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span></div>'
     )
 
 
@@ -1176,7 +1171,7 @@ HOLDINGS_CSS = """
         .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
         .v3h .tpill .tsep { width:1px; background:var(--rule); }
         /* טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימי החזקה | גרף | חץ */
-        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 98px 100px 74px 86px 96px 14px; align-items:center; gap:10px; padding-inline:10px; }
+        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 98px 100px 74px 86px 96px; align-items:center; gap:10px; padding-inline:10px; }
         .v3h .hhead { padding-block:12px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
@@ -1199,7 +1194,7 @@ HOLDINGS_CSS = """
         .v3h .hrow .rc2 em b.up { color:var(--gain); } .v3h .hrow .rc2 em b.down { color:var(--loss); }
         .v3h .hrow .rc2 em.down { color:var(--loss); } .v3h .hrow .rc2 em.up { color:var(--gain); }
         .v3h .hrow .sp { display:flex; justify-content:center; } .v3h .hrow .sp svg { display:block; }
-        .v3h .hrow .chev { color:var(--dim); transition:transform .15s; transform:scaleX(-1); }
+        .v3h .hrow .chev { color:var(--dim); transition:transform .15s; transform:scaleX(-1); align-self:center; margin-inline-start:10px; flex:none; }
         .v3h .hrow.open .chev { transform:scaleX(-1) rotate(90deg); }
         .v3h .hmob { display:none; }
         .v3h .bar { position:relative; height:2px; background:var(--rule); margin:16px 10px 32px; direction:ltr; }
@@ -1221,9 +1216,9 @@ HOLDINGS_CSS = """
         .v3h .hc .v b { font-size:15px; font-weight:500; }
         .v3h .hc .v em { font-style:normal; font-size:13px; color:var(--dim); }
         @media (max-width:720px) {
-            .v3h .hhead span:nth-child(2), .v3h .hhead span:nth-child(4), .v3h .hhead span:nth-child(n+6):not(:last-child) { display:none; }  /* נשארים: מניה | תשואה | היום */
+            .v3h .hhead span:nth-child(2), .v3h .hhead span:nth-child(4), .v3h .hhead span:nth-child(n+6) { display:none; }  /* נשארים: מניה | תשואה | היום */
             .v3h .hhead { padding-block:8px 6px; }
-            .v3h .hhead, .v3h .hrow { grid-template-columns:minmax(0,1fr) 62px 74px 14px; gap:10px; }
+            .v3h .hhead, .v3h .hrow { grid-template-columns:minmax(0,1fr) 62px 74px; gap:10px; }
             .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .c:nth-child(8), .v3h .hrow > .sp { display:none; }
             .v3h .hcg { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3h .hc:nth-child(n+3) { border-top:1px solid var(--rule); }
             .v3h .hc .v { white-space:normal; overflow-wrap:anywhere; }
