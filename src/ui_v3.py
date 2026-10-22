@@ -49,7 +49,14 @@ def num(text) -> str:
     return f'<span class="num">{esc(text)}</span>'
 
 
+def ltr_nums(text: str) -> str:
+    """עוטף מספרים/אחוזים בתוך טקסט עברי ב-bdi LTR - הסימן (-) נשאר לפני המספר ולא "בורח" אחריו (למשל "(-16%)")."""
+    return re.sub(r"[+\-−]?\d[\d,.]*%?", lambda m: f'<bdi dir="ltr">{m.group(0)}</bdi>', text)
+
+
 def signed(value: float, decimals: int = 0, suffix: str = "") -> str:
+    if round(value, decimals) == 0:  # "-0.0%" / "+0.0%" מבלבל - אפס בלי סימן
+        return f"{0:,.{decimals}f}{suffix}"
     return f"{value:+,.{decimals}f}{suffix}"
 
 
@@ -686,7 +693,7 @@ def alert_detail(parts: list[tuple[str, int]], prices: list[float], reason: str,
                  over_cls: str, quality_cls: str, exp_drop: float | None, flags: list[str], news: list[dict],
                  net_text: str, held: bool, levels: tuple[str, str, str] | None = None, quiet: bool = False) -> str:
     why = "".join(
-        f'<span>{esc(n)}<b class="{"p" if p > 0 else "m"}">{num(f"{p:+d}")}</b></span>' for n, p in parts
+        f'<span>{ltr_nums(esc(n))}<b class="{"p" if p > 0 else "m"}">{num(f"{p:+d}")}</b></span>' for n, p in parts
     ) or '<span class="dim">אין גורם תומך</span>'
     def metric(label: str, val: float | None, cls: str) -> str:
         v = "—" if val is None else f'{int(val)}<span class="of">/100</span>'
@@ -782,7 +789,11 @@ ALERTS_CSS = """
             .v3h .kpi.k4 strong, .v3h .kpi.k4.sm strong { font-size:22px; }
             .v3h .arow { grid-template-columns:1.9fr 1fr 1fr 1.1fr .8fr; min-width:0; font-size:15px; padding:0 4px; gap:0 6px; }
             .v3h .arow .x { display:none; }
-            .v3h .arow .nm { font-size:15px; gap:6px; flex-wrap:wrap; }
+            .v3h .arow .nm { font-size:15px; display:grid; grid-template-areas:"name mono" "ix chev"; justify-content:start; align-items:baseline; column-gap:6px; row-gap:2px; }
+            .v3h .arow .nm bdi { grid-area:name; }
+            .v3h .arow .nm small:not(.ix) { grid-area:mono; }
+            .v3h .arow .nm small.ix { grid-area:ix; }
+            .v3h .arow .nm .chev { grid-area:chev; justify-self:start; }
             .v3h .arow.ahead > span { font-size:12px; }
             .v3h .alev { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding-block:12px; border-bottom:1px solid var(--rule); }
             .v3h .alev small { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
@@ -1194,10 +1205,12 @@ HOLDINGS_CSS = """
         .v3h .hc .v b { font-size:15px; font-weight:500; }
         .v3h .hc .v em { font-style:normal; font-size:13px; color:var(--dim); }
         @media (max-width:720px) {
-            .v3h .hhead { display:none; }
-            .v3h .hrow { grid-template-columns:minmax(0,1fr) auto auto 14px; gap:12px; }
+            .v3h .hhead span:nth-child(2), .v3h .hhead span:nth-child(4), .v3h .hhead span:nth-child(n+6):not(:last-child) { display:none; }  /* נשארים: מניה | תשואה | היום */
+            .v3h .hhead { padding-block:8px 6px; }
+            .v3h .hhead, .v3h .hrow { grid-template-columns:minmax(0,1fr) 62px 74px 14px; gap:10px; }
             .v3h .hrow > .c:nth-child(2), .v3h .hrow > .c:nth-child(4), .v3h .hrow > .rc2, .v3h .hrow > .c:nth-child(7), .v3h .hrow > .c:nth-child(8), .v3h .hrow > .sp { display:none; }
             .v3h .hcg { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3h .hc:nth-child(n+3) { border-top:1px solid var(--rule); }
+            .v3h .hc .v { white-space:normal; overflow-wrap:anywhere; }
             .v3h .hmob { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px 0 6px; border-bottom:1px solid var(--rule); margin-bottom:12px; }
             .v3h .hmob small { display:block; font-size:12px; color:var(--dim); margin-bottom:3px; }
             .v3h .hmob strong { font-size:16px; font-weight:500; display:inline-flex; gap:4px; align-items:baseline; direction:ltr; }
@@ -1491,7 +1504,9 @@ PERF_CSS = """
             .v3h .rate { gap:8px; }
             .v3h .tb th, .v3h .tb td { padding-inline:5px; }
             .v3h .tb td { font-size:15px; }
-            .v3h .tb td.main { white-space:normal; }
+            .v3h .tb td.main { white-space:normal; min-width:66px; }
+            .v3h .tb th { white-space:normal; font-size:12px; line-height:1.25; vertical-align:bottom; }
+            .v3h .tb .rb { width:36px; }
         }
         .v3h .sec { margin-top:60px; }
         .v3h .sec .sech { margin:0; font-weight:500; font-size:18px; padding-bottom:12px; border-bottom:1px solid var(--rule-strong); display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px 24px; }

@@ -654,6 +654,8 @@ _V3_CSS += """
         }
         div[class*="st-key-alerts_filter_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
+        div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
+        [data-testid="stSpinner"] { display: none !important; }  /* "Running get_all_changes(...)" של cache_data - לא להציג למשתמש */
         div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
         div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
@@ -958,6 +960,8 @@ def _nm(label: str) -> str:
 def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
     """מספר עם סימן (+/-) שנשאר לפני המספר גם בתוך טקסט עברי (RTL) - עוטף
     ב-LRM (סימן כיווניות שקוף) כדי למנוע היפוך ויזואלי של הסימן ע"י מנועי טקסט."""
+    if round(value, decimals) == 0:  # "-0.0%" / "+0.0%" מבלבל - אפס בלי סימן
+        return f"‎{0:,.{decimals}f}{suffix}"
     return f"‎{value:+,.{decimals}f}{suffix}"
 
 
