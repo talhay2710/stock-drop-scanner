@@ -7052,7 +7052,7 @@ def _render_journal_v3() -> None:
 
     def _outcome(r) -> str:
         if r["exit_price"] >= live_target_price(r["entry_price"], r.get("forecast_stop"), None):
-            return "הגיע ליעד"
+            return "הגיעה ליעד"
         if r.get("forecast_stop") is not None and pd.notna(r.get("forecast_stop")) and r["exit_price"] <= r["forecast_stop"]:
             return "פגע בסטופ"
         if _crossed_stop(r):
