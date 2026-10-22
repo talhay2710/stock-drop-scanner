@@ -681,13 +681,13 @@ _V3_CSS += """
         div[class*="st-key-alert_card_"] div[class*="st-key-open_pos_exp_"] [data-testid="stExpander"] details { border-bottom: 0 !important; border-top: 1px solid var(--v3-rule) !important; }
         div[class*="st-key-alert_card_"] [data-testid="stButtonGroup"] { justify-content: flex-start; }
         div[class*="st-key-alert_card_"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* ברירת המחדל מושכת את האלמנט הבא למעלה ב-16px */
-        div[class*="st-key-alert_cum_row_"] { align-items: center; }
+        div[class*="st-key-alert_cum_row_"] { align-items: center; column-gap: 18px !important; }
         div[class*="st-key-alert_cum_row_"] [data-testid="stButtonGroup"] > div[role="toolbar"], div[class*="st-key-alert_cum_row_"] [data-testid="stButtonGroup"] > div[role="radiogroup"] { border: 0 !important; border-radius: 0 !important; gap: 18px !important; flex-wrap: wrap; overflow: visible; }
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"] { background: transparent !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; padding: 2px 0 !important; min-height: 0 !important; color: var(--v3-dim) !important; box-shadow: none !important; }
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"] p { font-size: 15px; font-weight: 300; }
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"][data-selected="true"] { background: transparent !important; color: var(--v3-ink) !important; border-bottom-color: var(--v3-accent) !important; }
         div[class*="st-key-alert_cum_row_"] button[data-variant="segmented_control"][data-selected="true"] p { color: var(--v3-ink) !important; font-weight: 400; }
-        .cumline { white-space: nowrap; }  /* כמו שורת "ניקוד": תווית 13px עמומה, ערכים 15px */
+        .cumline { display: inline-flex; align-items: baseline; gap: 18px; white-space: nowrap; }  /* הרווח בין הכותרת לטקסט = כמו בשורת הניקוד (18px) */  /* כמו שורת "ניקוד": תווית 13px עמומה, ערכים 15px */
         .cumline small { font-size: 13px; color: var(--v3-dim); }
         .cumline b { font-size: 15px; font-weight: 400; color: var(--v3-soft); }
         .cumline b.up { color: var(--v3-gain); } .cumline b.down { color: var(--v3-loss); }
@@ -4923,7 +4923,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                         ) or 3
                     _cum_pct = market_data.compute_n_day_change_pct(_hist_map.get(r["ticker"]), int(_cum_days)) if _hist_map.get(r["ticker"]) is not None else None
                     _cum_txt = "—" if _cum_pct is None else f'<b class="{ui_v3.cls_for(_cum_pct)}">{ui_v3.num(ui_v3.signed(_cum_pct, 1, "%"))}</b>'
-                    _cum_lbl.markdown(f'<div class="v3h cumline"><small>ירידה מצטברת</small> {_cum_txt}</div>', unsafe_allow_html=True)
+                    _cum_lbl.markdown(f'<div class="v3h cumline"><small>שינוי מצטבר</small> {_cum_txt}</div>', unsafe_allow_html=True)
                     st.markdown('<div class="v3h">' + _card_bottom + '</div>', unsafe_allow_html=True)
                     if r.get("bought") != 1:
                         with st.expander("פתיחת פוזיציה", key=f"open_pos_exp_{rid}"):
