@@ -483,7 +483,7 @@ COMPONENT_CSS = """
                color:var(--ink); font-variant-numeric:tabular-nums; line-height:1.5; font-size:16px; }
         .v3h .num { direction:ltr; unicode-bidi:isolate; display:inline-block; }
         .v3h .mono { font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
-        .v3h .up { color:var(--gain); } .v3h .down { color:var(--loss); }
+        .v3h .up { color:var(--gain); } .v3h .down { color:var(--loss); } .v3h .kpi strong.warn { color:var(--v3-warn); }
         .v3h a { color:inherit; text-decoration:none; }
         .v3h .head { display:flex; justify-content:space-between; align-items:baseline; gap:8px 24px; flex-wrap:wrap; padding-bottom:12px; border-bottom:1px solid var(--rule-strong); }
         .v3h .head .h2 { font-weight:500; font-size:18px; line-height:1.5; }
