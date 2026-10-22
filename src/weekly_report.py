@@ -13,7 +13,7 @@ from .analysis import REASON_LABELS
 def build_weekly_report(conn: sqlite3.Connection, days: int = 7) -> str | None:
     since = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     df = pd.read_sql_query(
-        "SELECT * FROM alerts WHERE scan_date >= ? AND outcome IN ('hit_target', 'hit_stop', 'neither')"
+        "SELECT * FROM alerts WHERE scan_date >= ? AND (outcome IN ('hit_target', 'hit_stop', 'neither') OR outcome IS NULL OR outcome = 'pending')"
         + store.exclusion_clause(),
         conn, params=(since,),
     )
@@ -22,9 +22,12 @@ def build_weekly_report(conn: sqlite3.Connection, days: int = 7) -> str | None:
 
     total = len(df)
     hits = (df["outcome"] == backtest.HIT_TARGET).sum()
+    stops = (df["outcome"] == backtest.HIT_STOP).sum()
+    still_open = total - hits - stops - (df["outcome"] == backtest.NEITHER).sum()
     overall_rate = hits / total * 100
 
     df["reason_tag"] = df["reasons_json"].apply(backtest.primary_reason_tag)
+    df["outcome"] = df["outcome"].fillna("pending")
     grouped = df.groupby("reason_tag")["outcome"].agg(
         total="count", hits=lambda s: (s == backtest.HIT_TARGET).sum()
     )
@@ -35,8 +38,10 @@ def build_weekly_report(conn: sqlite3.Connection, days: int = 7) -> str | None:
     lines = [
         f"📊 <b>דוח שבועי</b> · {days} ימים",
         "",
-        f"🔔 {total} התראות עם תוצאה",
+        f"🔔 {total} התראות",
         f"🎯 {hits} הגיעו ליעד ({overall_rate:.0f}%)",
+        f"🛑 {stops} פגעו בסטופ",
+        f"⏳ {still_open} עדיין פתוחות",
         "",
     ]
     top = grouped.sort_values("total", ascending=False).head(4)
