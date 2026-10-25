@@ -259,19 +259,23 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
         rad = math.hypot(p["x"] - _CX, _CY - p["y"])
         ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
 
-        def spot(d: float, lift: float = 0.0) -> tuple[float, float, float, tuple, tuple]:
-            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift)."""
+        def spot(d: float, lift: float = 0.0, below: bool = False) -> tuple[float, float, float, tuple, tuple]:
+            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה."""
             th = math.radians(ang + d)
             x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-            ly = y - (14 if p["out"] else 11) - lift
+            ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
             return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
 
         # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
-        cands = [(d, lift) for lift in (0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 20.0, 30.0) for d in [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]]
-        pick, lift = next(((d, lf) for d, lf in cands
-                           if not any(_hit(spot(d, lf)[3], t) for t in taken)
-                           and not any(_hit(spot(d, lf)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0))
-        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift)
+        # לפני שמרימים את השם גבוה (ונהיה רחוק מהנקודה וקרוב ל"יעד"), מנסים אותו מתחת לנקודה
+        near, wide = [0.0] + [k * sg for k in range(1, 11) for sg in (1, -1)], [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
+        cands = ([(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True) for d in near]
+                 + [(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True) for d in wide]
+                 + [(d, lf, False) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
+        pick, lift, below = next(((d, lf, bl) for d, lf, bl in cands
+                                  if not any(_hit(spot(d, lf, bl)[3], t) for t in taken)
+                                  and not any(_hit(spot(d, lf, bl)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0, False))
+        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift, below)
         taken += [dbox, lbox]
         if p["out"]:
             dots.append(
