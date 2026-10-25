@@ -75,6 +75,14 @@ def _close_for_weekday(spec: dict, weekday: int) -> tuple[int, int]:
     return spec.get("close_overrides", {}).get(weekday, spec["close"])
 
 
+def bought_after_close(country: str, bought_at: dt.datetime) -> bool:
+    """True אם הקנייה (שעון ישראל, כפי שנשמר) בוצעה אחרי סגירת המסחר של אותו יום באותו שוק - כלומר הסגירה של יום הקנייה קדמה לקנייה."""
+    spec = MARKET_HOURS[country]
+    local = bought_at.replace(tzinfo=ZoneInfo("Asia/Jerusalem")).astimezone(ZoneInfo(spec["tz"]))
+    h, m = _close_for_weekday(spec, local.isoweekday())
+    return local.time() >= dt.time(h, m)
+
+
 def is_market_open(index: str) -> bool:
     country = INDEX_COUNTRY_CODE[index.upper()]
     spec = MARKET_HOURS[country]

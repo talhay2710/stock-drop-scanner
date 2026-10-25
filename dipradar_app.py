@@ -91,7 +91,7 @@ from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_p
 from src import strategy as strategy_mod, post_alert, strategy_stats, forward_test, ui_v3, scan_status
 from src.names import fix_name
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
-from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today
+from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today, bought_after_close
 
 # שדרוג עיצובי (14.10.2026): ui_v2 ב-config.yaml. כבוי כברירת מחדל - חזרה למצב הקודם = ui_v2: false (או למחוק את
 # המפתח) ורענון, בלי שינוי קוד. כל מה שקשור לשדרוג מותנה ב-UI_V2.
@@ -2380,7 +2380,17 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             # אם prev_close מלפני הקנייה - הבסיס הנכון הוא שער הכניסה, לא הסגירה ההיא.
             # אם גם last_close מלפני הקנייה (אין עדיין שום סגירה מאז שהיא נקנתה) -
             # אין לנו נתון אמין בכלל, ומדלגים על האחזקה הזו לגמרי הפעם.
-            if _bought_date and _last_close_date and _bought_date >= _last_close_date:
+            # קנייה באמצע אותו יום מסחר: הסגירה של אותו יום באה *אחרי* הקנייה, אז היא נכללת (בסיס = שער הכניסה) - כמו בטבלת האחזקות
+            _bought_dt = None
+            try:
+                _bought_dt = dt.datetime.fromisoformat(_r["bought_at"]) if _r.get("bought_at") else None
+            except Exception:
+                pass
+            _same_day_before_close = bool(
+                _bought_date and _bought_date == _last_close_date and _bought_dt is not None
+                and not bought_after_close(constituents.INDEX_COUNTRY_CODE.get(_r.get("index_name"), "IL"), _bought_dt)
+            )
+            if _bought_date and _last_close_date and _bought_date >= _last_close_date and not _same_day_before_close:
                 continue
             _baseline = _prev_close
             _using_entry_baseline2 = bool(
@@ -6679,6 +6689,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
         _dom_day_pct = (a["dchg"] / a["dbase"] * 100) if a["dbase"] else None
         st.markdown('<div class="v3h">' + ui_v3.total_line(
             a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
+            day_label="שינוי יומי" if _strip_day == "היום" else f"שינוי יומי {_strip_day}",
         ) + '</div>', unsafe_allow_html=True)
 
     # מתחת לטבלה: סולם סטופ ויעד (מיקום כל אחזקה מול הסטופ והיעד שלה; הרדאר נשאר רק בדף הבית)

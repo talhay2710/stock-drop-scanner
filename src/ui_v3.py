@@ -1024,7 +1024,7 @@ def portfolio_map(items: list[dict]) -> str:
     return f'<div class="pmap">{"".join(tiles)}</div><div class="pcap">רוחב האריח = משקל בתיק · צבע = רווח/הפסד</div>'
 
 
-def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str) -> str:
+def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str, day_label: str = "שינוי יומי") -> str:
     """סיכום שקט בשורה אחת מתחת לטבלת האחזקות: "סה"כ רווח/הפסד -2,535 ₪ · -7.5%   ·   היום -160 ₪ · -0.5%" - בלי קווים ובלי קופסאות."""
     sym = CCY_SYMBOL.get(ccy, esc(ccy))
 
@@ -1035,7 +1035,7 @@ def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float
 
     inner = part("רווח/הפסד", pnl, pnl_pct)
     if day_amt is not None and day_pct is not None:
-        inner += part("שינוי יומי", day_amt, day_pct)
+        inner += part(day_label, day_amt, day_pct)
     return f'<div class="tline">{inner}</div>'
 
 
