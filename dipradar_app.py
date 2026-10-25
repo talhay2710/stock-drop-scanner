@@ -1777,6 +1777,17 @@ cfg = load_config()
 strategy_mod.configure(cfg)  # בורר אסטרטגיה (מתג strategy_selector) - בלי המתג: ברירות מחדל = המצב הקודם
 
 
+def _no_trading_today(country: str) -> bool:
+    """True רק ביום שבו אין מסחר בכלל בשוק הזה (סוף שבוע/חג) - ביום מסחר שנסגר הנתון הוא של היום ולא מוסיפים תאריך."""
+    from zoneinfo import ZoneInfo
+    return not is_trading_day(country, dt.datetime.now(ZoneInfo(MARKET_HOURS[country]["tz"])).date())
+
+
+def _daily_label_with_date(base: str, date_label: str, country: str) -> str:
+    """"שינוי יומי" + תאריך הסגירה האחרונה - רק ביום בלי מסחר; ביום מסחר (גם אחרי הסגירה) בלי תאריך עד סוף היום."""
+    return base if (date_label == "היום" or not _no_trading_today(country)) else f"{base} {date_label}"
+
+
 def _sync_and_warn(reason: str, include_db: bool = False) -> None:
     """עוטף cloud_sync.sync_to_cloud. בלי הודעה למשתמש על כישלון - ברוב המקרים
     זה סתם התנגשות חולפת עם דחיפת הבוט שמתאזנת לבד בניסיון החוזר הפנימי, וגם
@@ -6562,7 +6573,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
     strip = ui_v3.portfolio_strip(
         a["value"], a["n"], a["pnl"], pnl_pct,
         a["dchg"] if a["dbase"] else None, (a["dchg"] / a["dbase"] * 100) if a["dbase"] else None, dom,
-        day_label="שינוי יומי" if _strip_day == "היום" else f"שינוי יומי {_strip_day}",
+        day_label=_daily_label_with_date("שינוי יומי", _strip_day, "US" if dom == "USD" else "IL"),
     )
     # התראה אחת: האחזקה שחצתה את הסטופ (או היעד) הכי עמוק
     notice_html = ""
@@ -6689,7 +6700,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
         _dom_day_pct = (a["dchg"] / a["dbase"] * 100) if a["dbase"] else None
         st.markdown('<div class="v3h">' + ui_v3.total_line(
             a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
-            day_label="שינוי יומי" if _strip_day == "היום" else f"שינוי יומי {_strip_day}",
+            day_label=_daily_label_with_date("שינוי יומי", _strip_day, "US" if dom == "USD" else "IL"),
         ) + '</div>', unsafe_allow_html=True)
 
     # מתחת לטבלה: סולם סטופ ויעד (מיקום כל אחזקה מול הסטופ והיעד שלה; הרדאר נשאר רק בדף הבית)
@@ -7899,8 +7910,8 @@ def _render_home_v3() -> None:
             strip_html = ui_v3.portfolio_strip(
                 value[1], value[4], portfolio[1], portfolio[2],
                 today[1] if today else None, today[2] if today else None, ccy,
-                day_label=(lambda d: "שינוי יומי" if d == "היום" else f"שינוי יומי {d}")(
-                    ui_v3._daily_col_label([r.get("daily_pct_date") for r in _home_rows])),
+                day_label=_daily_label_with_date(
+                    "שינוי יומי", ui_v3._daily_col_label([r.get("daily_pct_date") for r in _home_rows]), "US" if ccy == "USD" else "IL"),
             )
         minutes = scan_status.age_minutes(_scan_heartbeat_cached())
         radar_html = ui_v3.scanner_radar(scan_status.classify(minutes), minutes)
@@ -7963,10 +7974,10 @@ def _render_home_v3() -> None:
             fmt = "%d/%m" if _comp_is_daily else "%H:%M"
             times = [p.strftime(fmt) for p in picks]
             p_col, b_col = _comp_df.columns[0], _comp_df.columns[1]
-            # התאריך רק כשהמסחר סגור (גם כשהגרף הוא של היום שכבר נסגר, וגם כשהוא של יום מסחר קודם)
-            _chart_date = (_comp_as_of or "").replace("/", ".")
-            if not _chart_date and _comp_dom_index and not is_market_open(_comp_dom_index):
-                _chart_date = israel_today().strftime("%d.%m")
+            # התאריך רק ביום בלי מסחר (סוף שבוע/חג); ביום מסחר שנסגר - בלי תאריך עד סוף היום
+            _chart_date = ""
+            if _comp_dom_index and _no_trading_today(constituents.INDEX_COUNTRY_CODE.get(str(_comp_dom_index).upper(), "IL")):
+                _chart_date = (_comp_as_of or israel_today().strftime("%d/%m")).replace("/", ".")
             chart_html = ui_v3.intraday_chart(
                 [(p_col, [float(v) for v in _comp_df[p_col]]), (b_col, [float(v) for v in _comp_df[b_col]])],
                 times, str(p_col), str(b_col), date_label=_chart_date,
