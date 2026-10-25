@@ -7750,31 +7750,39 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
     N = ui_v3.num
     stop_x, near_stop, targets, near_target, movers_out, extra, flips = [], [], [], [], [], [], []
     highlow, hold_days, vs_index, news_items = [], [], [], []
+
+    def _open(r: dict) -> bool:
+        return is_market_open("TA35" if market_data._is_israeli_ticker(r["ticker"]) else "SP500")
+
+    # כשהמסחר סגור (סוף שבוע / אחרי הסגירה) ההודעות בלשון עבר על הסגירה האחרונה - לא "חצתה/עלתה היום" כאילו המסחר מתנהל עכשיו
+    any_open = any(_open(r) for r in rows)
+    when_day = "היום" if any_open else "בסגירה האחרונה"
     for r in rows:
         stop, cur = r.get("holding_stop_price"), r.get("current")
+        live = _open(r)
         if stop and cur is not None:
             gap = stop_distance_pct(cur, stop)
             if gap < 0:
-                stop_x.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב-{N(f'{abs(gap):.1f}%')}"))
+                stop_x.append(("loss", r["name"], f"חצתה את הסטופ-לוס ב-{N(f'{abs(gap):.1f}%')}" if live else f"נסגרה מתחת לסטופ-לוס ב-{N(f'{abs(gap):.1f}%')}"))
             elif gap <= 2.0:
-                near_stop.append((gap, r["name"]))
+                near_stop.append((gap, r["name"], live))
         pnl, tgt = r.get("pnl_pct"), strategy_mod.target_pct()
         if pnl is not None and tgt:
             if pnl >= tgt:
-                targets.append(("gain", r["name"], "עברה את היעד"))
+                targets.append(("gain", r["name"], "עברה את היעד" if live else "נסגרה מעל היעד"))
             elif tgt - pnl <= 1.0:
-                near_target.append((tgt - pnl, r["name"]))
-    near_stop = [("warn", n, f"קרובה לסטופ-לוס · {N(f'{g:.1f}%')} ממנו") for g, n in sorted(near_stop)]
-    near_target = [("gain", n, f"קרובה ליעד · {N(f'{g:.1f}%')} ממנו") for g, n in sorted(near_target)]
-    movers = [(r["daily_pct"], r["name"]) for r in rows if r.get("daily_pct") is not None]
+                near_target.append((tgt - pnl, r["name"], live))
+    near_stop = [("warn", n, (f"קרובה לסטופ-לוס · {N(f'{g:.1f}%')} ממנו" if lv else f"נסגרה קרוב לסטופ-לוס · {N(f'{g:.1f}%')} ממנו")) for g, n, lv in sorted(near_stop)]
+    near_target = [("gain", n, (f"קרובה ליעד · {N(f'{g:.1f}%')} ממנו" if lv else f"נסגרה קרוב ליעד · {N(f'{g:.1f}%')} ממנו")) for g, n, lv in sorted(near_target)]
+    movers = [(r["daily_pct"], r["name"], _open(r)) for r in rows if r.get("daily_pct") is not None]
     if movers:
         up, down = max(movers), min(movers)
         if up[0] >= 2.0:
-            movers_out.append(("gain", up[1], f"עלתה היום ב-{N(f'{up[0]:.1f}%')}"))
+            movers_out.append(("gain", up[1], f"עלתה היום ב-{N(f'{up[0]:.1f}%')}" if up[2] else f"עלתה ב-{N(f'{up[0]:.1f}%')} בסגירה האחרונה"))
         if down[0] <= -2.0 and down != up:
-            movers_out.append(("loss", down[1], f"ירדה היום ב-{N(f'{abs(down[0]):.1f}%')}"))
+            movers_out.append(("loss", down[1], f"ירדה היום ב-{N(f'{abs(down[0]):.1f}%')}" if down[2] else f"ירדה ב-{N(f'{abs(down[0]):.1f}%')} בסגירה האחרונה"))
     if day_pct is not None and abs(day_pct) >= 1.0:
-        extra.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} היום ב-{N(f'{abs(day_pct):.1f}%')}"))
+        extra.append(("gain" if day_pct > 0 else "loss", "", f"התיק {'עלה' if day_pct > 0 else 'ירד'} {N(f'{abs(day_pct):.1f}%')} {when_day}" if not any_open else f"התיק {'עלה' if day_pct > 0 else 'ירד'} היום ב-{N(f'{abs(day_pct):.1f}%')}"))
     try:
         if fresh_alerts is not None and not fresh_alerts.empty and "scan_ts" in fresh_alerts.columns:
             ts = pd.to_datetime(fresh_alerts["scan_ts"], utc=True, errors="coerce")
@@ -7822,7 +7830,7 @@ def _home_notice_items(rows: list[dict], day_pct: float | None, fresh_alerts: pd
                 ch = 0.0
             if ch is not None and abs(day_pct - ch) >= 0.5:
                 word = "מנצח" if day_pct > ch else "מפגר אחרי"
-                vs_index.append(("gain" if day_pct > ch else "loss", "", f"התיק {word} את {INDEX_LABELS[ref]} היום: {N(ui_v3.signed(day_pct, 1, '%'))} לעומת {N(ui_v3.signed(ch, 1, '%'))}"))
+                vs_index.append(("gain" if day_pct > ch else "loss", "", f"התיק {word} את {INDEX_LABELS[ref]} {when_day}: {N(ui_v3.signed(day_pct, 1, '%'))} לעומת {N(ui_v3.signed(ch, 1, '%'))}"))
     except Exception:
         pass
     # חדשות על אחזקות
