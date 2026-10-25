@@ -576,7 +576,7 @@ def age_ticker(age_seconds: int) -> str:
 
 def movers_head(title: str, fresh: str, age_seconds: int | None, icons: int = 1) -> str:
     fresh_html = f'<span class="fresh">{esc(fresh)}</span>' if fresh else ""
-    side = f'<span class="hr withico{" withico2" if icons > 1 else ""}">{fresh_html}{age_ticker(age_seconds) if age_seconds is not None else ""}</span>'
+    side = f'<span class="hr withico{" withico" + str(icons) if icons > 1 else ""}">{fresh_html}{age_ticker(age_seconds) if age_seconds is not None else ""}</span>'
     return f'<section class="block" style="margin-top:32px">{head(title, side)}</section>'
 
 

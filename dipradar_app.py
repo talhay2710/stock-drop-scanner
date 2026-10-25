@@ -816,6 +816,7 @@ _V3_CSS += """
         div[class*="st-key-movers_watch_actions"] button p { font-size: 15px !important; font-weight: 500 !important; }
         .v3h .head > .hr.withico { padding-inline-end: 40px; }
         .v3h .head > .hr.withico2 { padding-inline-end: 74px; }
+        .v3h .head > .hr.withico3 { padding-inline-end: 108px; }
 """
 
 # תאריך + בורר יום/לילה בכותרת (iframe קטן): קובע data-theme על <html> של העמוד, שומר ב-localStorage ומסנכרן את שאר ה-iframe-ים
@@ -4754,7 +4755,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         except Exception:
             pass
     st.markdown(
-        f'{_nav_stale_css()}<div class="v3h">{ui_v3.movers_head(title, _closed_date_text, None, icons=2)}</div>', unsafe_allow_html=True,
+        f'{_nav_stale_css()}<div class="v3h">{ui_v3.movers_head(title, _closed_date_text, None, icons=3)}</div>', unsafe_allow_html=True,
     )
     # on_click (ולא st.rerun באמצע הסקריפט): rerun לפני שהמסננים נרשמו מאפס את הבחירות שלהם
     def _toggle_alerts_filters() -> None:
