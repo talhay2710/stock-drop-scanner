@@ -403,7 +403,7 @@ def holdings_section(rows: list[dict], step: float = 3.0, unit: str = "pct") -> 
     return f'<section class="block">{head("אחזקות")}<div class="hold">{holdings_rows(rows, unit)}{holdings_radar(rows, step)}</div></section>'
 
 
-def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], portfolio_label: str, bench_label: str) -> str:
+def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], portfolio_label: str, bench_label: str, date_label: str = "") -> str:
     """series: [(label, values)] - הראשון התיק (קו מלא), השני המדד (מקווקו). times: תוויות הציר (5 נקודות)."""
     all_vals = [v for _, vals in series for v in vals]
     if not all_vals:
@@ -439,7 +439,7 @@ def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], port
     legend = f'<div class="legend"><span>{esc(bench_label)}<i class="d"></i></span><span>{esc(portfolio_label)}<i></i></span></div>'
     ticks = "".join(f"<span>{esc(t)}</span>" for t in times)
     return (
-        f'<section class="block">{head("תשואה תוך-יומית", legend)}<div class="chart">'
+        f'<section class="block"><div class="head"><div class="h2">תשואה תוך-יומית{" " + num(date_label) if date_label else ""}</div>{legend}</div><div class="chart">'
         f'<svg viewBox="0 0 {900} {H}" preserveAspectRatio="none" role="img" aria-label="{esc(portfolio_label)} מול {esc(bench_label)}">'
         f'{zero_line}{lines}</svg><div class="times">{ticks}</div></div></section>'
     )

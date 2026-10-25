@@ -6548,9 +6548,11 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
     a = by_ccy[dom]
     sym = "₪" if dom == "ILS" else ("&#36;" if dom == "USD" else dom)
     pnl_pct = (a["pnl"] / a["invested"] * 100) if a["invested"] else 0.0
+    _strip_day = ui_v3._daily_col_label([r.get("daily_pct_date") for r in rows])  # "היום" או תאריך כשהמסחר סגור (כמו עמודת השינוי היומי בטבלה)
     strip = ui_v3.portfolio_strip(
         a["value"], a["n"], a["pnl"], pnl_pct,
         a["dchg"] if a["dbase"] else None, (a["dchg"] / a["dbase"] * 100) if a["dbase"] else None, dom,
+        day_label="שינוי יומי" if _strip_day == "היום" else f"שינוי יומי {_strip_day}",
     )
     # התראה אחת: האחזקה שחצתה את הסטופ (או היעד) הכי עמוק
     notice_html = ""
@@ -7886,7 +7888,8 @@ def _render_home_v3() -> None:
             strip_html = ui_v3.portfolio_strip(
                 value[1], value[4], portfolio[1], portfolio[2],
                 today[1] if today else None, today[2] if today else None, ccy,
-                day_label="שינוי יומי",
+                day_label=(lambda d: "שינוי יומי" if d == "היום" else f"שינוי יומי {d}")(
+                    ui_v3._daily_col_label([r.get("daily_pct_date") for r in _home_rows])),
             )
         minutes = scan_status.age_minutes(_scan_heartbeat_cached())
         radar_html = ui_v3.scanner_radar(scan_status.classify(minutes), minutes)
@@ -7949,9 +7952,13 @@ def _render_home_v3() -> None:
             fmt = "%d/%m" if _comp_is_daily else "%H:%M"
             times = [p.strftime(fmt) for p in picks]
             p_col, b_col = _comp_df.columns[0], _comp_df.columns[1]
+            # התאריך רק כשהמסחר סגור (גם כשהגרף הוא של היום שכבר נסגר, וגם כשהוא של יום מסחר קודם)
+            _chart_date = (_comp_as_of or "").replace("/", ".")
+            if not _chart_date and _comp_dom_index and not is_market_open(_comp_dom_index):
+                _chart_date = israel_today().strftime("%d.%m")
             chart_html = ui_v3.intraday_chart(
                 [(p_col, [float(v) for v in _comp_df[p_col]]), (b_col, [float(v) for v in _comp_df[b_col]])],
-                times, str(p_col), str(b_col),
+                times, str(p_col), str(b_col), date_label=_chart_date,
             )
             st.markdown(f'<div class="v3h">{chart_html}</div>', unsafe_allow_html=True)
 
