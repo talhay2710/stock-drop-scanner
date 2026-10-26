@@ -1318,6 +1318,25 @@ def _nice_ticks(lo: float, hi: float, want: int = 4) -> list[float]:
     return out
 
 
+def _ticks_at_least(lo: float, hi: float, min_ticks: int = 5) -> list[float]:
+    """הצעד העגול הגדול ביותר (1/2/2.5/5 x 10^k) שנותן לפחות min_ticks קווים בטווח; אם אין - הקטן ביותר."""
+    span = hi - lo
+    if span <= 0:
+        return [0.0]
+    base = 10 ** math.floor(math.log10(span / min_ticks))
+    steps = sorted(m * base * 10 ** k for k in (-1, 0, 1) for m in (1, 2, 2.5, 5))
+    best = None
+    for step in steps:
+        first = math.ceil(lo / step - 1e-9) * step
+        ticks, t = [], first
+        while t <= hi + 1e-9:
+            ticks.append(round(t, 6))
+            t += step
+        if len(ticks) >= min_ticks:
+            best = ticks
+    return best or _nice_ticks(lo, hi)
+
+
 def equity_curve(points: list[dict], sym: str = "₪") -> str:
     """עקומת רווח נקי מצטבר. points (לפי סדר כרונולוגי): {ts: חותמת זמן, date: 'dd.mm', name, net: רווח העסקה, cum: מצטבר}.
     כל נקודה = עסקה שנסגרה; גובה הנקודה = הרווח הנקי המצטבר עד אליה; ריחוף מציג את פרטי העסקה. צירי ערך ותאריך, קו אפס, תווית סכום בקצה."""
@@ -1344,7 +1363,7 @@ def equity_curve(points: list[dict], sym: str = "₪") -> str:
     poly = " ".join(f"{x:.1f},{y:.2f}" for x, y in coords)
     y0 = py(0.0) * H / 100.0
     area = f'<polygon points="{coords[0][0]:.1f},{y0:.2f} {poly} {coords[-1][0]:.1f},{y0:.2f}" fill="{col}" fill-opacity=".09"/>'
-    ticks = _nice_ticks(lo, hi)
+    ticks = _ticks_at_least(lo, hi, 5)  # לפחות 5 קווים - כך שגם הרף העגול העליון (למשל 5,000) מסומן ולא רק עד 4,000
     grid = "".join(
         f'<line x1="0" y1="{py(t) * H / 100:.2f}" x2="{coords[-1][0]:.1f}" y2="{py(t) * H / 100:.2f}" stroke="var(--rule-strong)" '
         f'stroke-opacity="{1 if abs(t) < 1e-9 else .35}" stroke-width="1" stroke-dasharray="{"3 5" if abs(t) < 1e-9 else "1 4"}" vector-effect="non-scaling-stroke"/>'
