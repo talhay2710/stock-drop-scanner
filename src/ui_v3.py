@@ -766,7 +766,9 @@ def num_raw(inner_html: str) -> str:
 ALERTS_CSS = """
         .v3h .kpi.k4 { grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:0; }
         .v3h .kpi.k4 > div { padding:18px 24px 20px; }
+        .v3h .kpi.k4 > div:first-child { padding-inline-start:0; }  /* הכרטיס הראשון צמוד לקצה הקו */
         .v3h .kpi.k4.sm > div { padding:10px 20px 11px; }
+        .v3h .kpi.k4.sm > div:first-child { padding-inline-start:0; }
         .v3h .kpi.k4.sm small { font-size:12px; }
         .v3h .kpi.k4.sm strong { font-size:20px; line-height:1.15; margin-top:1px; }
         .v3h .arow { display:grid; grid-template-columns:minmax(0,1.9fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,.7fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.7fr); align-items:center; gap:0 8px; padding:0 12px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:720px; }
@@ -1212,7 +1214,7 @@ HOLDINGS_CSS = """
         .v3h .tpill .chip.down { color:var(--loss); background:color-mix(in srgb, var(--loss) 11%, transparent); }
         .v3h .tpill .tsep { width:1px; background:var(--rule); }
         /* טבלת האחזקות: מניה | שווי | רווח/הפסד | יום | סטופ·יעד | ימי החזקה | גרף | חץ */
-        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 98px 100px 74px 86px 96px; align-items:center; gap:10px; padding-inline:10px; }
+        .v3h .hhead, .v3h .hrow { display:grid; grid-template-columns:minmax(0,1.2fr) 104px 74px 86px 98px 100px 74px 86px 96px; align-items:center; gap:10px; padding-inline:0; }
         .v3h .hhead { padding-block:12px 10px; font-size:13px; color:var(--dim); border-bottom:1px solid var(--rule); }
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
@@ -1223,7 +1225,8 @@ HOLDINGS_CSS = """
         .v3h .hrow.htot .nm { color:var(--ink); font-weight:500; }
         .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); min-width:0; }
         .v3h .hrow .nm .l1 { display:flex; align-items:baseline; white-space:nowrap; }
-        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; flex:none; align-self:center; }
+        .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-start:10px; margin-inline-end:0; order:3; flex:none; align-self:center; }  /* הנקודה אחרי הטיקר - השם צמוד לקצה הקו */
+        .v3h .hrow .nm .chev { order:4; }
         .v3h .hrow .nm .mono { margin-inline-start:10px; }
         .v3h .hrow.out .nm { font-weight:600; color:var(--loss); }
         .v3h .hrow .c { display:flex; flex-direction:column; align-items:flex-end; gap:3px; direction:ltr; line-height:1.15; }
