@@ -364,6 +364,10 @@ _V3_CSS += """
         /* סיידבר v3: בלי כרטיסים - כותרות סעיף, צ'יפים, שדות עם קו תחתון, שורות מתקפלות (המוקאפ שאושר) */
         [data-testid="stSidebar"] { background: var(--v3-side) !important; }
         [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 6px !important; }
+        /* חלון צר (עד 768px, למשל דפדפן במחשב): Streamlit מציג את הסיידבר כשכבה *מעל* העמוד, והוא היה מכסה ומחתך את הצד הימני של התוכן - עד 768px הוא נפתח על כל המסך (כמו בנייד) */
+        @media (max-width: 768px) {
+            [data-testid="stSidebar"][aria-expanded="true"], [data-testid="stSidebar"][data-collapsed="false"] { width: 100vw !important; min-width: 100vw !important; max-width: 100vw !important; }
+        }
         @media (min-width: 769px) { [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 40px !important; } }  /* כותרת הסיידבר באותו גובה כמו כותרת האתר (DipRadar) */
         div[class*="st-key-scan_settings_card"], div[class*="st-key-exp_group_card"], div[class*="st-key-channels_card"] {
             border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; padding: 0 !important;

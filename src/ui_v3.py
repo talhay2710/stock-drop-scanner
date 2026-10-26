@@ -505,7 +505,7 @@ COMPONENT_CSS = """
         .v3h .kpi > div { padding:18px 18px 20px; border-inline-start:1px solid var(--rule); min-width:0; display:flex; flex-direction:column; }
         .v3h .kpi > div:first-child { padding-inline-start:0; border-inline-start:0; }
         .v3h .kpi small { display:block; font-size:13px; color:var(--dim); }
-        .v3h .dsm { font-size:.82em; }
+        .v3h .dsm { font-size:.82em; white-space:nowrap; }
         .v3h .kpi strong { display:block; font-size:clamp(22px,2.5vw,30px); font-weight:400; line-height:1.2; margin-top:4px; white-space:nowrap; }
         .v3h .kpi em { display:block; margin-top:2px; font-style:normal; font-size:15px; line-height:1.4; }
         .v3h .kpi > div:first-child em { font-size:14px; }
