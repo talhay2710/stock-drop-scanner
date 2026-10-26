@@ -1259,7 +1259,8 @@ HOLDINGS_CSS = """
         .v3h .hc .v .up { color:var(--gain); } .v3h .hc .v .down { color:var(--loss); }
         .v3h .hc .v b { font-size:15px; font-weight:500; }
         .v3h .hc .v em { font-style:normal; font-size:13px; color:var(--dim); }
-        @media (max-width:720px) {
+        .v3h.hw { container:hold / inline-size; }  /* הפריסה הצרה של טבלת האחזקות נקבעת לפי רוחב הטבלה עצמה (לא רוחב החלון) - הסיידבר הפתוח מצמצם אותה */
+        @container hold (max-width:960px) {
             .v3h .hhead span:nth-child(2), .v3h .hhead span:nth-child(4), .v3h .hhead span:nth-child(n+6) { display:none; }  /* נשארים: מניה | תשואה | היום */
             .v3h .hhead { padding-block:8px 6px; }
             .v3h .hhead, .v3h .hrow { grid-template-columns:minmax(0,1fr) 62px 74px; gap:10px; }

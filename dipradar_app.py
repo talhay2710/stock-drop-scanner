@@ -6638,7 +6638,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
             ) or "הכל"
         _save_filter_prefs(("holdings_filter_pnl",))
         _day_lbl = ui_v3._daily_col_label([r.get("daily_pct_date") for r in rows if r["pnl_pct"] is not None])
-        st.markdown('<div class="v3h tw">' + ui_v3.hold_head(_day_lbl) + "</div>", unsafe_allow_html=True)
+        st.markdown('<div class="v3h hw">' + ui_v3.hold_head(_day_lbl) + "</div>", unsafe_allow_html=True)
         _shown_any = False
         for r in rows:
             if r["pnl_pct"] is None:
@@ -6659,7 +6659,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                     _tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     _tgt_gap = target_distance_pct(_cur, _tgt_price) if (_tgt_price and _cur is not None) else None
                     st.markdown(
-                        '<div class="v3h">' + ui_v3.hold_row(
+                        '<div class="v3h hw">' + ui_v3.hold_row(
                             r["name"], str(r["ticker"]).replace(".TA", ""), sym_r, r.get("current_value"), r.get("portfolio_pct"),
                             r.get("pnl"), r["pnl_pct"], r.get("daily_change_amt"), r.get("daily_pct"), _stop_gap, _tgt_gap,
                             r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS,
@@ -6686,7 +6686,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                     with st.container(key=f"v3_hpos_{rid}"):
                         _v3_sell_flow(r)
                     st.markdown(
-                        '<div class="v3h"><div class="hdet">' + ui_v3.hold_card(
+                        '<div class="v3h hw"><div class="hdet">' + ui_v3.hold_card(
                             cost=f"{r['invested']:,.0f}", qty=f"{(r.get('qty') or 0):,.0f}", fees=fees_txt, bought=_bd,
                             signal=(r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""),
                             score=(r.get("signal_score"), strategy_mod.MAX_SIGNAL_SCORE), alert_pct=r.get("alert_pct"),
