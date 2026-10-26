@@ -397,7 +397,7 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
         else:
             pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>'
         out.append(
-            f'<div class="row{" out" if is_out else ""}"><span class="nm" title="{esc(r["name"])}">{esc(short_name(r["name"]))}</span>'
+            f'<div class="row{" out" if is_out else ""}"><span class="nm">{esc(short_name(r["name"]))}</span>'
             f'{pl_html}{daily_html}</div>'
         )
     first = "<span>רווח/הפסד</span>" if unit == "value" else "<span>תשואה</span>"
@@ -536,7 +536,6 @@ COMPONENT_CSS = """
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
         .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 10px 10px; border-bottom:1px solid var(--rule); }
         .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 0; border-bottom:1px solid var(--rule); }
-        .v3h .row:hover { background:var(--hover); box-shadow:10px 0 0 var(--hover), -10px 0 0 var(--hover); }  /* הרקע בריחוף מורחב 10px החוצה, והטקסט נשאר צמוד לקו */
         .v3h .row .nm { font-size:17px; }
         .v3h .row .pl { font-size:17px; }
         .v3h .row .st { font-size:14px; color:var(--dim); }
@@ -607,7 +606,7 @@ def stocks_table(rows: list[dict], cum_days: int | None, show_price: bool = True
         c_html = (f'<td class="{cls_for(c)}">{num(signed(c, 1, "%"))}</td>' if c is not None else "<td>—</td>")
         mono = f'<span class="mono">{esc(r["mono"])}</span>' if r.get("mono") else ""
         body.append(
-            f'<tr><td class="n" title="{esc(r["name"])}"><bdi>{esc(short_name(r["name"]))}</bdi>{mono}</td>{d_html}{c_html}{price_td}</tr>'
+            f'<tr><td class="n"><bdi>{esc(short_name(r["name"]))}</bdi>{mono}</td>{d_html}{c_html}{price_td}</tr>'
         )
     cum_th = f'<th>מצטבר {num(cum_days)} ימים</th>' if cum_days else "<th>מצטבר</th>"
     return (
@@ -626,7 +625,7 @@ def watchlist_row(r: dict) -> str:
     ret = r.get("ret")
     mono = f'<span class="mono">{esc(r.get("mono", ""))}</span>' if r.get("mono") else ""
     return (
-        f'<div class="wlrow"><span class="n" title="{esc(r["name"])}">{esc(short_name(r["name"]))}{mono}</span>'
+        f'<div class="wlrow"><span class="n">{esc(short_name(r["name"]))}{mono}</span>'
         f'<span>{num(r["added"])}</span><span>{num(r.get("entry", "—"))}</span><span>{num(r.get("price", "—"))}</span>'
         f'<span>{num(r.get("days", "—"))}</span>'
         f'<span class="{cls_for(ret)}">{num(signed(ret, 1, "%")) if ret is not None else "—"}</span><span></span></div>'
@@ -640,7 +639,7 @@ MOVERS_CSS = """
         .v3h .v3age::after { content: counter(v3s); }
         .v3h .head > .hr { display:flex; align-items:baseline; gap:20px; font-size:14px; color:var(--dim); }
         .v3h .upd { color:var(--dim); }
-        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-inline:-10px; padding-inline:10px; }  /* מקום לרקע הריחוף המורחב (overflow חותך אחרת) */
+        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .v3h .wlrow { display:grid; grid-template-columns:minmax(0,1.7fr) 1fr 1fr 1fr .8fr .8fr 34px; gap:12px; align-items:center; padding:14px 10px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; }
         .v3h .wlrow .n { font-size:17px; color:var(--v3-soft); } .v3h .wlrow .mono { margin-inline-start:10px; font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
         .v3h .wlh { font-size:13px; color:var(--dim); padding-block:10px; border-bottom:1px solid var(--rule-strong); }
@@ -650,9 +649,6 @@ MOVERS_CSS = """
         .v3h .tb td { padding:14px 8px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; color:var(--v3-soft); }
         .v3h .tb td:first-child, .v3h .tb th:first-child { padding-inline-start:0; }  /* הטקסט צמוד לקצה הקו, כמו שאר האתר */
         .v3h .tb td:last-child, .v3h .tb th:last-child { padding-inline-end:0; }
-        .v3h .tb tbody tr:hover td { background:var(--hover); }
-        .v3h .tb tbody tr:hover td:first-child, .v3h .jr tr:hover td:first-child { box-shadow:10px 0 0 var(--hover); }
-        .v3h .tb tbody tr:hover td:last-child, .v3h .jr tr:hover td:last-child { box-shadow:-10px 0 0 var(--hover); }
         .v3h .tb td.n { color:var(--ink); font-size:17px; }
         .v3h .tb td.n .mono { margin-inline-start:10px; }
         .v3h .tb td.up { color:var(--gain); } .v3h .tb td.down { color:var(--loss); }
@@ -686,7 +682,7 @@ def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str
     new = ""  # תגית "חדשה" הוסרה - השעה בשורה מספיקה
     return (
         f'<div class="arow r{" open" if is_open else ""}">'
-        f'<span class="nmc"><span class="nm" title="{esc(name)}"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
+        f'<span class="nmc"><span class="nm"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
         f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span class="x">{num(score_text)}</span>'
         f'<span class="x">{num(entry)}</span><span class="x">{num(target)}</span><span class="x">{num(stop)}</span><span>{num(hhmm)}</span></div>'
     )
@@ -863,7 +859,7 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
              signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None) -> str:
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
-    nm = f'<span class="nm" title="{esc(name)}"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span>{_CHEV}</span></span>'
+    nm = f'<span class="nm"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span>{_CHEV}</span></span>'
     val = (f'<span class="c"><b>{_money_cell(value, sym)}</b>'
            + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
     ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>'
@@ -1222,9 +1218,7 @@ HOLDINGS_CSS = """
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
         .v3h .hrow { padding-block:14px; border-bottom:1px solid var(--rule); }
-        .v3h .hrow:hover { background:var(--hover); box-shadow:10px 0 0 var(--hover), -10px 0 0 var(--hover); }
         .v3h .hrow.htot { border-top:1px solid var(--rule-strong); border-bottom:1px solid var(--rule); margin-top:2px; }
-        .v3h .hrow.htot:hover { background:transparent; box-shadow:none; }
         .v3h .hrow.htot .nm { color:var(--ink); font-weight:500; }
         .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); min-width:0; }
         .v3h .hrow .nm .l1 { display:flex; align-items:baseline; white-space:nowrap; }
@@ -1421,7 +1415,7 @@ def journal_table(rows: list[dict]) -> str:
         sub = f'<span class="sub">{" · ".join(sub_bits)}</span>' if sub_bits else ""
         oc = _OUTCOME_CLS.get(r["outcome"]) or cls_for(r["gross"]) or "dim"  # תוצאה ניטרלית (נמכרה ידנית / חזרה מסטופ) נצבעת לפי הרווח או ההפסד בפועל
         body.append(
-            f'<tr><td><span class="nm" title="{esc(r["name"])}"><bdi>{esc(short_name(r["name"]))}</bdi><span class="mono">{esc(r["mono"])}</span></span>{sub}</td>'
+            f'<tr><td><span class="nm"><bdi>{esc(short_name(r["name"]))}</bdi><span class="mono">{esc(r["mono"])}</span></span>{sub}</td>'
             f'<td class="c-entry"><span class="px">{num(r["entry_px"])}</span><span class="sub">{num(r["entry_dt"])}</span></td>'
             f'<td class="c-exit"><span class="px">{num(r["exit_px"])}</span><span class="sub">{num(r["exit_dt"])}</span></td>'
             f'<td>{num(r["days"])}</td><td class="c-res"><span class="res {oc}">{esc(r["outcome"])}</span></td>'
@@ -1444,7 +1438,7 @@ def journal_table(rows: list[dict]) -> str:
 
 
 JOURNAL_CSS = """
-        .v3h .tablewrap { overflow-x:auto; margin-inline:-10px; padding-inline:10px; }
+        .v3h .tablewrap { overflow-x:auto; }
         .v3h .eq { padding:14px 0 6px; }
         .v3h .eqp { display:flex; direction:ltr; height:190px; }
         .v3h .eqyl { position:relative; flex:none; width:64px; }
@@ -1473,7 +1467,6 @@ JOURNAL_CSS = """
         .v3h table.jr { width:100%; border-collapse:collapse; min-width:760px; table-layout:fixed; }
         .v3h .jr th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:14px 12px 10px; border-bottom:1px solid var(--rule); white-space:nowrap; }
         .v3h .jr td { padding:14px 12px; border-bottom:1px solid var(--rule); vertical-align:middle; white-space:nowrap; }
-        .v3h .jr tr:hover td { background:var(--hover); }
         .v3h .jr th:first-child, .v3h .jr td:first-child { padding-inline-start:0; }
         .v3h .jr .nm { font-size:17px; color:var(--v3-soft); }
         .v3h .jr .nm .mono { margin-inline-start:10px; }
