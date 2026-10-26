@@ -1467,6 +1467,7 @@ JOURNAL_CSS = """
         .v3h .jr th, .v3h .jr td, .v3h .tb th, .v3h .tb td { border-top:0 !important; border-inline:0 !important; }  /* קווים אופקיים בלבד (ברירת המחדל של markdown מציירת רשת מלאה) */
         .v3h table.jr { width:100%; border-collapse:collapse; min-width:760px; table-layout:fixed; }
         .v3h .jr th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:14px 12px 10px; border-bottom:1px solid var(--rule); white-space:nowrap; }
+        .v3h .jr tr:hover td { background:var(--hover); }
         .v3h .jr td { padding:14px 12px; border-bottom:1px solid var(--rule); vertical-align:middle; white-space:nowrap; }
         .v3h .jr th:first-child, .v3h .jr td:first-child { padding-inline-start:0; }
         .v3h .jr .nm { font-size:17px; color:var(--v3-soft); }
