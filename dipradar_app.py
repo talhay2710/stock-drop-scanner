@@ -286,8 +286,8 @@ _V3_CSS = """
         [data-testid="stMainBlockContainer"] { max-width: 1080px; margin-inline: auto; padding-inline: 16px; }
         [data-testid="stSidebar"] { background: var(--v3-bg) !important; border-inline-start: 1px solid var(--v3-rule); }
         /* סיידבר מקופל: בלי קו שנשאר בקצה (15.10.2026) */
-        [data-testid="stSidebar"][aria-expanded="false"] { border: 0 !important; box-shadow: none !important; }
-        [data-testid="stSidebar"][aria-expanded="false"] * { border-color: transparent !important; }
+        [data-testid="stSidebar"][aria-expanded="false"], [data-testid="stSidebar"][data-collapsed="true"] { border: 0 !important; box-shadow: none !important; }
+        [data-testid="stSidebar"][aria-expanded="false"] *, [data-testid="stSidebar"][data-collapsed="true"] * { border-color: transparent !important; }
         h1, h2, h3 { font-weight: 500 !important; letter-spacing: 0 !important; }
         /* הכותרת הישנה (לוגו מרכזי) מוחלפת בכותרת-ניווט בשורה אחת */
         div[class*="st-key-main_title_wrap"] { display: none !important; }
