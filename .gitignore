@@ -22,3 +22,6 @@ __pycache__/
 
 # העדפות תצוגה מקומיות (הבחירה האחרונה של המשתמש)
 .ui_prefs.json
+
+# מצב בודק (src/config.py) - עותק פרטי של alerts.db בכל מכונה
+alerts_tester.db*

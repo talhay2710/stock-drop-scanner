@@ -10,7 +10,7 @@ import subprocess
 import yaml
 
 from . import db_merge
-from .config import ROOT_DIR, CONFIG_PATH, CONFIG_EXAMPLE_PATH
+from .config import ROOT_DIR, CONFIG_PATH, CONFIG_EXAMPLE_PATH, tester_mode
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,8 @@ def refresh_alerts_db_if_clean() -> bool:
     רק אם *אין* כרגע שינוי מקומי לא-שמור בקובץ (git diff נקי) - אחרת יש סיכון
     למחוק עבודה שעוד לא הגיעה לענן (למשל sync קודם שנכשל בשקט), אז פשוט
     מדלגים ומשאירים את הקובץ כפי שהוא. מחזיר True אם רוענן בפועל."""
+    if tester_mode():
+        return False
     _git = ["git", "-C", ROOT_DIR]
     try:
         diff = _git_run(_git + ["diff", "--quiet", "--", "alerts.db"], capture_output=True, timeout=15)
@@ -129,6 +131,8 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     origin הוא 'בעלות המשתמש' וממוזג מעל גרסת הבוט) - כאן origin הוא 'בסיס'
     (נתוני סריקה עדכניים) והעותק המקומי הוא 'בעלות המשתמש' (הפעולה שהמשתמש
     זה עתה ביצע בדשבורד) שממוזגת מעליו."""
+    if tester_mode():  # אפליקציית בודק: אף פעם לא דוחפים לגיט (הנתונים של הבודק נשארים אצלו)
+        return "no_change"
     _git = ["git", "-C", ROOT_DIR]
     paths = ["config.example.yaml", "alerts.db"] if include_db else ["config.example.yaml"]
     try:
