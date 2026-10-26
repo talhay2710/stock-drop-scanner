@@ -639,7 +639,7 @@ MOVERS_CSS = """
         .v3h .v3age::after { content: counter(v3s); }
         .v3h .head > .hr { display:flex; align-items:baseline; gap:20px; font-size:14px; color:var(--dim); }
         .v3h .upd { color:var(--dim); }
-        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-inline:-4px; padding-inline:4px; }  /* מקום לגוון הריחוף שיוצא 4px (overflow חותך אחרת) */
         .v3h .wlrow { display:grid; grid-template-columns:minmax(0,1.7fr) 1fr 1fr 1fr .8fr .8fr 34px; gap:12px; align-items:center; padding:14px 0; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; }
         .v3h .wlrow .n { font-size:17px; color:var(--v3-soft); } .v3h .wlrow .mono { margin-inline-start:10px; font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
         .v3h .wlh { font-size:13px; color:var(--dim); padding-block:10px; border-bottom:1px solid var(--rule-strong); }
@@ -647,6 +647,8 @@ MOVERS_CSS = """
         .v3h table.tb { width:100%; border-collapse:collapse; }
         .v3h .tb th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:10px 8px; border-bottom:1px solid var(--rule); white-space:nowrap; }
         .v3h .tb tbody tr:hover td { background:var(--hover); }
+        .v3h .tb tbody tr:hover td:first-child, .v3h .jr tr:hover td:first-child { box-shadow:4px 0 0 var(--hover); }
+        .v3h .tb tbody tr:hover td:last-child, .v3h .jr tr:hover td:last-child { box-shadow:-4px 0 0 var(--hover); }
         .v3h .tb td { padding:14px 8px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; color:var(--v3-soft); }
         .v3h .tb td:first-child, .v3h .tb th:first-child { padding-inline-start:0; }  /* הטקסט צמוד לקצה הקו, כמו שאר האתר */
         .v3h .tb td:last-child, .v3h .tb th:last-child { padding-inline-end:0; }
@@ -1440,7 +1442,7 @@ def journal_table(rows: list[dict]) -> str:
 
 
 JOURNAL_CSS = """
-        .v3h .tablewrap { overflow-x:auto; }
+        .v3h .tablewrap { overflow-x:auto; margin-inline:-4px; padding-inline:4px; }
         .v3h .eq { padding:14px 0 6px; }
         .v3h .eqp { display:flex; direction:ltr; height:190px; }
         .v3h .eqyl { position:relative; flex:none; width:64px; }

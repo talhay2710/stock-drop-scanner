@@ -552,8 +552,8 @@ _V3_CSS += """
         div[class*="st-key-v3_arowhd_"] [data-testid="stElementContainer"]:has(button[kind="secondary"]),
         div[class*="st-key-v3_hrowhd_"] [data-testid="stElementContainer"]:has(button[kind="secondary"]) { position: absolute; inset: 0 0 auto 0; width: 100% !important; height: 100%; z-index: 3; margin: 0 !important; }
         div[class*="st-key-v3_arow_"] .v3h { margin: 0; }
-        div[class*="st-key-v3_arowhd_"]:hover .arow.r { background: var(--v3-hover); }
-        div[class*="st-key-v3_hrowhd_"]:hover .hrow { background: var(--v3-hover); }
+        div[class*="st-key-v3_arowhd_"]:hover .arow.r { background: var(--v3-hover); box-shadow: 4px 0 0 var(--v3-hover), -4px 0 0 var(--v3-hover); }  /* הגוון בריחוף יוצא 4px מעבר לקווים, כך שהטקסט הצמוד לקצה לא נוגע בקצה הרקע */
+        div[class*="st-key-v3_hrowhd_"]:hover .hrow { background: var(--v3-hover); box-shadow: 4px 0 0 var(--v3-hover), -4px 0 0 var(--v3-hover); }
         div[class*="st-key-v3_hrowhd_"] button[kind="secondary"],
         div[class*="st-key-v3_arowhd_"] button[kind="secondary"] { opacity: 0; width: 100%; height: 100%; min-height: 0; cursor: pointer; padding: 0 !important; position: absolute; inset: 0; }
         div[class*="st-key-v3_arow_"] [data-testid="stVerticalBlock"], div[class*="st-key-v3_hrow_"] [data-testid="stVerticalBlock"] { gap: 0 !important; }
