@@ -717,18 +717,24 @@ _V3_CSS += """
         div[class*="st-key-holdings_add_icon"] button:hover::after { content: "פתיחת פוזיציה"; position: absolute; top: 34px; left: 50%; transform: translateX(-50%); white-space: nowrap; direction: rtl; font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 6px; background: var(--v3-ink); color: var(--v3-bg); width: auto; height: auto; inset-inline-end: auto; pointer-events: none; z-index: 30; animation: dr-tip-in .15s .35s both; }
         div[class*="st-key-watch_manage_icon"] button:hover::after { content: "הוספת מניה למעקב"; position: absolute; top: 34px; left: 50%; transform: translateX(-50%); white-space: nowrap; direction: rtl; font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 6px; background: var(--v3-ink); color: var(--v3-bg); width: auto; height: auto; inset-inline-end: auto; pointer-events: none; z-index: 30; animation: dr-tip-in .15s .35s both; }
         @keyframes dr-tip-in { from { opacity: 0; } to { opacity: 1; } }
-        div[class*="st-key-sell_form_"] { padding: 16px 10px 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
-        div[class*="st-key-sell_form_"] [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
-        div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
-        div[class*="st-key-sell_form_"] [data-testid="stNumberInputContainer"] input { text-align: end; font-size: 17px; }
-        div[class*="st-key-sell_form_"] [data-testid="stNumberInputStepUp"], div[class*="st-key-sell_form_"] [data-testid="stNumberInputStepDown"] { display: none !important; }
-        div[class*="st-key-sell_form_"] [data-testid="stDateInput"] [data-baseweb="input"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
-        div[class*="st-key-sell_form_"] [data-testid="stDateInput"] input { font-size: 17px; text-align: right !important; direction: ltr; }
-        div[class*="st-key-sell_form_"] button[kind="primary"] { background: var(--v3-ink) !important; color: var(--v3-bg) !important; border: 0 !important; border-radius: 8px !important; min-height: 40px; padding: 0 24px !important; }
-        div[class*="st-key-sell_form_"] button[kind="primary"] p, div[class*="st-key-sell_form_"] button[kind="tertiary"] p { color: inherit !important; }
-        div[class*="st-key-sell_form_"] button[kind="primary"] p { font-size: 15px; }
-        div[class*="st-key-sell_form_"] button[kind="tertiary"] { color: var(--v3-dim) !important; min-height: 40px; padding: 0 12px !important; }
-        div[class*="st-key-sell_form_"] button[kind="tertiary"]:hover { color: var(--v3-ink) !important; background: transparent !important; }
+        div[class*="st-key-sell_form_"] { padding: 16px 0 20px; gap: 18px !important; border-bottom: 1px solid var(--v3-rule); }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stWidgetLabel"] p { font-size: 12px; color: var(--v3-dim); }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stNumberInputContainer"] input { text-align: end; font-size: 17px; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stNumberInputStepUp"], :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stNumberInputStepDown"] { display: none !important; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stDateInput"] [data-baseweb="input"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) [data-testid="stDateInput"] input { font-size: 17px; text-align: right !important; direction: ltr; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) button[kind="primary"] { background: var(--v3-ink) !important; color: var(--v3-bg) !important; border: 0 !important; border-radius: 8px !important; min-height: 40px; padding: 0 24px !important; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) button[kind="primary"] p, :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) button[kind="tertiary"] p { color: inherit !important; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) button[kind="primary"] p { font-size: 15px; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) button[kind="tertiary"] { color: var(--v3-dim) !important; min-height: 40px; padding: 0 12px !important; }
+        :is(div[class*="st-key-sell_form_"], div[class*="st-key-openpos_form_"]) button[kind="tertiary"]:hover { color: var(--v3-ink) !important; background: transparent !important; }
+        /* טופס פתיחת פוזיציה: החלק שמתחת לשער ולעלות - הערת התוצאה העמומה, מתג עסקה ידנית עם הסבר קטן, וכפתור הוספה בצבע האתר */
+        div[class*="st-key-openpos_form_"] { gap: 18px !important; padding-top: 6px; }
+        div[class*="st-key-openpos_form_"] [data-testid="stCaptionContainer"] p { font-size: 13px !important; color: var(--v3-dim) !important; line-height: 1.5; }
+        div[class*="st-key-openpos_form_"] div[class*="_manualwrap"] { gap: 2px !important; }
+        div[class*="st-key-openpos_form_"] div[class*="_manualwrap"] label p { font-size: 15px !important; color: var(--v3-ink) !important; }
+        div[class*="st-key-openpos_form_"] div[class*="_manualwrap"] [data-testid="stElementContainer"]:has([data-testid="stToggle"]) { width: fit-content !important; }
         div[class*="st-key-sell_holding_"] { height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible; position: relative; z-index: 3; width: 100% !important; }
         div[class*="st-key-sell_holding_"] button p, div[class*="st-key-sell_holding_"] button div { display: none !important; }
         div[class*="st-key-sell_holding_"] button { position: absolute; top: 14px; left: 4px; width: 28px; height: 28px; min-height: 0; padding: 0 !important; border: 1px solid var(--v3-rule) !important; background: transparent !important; border-radius: 50% !important; color: var(--v3-dim) !important; font-size: 0 !important; }
@@ -4636,6 +4642,11 @@ with _tab_slot_movers.container():
         _render_movers_tab()
 
 def _open_position_form(chosen_row, key_prefix: str) -> None:
+    with st.container(key=f"openpos_form_{key_prefix}"):
+        _open_position_form_body(chosen_row, key_prefix)
+
+
+def _open_position_form_body(chosen_row, key_prefix: str) -> None:
     """טופס פתיחת פוזיציה (שער ביצוע / עלות / תאריך / עסקה ידנית) להתראה אחת.
     משותף ל"➕ פתיחת פוזיציה" בטאב אחזקות ולכפתור בתוך ההתראה עצמה (7.10.2026) - אותו
     קוד בדיוק, כדי ששניהם יישארו עקביים (שער באגורות לת"א, שדות ריקים בכוונה)."""
@@ -4676,11 +4687,10 @@ def _open_position_form(chosen_row, key_prefix: str) -> None:
             )
         except Exception:
             pass
-    add_is_manual = st.checkbox(
-        "🖐️ עסקה ידנית (לא לפי האסטרטגיה - לא תיכלל בסטטיסטיקת ביצועי האסטרטגיה)",
-        key=f"{key_prefix}_manual",
-    )
-    if st.button("✅ הוסף לאחזקות", key=f"{key_prefix}_btn"):
+    with st.container(key=f"{key_prefix}_manualwrap"):
+        add_is_manual = st.toggle("עסקה ידנית", key=f"{key_prefix}_manual")
+        st.caption("לא לפי האסטרטגיה - לא תיכלל בסטטיסטיקת הביצועים")
+    if st.button("הוסף לאחזקות", key=f"{key_prefix}_btn", type="primary"):
         final_qty = (add_amount / add_entry) if (add_amount > 0 and add_entry > 0) else 0.0
         # מניות בבורסה נסחרות ביחידות שלמות - כשהכמות המחושבת קרובה (עד 1%) לשלם, מעגלים אליו
         # (אחרת עיגולי מחיר ממוצע הפכו 92 ל-91.994 בפוזיציה ששמרנו).
@@ -5113,7 +5123,7 @@ with _tab_slot_today.container():
                 if _pa_reference_price is not None and _pa_target > 0:
                     _pa_dir_preview = "עולה מעל" if _pa_target >= _pa_reference_price else "יורדת מתחת ל"
                     st.caption(f"תישלח התראה כשהמניה {_pa_dir_preview} המחיר הזה.")
-                if st.button("✅ הוסף התראה", key="price_alert_add_btn"):
+                if st.button("הוסף התראה", key="price_alert_add_btn", type="primary"):
                     if _pa_target <= 0:
                         st.warning("יש למלא מחיר יעד לפני ההוספה.")
                     elif _pa_reference_price is None:
