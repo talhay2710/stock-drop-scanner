@@ -151,6 +151,14 @@ def money(n_html: str, sym: str) -> str:
     return f"{sym}&nbsp;{n_html}" if sym == CCY_SYMBOL["USD"] else f"{n_html}&nbsp;{sym}"
 
 
+def label_small_date(label: str) -> str:
+    """"שינוי יומי 23.10" -> התווית כרגיל והתאריך בגודל קטן יותר (לבקשת המשתמש)."""
+    m = re.search(r"\s(\d{2}\.\d{2})$", label)
+    if not m:
+        return esc(label)
+    return f'{esc(label[:m.start()])} <span class="dsm">{num(m.group(1))}</span>'
+
+
 def portfolio_strip(value: float, count: int, pnl: float, pnl_pct: float,
                     day_change: float | None, day_pct: float | None, ccy: str, day_label: str = "שינוי יומי",
                     alloc_html: str = "") -> str:
@@ -162,7 +170,7 @@ def portfolio_strip(value: float, count: int, pnl: float, pnl_pct: float,
     ]
     if day_change is not None:
         cells.append(
-            f'<div><small>{esc(day_label)}</small><strong class="{cls_for(day_change)}">{money(num(signed(day_change)), sym)}</strong></div>'
+            f'<div><small>{label_small_date(day_label)}</small><strong class="{cls_for(day_change)}">{money(num(signed(day_change)), sym)}</strong></div>'
         )
     return f'{head("התיק שלי")}<div class="kpi">{"".join(cells)}</div>'
 
@@ -439,7 +447,7 @@ def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], port
     legend = f'<div class="legend"><span>{esc(bench_label)}<i class="d"></i></span><span>{esc(portfolio_label)}<i></i></span></div>'
     ticks = "".join(f"<span>{esc(t)}</span>" for t in times)
     return (
-        f'<section class="block"><div class="head"><div class="h2">תשואה תוך-יומית{" " + num(date_label) if date_label else ""}</div>{legend}</div><div class="chart">'
+        f'<section class="block"><div class="head"><div class="h2">תשואה תוך-יומית{' <span class="dsm">' + num(date_label) + '</span>' if date_label else ""}</div>{legend}</div><div class="chart">'
         f'<svg viewBox="0 0 {900} {H}" preserveAspectRatio="none" role="img" aria-label="{esc(portfolio_label)} מול {esc(bench_label)}">'
         f'{zero_line}{lines}</svg><div class="times">{ticks}</div></div></section>'
     )
@@ -496,6 +504,7 @@ COMPONENT_CSS = """
         .v3h .kpi > div { padding:18px 18px 20px; border-inline-start:1px solid var(--rule); min-width:0; display:flex; flex-direction:column; }
         .v3h .kpi > div:first-child { padding-inline-start:0; border-inline-start:0; }
         .v3h .kpi small { display:block; font-size:13px; color:var(--dim); }
+        .v3h .dsm { font-size:.82em; }
         .v3h .kpi strong { display:block; font-size:clamp(22px,2.5vw,30px); font-weight:400; line-height:1.2; margin-top:4px; white-space:nowrap; }
         .v3h .kpi em { display:block; margin-top:2px; font-style:normal; font-size:15px; line-height:1.4; }
         .v3h .kpi > div:first-child em { font-size:14px; }
@@ -1030,7 +1039,7 @@ def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float
 
     def part(label: str, a: float, p: float) -> str:
         c = cls_for(a)
-        return (f'<span class="tl"><small>{esc(label)}</small><b class="{c}">{money(num(signed(a)), sym)}</b>'
+        return (f'<span class="tl"><small>{label_small_date(label)}</small><b class="{c}">{money(num(signed(a)), sym)}</b>'
                 f'<i class="{c}">{num(signed(p, 1, "%"))}</i></span>')
 
     inner = part("רווח/הפסד", pnl, pnl_pct)
