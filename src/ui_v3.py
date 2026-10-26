@@ -534,7 +534,7 @@ COMPONENT_CSS = """
         .v3h .plot { flex:1 1 320px; max-width:440px; padding-top:29px; margin:0; }  /* קצה הגרף העליון בגובה הטקסט של כותרות הטבלה */
         .v3h .plot svg { display:block; width:100%; height:auto; }
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
-        .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 10px 10px; border-bottom:1px solid var(--rule); }
+        .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 0 10px; border-bottom:1px solid var(--rule); }
         .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 0; border-bottom:1px solid var(--rule); }
         .v3h .row .nm { font-size:17px; }
         .v3h .row .pl { font-size:17px; }
@@ -640,7 +640,7 @@ MOVERS_CSS = """
         .v3h .head > .hr { display:flex; align-items:baseline; gap:20px; font-size:14px; color:var(--dim); }
         .v3h .upd { color:var(--dim); }
         .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-        .v3h .wlrow { display:grid; grid-template-columns:minmax(0,1.7fr) 1fr 1fr 1fr .8fr .8fr 34px; gap:12px; align-items:center; padding:14px 10px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; }
+        .v3h .wlrow { display:grid; grid-template-columns:minmax(0,1.7fr) 1fr 1fr 1fr .8fr .8fr 34px; gap:12px; align-items:center; padding:14px 0; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; }
         .v3h .wlrow .n { font-size:17px; color:var(--v3-soft); } .v3h .wlrow .mono { margin-inline-start:10px; font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
         .v3h .wlh { font-size:13px; color:var(--dim); padding-block:10px; border-bottom:1px solid var(--rule-strong); }
         @media (max-width:720px) { .v3h .wlrow { grid-template-columns:minmax(0,1.5fr) 1fr 1fr 34px; } .v3h .wlrow > span:nth-child(2), .v3h .wlrow > span:nth-child(3), .v3h .wlrow > span:nth-child(5) { display:none; } }
@@ -1167,7 +1167,7 @@ HOLDINGS_CSS = """
         .v3h .sdonut .sdc strong { font-size:21px; font-weight:400; }
         .v3h .sdonut svg { display:block; width:100%; height:auto; overflow:visible; }
         .v3h .slist { flex:1 1 auto; min-width:0; }
-        .v3h .srow { display:grid; grid-template-columns:10px 104px minmax(60px,1fr) 44px; align-items:center; gap:14px; padding:15px 8px; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
+        .v3h .srow { display:grid; grid-template-columns:10px 104px minmax(60px,1fr) 44px; align-items:center; gap:14px; padding:15px 0; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
         .v3h .srow .dot { width:8px; height:8px; border-radius:50%; opacity:.85; }
         .v3h .srow .sn b { display:block; font-size:15px; font-weight:400; color:var(--v3-soft); }
         .v3h .srow .sn small { display:block; margin-top:2px; font-size:12px; color:var(--dim); opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1250,7 +1250,7 @@ HOLDINGS_CSS = """
         .v3h .bar .tk.s { background:var(--loss); } .v3h .bar .tk.t { background:var(--gain); }
         .v3h .bar .lb { position:absolute; top:14px; font-size:12px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; direction:rtl; }
         .v3h .bar .lb.a { transform:none; color:var(--loss); } .v3h .bar .lb.r { right:0; left:auto; transform:none; color:var(--gain); }
-        .v3h .hdet { padding:6px 10px 14px; border-bottom:1px solid var(--rule); }
+        .v3h .hdet { padding:6px 0 14px; border-bottom:1px solid var(--rule); }
         .v3h .hcg { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; padding-top:6px; }
         .v3h .hc { padding:14px 18px 14px 0; display:flex; flex-direction:column; gap:5px; min-width:0; }
         .v3h .hc:nth-child(n+5) { border-top:1px solid var(--rule); }
@@ -1590,7 +1590,7 @@ PERF_CSS = """
         .v3h .sec .sech .hsub .fp + .fp { margin-inline-start:14px; padding-inline-start:14px; }
         .v3h .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 56px; }
         .v3h details.more { border-bottom:1px solid var(--rule); }
-        .v3h details.more > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 10px; cursor:pointer; list-style:none; }
+        .v3h details.more > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 0; cursor:pointer; list-style:none; }
         .v3h details.more > summary::-webkit-details-marker { display:none; }
         .v3h details.more[open] .chg svg { transform:scaleX(-1) rotate(90deg); }
         .v3h .mt { display:flex; flex-direction:column; gap:2px; }
