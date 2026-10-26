@@ -534,8 +534,9 @@ COMPONENT_CSS = """
         .v3h .plot { flex:1 1 320px; max-width:440px; padding-top:29px; margin:0; }  /* קצה הגרף העליון בגובה הטקסט של כותרות הטבלה */
         .v3h .plot svg { display:block; width:100%; height:auto; }
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
-        .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 0 10px; border-bottom:1px solid var(--rule); }
-        .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 0; border-bottom:1px solid var(--rule); }
+        .v3h .rows .cap { display:grid; grid-template-columns:minmax(0,4fr) minmax(0,3fr) minmax(0,3fr); gap:12px; font-size:13px; color:var(--dim); padding:14px 0 10px; border-bottom:1px solid var(--rule); }
+        .v3h .row { display:grid; grid-template-columns:minmax(0,4fr) minmax(0,3fr) minmax(0,3fr); align-items:center; gap:12px; padding:18px 0; border-bottom:1px solid var(--rule); }
+        .v3h .row:hover { background:var(--hover); box-shadow:4px 0 0 var(--hover), -4px 0 0 var(--hover); }
         .v3h .row .nm { font-size:17px; }
         .v3h .row .pl { font-size:17px; }
         .v3h .row .st { font-size:14px; color:var(--dim); }
