@@ -1064,19 +1064,21 @@ def total_line(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float
     return f'<div class="tline">{inner}</div>'
 
 
-def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str) -> str:
+def total_pill(pnl: float, pnl_pct: float, day_amt: float | None, day_pct: float | None, ccy: str,
+               total_label: str = "שינוי כולל", day_label: str = "שינוי יומי", value: float | None = None) -> str:
     """סה"כ מתחת לטבלת האחזקות, בשפת שאר האתר: פס KPI דק (בלי כרטיס ובלי צ'יפים) - סכום גדול ואחוז קטן מתחתיו בצבע הסימן."""
     sym = CCY_SYMBOL.get(ccy, esc(ccy))
 
     def cell(label: str, a: float, p: float) -> str:
         c = cls_for(a)
-        return (f'<div><small>{esc(label)}</small><strong class="{c}">{money(num(signed(a)), sym)}</strong>'
+        return (f'<div><small>{label_small_date(label)}</small><strong class="{c}">{money(num(signed(a)), sym)}</strong>'
                 f'<em class="{c}">{num(signed(p, 1, "%"))}</em></div>')
 
-    inner = cell('סה"כ רווח/הפסד', pnl, pnl_pct)
+    inner = f'<div><small>שווי נוכחי</small><strong>{money(num(plain(value)), sym)}</strong></div>' if value is not None else ""
+    inner += cell(total_label, pnl, pnl_pct)
     if day_amt is not None and day_pct is not None:
-        inner += cell("שינוי יומי", day_amt, day_pct)
-    return f'<div class="kpi ktot">{inner}</div>'
+        inner += cell(day_label, day_amt, day_pct)
+    return f'<div class="kpi ktot{" k3" if value is not None else ""}">{inner}</div>'
 
 
 def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
@@ -1195,6 +1197,8 @@ HOLDINGS_CSS = """
         .v3h .kpi.ktot > div { padding:16px 18px 18px; border-top:0 !important; }
         .v3h .kpi.ktot > div:first-child { grid-column:auto; padding-inline-start:0; border-inline-start:0; }
         .v3h .kpi.ktot > div:nth-child(2) { border-inline-start:1px solid var(--rule); padding-inline-start:18px; }
+        .v3h .kpi.ktot.k3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .v3h .kpi.ktot.k3 > div:nth-child(3) { border-inline-start:1px solid var(--rule); padding-inline-start:18px; }
         .v3h .kpi.ktot strong { font-size:clamp(22px,2.4vw,28px); font-weight:400; }
         .v3h .kpi.ktot em { font-size:15px; }
 .v3h .tpill { display:flex; align-items:stretch; gap:0; margin:18px 0 6px; background:var(--surface); border:1px solid var(--rule); border-radius:8px; }
