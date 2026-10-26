@@ -646,6 +646,7 @@ MOVERS_CSS = """
         @media (max-width:720px) { .v3h .wlrow { grid-template-columns:minmax(0,1.5fr) 1fr 1fr 34px; } .v3h .wlrow > span:nth-child(2), .v3h .wlrow > span:nth-child(3), .v3h .wlrow > span:nth-child(5) { display:none; } }
         .v3h table.tb { width:100%; border-collapse:collapse; }
         .v3h .tb th { text-align:start; font-weight:400; font-size:13px; color:var(--dim); padding:10px 8px; border-bottom:1px solid var(--rule); white-space:nowrap; }
+        .v3h .tb tbody tr:hover td { background:var(--hover); }
         .v3h .tb td { padding:14px 8px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; color:var(--v3-soft); }
         .v3h .tb td:first-child, .v3h .tb th:first-child { padding-inline-start:0; }  /* הטקסט צמוד לקצה הקו, כמו שאר האתר */
         .v3h .tb td:last-child, .v3h .tb th:last-child { padding-inline-end:0; }
