@@ -879,6 +879,21 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     )
 
 
+def hold_total(sym: str, value: float | None, pnl_pct: float | None, pnl_amt: float | None,
+               day_amt: float | None, day_pct: float | None, net_amt: float | None = None) -> str:
+    """שורת "סה״כ" בתחתית טבלת האחזקות - באותה רשת עמודות, כל סכום מתחת לעמודה שלו (שווי / תשואה / רווח-הפסד / יום / נטו)."""
+    val = f'<span class="c"><b>{_money_cell(value, sym)}</b></span>' if value is not None else '<span class="c"></span>'
+    ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>' if pnl_pct is not None else '<span class="c"></span>'
+    pl = f'<span class="c {cls_for(pnl_amt)}"><b>{_money_cell(pnl_amt, sym, True, False)}</b></span>' if pnl_amt is not None else '<span class="c"></span>'
+    day = (f'<span class="c {cls_for(day_amt)}"><b>{_money_cell(day_amt, sym, True, False)}</b>'
+           f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if (day_amt is not None and day_pct is not None) else '<span class="c"></span>'
+    net = f'<span class="c {cls_for(net_amt)}"><b>{_money_cell(net_amt, sym, True)}</b></span>' if net_amt is not None else '<span class="c"></span>'
+    return (
+        f'<div class="hrow htot"><span class="nm"><span class="l1"><bdi>סה״כ</bdi></span></span>{val}{ret}{pl}{day}'
+        f'<span class="c rc2"></span><span class="c"></span>{net}<span class="sp"></span></div>'
+    )
+
+
 def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_gap: float | None, tgt_gap: float | None,
                       held: int | None, horizon: int | None, pnl_amt: float | None = None, net_amt: float | None = None) -> str:
     """בנייד העמודות הצפופות מוסתרות מהשורה - הן מופיעות כאן בראש הפרטים של השורה שנפתחת."""
@@ -1199,6 +1214,9 @@ HOLDINGS_CSS = """
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
         .v3h .hrow { padding-block:14px; border-bottom:1px solid var(--rule); }
         .v3h .hrow:hover { background:var(--hover); }
+        .v3h .hrow.htot { border-top:1px solid var(--rule-strong); border-bottom:1px solid var(--rule); margin-top:2px; }
+        .v3h .hrow.htot:hover { background:transparent; }
+        .v3h .hrow.htot .nm { color:var(--ink); font-weight:500; }
         .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); min-width:0; }
         .v3h .hrow .nm .l1 { display:flex; align-items:baseline; white-space:nowrap; }
         .v3h .hrow .nm .sd { display:inline-block; width:8px; height:8px; border-radius:50%; margin-inline-end:9px; flex:none; align-self:center; }

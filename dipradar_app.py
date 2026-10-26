@@ -6700,9 +6700,10 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
         if not _shown_any:
             st.markdown('<div class="v3h"><div class="nw"><small>אין אחזקות שמתאימות לסינון.</small></div></div>', unsafe_allow_html=True)
         _dom_day_pct = (a["dchg"] / a["dbase"] * 100) if a["dbase"] else None
-        st.markdown('<div class="v3h">' + ui_v3.total_line(
-            a["pnl"], pnl_pct, a["dchg"] if a["dbase"] else None, _dom_day_pct, dom,
-            day_label=_daily_label_with_date("שינוי יומי", _strip_day, "US" if dom == "USD" else "IL"),
+        _dom_nets = [r["net_pnl"] for r in rows if r.get("ccy") == dom and r.get("net_pnl") is not None]
+        st.markdown('<div class="v3h tw">' + ui_v3.hold_total(
+            sym, a["value"], pnl_pct, a["pnl"], a["dchg"] if a["dbase"] else None, _dom_day_pct,
+            sum(_dom_nets) if _dom_nets else None,
         ) + '</div>', unsafe_allow_html=True)
 
     # מתחת לטבלה: סולם סטופ ויעד (מיקום כל אחזקה מול הסטופ והיעד שלה; הרדאר נשאר רק בדף הבית)
