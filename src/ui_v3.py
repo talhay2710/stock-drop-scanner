@@ -156,7 +156,7 @@ def label_small_date(label: str) -> str:
     m = re.search(r"\s(\d{2}\.\d{2})$", label)
     if not m:
         return esc(label)
-    return f'{esc(label[:m.start()])} <span class="dsm">{num(m.group(1))}</span>'
+    return f'{esc(label[:m.start()])} <span class="dsm">({num(m.group(1))})</span>'
 
 
 def portfolio_strip(value: float, count: int, pnl: float, pnl_pct: float,
@@ -444,10 +444,11 @@ def intraday_chart(series: list[tuple[str, list[float]]], times: list[str], port
             f'<polyline vector-effect="non-scaling-stroke" points="{pts(series[1][1])}" fill="none" stroke="var(--dash)" '
             'stroke-width="1.5" stroke-dasharray="6 5"/>'
         )
+    date_html = f' <span class="dsm">({num(date_label)})</span>' if date_label else ""
     legend = f'<div class="legend"><span>{esc(bench_label)}<i class="d"></i></span><span>{esc(portfolio_label)}<i></i></span></div>'
     ticks = "".join(f"<span>{esc(t)}</span>" for t in times)
     return (
-        f'<section class="block"><div class="head"><div class="h2">תשואה תוך-יומית{' <span class="dsm">' + num(date_label) + '</span>' if date_label else ""}</div>{legend}</div><div class="chart">'
+        f'<section class="block"><div class="head"><div class="h2">תשואה תוך-יומית{date_html}</div>{legend}</div><div class="chart">'
         f'<svg viewBox="0 0 {900} {H}" preserveAspectRatio="none" role="img" aria-label="{esc(portfolio_label)} מול {esc(bench_label)}">'
         f'{zero_line}{lines}</svg><div class="times">{ticks}</div></div></section>'
     )
