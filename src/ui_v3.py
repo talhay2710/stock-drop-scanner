@@ -536,7 +536,7 @@ COMPONENT_CSS = """
         .v3h .rows { flex:1 1 380px; min-width:0; padding-top:12px; }
         .v3h .rows .cap { display:grid; grid-template-columns:1fr 84px 128px; gap:12px; font-size:13px; color:var(--dim); padding:14px 10px 10px; border-bottom:1px solid var(--rule); }
         .v3h .row { display:grid; grid-template-columns:1fr 84px 128px; align-items:center; gap:12px; padding:18px 0; border-bottom:1px solid var(--rule); }
-        .v3h .row:hover { background:var(--hover); }
+        .v3h .row:hover { background:var(--hover); box-shadow:10px 0 0 var(--hover), -10px 0 0 var(--hover); }  /* הרקע בריחוף מורחב 10px החוצה, והטקסט נשאר צמוד לקו */
         .v3h .row .nm { font-size:17px; }
         .v3h .row .pl { font-size:17px; }
         .v3h .row .st { font-size:14px; color:var(--dim); }
@@ -640,7 +640,7 @@ MOVERS_CSS = """
         .v3h .v3age::after { content: counter(v3s); }
         .v3h .head > .hr { display:flex; align-items:baseline; gap:20px; font-size:14px; color:var(--dim); }
         .v3h .upd { color:var(--dim); }
-        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .v3h .tw, .v3h.tw { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-inline:-10px; padding-inline:10px; }  /* מקום לרקע הריחוף המורחב (overflow חותך אחרת) */
         .v3h .wlrow { display:grid; grid-template-columns:minmax(0,1.7fr) 1fr 1fr 1fr .8fr .8fr 34px; gap:12px; align-items:center; padding:14px 10px; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; }
         .v3h .wlrow .n { font-size:17px; color:var(--v3-soft); } .v3h .wlrow .mono { margin-inline-start:10px; font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:var(--dim); }
         .v3h .wlh { font-size:13px; color:var(--dim); padding-block:10px; border-bottom:1px solid var(--rule-strong); }
@@ -651,6 +651,8 @@ MOVERS_CSS = """
         .v3h .tb td:first-child, .v3h .tb th:first-child { padding-inline-start:0; }  /* הטקסט צמוד לקצה הקו, כמו שאר האתר */
         .v3h .tb td:last-child, .v3h .tb th:last-child { padding-inline-end:0; }
         .v3h .tb tbody tr:hover td { background:var(--hover); }
+        .v3h .tb tbody tr:hover td:first-child, .v3h .jr tr:hover td:first-child { box-shadow:10px 0 0 var(--hover); }
+        .v3h .tb tbody tr:hover td:last-child, .v3h .jr tr:hover td:last-child { box-shadow:-10px 0 0 var(--hover); }
         .v3h .tb td.n { color:var(--ink); font-size:17px; }
         .v3h .tb td.n .mono { margin-inline-start:10px; }
         .v3h .tb td.up { color:var(--gain); } .v3h .tb td.down { color:var(--loss); }
@@ -1220,9 +1222,9 @@ HOLDINGS_CSS = """
         .v3h .hhead span { white-space:nowrap; }
         .v3h .hhead .r { text-align:end; } .v3h .hhead .ctr { text-align:center; }
         .v3h .hrow { padding-block:14px; border-bottom:1px solid var(--rule); }
-        .v3h .hrow:hover { background:var(--hover); }
+        .v3h .hrow:hover { background:var(--hover); box-shadow:10px 0 0 var(--hover), -10px 0 0 var(--hover); }
         .v3h .hrow.htot { border-top:1px solid var(--rule-strong); border-bottom:1px solid var(--rule); margin-top:2px; }
-        .v3h .hrow.htot:hover { background:transparent; }
+        .v3h .hrow.htot:hover { background:transparent; box-shadow:none; }
         .v3h .hrow.htot .nm { color:var(--ink); font-weight:500; }
         .v3h .hrow .nm { font-size:17px; color:var(--v3-soft); min-width:0; }
         .v3h .hrow .nm .l1 { display:flex; align-items:baseline; white-space:nowrap; }
@@ -1442,7 +1444,7 @@ def journal_table(rows: list[dict]) -> str:
 
 
 JOURNAL_CSS = """
-        .v3h .tablewrap { overflow-x:auto; }
+        .v3h .tablewrap { overflow-x:auto; margin-inline:-10px; padding-inline:10px; }
         .v3h .eq { padding:14px 0 6px; }
         .v3h .eqp { display:flex; direction:ltr; height:190px; }
         .v3h .eqyl { position:relative; flex:none; width:64px; }
