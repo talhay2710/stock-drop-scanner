@@ -552,6 +552,8 @@ _V3_CSS += """
         div[class*="st-key-v3_arowhd_"] [data-testid="stElementContainer"]:has(button[kind="secondary"]),
         div[class*="st-key-v3_hrowhd_"] [data-testid="stElementContainer"]:has(button[kind="secondary"]) { position: absolute; inset: 0 0 auto 0; width: 100% !important; height: 100%; z-index: 3; margin: 0 !important; }
         div[class*="st-key-v3_arow_"] .v3h { margin: 0; }
+        div[class*="st-key-v3_arowhd_"]:hover .arow.r { background: var(--v3-hover); }
+        div[class*="st-key-v3_hrowhd_"]:hover .hrow { background: var(--v3-hover); }
         div[class*="st-key-v3_hrowhd_"] button[kind="secondary"],
         div[class*="st-key-v3_arowhd_"] button[kind="secondary"] { opacity: 0; width: 100%; height: 100%; min-height: 0; cursor: pointer; padding: 0 !important; position: absolute; inset: 0; }
         div[class*="st-key-v3_arow_"] [data-testid="stVerticalBlock"], div[class*="st-key-v3_hrow_"] [data-testid="stVerticalBlock"] { gap: 0 !important; }
@@ -675,7 +677,7 @@ _V3_CSS += """
         div[class*="st-key-alerts_refresh_icon"], div[class*="st-key-alerts_filter_icon"], div[class*="st-key-alerts_add_icon"] { margin-bottom: -12px !important; }
         div[class*="st-key-exp_price_alert_closed"] { display: none !important; }
         div[class*="st-key-exp_price_alert"]:not([class*="st-key-exp_price_alert_closed"]):not([data-testid="stExpander"]) { padding: 12px 12px 18px; border-bottom: 1px solid var(--v3-rule); }
-        div[class*="st-key-v3_hpos_"] { padding-inline: 10px; }
+        div[class*="st-key-v3_hpos_"] { padding-inline: 0; }
         div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
         div[class*="st-key-alert_card_"] { background: var(--v3-surface); padding: 16px 12px 22px; border-bottom: 1px solid var(--v3-rule); gap: 20px !important; }
         div[class*="st-key-alert_card_"] .adet { background: none; padding: 0; border-bottom: 0; }
