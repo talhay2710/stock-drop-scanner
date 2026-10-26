@@ -1784,9 +1784,10 @@ def _no_trading_today(country: str) -> bool:
     return not is_trading_day(country, dt.datetime.now(ZoneInfo(MARKET_HOURS[country]["tz"])).date())
 
 
-def _daily_label_with_date(base: str, date_label: str, country: str) -> str:
-    """"שינוי יומי" + תאריך הסגירה האחרונה - רק ביום בלי מסחר; ביום מסחר (גם אחרי הסגירה) בלי תאריך עד סוף היום."""
-    return base if (date_label == "היום" or not _no_trading_today(country)) else f"{base} {date_label}"
+def _daily_label_with_date(base: str, date_label: str, country: str = "IL") -> str:
+    """"שינוי יומי" + תאריך הסגירה האחרונה כשהנתון אינו של היום (סוף שבוע/חג, וגם ביום מסחר לפני הפתיחה);
+    ביום מסחר שהתקיים (גם אחרי הסגירה) הנתון הוא של היום - בלי תאריך עד סוף היום."""
+    return base if date_label == "היום" else f"{base} {date_label}"
 
 
 def _sync_and_warn(reason: str, include_db: bool = False) -> None:
@@ -7975,10 +7976,10 @@ def _render_home_v3() -> None:
             fmt = "%d/%m" if _comp_is_daily else "%H:%M"
             times = [p.strftime(fmt) for p in picks]
             p_col, b_col = _comp_df.columns[0], _comp_df.columns[1]
-            # התאריך רק ביום בלי מסחר (סוף שבוע/חג); ביום מסחר שנסגר - בלי תאריך עד סוף היום
-            _chart_date = ""
-            if _comp_dom_index and _no_trading_today(constituents.INDEX_COUNTRY_CODE.get(str(_comp_dom_index).upper(), "IL")):
-                _chart_date = (_comp_as_of or israel_today().strftime("%d/%m")).replace("/", ".")
+            # התאריך כשהגרף אינו של היום: יום קודם (גם ביום מסחר לפני הפתיחה) או יום בלי מסחר; גרף של היום - בלי תאריך
+            _chart_date = (_comp_as_of or "").replace("/", ".")
+            if not _chart_date and _comp_dom_index and _no_trading_today(constituents.INDEX_COUNTRY_CODE.get(str(_comp_dom_index).upper(), "IL")):
+                _chart_date = israel_today().strftime("%d.%m")
             chart_html = ui_v3.intraday_chart(
                 [(p_col, [float(v) for v in _comp_df[p_col]]), (b_col, [float(v) for v in _comp_df[b_col]])],
                 times, str(p_col), str(b_col), date_label=_chart_date,
