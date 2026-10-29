@@ -1203,6 +1203,16 @@ def get_current_price(ticker: str) -> float | None:
     return market_data.fetch_current_price(ticker)
 
 
+_PRICE_POOL = None
+
+
+def _price_pool() -> concurrent.futures.ThreadPoolExecutor:
+    global _PRICE_POOL
+    if _PRICE_POOL is None:
+        _PRICE_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=6, thread_name_prefix="price")
+    return _PRICE_POOL
+
+
 @st.cache_data(ttl=60)
 def get_current_prices_batch(tickers: tuple[str, ...]) -> dict[str, float | None]:
     """כמו get_current_price, אבל לכמה טיקרים במקביל (ThreadPoolExecutor) -
@@ -1211,8 +1221,9 @@ def get_current_prices_batch(tickers: tuple[str, ...]) -> dict[str, float | None
     שדווחה אחרי restart/מעבר טאב (9.9.2026)."""
     if not tickers:
         return {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(tickers))) as executor:
-        results = list(executor.map(market_data.fetch_current_price, tickers))
+    # בריכת threads אחת קבועה לכל התהליך (לא בריכה חדשה בכל קריאה): בענן התהליך חי ימים, וקריאות שנתקעות על רשת (Yahoo
+    # עם חורים בנתונים) היו מצטברות threads עד "can't start new thread" (קריסת האתר הציבורי, 29.10.2026 וגם 24.9)
+    results = list(_price_pool().map(market_data.fetch_current_price, tickers))
     return dict(zip(tickers, results))
 
 
