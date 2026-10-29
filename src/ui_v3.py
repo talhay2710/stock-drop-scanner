@@ -248,6 +248,35 @@ def _hit(a: tuple, b: tuple) -> bool:
     return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
 
 
+RADAR_AXIS_FROM = 6  # מכמה אחזקות עוברים מרדאר מפוזר (נקודה לכל מניה) לשמות על הציר - שם התוויות כבר לא נכנסות
+
+
+def _axis_dots(placed: list[dict], step: float) -> list[str]:
+    """שמות על הציר האופקי במיקום האמיתי (המרחק מהמרכז = הרווח/הפסד): נקודה קטנה על הקו, קו דק לשם, ושמות שחופפים עולים או יורדים שורה."""
+    k = 53.0 / step
+    items = []
+    for p in sorted(placed, key=lambda r: abs(r["pnl_pct"])):
+        nm = short_name(p["name"])
+        items.append({"x": _CX + max(-_R_MAX, min(_R_MAX, p["pnl_pct"] * k)), "w": max(26.0, len(nm) * 7.6) + 6.0, "nm": nm, "out": p["out"]})
+    levels = [lv for n in range(1, 13) for lv in (n, -n)]  # שורה 1 מעל הציר, -1 מתחתיו, וכן הלאה
+    used: dict[int, list[tuple[float, float]]] = {3: [(203.0, 242.0)], 4: [(203.0, 242.0)]}  # שורות 3-4 מעל הציר עוברות ליד התווית "יעד"
+    out = []
+    for it in items:
+        x0, x1 = it["x"] - it["w"] / 2, it["x"] + it["w"] / 2
+        lv = next((lv for lv in levels if all(x1 <= a or x0 >= b for a, b in used.get(lv, []))), levels[-1])
+        used.setdefault(lv, []).append((x0, x1))
+        ty = _CY - 16 - (lv - 1) * 19 if lv > 0 else _CY + 30 + (-lv - 1) * 19
+        col = "var(--loss)" if it["out"] else "var(--ink)"
+        stem_end = ty + 4 if lv > 0 else ty - 14
+        style = ' font-size="14" font-weight="600"' if it["out"] else ""
+        out.append(
+            f'<line x1="{it["x"]:.1f}" y1="{_CY}" x2="{it["x"]:.1f}" y2="{stem_end}" stroke="{col}" stroke-width="1" opacity=".55"/>'
+            f'<circle cx="{it["x"]:.1f}" cy="{_CY}" r="2.5" fill="{col}"/>'
+            f'<text x="{it["x"]:.1f}" y="{ty}" fill="{col}"{style}>{esc(it["nm"])}</text>'
+        )
+    return out
+
+
 def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     """step = היעד באחוזים: הטבעת הפנימית (והקשת הירוקה) היא היעד, והחיצוניות ב-2x ו-3x ממנו.
     כלום לא מסתיר טקסט: תוויות הציר תמיד על אותו קו; תווית מניה שחופפת להן (או לתווית אחרת) עולה גבוה יותר או עוברת מתחת לנקודה."""
@@ -262,87 +291,92 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     pad = lambda b, k: (b[0] - k, b[1] - 2, b[2] + 2 * k, b[3] + 4)
     tick_band = (14.0, 181.0, 352.0, 17.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה בכלל
     tick_pad = [pad(tick_box(i), 14.0) for i in range(len(ticks))]  # שוליים סביב תוויות האחוזים - שמות לא מתקרבים אליהן
-    near, wide = [0.0] + [k * sg for k in range(1, 11) for sg in (1, -1)], [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
-    # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים: קודם מזיזים את הנקודה לאורך הטבעת, אחר כך מרימים את השם או מורידים אותו מתחת לנקודה
-    # לפני שמרימים את השם גבוה (ונהיה רחוק מהנקודה וקרוב ל"יעד"), מנסים אותו מתחת לנקודה או מוזז הצידה (dx)
-    base_c = ([(d, lf, False, 0.0) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True, 0.0) for d in near]
-              + [(d, lf, False, dx) for lf in (0.0, 3.0, 6.0) for dx in (9.0, -9.0, 18.0, -18.0) for d in near[:7]]
-              + [(d, 0.0, True, dx) for dx in (9.0, -9.0, 18.0, -18.0) for d in near[:7]]
-              + [(d, lf, False, 0.0) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True, 0.0) for d in wide]
-              + [(d, lf, False, 0.0) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
+    axis_mode = len(placed) >= RADAR_AXIS_FROM
+    if axis_mode:
+        tick_y = [207.0] * len(ticks)  # בציר: תוויות האחוזים מתחת לקו, כדי שנקודות לא יסתירו אותן
+        dots = _axis_dots(placed, step)
+    else:
+        near, wide = [0.0] + [k * sg for k in range(1, 11) for sg in (1, -1)], [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
+        # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים: קודם מזיזים את הנקודה לאורך הטבעת, אחר כך מרימים את השם או מורידים אותו מתחת לנקודה
+        # לפני שמרימים את השם גבוה (ונהיה רחוק מהנקודה וקרוב ל"יעד"), מנסים אותו מתחת לנקודה או מוזז הצידה (dx)
+        base_c = ([(d, lf, False, 0.0) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True, 0.0) for d in near]
+                  + [(d, lf, False, dx) for lf in (0.0, 3.0, 6.0) for dx in (9.0, -9.0, 18.0, -18.0) for d in near[:7]]
+                  + [(d, 0.0, True, dx) for dx in (9.0, -9.0, 18.0, -18.0) for d in near[:7]]
+                  + [(d, lf, False, 0.0) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True, 0.0) for d in wide]
+                  + [(d, lf, False, 0.0) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
 
-    def geometry(p: dict) -> tuple:
-        rr = 11.0 if p["out"] else 8.0
-        w = max(26.0, len(short_name(p["name"])) * 7.6)
-        rad = math.hypot(p["x"] - _CX, _CY - p["y"])
-        ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
+        def geometry(p: dict) -> tuple:
+            rr = 11.0 if p["out"] else 8.0
+            w = max(26.0, len(short_name(p["name"])) * 7.6)
+            rad = math.hypot(p["x"] - _CX, _CY - p["y"])
+            ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
 
-        def spot(d: float, lift: float, below: bool, dx: float) -> tuple[float, float, float, tuple, tuple]:
-            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר - אף פעם לא מרחיקים או מקרבים נקודה, אחרת המיקום לא תואם את הטבלה),
-            עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה, מוזזת הצידה ב-dx."""
-            th = math.radians(ang + d)
-            x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-            ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
-            return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x + dx - w / 2, ly - 13, w, 17)
-        return spot, (1.0 if p["pnl_pct"] >= 0 else -1.0)  # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל
+            def spot(d: float, lift: float, below: bool, dx: float) -> tuple[float, float, float, tuple, tuple]:
+                """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר - אף פעם לא מרחיקים או מקרבים נקודה, אחרת המיקום לא תואם את הטבלה),
+                עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה, מוזזת הצידה ב-dx."""
+                th = math.radians(ang + d)
+                x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
+                ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
+                return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x + dx - w / 2, ly - 13, w, 17)
+            return spot, (1.0 if p["pnl_pct"] >= 0 else -1.0)  # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל
 
-    geos = [geometry(p) for p in placed]
-    budget = [200000]  # תקרת בדיקות - במצב צפוף במיוחד חוזרים לשיבוץ חמדני במקום לחפש בלי סוף
+        geos = [geometry(p) for p in placed]
+        budget = [200000]  # תקרת בדיקות - במצב צפוף במיוחד חוזרים לשיבוץ חמדני במקום לחפש בלי סוף
 
-    def fits(spot, side, c, taken_now):
-        sp = spot(*c)
-        if (sp[0] - _CX) * side < 6.0 or any(_hit(sp[3], t) for t in taken_now):
-            return None
-        return sp if not any(_hit(sp[4], t) for t in taken_now + tick_pad + [tick_band]) else None
-
-    # הנקודות הקרובות למרכז הן הצפופות והמוגבלות ביותר - משבצים אותן ראשונות, והרחוקות (שיש להן מקום) אחריהן
-    order = sorted(range(len(placed)), key=lambda k: math.hypot(placed[k]["x"] - _CX, _CY - placed[k]["y"]))
-
-    def solve(i: int, taken_now: list) -> list | None:
-        """שיבוץ עם חזרה לאחור: אם נקודה מאוחרת לא מוצאת מקום, מנסים מיקום אחר לקודמות, במקום להשאיר אותה חופפת."""
-        if i == len(order):
-            return []
-        spot, side = geos[order[i]]
-        for c in base_c:
-            budget[0] -= 1
-            if budget[0] < 0:
-                return None
-            sp = fits(spot, side, c, taken_now)
-            if sp is None:
-                continue
-            rest = solve(i + 1, taken_now + [sp[3], sp[4]])
-            if rest is not None:
-                return [(c, sp)] + rest
-        return None
-
-    solved = solve(0, list(taken))
-    if solved is None:  # חמדני: לכל נקודה המיקום הראשון שמתאים, ואם אין - המקום המקורי
-        solved, taken_g = [], list(taken)
-        for k in order:
-            spot, side = geos[k]
-            c = next((c for c in base_c if fits(spot, side, c, taken_g)), (0.0, 0.0, False, 0.0))
+        def fits(spot, side, c, taken_now):
             sp = spot(*c)
-            solved.append((c, sp))
-            taken_g += [sp[3], sp[4]]
-    plan = [None] * len(placed)
-    for k, res in zip(order, solved):
-        plan[k] = res
-    dots = []
-    for p, (c, sp) in zip(placed, plan):
-        p["x"], p["y"], ly, _, _ = sp
-        lx = p["x"] + c[3]
-        label = esc(short_name(p["name"]))
-        if p["out"]:
-            dots.append(
-                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
-                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="9.5" fill="none" stroke="var(--loss)" stroke-width="2.5" opacity=".55"/>'
-                f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--loss)" font-size="14" font-weight="600">{label}</text>'
-            )
-        else:
-            dots.append(
-                f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--ink)" stroke="none"/>'
-                f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
-            )
+            if (sp[0] - _CX) * side < 6.0 or any(_hit(sp[3], t) for t in taken_now):
+                return None
+            return sp if not any(_hit(sp[4], t) for t in taken_now + tick_pad + [tick_band]) else None
+
+        # הנקודות הקרובות למרכז הן הצפופות והמוגבלות ביותר - משבצים אותן ראשונות, והרחוקות (שיש להן מקום) אחריהן
+        order = sorted(range(len(placed)), key=lambda k: math.hypot(placed[k]["x"] - _CX, _CY - placed[k]["y"]))
+
+        def solve(i: int, taken_now: list) -> list | None:
+            """שיבוץ עם חזרה לאחור: אם נקודה מאוחרת לא מוצאת מקום, מנסים מיקום אחר לקודמות, במקום להשאיר אותה חופפת."""
+            if i == len(order):
+                return []
+            spot, side = geos[order[i]]
+            for c in base_c:
+                budget[0] -= 1
+                if budget[0] < 0:
+                    return None
+                sp = fits(spot, side, c, taken_now)
+                if sp is None:
+                    continue
+                rest = solve(i + 1, taken_now + [sp[3], sp[4]])
+                if rest is not None:
+                    return [(c, sp)] + rest
+            return None
+
+        solved = solve(0, list(taken))
+        if solved is None:  # חמדני: לכל נקודה המיקום הראשון שמתאים, ואם אין - המקום המקורי
+            solved, taken_g = [], list(taken)
+            for k in order:
+                spot, side = geos[k]
+                c = next((c for c in base_c if fits(spot, side, c, taken_g)), (0.0, 0.0, False, 0.0))
+                sp = spot(*c)
+                solved.append((c, sp))
+                taken_g += [sp[3], sp[4]]
+        plan = [None] * len(placed)
+        for k, res in zip(order, solved):
+            plan[k] = res
+        dots = []
+        for p, (c, sp) in zip(placed, plan):
+            p["x"], p["y"], ly, _, _ = sp
+            lx = p["x"] + c[3]
+            label = esc(short_name(p["name"]))
+            if p["out"]:
+                dots.append(
+                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
+                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="9.5" fill="none" stroke="var(--loss)" stroke-width="2.5" opacity=".55"/>'
+                    f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--loss)" font-size="14" font-weight="600">{label}</text>'
+                )
+            else:
+                dots.append(
+                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--ink)" stroke="none"/>'
+                    f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
+                )
     tick_html = "".join(f'<text x="{x}" y="{tick_y[i]:.1f}" fill="var(--{col})">{t}</text>' for i, (x, t, col) in enumerate(ticks))
     n_out = sum(1 for p in placed if p["out"])
     aria = "רדאר אחזקות לפי רווח והפסד. צד שמאל הפסד, צד ימין רווח." + (f" {n_out} אחזקות חצו את הסטופ שלהן." if n_out else "")
