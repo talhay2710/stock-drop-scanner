@@ -389,5 +389,34 @@ class ForwardTestSummary(unittest.TestCase):
         self.assertEqual((s["alerts"], s["pending"]), (1, 1))
 
 
+class OwnCloseGapPatch(unittest.TestCase):
+    """prev_close_gap: כשיש סגירה עצמאית של יום המסחר שלפני last_close_date - משלימים ממנה את הבסיס להשוואה (28.10.2026)."""
+
+    def setUp(self):
+        from src import scanner
+        self.scanner = scanner
+        self.conn = store.get_conn(os.path.join(tempfile.mkdtemp(), "t.db"))
+
+    def _df(self):
+        import pandas as pd
+        return pd.DataFrame([{
+            "ticker": "LUMI.TA", "last_close": 71.28, "prev_close": 74.76, "pct_change": -4.65,
+            "last_close_date": dt.date(2026, 10, 28), "prev_close_date": dt.date(2026, 10, 26), "prev_close_gap": True,
+        }])
+
+    def test_gap_filled_from_own_close(self):
+        store.record_own_close(self.conn, "LUMI.TA", "2026-10-27", 74.50)
+        out = self.scanner._patch_gap_from_own_closes(self.conn, self._df())
+        r = out.iloc[0]
+        self.assertFalse(bool(r["prev_close_gap"]))
+        self.assertAlmostEqual(r["prev_close"], 74.50)
+        self.assertAlmostEqual(r["pct_change"], (71.28 / 74.50 - 1) * 100, places=4)
+
+    def test_gap_kept_without_own_close(self):
+        out = self.scanner._patch_gap_from_own_closes(self.conn, self._df())
+        self.assertTrue(bool(out.iloc[0]["prev_close_gap"]))
+        self.assertAlmostEqual(out.iloc[0]["pct_change"], -4.65)
+
+
 if __name__ == "__main__":
     unittest.main()

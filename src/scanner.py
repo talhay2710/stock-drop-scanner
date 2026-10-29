@@ -620,6 +620,57 @@ def _record_quality(conn, index: str, total: int, stale: int, thin: int) -> None
         logger.warning("רישום איכות הסריקה נכשל: %s", e)
 
 
+def _record_own_closes_all(conn, df: pd.DataFrame, country_code: str) -> None:
+    """אחרי סגירת המסחר רושמים בעצמנו את הסגירה של *כל* מניה שנסרקת (לא רק אחזקות) - כך שכש-yfinance מדלגת על יום מסחר
+    (27.10.2026: אין שורה ל-27.10 לאף מניה בת"א) אפשר להשלים את הבסיס להשוואה מהרישום שלנו (ר' _patch_gap_from_own_closes)."""
+    try:
+        if not has_closed_today(country_code):
+            return
+        tz = ZoneInfo(market_data.MARKET_HOURS[country_code]["tz"])
+        today = dt.datetime.now(tz).date()
+        now_iso = dt.datetime.now().isoformat(timespec="seconds")
+        rows = [
+            (r["ticker"], r["last_close_date"].isoformat(), float(r["last_close"]), now_iso)
+            for _, r in df.iterrows()
+            if r.get("last_close_date") == today and pd.notna(r.get("last_close")) and not r.get("thin_print", False)
+        ]
+        if rows:
+            conn.executemany(
+                "INSERT INTO own_daily_closes (ticker, close_date, close_price, recorded_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(ticker, close_date) DO UPDATE SET close_price = excluded.close_price, recorded_at = excluded.recorded_at",
+                rows,
+            )
+            conn.commit()
+    except Exception as e:  # רישום עזר - לעולם לא מפיל סריקה
+        logger.warning("רישום סגירות עצמאיות נכשל: %s", e)
+
+
+def _patch_gap_from_own_closes(conn, df: pd.DataFrame) -> pd.DataFrame:
+    """טיקר עם prev_close_gap (חור בהיסטוריה של yfinance): אם רשמנו בעצמנו את הסגירה של יום המסחר שמיד לפני last_close_date,
+    משתמשים בה כבסיס להשוואה - כך הירידה נמדדת כירידה של יום אחד ולא נחשבת כירידה רב-יומית שמתחת לסף (28.10.2026: פועלים
+    ולאומי ירדו 4.5% ולא קיבלו התראה)."""
+    if df.empty or "prev_close_gap" not in df.columns:
+        return df
+    try:
+        gapped = df[df["prev_close_gap"].fillna(False).astype(bool)]
+        for idx in gapped.index:
+            ticker, lcd = df.at[idx, "ticker"], df.at[idx, "last_close_date"]
+            expected = market_data._expected_last_close_date(lcd, ticker)
+            row = conn.execute(
+                "SELECT close_price FROM own_daily_closes WHERE ticker = ? AND close_date = ?", (ticker, expected.isoformat())
+            ).fetchone()
+            if row and row[0]:
+                prev, last = float(row[0]), float(df.at[idx, "last_close"])
+                df.at[idx, "prev_close"] = prev
+                df.at[idx, "prev_close_date"] = expected
+                df.at[idx, "pct_change"] = (last / prev - 1.0) * 100.0
+                df.at[idx, "prev_close_gap"] = False
+                logger.info("%s: בסיס ההשוואה הושלם מסגירה עצמאית של %s (%.2f)", ticker, expected, prev)
+    except Exception as e:  # לעולם לא מפיל סריקה - במקרה כשל נשארים עם הנתון המקורי
+        logger.warning("השלמת פער מסגירות עצמאיות נכשלה: %s", e)
+    return df
+
+
 def _scan_one_index(
     cfg: dict, index: str, conn, vix_level: float | None = None,
     holdings_value_by_ccy: dict[str, float] | None = None,
@@ -671,6 +722,9 @@ def _scan_one_index(
         logger.warning("כל נתוני המחיר עבור %s התבררו כישנים מדי - דילוג על הסבב הזה", index)
         _record_quality(conn, index, _total_scanned, _n_stale, 0)
         return []
+
+    _record_own_closes_all(conn, df, country_code)
+    df = _patch_gap_from_own_closes(conn, df)
 
     multi_day_window = cfg.get("multi_day_window_days", 3)
     multi_day_threshold = abs(cfg.get("multi_day_threshold_pct", 5.0))
