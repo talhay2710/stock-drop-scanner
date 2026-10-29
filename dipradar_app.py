@@ -2427,8 +2427,13 @@ def _compute_portfolio_summaries(holdings_df: pd.DataFrame):
             if _bought_date and _last_close_date and _bought_date >= _last_close_date and not _same_day_before_close:
                 continue
             _baseline = _prev_close
+            _same_day_before_prev_close = bool(
+                _bought_date and _prev_close_date and _bought_date == _prev_close_date and _bought_dt is not None
+                and not bought_after_close(constituents.INDEX_COUNTRY_CODE.get(_r.get("index_name"), "IL"), _bought_dt)
+            )
             _using_entry_baseline2 = bool(
                 _bought_date and _prev_close_date and _bought_date >= _prev_close_date and _r.get("actual_entry_price")
+                and not _same_day_before_prev_close
             )
             if _using_entry_baseline2:
                 _baseline = _r["actual_entry_price"]
@@ -6422,8 +6427,15 @@ def _build_holding_rows(holdings: pd.DataFrame) -> list[dict]:
         if current is not None and _dr is not None:
             _prev_close, _prev_close_date = _dr.get("prev_close"), _dr.get("prev_close_date")
             _baseline = _prev_close
+            # קנייה באמצע יום המסחר של prev_close (לפני הסגירה) - הסגירה באה
+            # אחרי הקנייה, אז היא הבסיס הנכון ולא שער הכניסה (כמו בסיכום התיק)
+            _same_day_before_close3 = bool(
+                bought_date and _prev_close_date and bought_date == _prev_close_date
+                and not bought_after_close(country_code, bought_dt)
+            )
             _using_entry_baseline = bool(
                 bought_date and _prev_close_date and bought_date >= _prev_close_date and entry
+                and not _same_day_before_close3
             )
             if _using_entry_baseline:
                 _baseline = entry
