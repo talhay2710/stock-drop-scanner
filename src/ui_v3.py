@@ -23,8 +23,8 @@ _DROP_FIRST = {"קבוצת"}  # "קבוצת אקרשטיין" -> "אקרשטיי
 
 
 def short_name(name) -> str:
-    """שם מניה מקוצר: מילה אחת ("אלביט מערכות" -> "אלביט", "Intel Corporation" -> "Intel").
-    אם המילה הראשונה כללית (בנק, קבוצת...) לוקחים גם את השנייה ("בנק הפועלים")."""
+    """שם מניה מקוצר: תמיד מילה אחת ("אלביט מערכות" -> "אלביט", "Intel Corporation" -> "Intel").
+    אם המילה הראשונה כללית (בנק, קבוצת...) לוקחים את השנייה, בלי ה' הידיעה ("בנק הפועלים" -> "פועלים", "בנק לאומי" -> "לאומי")."""
     text = fix_name(str(name if name is not None else "").strip())
     if not text:
         return ""
@@ -33,7 +33,10 @@ def short_name(name) -> str:
     if first in _DROP_FIRST and len(words) > 1:
         return words[1].strip(",.;")
     if first in _GENERIC_FIRST and len(words) > 1:
-        return f"{first} {words[1].strip(',.;')}"
+        second = words[1].strip(",.;")
+        if len(second) > 3 and second.startswith("ה") and re.search(r"[֐-׿]", second):
+            second = second[1:]  # "הפועלים" -> "פועלים"
+        return second
     # שם עברי שמורכב מאותיות מילוליות קצרות ("איי סי אל", "אי בי אי") - לוקחים את כולן ולא רק "איי"
     if len(first) <= 3 and re.search(r"[֐-׿]", first):
         out = [first]
@@ -267,23 +270,25 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
         rad = math.hypot(p["x"] - _CX, _CY - p["y"])
         ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
 
-        def spot(d: float, lift: float = 0.0, below: bool = False) -> tuple[float, float, float, tuple, tuple]:
+        def spot(d: float, lift: float = 0.0, below: bool = False, dr: float = 0.0) -> tuple[float, float, float, tuple, tuple]:
             """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה."""
             th = math.radians(ang + d)
-            x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
+            x, y = _CX + (rad + dr) * math.cos(th), _CY - (rad + dr) * math.sin(th)
             ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
             return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
 
         # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
         # לפני שמרימים את השם גבוה (ונהיה רחוק מהנקודה וקרוב ל"יעד"), מנסים אותו מתחת לנקודה
         near, wide = [0.0] + [k * sg for k in range(1, 11) for sg in (1, -1)], [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
-        cands = ([(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True) for d in near]
-                 + [(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True) for d in wide]
-                 + [(d, lf, False) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
-        pick, lift, below = next(((d, lf, bl) for d, lf, bl in cands
-                                  if not any(_hit(spot(d, lf, bl)[3], t) for t in taken)
-                                  and not any(_hit(spot(d, lf, bl)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0, False))
-        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift, below)
+        base_c = ([(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True) for d in near]
+                  + [(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True) for d in wide]
+                  + [(d, lf, False) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
+        # נקודות קרובות מאוד למרכז (רווח/הפסד כמעט 0) אי אפשר להפריד בסיבוב על הטבעת - אם אין מקום, מרחיקים אותן קצת החוצה
+        cands = [(d, lf, bl, dr) for dr in (0.0, 12.0, 24.0, 36.0) for d, lf, bl in base_c]
+        pick, lift, below, dr_pick = next(((d, lf, bl, dr) for d, lf, bl, dr in cands
+                                           if not any(_hit(spot(d, lf, bl, dr)[3], t) for t in taken)
+                                           and not any(_hit(spot(d, lf, bl, dr)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0, False, 0.0))
+        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift, below, dr_pick)
         taken += [dbox, lbox]
         if p["out"]:
             dots.append(
