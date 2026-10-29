@@ -15,3 +15,5 @@ alert_id,reason
 1069,baseline corrected 2026-10-05 (gapped prev_close; not a real drop signal)
 1071,baseline corrected 2026-10-05 (gapped prev_close; not a real drop signal)
 1072,baseline corrected 2026-10-05 (gapped prev_close; not a real drop signal)
+1557,manual position entry 2026-10-28 (stock without a scanner alert; not a strategy signal)
+1558,manual position entry 2026-10-28 (stock without a scanner alert; not a strategy signal)
