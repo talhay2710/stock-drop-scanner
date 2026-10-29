@@ -318,16 +318,19 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                 x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
                 ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
                 return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x + dx - w / 2, ly - 13, w, 17)
-            return spot, (1.0 if p["pnl_pct"] >= 0 else -1.0)  # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל
+            # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל (נקודה כמעט באפס לא יכולה להתרחק 6 יחידות מהציר - לה מספיק חצי מהרדיוס שלה)
+            return spot, (1.0 if p["pnl_pct"] >= 0 else -1.0), min(6.0, rad * 0.5)
 
         geos = [geometry(p) for p in placed]
         budget = [200000]  # תקרת בדיקות - במצב צפוף במיוחד חוזרים לשיבוץ חמדני במקום לחפש בלי סוף
 
-        def fits(spot, side, c, taken_now):
+        def fits(spot, side, minx, c, taken_now):
+            """taken_now = (תוויות ותיבות קבועות, נקודות). נקודה לא חייבת להתרחק מנקודה אחרת (שתיהן באותו מקום כשהרווח זהה) - רק מתוויות; תווית מתרחקת מהכל."""
             sp = spot(*c)
-            if (sp[0] - _CX) * side < 6.0 or any(_hit(sp[3], t) for t in taken_now):
+            labels, dots_ = taken_now
+            if (sp[0] - _CX) * side < minx or any(_hit(sp[3], t) for t in labels):
                 return None
-            return sp if not any(_hit(sp[4], t) for t in taken_now + tick_pad + [tick_band]) else None
+            return sp if not any(_hit(sp[4], t) for t in labels + dots_ + tick_pad + [tick_band]) else None
 
         # הנקודות הקרובות למרכז הן הצפופות והמוגבלות ביותר - משבצים אותן ראשונות, והרחוקות (שיש להן מקום) אחריהן
         order = sorted(range(len(placed)), key=lambda k: math.hypot(placed[k]["x"] - _CX, _CY - placed[k]["y"]))
@@ -336,28 +339,28 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
             """שיבוץ עם חזרה לאחור: אם נקודה מאוחרת לא מוצאת מקום, מנסים מיקום אחר לקודמות, במקום להשאיר אותה חופפת."""
             if i == len(order):
                 return []
-            spot, side = geos[order[i]]
+            spot, side, minx = geos[order[i]]
             for c in base_c:
                 budget[0] -= 1
                 if budget[0] < 0:
                     return None
-                sp = fits(spot, side, c, taken_now)
+                sp = fits(spot, side, minx, c, taken_now)
                 if sp is None:
                     continue
-                rest = solve(i + 1, taken_now + [sp[3], sp[4]])
+                rest = solve(i + 1, (taken_now[0] + [sp[4]], taken_now[1] + [sp[3]]))
                 if rest is not None:
                     return [(c, sp)] + rest
             return None
 
-        solved = solve(0, list(taken))
+        solved = solve(0, (list(taken), []))
         if solved is None:  # חמדני: לכל נקודה המיקום הראשון שמתאים, ואם אין - המקום המקורי
-            solved, taken_g = [], list(taken)
+            solved, taken_g = [], (list(taken), [])
             for k in order:
-                spot, side = geos[k]
-                c = next((c for c in base_c if fits(spot, side, c, taken_g)), (0.0, 0.0, False, 0.0))
+                spot, side, minx = geos[k]
+                c = next((c for c in base_c if fits(spot, side, minx, c, taken_g)), (0.0, 0.0, False, 0.0))
                 sp = spot(*c)
                 solved.append((c, sp))
-                taken_g += [sp[3], sp[4]]
+                taken_g = (taken_g[0] + [sp[4]], taken_g[1] + [sp[3]])
         plan = [None] * len(placed)
         for k, res in zip(order, solved):
             plan[k] = res
