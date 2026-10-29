@@ -285,8 +285,10 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                   + [(d, lf, False) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
         # נקודות קרובות מאוד למרכז (רווח/הפסד כמעט 0) אי אפשר להפריד בסיבוב על הטבעת - אם אין מקום, מרחיקים אותן קצת החוצה
         cands = [(d, lf, bl, dr) for dr in (0.0, 12.0, 24.0, 36.0) for d, lf, bl in base_c]
+        side = 1.0 if p["pnl_pct"] >= 0 else -1.0  # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל - הסטה לאורך הטבעת לא חוצה אותו
         pick, lift, below, dr_pick = next(((d, lf, bl, dr) for d, lf, bl, dr in cands
-                                           if not any(_hit(spot(d, lf, bl, dr)[3], t) for t in taken)
+                                           if (spot(d, lf, bl, dr)[0] - _CX) * side >= 6.0
+                                           and not any(_hit(spot(d, lf, bl, dr)[3], t) for t in taken)
                                            and not any(_hit(spot(d, lf, bl, dr)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0, False, 0.0))
         p["x"], p["y"], ly, dbox, lbox = spot(pick, lift, below, dr_pick)
         taken += [dbox, lbox]
