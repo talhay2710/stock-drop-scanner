@@ -121,7 +121,7 @@ class AlertRollback(unittest.TestCase):
 class ExcludedAlerts(unittest.TestCase):
     def test_exclusion_list_loaded(self):
         ids = store.excluded_alert_ids()
-        self.assertEqual(len(ids), 16)
+        self.assertEqual(len(ids), 18)  # 16 baseline-corrected + 2 manual position entries (LUMI/POLI, 28.10.2026)
         self.assertIn("NOT IN", store.exclusion_clause())
 
 
