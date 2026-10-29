@@ -262,46 +262,86 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
     pad = lambda b, k: (b[0] - k, b[1] - 2, b[2] + 2 * k, b[3] + 4)
     tick_band = (14.0, 181.0, 352.0, 17.0)  # שורת תוויות האחוזים לכל רוחבה - שמות מניות לא נכנסים אליה בכלל
     tick_pad = [pad(tick_box(i), 14.0) for i in range(len(ticks))]  # שוליים סביב תוויות האחוזים - שמות לא מתקרבים אליהן
-    dots = []
-    for p in placed:
-        label = esc(short_name(p["name"]))
-        w = max(26.0, len(short_name(p["name"])) * 7.6)
+    near, wide = [0.0] + [k * sg for k in range(1, 11) for sg in (1, -1)], [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
+    # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים: קודם מזיזים את הנקודה לאורך הטבעת, אחר כך מרימים את השם או מורידים אותו מתחת לנקודה
+    # לפני שמרימים את השם גבוה (ונהיה רחוק מהנקודה וקרוב ל"יעד"), מנסים אותו מתחת לנקודה או מוזז הצידה (dx)
+    base_c = ([(d, lf, False, 0.0) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True, 0.0) for d in near]
+              + [(d, lf, False, dx) for lf in (0.0, 3.0, 6.0) for dx in (9.0, -9.0, 18.0, -18.0) for d in near[:7]]
+              + [(d, 0.0, True, dx) for dx in (9.0, -9.0, 18.0, -18.0) for d in near[:7]]
+              + [(d, lf, False, 0.0) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True, 0.0) for d in wide]
+              + [(d, lf, False, 0.0) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
+
+    def geometry(p: dict) -> tuple:
         rr = 11.0 if p["out"] else 8.0
+        w = max(26.0, len(short_name(p["name"])) * 7.6)
         rad = math.hypot(p["x"] - _CX, _CY - p["y"])
         ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
 
-        def spot(d: float, lift: float = 0.0, below: bool = False, dr: float = 0.0) -> tuple[float, float, float, tuple, tuple]:
-            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר), עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה."""
+        def spot(d: float, lift: float, below: bool, dx: float) -> tuple[float, float, float, tuple, tuple]:
+            """נקודה שמוסטת ב-d מעלות על אותה טבעת (הרדיוס = הרווח/הפסד נשמר - אף פעם לא מרחיקים או מקרבים נקודה, אחרת המיקום לא תואם את הטבלה),
+            עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה, מוזזת הצידה ב-dx."""
             th = math.radians(ang + d)
-            x, y = _CX + (rad + dr) * math.cos(th), _CY - (rad + dr) * math.sin(th)
+            x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
             ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
-            return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x - w / 2, ly - 13, w, 17)
+            return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x + dx - w / 2, ly - 13, w, 17)
+        return spot, (1.0 if p["pnl_pct"] >= 0 else -1.0)  # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל
 
-        # השם תמיד מעל הנקודה ולעולם לא בשורת תוויות האחוזים (לא רק כשהוא חופף להן כרגע): קודם מזיזים את הנקודה לאורך הטבעת, ורק אם אי אפשר (נקודה במרכז) מרימים את השם
-        # לפני שמרימים את השם גבוה (ונהיה רחוק מהנקודה וקרוב ל"יעד"), מנסים אותו מתחת לנקודה
-        near, wide = [0.0] + [k * sg for k in range(1, 11) for sg in (1, -1)], [0.0] + [k * sg for k in range(1, 91) for sg in (1, -1)]
-        base_c = ([(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in near] + [(d, 0.0, True) for d in near]
-                  + [(d, lf, False) for lf in (0.0, 3.0, 6.0) for d in wide] + [(d, 0.0, True) for d in wide]
-                  + [(d, lf, False) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
-        # הרדיוס הוא הרווח/הפסד עצמו - אף פעם לא מרחיקים או מקרבים נקודה כדי לפנות מקום (רק מסובבים על הטבעת), אחרת המיקום לא תואם את הטבלה
-        cands = [(d, lf, bl, dr) for dr in (0.0,) for d, lf, bl in base_c]
-        side = 1.0 if p["pnl_pct"] >= 0 else -1.0  # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל - הסטה לאורך הטבעת לא חוצה אותו
-        pick, lift, below, dr_pick = next(((d, lf, bl, dr) for d, lf, bl, dr in cands
-                                           if (spot(d, lf, bl, dr)[0] - _CX) * side >= 6.0
-                                           and not any(_hit(spot(d, lf, bl, dr)[3], t) for t in taken)
-                                           and not any(_hit(spot(d, lf, bl, dr)[4], t) for t in taken + tick_pad + [tick_band])), (0.0, 0.0, False, 0.0))
-        p["x"], p["y"], ly, dbox, lbox = spot(pick, lift, below, dr_pick)
-        taken += [dbox, lbox]
+    geos = [geometry(p) for p in placed]
+    budget = [200000]  # תקרת בדיקות - במצב צפוף במיוחד חוזרים לשיבוץ חמדני במקום לחפש בלי סוף
+
+    def fits(spot, side, c, taken_now):
+        sp = spot(*c)
+        if (sp[0] - _CX) * side < 6.0 or any(_hit(sp[3], t) for t in taken_now):
+            return None
+        return sp if not any(_hit(sp[4], t) for t in taken_now + tick_pad + [tick_band]) else None
+
+    # הנקודות הקרובות למרכז הן הצפופות והמוגבלות ביותר - משבצים אותן ראשונות, והרחוקות (שיש להן מקום) אחריהן
+    order = sorted(range(len(placed)), key=lambda k: math.hypot(placed[k]["x"] - _CX, _CY - placed[k]["y"]))
+
+    def solve(i: int, taken_now: list) -> list | None:
+        """שיבוץ עם חזרה לאחור: אם נקודה מאוחרת לא מוצאת מקום, מנסים מיקום אחר לקודמות, במקום להשאיר אותה חופפת."""
+        if i == len(order):
+            return []
+        spot, side = geos[order[i]]
+        for c in base_c:
+            budget[0] -= 1
+            if budget[0] < 0:
+                return None
+            sp = fits(spot, side, c, taken_now)
+            if sp is None:
+                continue
+            rest = solve(i + 1, taken_now + [sp[3], sp[4]])
+            if rest is not None:
+                return [(c, sp)] + rest
+        return None
+
+    solved = solve(0, list(taken))
+    if solved is None:  # חמדני: לכל נקודה המיקום הראשון שמתאים, ואם אין - המקום המקורי
+        solved, taken_g = [], list(taken)
+        for k in order:
+            spot, side = geos[k]
+            c = next((c for c in base_c if fits(spot, side, c, taken_g)), (0.0, 0.0, False, 0.0))
+            sp = spot(*c)
+            solved.append((c, sp))
+            taken_g += [sp[3], sp[4]]
+    plan = [None] * len(placed)
+    for k, res in zip(order, solved):
+        plan[k] = res
+    dots = []
+    for p, (c, sp) in zip(placed, plan):
+        p["x"], p["y"], ly, _, _ = sp
+        lx = p["x"] + c[3]
+        label = esc(short_name(p["name"]))
         if p["out"]:
             dots.append(
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="9.5" fill="none" stroke="var(--loss)" stroke-width="2.5" opacity=".55"/>'
-                f'<text x="{p["x"]:.0f}" y="{ly:.0f}" fill="var(--loss)" font-size="14" font-weight="600">{label}</text>'
+                f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--loss)" font-size="14" font-weight="600">{label}</text>'
             )
         else:
             dots.append(
                 f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--ink)" stroke="none"/>'
-                f'<text x="{p["x"]:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
+                f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--ink)">{label}</text>'
             )
     tick_html = "".join(f'<text x="{x}" y="{tick_y[i]:.1f}" fill="var(--{col})">{t}</text>' for i, (x, t, col) in enumerate(ticks))
     n_out = sum(1 for p in placed if p["out"])
