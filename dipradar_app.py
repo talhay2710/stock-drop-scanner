@@ -7309,10 +7309,7 @@ def _render_journal_v3() -> None:
     ]
     if rows:
         _pcts = pd.Series([r["pct"] for r in rows], dtype=float)  # תשואה (ברוטו כברירת מחדל - רק נטו מצוין במפורש) לעסקה
-        cells.append((
-            "תשואה ממוצעת", ui_v3.signed(float(_pcts.mean()), 1, "%"), ui_v3.cls_for(float(_pcts.mean())),
-            f"חציון {ui_v3.num(ui_v3.signed(float(_pcts.median()), 1, '%'))}",
-        ))
+        cells.append(("תשואה ממוצעת", ui_v3.signed(float(_pcts.mean()), 1, "%"), ui_v3.cls_for(float(_pcts.mean()))))
     for ccy, grp in df_h.groupby("currency"):
         g, n = float(grp["gross_pnl"].sum()), float(grp["net_pnl"].sum())
         cells.append(("רווח/הפסד כולל", ui_v3.signed(g), ui_v3.cls_for(g)))
