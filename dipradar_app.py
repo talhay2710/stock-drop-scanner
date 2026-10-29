@@ -7303,9 +7303,9 @@ def _render_journal_v3() -> None:
     rate = round(wins / total * 100) if total else 0
     cells = [
         ("סה\"כ עסקאות סגורות", str(total), ""),
-        ("חציון ימי החזקה", f"{float(pd.Series([r['days'] for r in rows]).median()):g}" if rows else "—", ""),
         ("עסקאות ברווח", str(wins), "up"),
         ("שיעור הצלחה", f"{rate}%", "up" if rate >= 50 else "down"),
+        ("חציון ימי החזקה", f"{float(pd.Series([r['days'] for r in rows]).median()):g}" if rows else "—", ""),
     ]
     if rows:
         _pcts = pd.Series([r["pct"] for r in rows], dtype=float)  # תשואה (ברוטו כברירת מחדל - רק נטו מצוין במפורש) לעסקה
