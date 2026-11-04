@@ -6700,6 +6700,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS,
                             get_holding_sparkline(r["ticker"], r.get("bought_at")), r.get("entry") or None,
                             (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""), out, is_open, r.get("net_pnl"),
+                            _tgt_gap is not None and _tgt_gap < 0 and not out,
                         ) + "</div>", unsafe_allow_html=True,
                     )
                     if st.button(" ", key=f"v3_open_holding_{rid}"):
@@ -7997,6 +7998,7 @@ def _render_home_v3() -> None:
                 "daily_amt": (r["current_value"] - r["current_value"] / (1 + r["daily_pct"] / 100))
                 if (r.get("current_value") is not None and r.get("daily_pct") is not None and r["daily_pct"] > -100) else None,
                 "stop_pct": ((stop / r["entry"] - 1) * 100) if stop else None,
+                "tgt_pct": ((_tp / r["entry"] - 1) * 100) if (stop and (_tp := live_target_price(r["entry"], stop, r.get("forecast_target")))) else strategy_mod.target_pct(),
             })
         chart_html = ""
         if rows:

@@ -224,7 +224,7 @@ def _spread(n: int, lo: float, hi: float) -> list[float]:
 
 
 def radar_positions(rows: list[dict], step: float = 3.0) -> list[dict]:
-    """מוסיף לכל שורה x/y/label_y/out לפי pnl_pct ו-stop_pct האישי (ההילה האדומה = חצתה את הסטופ של עצמה)."""
+    """מוסיף לכל שורה x/y/label_y/out/hit לפי pnl_pct, stop_pct ו-tgt_pct האישיים (הילה אדומה = חצתה את הסטופ של עצמה, ירוקה = עברה את היעד)."""
     losers = sorted([r for r in rows if r["pnl_pct"] < 0], key=lambda r: -r["pnl_pct"])
     winners = sorted([r for r in rows if r["pnl_pct"] >= 0], key=lambda r: -r["pnl_pct"])
     placed = []
@@ -239,7 +239,9 @@ def radar_positions(rows: list[dict], step: float = 3.0) -> list[dict]:
             y = _CY - rad * math.sin(theta)
             stop = r.get("stop_pct")
             out = stop is not None and r["pnl_pct"] < stop
-            placed.append({**r, "x": x, "y": y, "out": out, "below": y > 300})
+            tgt = r.get("tgt_pct")
+            hit = (not out) and tgt is not None and r["pnl_pct"] >= tgt  # עברה את היעד - מודגשת כמו חציית סטופ, בירוק
+            placed.append({**r, "x": x, "y": y, "out": out, "hit": hit, "flag": out or hit, "below": y > 300})
     return placed
 
 
@@ -257,7 +259,7 @@ def _axis_dots(placed: list[dict], step: float) -> list[str]:
     items = []
     for p in sorted(placed, key=lambda r: abs(r["pnl_pct"])):
         nm = short_name(p["name"])
-        items.append({"x": _CX + max(-_R_MAX, min(_R_MAX, p["pnl_pct"] * k)), "w": max(26.0, len(nm) * 7.6) + 6.0, "nm": nm, "out": p["out"]})
+        items.append({"x": _CX + max(-_R_MAX, min(_R_MAX, p["pnl_pct"] * k)), "w": max(26.0, len(nm) * 7.6) + 6.0, "nm": nm, "out": p["out"], "hit": p["hit"], "flag": p["flag"]})
     levels = [lv for n in range(1, 13) for lv in (n, -n)]  # שורה 1 מעל הציר, -1 מתחתיו, וכן הלאה
     used: dict[int, list[tuple[float, float]]] = {3: [(203.0, 242.0)], 4: [(203.0, 242.0)]}  # שורות 3-4 מעל הציר עוברות ליד התווית "יעד"
     out = []
@@ -266,9 +268,9 @@ def _axis_dots(placed: list[dict], step: float) -> list[str]:
         lv = next((lv for lv in levels if all(x1 <= a or x0 >= b for a, b in used.get(lv, []))), levels[-1])
         used.setdefault(lv, []).append((x0, x1))
         ty = _CY - 16 - (lv - 1) * 19 if lv > 0 else _CY + 30 + (-lv - 1) * 19
-        col = "var(--loss)" if it["out"] else "var(--ink)"
+        col = "var(--loss)" if it["out"] else ("var(--gain)" if it["hit"] else "var(--ink)")
         stem_end = ty + 4 if lv > 0 else ty - 14
-        style = ' font-size="14" font-weight="600"' if it["out"] else ""
+        style = ' font-size="14" font-weight="600"' if it["flag"] else ""
         out.append(
             f'<line x1="{it["x"]:.1f}" y1="{_CY}" x2="{it["x"]:.1f}" y2="{stem_end}" stroke="{col}" stroke-width="1" opacity=".55"/>'
             f'<circle cx="{it["x"]:.1f}" cy="{_CY}" r="2.5" fill="{col}"/>'
@@ -306,7 +308,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                   + [(d, lf, False, 0.0) for lf in (9.0, 12.0, 15.0, 20.0, 30.0) for d in wide])
 
         def geometry(p: dict) -> tuple:
-            rr = 11.0 if p["out"] else 8.0
+            rr = 11.0 if p["flag"] else 8.0
             w = max(26.0, len(short_name(p["name"])) * 7.6)
             rad = math.hypot(p["x"] - _CX, _CY - p["y"])
             ang = math.degrees(math.atan2(_CY - p["y"], p["x"] - _CX))
@@ -316,7 +318,7 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
                 עם תיבת הנקודה ותיבת התווית שמעליה (מורמת ב-lift) או מתחתיה, מוזזת הצידה ב-dx."""
                 th = math.radians(ang + d)
                 x, y = _CX + rad * math.cos(th), _CY - rad * math.sin(th)
-                ly = y + rr + 13 if below else y - (14 if p["out"] else 11) - lift
+                ly = y + rr + 13 if below else y - (14 if p["flag"] else 11) - lift
                 return x, y, ly, (x - rr, y - rr, 2 * rr, 2 * rr), (x + dx - w / 2, ly - 13, w, 17)
             # רווח תמיד ימין הציר האנכי, הפסד תמיד שמאל (נקודה כמעט באפס לא יכולה להתרחק 6 יחידות מהציר - לה מספיק חצי מהרדיוס שלה)
             return spot, (1.0 if p["pnl_pct"] >= 0 else -1.0), min(6.0, rad * 0.5)
@@ -369,11 +371,12 @@ def holdings_radar(rows: list[dict], step: float = 3.0) -> str:
             p["x"], p["y"], ly, _, _ = sp
             lx = p["x"] + c[3]
             label = esc(short_name(p["name"]))
-            if p["out"]:
+            if p["flag"]:
+                col = "var(--loss)" if p["out"] else "var(--gain)"
                 dots.append(
-                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="var(--loss)" stroke="none"/>'
-                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="9.5" fill="none" stroke="var(--loss)" stroke-width="2.5" opacity=".55"/>'
-                    f'<text x="{lx:.0f}" y="{ly:.0f}" fill="var(--loss)" font-size="14" font-weight="600">{label}</text>'
+                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="6" fill="{col}" stroke="none"/>'
+                    f'<circle cx="{p["x"]:.0f}" cy="{p["y"]:.0f}" r="9.5" fill="none" stroke="{col}" stroke-width="2.5" opacity=".55"/>'
+                    f'<text x="{lx:.0f}" y="{ly:.0f}" fill="{col}" font-size="14" font-weight="600">{label}</text>'
                 )
             else:
                 dots.append(
@@ -422,7 +425,7 @@ def stop_target_ladder(rows: list[dict]) -> str:
         ticks = (f'<i class="tk s" style="left:{x(stop):.2f}%"></i>' if stop is not None else "") +                 f'<i class="tk" style="left:{x(0):.2f}%"></i>' +                 (f'<i class="tk t" style="left:{x(tgt):.2f}%"></i>' if tgt is not None else "")
         cls = "out" if below else ("hit" if above else "")
         out.append(
-            f'<div class="lr"><span class="ln{" out" if below else ""}">{esc(short_name(r["name"]))}</span>'
+            f'<div class="lr"><span class="ln{" out" if below else (" hit" if above else "")}">{esc(short_name(r["name"]))}</span>'
             f'<div class="lt">{seg_l}{seg_g}{ticks}<b class="mk {cls}" style="left:{x(pnl):.2f}%"></b></div>'
             f'<span class="lv {cls_for(pnl)}">{num(signed(pnl, 1, "%"))}</span></div>'
         )
@@ -468,6 +471,7 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
     head_date = daily_head_date([r.get("daily_pct_date") for r in rows])
     for r in sorted(rows, key=lambda r: -r["pnl_pct"]):
         is_out = r.get("stop_pct") is not None and r["pnl_pct"] < r["stop_pct"]
+        is_hit = (not is_out) and r.get("tgt_pct") is not None and r["pnl_pct"] >= r["tgt_pct"]
         daily = r.get("daily_pct")
         by_value = unit == "value" and r.get("pnl_amt") is not None
         if daily is None:
@@ -481,7 +485,7 @@ def holdings_rows(rows: list[dict], unit: str = "pct") -> str:
         else:
             pl_html = f'<span class="pl {cls_for(r["pnl_pct"])}">{num(signed(r["pnl_pct"], 1, "%"))}</span>'
         out.append(
-            f'<div class="row{" out" if is_out else ""}"><span class="nm">{esc(short_name(r["name"]))}</span>'
+            f'<div class="row{" out" if is_out else (" hit" if is_hit else "")}"><span class="nm">{esc(short_name(r["name"]))}</span>'
             f'{pl_html}{daily_html}</div>'
         )
     first = "<span>רווח/הפסד</span>" if unit == "value" else "<span>תשואה</span>"
@@ -626,6 +630,7 @@ COMPONENT_CSS = """
         .v3h .row .st { font-size:14px; color:var(--dim); }
         .v3h .row .st.up { color:var(--gain); } .v3h .row .st.down { color:var(--loss); }
         .v3h .row.out .nm { font-weight:600; color:var(--loss); } .v3h .row.out .pl { font-weight:600; }
+        .v3h .row.hit .nm { font-weight:600; color:var(--gain); } .v3h .row.hit .pl { font-weight:600; }
         .v3h .legend { display:flex; gap:20px; font-size:13px; color:var(--dim); align-items:center; }
         .v3h .legend span { display:inline-flex; align-items:center; }
         .v3h .legend i { display:block; width:16px; height:0; flex:none; margin-inline-start:8px; border-top:2px solid var(--accent); }
@@ -944,7 +949,7 @@ def hold_head(day_label: str = "היום") -> str:
 def hold_row(name: str, mono: str, sym: str, value: float | None, share: float | None, pnl_amt: float | None, pnl_pct: float,
              day_amt: float | None, day_pct: float | None, stop_gap: float | None, tgt_gap: float | None,
              held: int | None, horizon: int | None, spark_prices=None, spark_base: float | None = None,
-             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None) -> str:
+             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None, hit: bool = False) -> str:
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
     nm = f'<span class="nm"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span>{_CHEV}</span></span>'
@@ -963,7 +968,7 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
     reach = f'<span class="c rc2">{"".join(lines)}</span>'
     hd = f'<span class="c"><b>{num(str(held))}</b></span>' if held is not None else '<span class="c"></span>'
     return (
-        f'<div class="hrow{" out" if out else ""}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}{net}'
+        f'<div class="hrow{" out" if out else (" hit" if hit else "")}{" open" if is_open else ""}">{nm}{val}{ret}{pl}{day}{reach}{hd}{net}'
         f'<span class="sp">{mini_spark(spark_prices, spark_base)}</span></div>'
     )
 
@@ -1178,6 +1183,7 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
         return ""
     entry_x = s / rng * 100
     out = cur_pct < stop_pct
+    hit = (not out) and cur_pct >= target_pct
     cur_x = 0.0 if out else max(0.0, min(100.0, (cur_pct + s) / rng * 100))
     stop_lbl = f'מתחת לסטופ {num(f"-{s:.1f}%".replace(".0%", "%"))}' if out else f'סטופ {num(f"-{s:.1f}%".replace(".0%", "%"))}'
     tgt = f"+{target_pct:.1f}%".replace(".0%", "%")
@@ -1185,9 +1191,9 @@ def position_bar(stop_pct: float, target_pct: float, cur_pct: float) -> str:
         '<div class="bar">'
         f'<span class="sg l" style="left:0;width:{entry_x:.1f}%"></span><span class="sg g" style="left:{entry_x:.1f}%;right:0"></span>'
         f'<span class="tk s" style="left:0"></span><span class="tk" style="left:{entry_x:.1f}%"></span><span class="tk t" style="right:0;left:auto"></span>'
-        f'<span class="mk{" out" if out else ""}" style="left:{cur_x:.1f}%"></span>'
+        f'<span class="mk{" out" if out else (" hit" if hit else "")}" style="left:{cur_x:.1f}%"></span>'
         f'<span class="lb a" style="left:0">{stop_lbl}</span><span class="lb" style="left:{entry_x:.1f}%">כניסה</span>'
-        f'<span class="lb r">יעד {num(tgt)}</span></div>'
+        f'<span class="lb r">{"מעל היעד" if hit else "יעד"} {num(tgt)}</span></div>'
     )
 
 
@@ -1228,6 +1234,7 @@ HOLDINGS_CSS = """
         .v3h .lr { display:grid; grid-template-columns:110px minmax(0,1fr) 64px; align-items:center; gap:16px; padding:16px 0; border-bottom:1px solid var(--rule); }
         .v3h .lr .ln { font-size:16px; color:var(--v3-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .v3h .lr .ln.out { color:var(--loss); font-weight:600; }
+        .v3h .lr .ln.hit { color:var(--gain); font-weight:600; }
         .v3h .lr .lt { position:relative; height:18px; direction:ltr; }
         .v3h .lr .lt::before { content:''; position:absolute; left:0; right:0; top:8px; height:2px; background:var(--rule); }
         .v3h .lr .lz { position:absolute; top:7px; height:4px; border-radius:2px; }
@@ -1314,6 +1321,7 @@ HOLDINGS_CSS = """
         .v3h .hrow .nm .chev { order:4; }
         .v3h .hrow .nm .mono { margin-inline-start:10px; }
         .v3h .hrow.out .nm { font-weight:600; color:var(--loss); }
+        .v3h .hrow.hit .nm { font-weight:600; color:var(--gain); }
         .v3h .hrow .c { display:flex; flex-direction:column; align-items:flex-end; gap:3px; direction:ltr; line-height:1.15; }
         .v3h .hrow .c b { display:inline-flex; align-items:baseline; gap:4px; font-size:16px; font-weight:500; white-space:nowrap; }
         .v3h .hrow .c b .cur { font-size:12px; font-weight:400; opacity:.85; }
@@ -1334,6 +1342,7 @@ HOLDINGS_CSS = """
         .v3h .bar .sg.l { background:color-mix(in srgb, var(--loss) 55%, transparent); } .v3h .bar .sg.g { background:color-mix(in srgb, var(--gain) 55%, transparent); }
         .v3h .bar .mk { position:absolute; top:-6px; width:14px; height:14px; margin-left:-7px; border-radius:50%; background:var(--ink); }
         .v3h .bar .mk.out { background:var(--loss); box-shadow:0 0 0 5px color-mix(in srgb, var(--loss) 20%, transparent); }
+        .v3h .bar .mk.hit { background:var(--gain); box-shadow:0 0 0 5px color-mix(in srgb, var(--gain) 20%, transparent); }
         .v3h .bar .tk { position:absolute; top:-5px; width:1px; height:12px; background:var(--dim); }
         .v3h .bar .tk.s { background:var(--loss); } .v3h .bar .tk.t { background:var(--gain); }
         .v3h .bar .lb { position:absolute; top:14px; font-size:12px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; direction:rtl; }
