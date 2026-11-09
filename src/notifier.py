@@ -1,7 +1,6 @@
 """שליחת התראות: טלגרם + התראת דסקטופ (Windows toast).
 """
 import logging
-import os
 import requests
 
 logger = logging.getLogger(__name__)
@@ -99,46 +98,6 @@ def send_telegram(cfg: dict, text: str) -> int | None:
     except Exception as e:
         logger.error("שגיאה בשליחת טלגרם: %s", e)
         return None
-
-
-def extra_recipients() -> list[tuple[str, set[str]]]:
-    """נמענים נוספים להתראות ירידה (למשל בודקים), מ-Secret/משתנה סביבה TELEGRAM_EXTRA_RECIPIENTS - לא מהריפו (ציבורי).
-    פורמט: 'chat_id=TA35,TA125;chat_id2=SP500'. מחזיר [(chat_id, {מדדים})]; שורה פגומה מדולגת."""
-    raw = os.environ.get("TELEGRAM_EXTRA_RECIPIENTS", "").strip()
-    out = []
-    for part in raw.split(";"):
-        chat_id, sep, idx = part.partition("=")
-        chat_id = chat_id.strip()
-        indices = {i.strip().upper() for i in idx.split(",") if i.strip()}
-        if sep and chat_id and indices:
-            out.append((chat_id, indices))
-    return out
-
-
-def send_telegram_extra(cfg: dict, text: str, index: str) -> int:
-    """שולח התראת ירידה חדשה לכל נמען נוסף שמוגדר למדד הזה. כשל אצל נמען לעולם לא משפיע על הזרימה הראשית.
-    משתמש באותו בוט. מחזיר כמה נשלחו."""
-    creds = _telegram_creds(cfg)
-    if not creds:
-        return 0
-    token = creds[0]
-    sent = 0
-    for chat_id, indices in extra_recipients():
-        if str(index).upper() not in indices:
-            continue
-        try:
-            resp = requests.post(
-                TELEGRAM_SEND_API.format(token=token),
-                json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                sent += 1
-            else:
-                logger.warning("שליחה לנמען נוסף נכשלה (%s)", resp.status_code)
-        except Exception as e:
-            logger.warning("שגיאה בשליחה לנמען נוסף: %s", e)
-    return sent
 
 
 def edit_telegram(cfg: dict, message_id: int, text: str) -> bool:
