@@ -1,10 +1,10 @@
-# deploy nudge 2026-11-09: forces Streamlit Cloud to reinstall + reboot the app so it picks up new code
+# pinned streamlit to the local version (1.61.1) so cloud sites render identically to the local dashboard
 yfinance>=0.2.40
 pandas>=2.0
 requests>=2.31
 PyYAML>=6.0
 feedparser>=6.0
-streamlit>=1.35
+streamlit==1.61.1
 winotify>=1.1.0; sys_platform == "win32"
 schedule>=1.2
 lxml>=5.0
