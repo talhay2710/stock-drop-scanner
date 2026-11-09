@@ -33,6 +33,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_EXTRA_RECIPIENTS: ${{ secrets.TELEGRAM_EXTRA_RECIPIENTS }}
         run: python run_scan_once.py
 
       # שלושת אלה היו רק על Task Scheduler מקומי (תלוי שהמחשב דלוק) - עכשיו

@@ -963,6 +963,8 @@ def _scan_one_index(
                     store_mod.update_telegram_message_id(conn, new_id, new_message_id)
                 elif notifier.telegram_active(cfg):
                     send_failed = True
+                if new_message_id:
+                    notifier.send_telegram_extra(cfg, message, index)  # נמענים נוספים (בודקים) - רק על התראה חדשה, לא על עריכה
             if send_failed:
                 # ההתראה נשמרה לפני השליחה, והדדופ היה חוסם כל ניסיון חוזר ומאבד אותה.
                 # מחזירים את השורה למצבה הקודם - הסריקה הבאה (5 דק') תנסה שוב מאפס.
