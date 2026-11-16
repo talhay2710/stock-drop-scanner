@@ -1095,7 +1095,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
     top = max(i["pct"] for i in items) or 1.0
     rows = "".join(
         f'<div class="srow"><span class="dot" style="background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></span>'
-        f'<span class="sn"><b>{esc(i["label"])}</b><small>{esc(", ".join(short_name(n) for n in i["names"]))}</small></span>'
+        f'<span class="sn"><b>{esc(i["label"])}</b><small>{esc(", ".join(dict.fromkeys(short_name(n) for n in i["names"])))}</small></span>'
         f'<span class="sbar"><i style="width:{i["pct"] / top * 100:.0f}%;background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></i></span>'
         f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
         for k, i in enumerate(items)
@@ -1265,7 +1265,7 @@ HOLDINGS_CSS = """
         .v3h .srow { display:grid; grid-template-columns:10px 104px minmax(60px,1fr) 44px; align-items:center; gap:14px; padding:15px 0; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
         .v3h .srow .dot { width:8px; height:8px; border-radius:50%; opacity:.85; }
         .v3h .srow .sn b { display:block; font-size:15px; font-weight:400; color:var(--v3-soft); }
-        .v3h .srow .sn small { display:block; margin-top:2px; font-size:12px; color:var(--dim); opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .v3h .srow .sn small { display:block; margin-top:2px; font-size:12px; color:var(--dim); opacity:.85; line-height:1.5; }
         .v3h .srow .sbar { display:block; height:3px; border-radius:2px; background:color-mix(in srgb, var(--rule) 55%, transparent); }
         .v3h .srow .sbar i { display:block; height:100%; border-radius:2px; opacity:.8; }
         .v3h .srow .sp2 { font-size:14px; font-weight:400; direction:ltr; text-align:end; color:var(--dim); font-variant-numeric:tabular-nums; }
