@@ -362,7 +362,7 @@ _V3_CSS += """
         /* Streamlit 1.61: ה-selectbox הוא react-aria ComboBox (לא baseweb) - הכללים שלמעלה לא תופסים אותו, והוא נשאר בהיר בתצוגת לילה */
         [data-testid="stSelectbox"] [role="group"] { background-color: var(--v3-surface) !important; border-color: var(--v3-rule) !important; }
         [data-testid="stSelectbox"] input, [data-testid="stSelectbox"] [role="group"] * { color: var(--v3-ink) !important; }
-        [data-testid="stSelectbox"] button svg, [data-testid="stSelectbox"] button svg * { color: var(--v3-dim) !important; fill: currentColor; }
+        [data-testid="stSelectbox"] button svg, [data-testid="stSelectbox"] button svg * { color: var(--v3-dim) !important; }
         [data-testid="stSelectboxVirtualDropdown"] { background-color: var(--v3-surface) !important; border-color: var(--v3-rule) !important; }
         [data-testid="stSelectboxVirtualDropdown"] [role="option"] { background-color: transparent !important; color: var(--v3-ink) !important; }
         [data-testid="stSelectboxVirtualDropdown"] [role="option"] * { color: var(--v3-ink) !important; }
