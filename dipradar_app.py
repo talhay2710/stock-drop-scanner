@@ -359,6 +359,14 @@ _V3_CSS += """
         }
         [data-baseweb="popover"] li[role="option"] { background-color: transparent !important; color: var(--v3-ink) !important; }
         [data-baseweb="popover"] li[role="option"]:hover, [data-baseweb="popover"] li[aria-selected="true"] { background-color: var(--v3-hover) !important; }
+        /* Streamlit 1.61: ה-selectbox הוא react-aria ComboBox (לא baseweb) - הכללים שלמעלה לא תופסים אותו, והוא נשאר בהיר בתצוגת לילה */
+        [data-testid="stSelectbox"] [role="group"] { background-color: var(--v3-surface) !important; border-color: var(--v3-rule) !important; }
+        [data-testid="stSelectbox"] input, [data-testid="stSelectbox"] [role="group"] * { color: var(--v3-ink) !important; }
+        [data-testid="stSelectbox"] button svg, [data-testid="stSelectbox"] button svg * { color: var(--v3-dim) !important; fill: currentColor; }
+        [data-testid="stSelectboxVirtualDropdown"] { background-color: var(--v3-surface) !important; border-color: var(--v3-rule) !important; }
+        [data-testid="stSelectboxVirtualDropdown"] [role="option"] { background-color: transparent !important; color: var(--v3-ink) !important; }
+        [data-testid="stSelectboxVirtualDropdown"] [role="option"] * { color: var(--v3-ink) !important; }
+        [data-testid="stSelectboxVirtualDropdown"] [role="option"][data-focused="true"], [data-testid="stSelectboxVirtualDropdown"] [role="option"][data-selected="true"], [data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover { background-color: var(--v3-hover) !important; }
         [data-testid="stApp"] button[kind="secondary"], [data-testid="stApp"] button[kind="primary"] { color: var(--v3-ink); }
         [data-testid="stApp"] [data-testid="stAlert"] { background-color: var(--v3-surface) !important; color: var(--v3-ink) !important; border: 1px solid var(--v3-rule); }
         /* סיידבר v3: בלי כרטיסים - כותרות סעיף, צ'יפים, שדות עם קו תחתון, שורות מתקפלות (המוקאפ שאושר) */
