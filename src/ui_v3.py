@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import html
+from collections import Counter
 from .names import fix_name
 import math
 import re
@@ -1095,7 +1096,7 @@ def sector_section(items: list[dict], title: str = "התפלגות סקטורי�
     top = max(i["pct"] for i in items) or 1.0
     rows = "".join(
         f'<div class="srow"><span class="dot" style="background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></span>'
-        f'<span class="sn"><b>{esc(i["label"])}</b><small>{esc(", ".join(dict.fromkeys(short_name(n) for n in i["names"])))}</small></span>'
+        f'<span class="sn"><b>{esc(i["label"])}</b><small>{esc(", ".join(f"{n} ×{c}" if c > 1 else n for n, c in Counter(short_name(n) for n in i["names"]).items()))}</small></span>'
         f'<span class="sbar"><i style="width:{i["pct"] / top * 100:.0f}%;background:{_SECTOR_TONES[k % len(_SECTOR_TONES)]}"></i></span>'
         f'<span class="sp2">{num(f"{i['pct']:.0f}%")}</span></div>'
         for k, i in enumerate(items)
