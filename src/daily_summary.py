@@ -61,7 +61,7 @@ def _build_holdings_section(holdings: list[dict], closed_today: list[dict] | Non
     if not holdings and not closed_today:
         return []
 
-    total_net = sum(h["net_pnl"] for h in holdings if h["net_pnl"] is not None)
+    total_gross = sum(h["gross_pnl"] for h in holdings if h.get("gross_pnl") is not None)  # רווח/הפסד נקבע לפי ברוטו; נטו לציון בלבד
     lines = ["💼 <b>התיק</b>"]
     today_values = [h["today_pnl"] for h in holdings if h.get("today_pnl") is not None]
     today_values += [c["today_pnl"] for c in (closed_today or []) if c.get("today_pnl") is not None]
@@ -69,10 +69,10 @@ def _build_holdings_section(holdings: list[dict], closed_today: list[dict] | Non
     if today_values and len(today_values) == len(holdings) + len(closed_today or []):
         lines.append(f"היום {_signed(sum(today_values), 0)} ש\"ח")
     if holdings:
-        lines.append(f"שינוי כולל {_signed(total_net, 0)} ש\"ח")
+        lines.append(f"שינוי כולל {_signed(total_gross, 0)} ש\"ח")
     lines.append("")
-    for h in sorted(holdings, key=lambda h: h["net_pnl"] if h["net_pnl"] is not None else float("-inf"), reverse=True):
-        emoji = "⚪" if h["net_pnl"] is None else ("🟢" if h["net_pnl"] >= 0 else "🔴")
+    for h in sorted(holdings, key=lambda h: h["gross_pnl"] if h.get("gross_pnl") is not None else float("-inf"), reverse=True):
+        emoji = "⚪" if h.get("gross_pnl") is None else ("🟢" if h["gross_pnl"] >= 0 else "🔴")
         today = _signed(h["today_pct"], 1, "%") if h["today_pct"] is not None else "—"
         lines.append(f"{emoji} <b>{h['name']}</b>  {today}")
     lines.append("")
@@ -86,13 +86,13 @@ def _build_closed_today_section(closed_today: list[dict]) -> list[str]:
     lines = ["💰 <b>נמכרו היום</b>"]
     for c in closed_today:
         name = c.get("company_name") or c["ticker"]
-        net_pnl, net_pct = c.get("net_pnl"), c.get("net_pct")
+        gross_pnl = c.get("gross_pnl")  # ברוטו - לפיו נקבע רווח/הפסד (נטו לציון בלבד)
         ccy_symbol = {"ILS": 'ש"ח', "USD": "$"}.get(c.get("currency"), c.get("currency") or "")
-        if net_pnl is None or net_pct is None:
+        if gross_pnl is None:
             lines.append(f"⚪ <b>{name}</b>")
             continue
-        emoji = "🟢" if net_pnl >= 0 else "🔴"
-        lines.append(f"{emoji} <b>{name}</b>  {_signed(net_pnl, 0)} {ccy_symbol}")
+        emoji = "🟢" if gross_pnl >= 0 else "🔴"
+        lines.append(f"{emoji} <b>{name}</b>  {_signed(gross_pnl, 0)} {ccy_symbol}")
     lines.append("")
     return lines
 

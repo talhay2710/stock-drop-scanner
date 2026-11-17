@@ -66,6 +66,7 @@ def build_holdings_summary(conn, cfg) -> list[dict]:
             except Exception:
                 pass
 
+        gross_pnl = (current - entry) * qty if (current is not None and entry) else None  # ברוטו - לפיו נקבע רווח/הפסד; הנטו לציון בלבד
         net_pnl, net_pct = None, None
         if current is not None and entry:
             net = fees.compute_net_result(
@@ -76,7 +77,7 @@ def build_holdings_summary(conn, cfg) -> list[dict]:
 
         result.append({
             "ticker": h["ticker"], "name": h["company_name"] or h["ticker"],
-            "net_pnl": net_pnl, "net_pct": net_pct, "today_pct": today_pct, "today_pnl": today_pnl,
+            "gross_pnl": gross_pnl, "net_pnl": net_pnl, "net_pct": net_pct, "today_pct": today_pct, "today_pnl": today_pnl,
             "ccy_symbol": {"ILS": 'ש"ח', "USD": "$"}.get(ccy, ccy),
         })
     return result
