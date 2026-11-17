@@ -369,6 +369,8 @@ _V3_CSS += """
         [data-testid="stSelectboxVirtualDropdown"] [role="option"][data-focused="true"], [data-testid="stSelectboxVirtualDropdown"] [role="option"][data-selected="true"], [data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover { background-color: var(--v3-hover) !important; }
         [data-testid="stApp"] button[kind="secondary"], [data-testid="stApp"] button[kind="primary"] { color: var(--v3-ink); }
         [data-testid="stApp"] [data-testid="stAlert"] { background-color: var(--v3-surface) !important; color: var(--v3-ink) !important; border: 1px solid var(--v3-rule); }
+        [data-testid="stApp"] [data-testid="stAlertContainer"] { background-color: transparent !important; }  /* Streamlit 1.61: הצבע הכחול-שקוף של st.info יושב על המכל הפנימי, לא על stAlert */
+        [data-testid="stApp"] [data-testid="stAlert"] p, [data-testid="stApp"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"] { color: var(--v3-ink) !important; }
         /* סיידבר v3: בלי כרטיסים - כותרות סעיף, צ'יפים, שדות עם קו תחתון, שורות מתקפלות (המוקאפ שאושר) */
         [data-testid="stSidebar"] { background: var(--v3-side) !important; }
         [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 6px !important; }
