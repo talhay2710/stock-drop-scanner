@@ -29,7 +29,7 @@ if getattr(sys, "_dipradar_dash_mtime", None) != _DASH_MTIME:
         del sys.modules[_mod_name]
     sys._dipradar_dash_mtime = _DASH_MTIME
 
-from src.config import load_config, db_path, CONFIG_PATH, ROOT_DIR
+from src.config import load_config, db_path, CONFIG_PATH, ROOT_DIR, tester_mode
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
 from src import strategy as strategy_mod, post_alert, strategy_stats, ui_v3, scan_status
@@ -747,6 +747,15 @@ _V3_BRAND_HTML = (
 
 
 st.set_page_config(page_title="DipRadar", layout="wide")
+
+# מונה כניסות לאתרי הבודקים בלבד (ר' src/tester_stats.py): כניסה אחת לכל session; ?stats=1 מציג את הסיכום ואינו נספר
+if tester_mode():
+    from src import tester_stats
+    if st.query_params.get("stats") == "1":
+        st.info(tester_stats.summary_text())
+    elif not st.session_state.get("_tester_visit_counted"):
+        tester_stats.record_visit()
+        st.session_state["_tester_visit_counted"] = True
 
 # מניעת הבזק של העיצוב הישן בטעינה (נייד): התוכן מוסתר עד שה-CSS של v3 נטען (שורה אחת למטה מבטלת את ההסתרה);
 # אם משהו נכשל באמצע - אחרי 4 שניות הכל מוצג בכל מקרה
