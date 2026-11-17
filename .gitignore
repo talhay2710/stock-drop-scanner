@@ -25,4 +25,3 @@ __pycache__/
 
 # מצב בודק (src/config.py) - עותק פרטי של alerts.db בכל מכונה
 alerts_tester.db*
-tester_visits.json*
