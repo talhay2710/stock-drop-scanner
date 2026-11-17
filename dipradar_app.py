@@ -7338,7 +7338,7 @@ def _render_journal_v3() -> None:
         })
 
     total = len(df_h)
-    wins = int((df_h["net_pnl"] > 0).sum())
+    wins = int((df_h["gross_pnl"] > 0).sum())  # ברוטו - כמו עמודת "רווח/הפסד" (נטו רק כשמצוין במפורש)
     rate = round(wins / total * 100) if total else 0
     cells = [
         ("סה\"כ עסקאות סגורות", str(total), ""),
@@ -7408,7 +7408,7 @@ def _render_journal_v3() -> None:
     if _jm != "כל השווקים":
         _view = [r for r in _view if (r["ccy"] == "ILS") == (_jm == 'בורסת ת"א')]
     if _jr != "הכל":
-        _view = [r for r in _view if (r["net"] > 0) == (_jr == "ברווח")]
+        _view = [r for r in _view if (r["gross"] > 0) == (_jr == "ברווח")]  # לפי רווח/הפסד ברוטו, כמו העמודה בטבלה
     if _js == "תשואה":
         _view = sorted(_view, key=lambda r: -r["pct"])
     elif _js == "רווח/הפסד":
@@ -7440,7 +7440,7 @@ with _tab_slot_history.container():
             hist_df = pd.DataFrame(closed_trades)
 
             total_trades = len(hist_df)
-            wins = int((hist_df["net_pnl"] > 0).sum())
+            wins = int((hist_df["gross_pnl"] > 0).sum())
             win_rate = (wins / total_trades * 100) if total_trades else None
             win_rate_text = f"{win_rate:.0f}%" if win_rate is not None else "—"
             win_rate_color = POS_COLOR if (win_rate or 0) >= 50 else NEG_COLOR
