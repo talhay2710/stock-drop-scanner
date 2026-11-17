@@ -7351,8 +7351,8 @@ def _render_journal_v3() -> None:
         cells.append(("תשואה ממוצעת", ui_v3.signed(float(_pcts.mean()), 1, "%"), ui_v3.cls_for(float(_pcts.mean()))))
     for ccy, grp in df_h.groupby("currency"):
         g, n = float(grp["gross_pnl"].sum()), float(grp["net_pnl"].sum())
-        cells.append(("רווח/הפסד כולל", ui_v3.signed(g), ui_v3.cls_for(g)))
-        cells.append(("רווח/הפסד נטו", ui_v3.signed(n), ui_v3.cls_for(n)))
+        cells.append(("רווח/הפסד", ui_v3.signed(g), ui_v3.cls_for(g)))
+        cells.append(("נטו", ui_v3.signed(n), ui_v3.cls_for(n)))
     # עקומת רווח נקי מצטבר - במטבע הדומיננטי (מספר העסקאות הגדול ביותר), לפי תאריך סגירה
     _dom = df_h["currency"].value_counts().idxmax()
     _eq = df_h[df_h["currency"] == _dom].copy()
