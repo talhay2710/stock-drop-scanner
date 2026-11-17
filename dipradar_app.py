@@ -140,6 +140,8 @@ _V3_CSS = """
         .v3brand svg circle { stroke: var(--v3-accent); }
         .v3brand svg circle.dot { fill: var(--v3-accent); stroke: none; }
         @media (max-width: 480px) {
+            /* רווח בתחתית הדף: השורה האחרונה יכולה לגלול מעל כפתורי הצף של Streamlit (למשל "Manage app" לבעלים) */
+            [data-testid="stMain"] .block-container { padding-bottom: 110px !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stHorizontalBlock"] { gap: 6px 18px !important; flex-wrap: wrap !important; }
             div[class*="st-key-nav_tabs_row"] [data-testid="stColumn"]:first-child { flex: 1 1 100% !important; }
             /* בורר יום/לילה בנייד: בקצה השמאלי של שורת הלוגו (התאריך מוסתר בתוך ה-iframe הצר) */
