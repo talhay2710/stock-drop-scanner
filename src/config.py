@@ -93,7 +93,8 @@ def _tester_db(src: str) -> str:
         _tester_build(src, dst)
     else:
         try:
-            last = float(open(marker).read())
+            with open(marker) as _mf:
+                last = float(_mf.read())
         except Exception:
             last = 0.0
         if src_m > last:

@@ -786,9 +786,6 @@ def _pts_chip(pts: int) -> str:
 
 
 SIGNAL_COLORS = {"buy": POS_COLOR, "wait": "#C98A00", "avoid": NEG_COLOR, "unknown": "#7A8591"}  # צבעי הרמזור (🟢/🟡/🔴)
-POS_BG = "rgba(6, 128, 107, 0.10)"
-NEG_BG = "rgba(204, 47, 60, 0.10)"
-NEUTRAL_COLOR = "#3B4A5A"
 ACCENT_COLOR = "#3B6EA5"
 CURRENCY_SYMBOLS = {"ILS": 'ש"ח', "USD": "$"}
 
@@ -852,65 +849,6 @@ def _price_text(value, index_name, whole: bool = False) -> str:
 
 
 
-def _sparkline_svg(
-    prices: list, width: int = 140, height: int = 36, show_baseline: bool = False, responsive: bool = False,
-    area_fill: bool = False, grad_id: str = "spark-grad", color: str | None = None,
-) -> str:
-    """גרף זעיר (sparkline) כ-SVG מוטבע - מציג את מגמת המחיר האחרונה בלי צירים/legend.
-    show_baseline (אופציונלי, ברירת מחדל כבוי כדי לא לשנות התנהגות קיימת בכרטיסי
-    אחזקות) - מוסיף קו מקווקו בגובה נקודת ההתחלה + נקודה בקצה הגרף, כדי שיהיה
-    ברור בלי לחשוב אם המגמה נגמרת מעל/מתחת למקום שהתחילה בו, לא רק "יש קו".
-    responsive (אופציונלי, ברירת מחדל כבוי) - ה-width הופך לרזולוציית-ציור
-    פנימית בלבד (viewBox), וה-SVG בפועל נמתח ל-100% מרוחב המכיל שלו - כך שהגרף
-    ממלא את כל רוחב המשבצת בפועל בלי תלות ברוחב קבוע בפיקסלים (9.9.2026,
-    בעקבות בקשה לגרף רחב/ממורכז יותר בכרטיסי המדדים).
-    area_fill (אופציונלי) - מילוי גרדיאנט שקוף מתחת לקו + נקודת סיום מודגשת
-    (בלי הקו המקווקו של show_baseline) - לכרטיסי אחזקה, אחרי משוב על עיצוב
-    "בלגן" (9.9.2026). grad_id חייב להיות ייחודי לכל SVG בעמוד אחד (אחרת
-    כמה sparklines "חולקות" את אותו גרדיאנט ב-DOM)."""
-    if len(prices) < 2:
-        return ""
-    lo, hi = min(prices), max(prices)
-    rng = (hi - lo) or 1
-    step = width / (len(prices) - 1)
-    coords = [
-        (i * step, height - ((p - lo) / rng) * (height - 4) - 2)
-        for i, p in enumerate(prices)
-    ]
-    points = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
-    # color יכול להגיע חיצונית (14.9.2026, "גם הגרף צריך להיות ירוק אם הברוטו
-    # בפלוס") - כדי שכרטיס אחזקה יצבע את הגרף לפי סימן הרווח/הפסד הברוטו
-    # (pnl, אותו מקור כמו המספר הגדול), לא לפי מגמת המחיר הפנימית של הגרף
-    # עצמו (prices[-1] מול prices[0]) שיכולה לחלוק לרוב, אבל לא תמיד, מהסימן
-    # של pnl - למשל שער נוכחי חי (current) שכבר זז מאז נקודת prices[-1].
-    if color is None:
-        color = POS_COLOR if prices[-1] >= prices[0] else NEG_COLOR
-    extra = ""
-    if show_baseline:
-        _, base_y = coords[0]
-        end_x, end_y = coords[-1]
-        extra = (
-            f'<line x1="0" y1="{base_y:.1f}" x2="{width}" y2="{base_y:.1f}" '
-            f'stroke="{color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.35"/>'
-            f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="3" fill="{color}"/>'
-        )
-    area = ""
-    if area_fill:
-        area_points = f"0,{height} {points} {width},{height}"
-        area = (
-            f'<defs><linearGradient id="{grad_id}" x1="0" y1="0" x2="0" y2="1">'
-            f'<stop offset="0%" stop-color="{color}" stop-opacity="0.22"/>'
-            f'<stop offset="100%" stop-color="{color}" stop-opacity="0"/></linearGradient></defs>'
-            f'<polygon points="{area_points}" fill="url(#{grad_id})"/>'
-        )
-    size_attrs = f'width="100%" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none"' \
-        if responsive else f'width="{width}" height="{height}"'
-    return (
-        f'<svg {size_attrs} xmlns="http://www.w3.org/2000/svg">'
-        f'{area}{extra}'
-        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="{1.8 if area_fill else 2}" '
-        f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
-    )
 
 
 @st.cache_data(ttl=60)
@@ -1589,7 +1527,6 @@ def get_index_changes() -> dict:
 
 
 
-CLOSED_COLOR = "#888"
 
 
 @st.cache_data(ttl=60)
@@ -2177,48 +2114,6 @@ def _build_daily_comparison_df(relevant_holdings: pd.DataFrame, dominant_index: 
 
 
 
-def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: float, current_price: float,
-                           stop_label: str, target_label: str, warning_html: str = "") -> str:
-    """פס מיקום ויזואלי בין סטופ-לוס ליעד (במקום שתי שורות טקסט נפרדות) - קו
-    למחיר הכניסה, כדי שרואים במבט אחד כמה קרוב המחיר לכל צד, לא רק קוראים
-    שני אחוזים. המיקום הנוכחי מיוצג ע"י קצה המילוי הצבעוני עצמו (בלי נקודה
-    נפרדת עליו - מיותרת, אותו מיקום בדיוק, 9.9.2026 "ביקשתי להסיר את הנקודה").
-    היחס בין הערכים לא תלוי ביחידה (אגורות מול ש"ח מבטלות זו את זו בחלוקה) -
-    אז מקבלים את המחירים הגולמיים, לא את הטקסט המוצג."""
-    rng = (target_price - stop_price) or 1.0
-    entry_pos = max(0.0, min(100.0, (entry_price - stop_price) / rng * 100))
-    current_pos = max(0.0, min(100.0, (current_price - stop_price) / rng * 100))
-    fill_color = POS_COLOR if current_price >= entry_price else NEG_COLOR
-    # המילוי מתחיל מנקודת הכניסה, לא מ-0 (=סטופ) - 29.9.2026, "הגרף מתחיל
-    # מהסטופ במקום מנקודת הקנייה". left:0 קבוע (המצב הקודם) מייצג "מרחק
-    # מהסטופ", לא "תזוזה מאז הקנייה" - אותו עיקרון בדיוק כמו הבר הדו-כיווני
-    # בכרטיס "מצב תיק" (_stat_card_portfolio_status, ממורכז בנקודת העלות,
-    # ממלא ימינה ברווח/שמאלה בהפסד).
-    fill_left = min(entry_pos, current_pos)
-    fill_width = abs(current_pos - entry_pos)
-    # משבצת בגובה קבוע לאזהרה - גם כשאין אזהרה - כדי שהבר ומה שמתחתיו יתחילו
-    # תמיד באותו גובה בדיוק בין כרטיסים זה לצד זה, לא רק בכרטיס שבו יש אזהרה
-    # (9.9.2026, "היחס בין שני הכרטיסים... שהנתונים יעמדו באותו הגובה").
-    # display:flex (לא block רגיל) - אחרת הפיל הפנימי (inline-flex) מקבל "strut"
-    # של שורת-טקסט בלתי-נראית מה-line-height של ה-block ההורה, שמוסיף ~2.6px
-    # רק כשיש תוכן - בדיוק הפער השיורי שנמדד בפועל אחרי שני ניסיונות קודמים
-    # (getBoundingClientRect: 25.59px עם אזהרה מול 23px בלי, על אף min-height
-    # זהה) - flex לא סובל מהאפקט הזה, ההשוואה יצאה מדויקת אחריו.
-    warning_slot = f'<div style="display:flex; align-items:center; min-height:23px; margin-bottom:6px;">{warning_html}</div>'
-    return (
-        f'<div style="margin-top:10px;">{warning_slot}'
-        f'<div style="position:relative; height:6px; border-radius:4px; background:#e2e5e9; direction:ltr;">'
-        f'<div style="position:absolute; left:{fill_left:.1f}%; top:0; height:100%; width:{fill_width:.1f}%; '
-        f'background:{fill_color}; border-radius:4px;"></div>'
-        f'<div style="position:absolute; left:{entry_pos:.1f}%; top:-3px; width:2px; height:12px; '
-        f'background:{NEUTRAL_COLOR}; opacity:0.55; transform:translateX(-1px);"></div>'
-        f'</div>'
-        f'<div style="display:flex; direction:ltr; justify-content:space-between; margin-top:5px; '
-        f'font-size:0.66rem; opacity:0.6;">'
-        f'<span>סטופ <b style="opacity:1;">{stop_label}</b></span>'
-        f'<span>יעד <b style="opacity:1;">{target_label}</b></span>'
-        f'</div></div>'
-    )
 
 
 _SECTOR_LABELS_HE = {
@@ -2701,9 +2596,6 @@ def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
 
 
 
-def _days_text(n: int) -> str:
-    """'יום אחד' / 'יומיים' / 'N ימים'."""
-    return "יום אחד" if n == 1 else ("יומיים" if n == 2 else f"{n} ימים")
 
 
 def _trading_days_held(bought_date, country_code: str) -> int:
@@ -3474,26 +3366,7 @@ with _tab_slot_today.container():
 
                 _REBOUND_TIER_EMOJI = {"A": "🟢", "B": "🟡", "C": "🔴"}
 
-                def _score_light(val) -> str:
-                    if pd.isna(val):
-                        return ""
-                    if val >= 70:
-                        return "🟢 "
-                    if val >= 45:
-                        return "🟡 "
-                    return "🔴 "
 
-                def _rebound_cell_text(v) -> str:
-                    # v הוא "C-34" (אות-מקף-ציון משוקלל) - הציון חזר לטבלה
-                    # (9.9.2026, בעקבות בקשה מפורשת). רוצים ויזואלית (קריאה
-                    # מימין לשמאל): עיגול בימין, אות+ציון משמאלו. <bdi> מזהה
-                    # LTR (יש אות לטינית) ומיישר לימין - אז כדי שהעיגול יצא
-                    # הכי ימני צריך לכתוב אותו אחרון בתוך ה-bdi.
-                    if pd.isna(v):
-                        return "—"
-                    _tier = v.split("-")[0]
-                    emoji = _REBOUND_TIER_EMOJI.get(_tier, "")
-                    return f"<bdi>{v} {emoji}</bdi>"
 
                 todays_display_src = todays_alerts.copy()
                 # יעד לפי האסטרטגיה הנוכחית (+3% ממחיר ההתראה), גם להתראות שנשמרו עם יעד ישן -
@@ -4466,322 +4339,6 @@ with _tab_slot_portfolio.container():
                 level = int((gain_pct - gain_start_pct) // gain_step_pct)
                 return gain_start_pct + (level + 1) * gain_step_pct
 
-            def render_holding_card(row: dict) -> None:
-                # עיצוב מחודש (9.9.2026) - במקום כרטיס עם 4 שורות טקסט צפוף באותו
-                # גודל בערך ("בלגן"), היררכיה ברורה: מספר נטו גדול במרכז, ספארקליין
-                # עם מילוי+נקודת-סיום, פס מיקום ויזואלי בין סטופ-לוס ליעד (במקום
-                # שתי שורות טקסט נפרדות), וגריד נקי לנתונים המשניים. אושר מראש
-                # כמוקאפ (ר' היסטוריית שיחה) לפני המימוש כאן.
-                ccy_symbol = CURRENCY_SYMBOLS.get(row["ccy"], row["ccy"])
-                current, pnl, pnl_pct, net_pnl = row["current"], row["pnl"], row["pnl_pct"], row["net_pnl"]
-                is_il = market_data._is_israeli_ticker(row["ticker"])
-
-                net_grid_cell = ""
-                # אופק האסטרטגיה: עד HOLD_MAX_DAYS ימי מסחר - מעבר לכך מסמנים באדום (7.10.2026)
-                _over_horizon = row["trading_days_held"] > strategy_mod.HOLD_MAX_DAYS
-                _held_style = f"color:{NEG_COLOR};" if _over_horizon else ""
-                _held_note = " ⏰" if _over_horizon else ""
-                if current is None or net_pnl is None:
-                    color = CLOSED_COLOR
-                    hero_html = (
-                        f'<div style="font-size:0.95rem; font-weight:600; color:{color}; opacity:0.8;">'
-                        f'אין נתון מחיר עדכני</div>'
-                    )
-                else:
-                    # שני צבעים נפרדים בכוונה - הפער יכול להיות אמיתי (רווח
-                    # ברוטו קטן שנבלע כולו בעמלה+מס, נטו שלילי) - הכותרת הגדולה
-                    # מציגה ברוטו (pnl/pnl_pct) אז הצבע שלה חייב להתבסס על הסימן
-                    # של ברוטו, לא של נטו, אחרת מספר חיובי מוצג באדום (14.9.2026,
-                    # "כל מה שאדום אמור להיות ירוק בכרטיס הזה עכשיו").
-                    color = POS_COLOR if pnl >= 0 else NEG_COLOR
-                    net_color = POS_COLOR if net_pnl >= 0 else NEG_COLOR
-                    # נטו עברה לגריד (השורה האחרונה, מתחת ל"כמות") - לא ליד
-                    # הכותרת יותר (13.9.2026, "תעביר לשורה האחרונה מתחת לכמות").
-                    hero_html = (
-                        f'<div><span style="font-size:1.5rem; font-weight:700; color:{color};">'
-                        f'{_signed_num(pnl)}</span> '
-                        f'<span style="font-size:0.7rem; font-weight:600; opacity:0.7; color:{color};">{ccy_symbol}</span>'
-                        f'<span style="font-size:0.78rem; font-weight:600; opacity:0.85; color:{color}; '
-                        f'margin-inline-start:3px;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-                    )
-                    net_grid_cell = (
-                        f'<div><div style="font-size:0.64rem; opacity:0.45;">נטו ({ccy_symbol})</div>'
-                        f'<div style="font-size:0.82rem; font-weight:700; color:{net_color};">'
-                        f'{_signed_num(net_pnl)}</div></div>'
-                    )
-
-                # שערים (לא סכומי כסף כוללים) למניות ת"א מוצגים באגורות - כמו ב-TASE
-                # ובהודעת הטלגרם - כדי שאפשר יהיה להשוות ישירות למסך הברוקר
-                if is_il:
-                    entry_price_text = f"{row['entry']*100:,.0f}"
-                    current_price_text = f"{current*100:,.0f}" if current is not None else "—"
-                else:
-                    entry_price_text = f"{row['entry']:,.2f}"
-                    current_price_text = f"{current:,.2f}" if current is not None else "—"
-
-                spark_html = ""
-                if row["prices"]:
-                    svg = _sparkline_svg(
-                        row["prices"], width=96, height=34, area_fill=True,
-                        grad_id=f"spark-grad-{row['id']}", color=color,
-                    )
-                    # ממוקם absolute במרכז השורה (לא flex רגיל) - כדי שהגרף
-                    # יהיה במרכז הכרטיס באמת, לא תלוי ברוחב המספר הגדול לידו
-                    # (9.9.2026, "את הגרף תמקם במרכז").
-                    spark_html = (
-                        f'<div style="position:absolute; left:50%; top:50%; '
-                        f'transform:translate(-50%,-50%);">{svg}</div>'
-                    )
-
-                _daily_pct = row.get("daily_pct")
-                if _daily_pct is not None and pd.notna(_daily_pct):
-                    _daily_color = POS_COLOR if _daily_pct >= 0 else NEG_COLOR
-                    _daily_bg = POS_BG if _daily_pct >= 0 else NEG_BG
-                    _daily_icon = "📈" if _daily_pct >= 0 else "📉"
-                    # תאריך מתחת ל"שינוי יומי" רק כשהמסחר סגור *וגם* התאריך עצמו
-                    # לא היום - אם זה היום, "שינוי יומי" כבר ברור מאליו והתאריך
-                    # רק מבלבל/מיותר; התאריך שימושי רק כשהוא מגלה שהנתון בעצם
-                    # ישן יותר (9.9.2026, "תראה את התאריך... זה גרוע").
-                    _daily_date = row.get("daily_pct_date")
-                    _daily_date_inline = ""
-                    if row.get("daily_pct_gap") and row.get("daily_pct_baseline_date"):
-                        # פער אמיתי בין ימי המסחר (ר' market_data._prev_close_gap) -
-                        # מציגים את תאריך הבסיס תמיד, גם כשהשוק פתוח עכשיו,
-                        # אחרת "שינוי יומי" מטעה (נראה כמו יום מסחר אחד כשזה
-                        # בעצם כמה, 15.9.2026 "הנתון שגוי").
-                        _daily_date_inline = (
-                            f'<span style="font-weight:500; opacity:0.6; font-size:0.62rem;">'
-                            f'(מ-{row["daily_pct_baseline_date"].strftime("%d/%m")})</span>'
-                        )
-                    elif (_daily_date and not is_market_open(row.get("index_name") or "")
-                            and _daily_date != israel_today()):
-                        # התאריך בתוך הפיל עצמו (לא שורה צפה מתחתיו) - חלק
-                        # מאותו רכיב, לא אלמנט מרחף נפרד (13.9.2026, "התאריך
-                        # נראה רע ממש").
-                        _daily_date_inline = (
-                            f'<span style="font-weight:500; opacity:0.6; font-size:0.62rem;">'
-                            f'({_daily_date.strftime("%d/%m")})</span>'
-                        )
-                    daily_badge_html = (
-                        f'<div style="display:flex; align-items:center; gap:4px; font-size:0.74rem; font-weight:700; '
-                        f'color:{_daily_color}; background:{_daily_bg}; border-radius:20px; padding:3px 9px; '
-                        f'flex-shrink:0;">'
-                        f'{_daily_icon} {_signed_num(_daily_pct, 1, "%")}'
-                        f'<span style="font-weight:500; opacity:0.75; font-size:0.66rem;">שינוי יומי</span>'
-                        f'{_daily_date_inline}</div>'
-                    )
-                else:
-                    daily_badge_html = ""
-
-                # סטטוס סטופ-לוס חי - אותו חישוב בדיוק כמו ב-scanner._check_stop_proximity,
-                # כדי שמה שרואים בדשבורד יהיה עקבי עם התראת הטלגרם, לא רק תלוי אם היא נשלחה בפועל.
-                # יש תו ברוחב אפס (ZWNJ) בתוך "סטופ" - בלתי נראה לעין, אבל שובר זיהוי תבנית של
-                # כלי חיצוני שנראה שמתקן/מחליף את המילה השאולה הזו שוב ושוב (כבר קרה פעמיים).
-                _STOPLOSS_LABEL = "ס‌טופ-לוס"
-                _stored_stop = row.get("holding_stop_price")
-                stop_price = _stored_stop if (_stored_stop is not None and pd.notna(_stored_stop) and _stored_stop) else (row["entry"] * STOP_LOSS_FACTOR)
-                stop_price_text = _level_text(stop_price, is_il)
-                target_price = live_target_price(row["entry"], stop_price, row.get("forecast_target"))
-                target_price_text = _level_text(target_price, is_il)
-
-                range_html = ""
-                if current is not None:
-                    distance_pct = stop_distance_pct(current, stop_price)
-                    stop_is_warning = current <= stop_price or distance_pct <= cfg.get("holdings_stop_warn_pct", STOP_WARN_PCT)
-                    _target_distance_pct = target_distance_pct(current, target_price)
-                    target_is_warning = (
-                        current >= target_price
-                        or _target_distance_pct <= cfg.get("holdings_target_warn_pct", TARGET_WARN_PCT)
-                    )
-                    warning_html = ""
-                    if current <= stop_price:
-                        warning_html = (
-                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
-                            f'font-weight:700; color:{NEG_COLOR}; background:{NEG_BG}; border-radius:6px; '
-                            f'padding:2px 7px;">🛑 חצתה סטופ-לוס ב-{abs(distance_pct):.1f}%</div>'
-                        )
-                    elif stop_is_warning:
-                        warning_html = (
-                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
-                            f'font-weight:700; color:{NEG_COLOR}; background:{NEG_BG}; border-radius:6px; '
-                            f'padding:2px 7px;">⚠️ קרוב לסטופ-לוס - {distance_pct:.1f}% נותרו</div>'
-                        )
-                    elif current >= target_price:
-                        warning_html = (
-                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
-                            f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
-                            f'padding:2px 7px;">🎯 עברה את היעד ב-{abs(_target_distance_pct):.1f}%</div>'
-                        )
-                    elif target_is_warning:
-                        warning_html = (
-                            f'<div style="display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; '
-                            f'font-weight:700; color:{POS_COLOR}; background:{POS_BG}; border-radius:6px; '
-                            f'padding:2px 7px;">🎯 קרוב ליעד - {_target_distance_pct:.1f}% נותרו</div>'
-                        )
-                    range_html = _stop_target_bar_html(
-                        stop_price, target_price, row["entry"], current,
-                        stop_price_text, target_price_text, warning_html,
-                    )
-
-                sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
-                sector_color = row.get("sector_color", NEUTRAL_COLOR)
-                # סקטור/% מהתיק/מוחזק - שורה משלהם מעל כפתור המכירה, באותו רוחב
-                card_html = f"""
-                    <style>
-                    .sigtip {{ position:relative; font-size:0.9rem; cursor:default; }}
-                    .sigtip .sigtip-text {{ display:none; position:absolute; top:130%; right:0; z-index:50; white-space:nowrap;
-                        background:Canvas; color:CanvasText; border:1px solid rgba(128,128,128,0.35); border-radius:8px;
-                        padding:5px 10px; font-size:0.78rem; box-shadow:0 2px 8px rgba(0,0,0,0.15); }}
-                    .sigtip:hover .sigtip-text {{ display:block; }}
-                    </style>
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0;">
-                      <div style="display:flex; align-items:baseline; gap:6px; min-width:0;" title="{row['name']}">
-                        <span style="font-size:1.02rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
-                              white-space:nowrap; min-width:0;">{row['name']}</span>
-                        <span style="font-size:0.82rem; opacity:0.5; font-weight:500; flex-shrink:0;">({row['ticker']})</span>
-                        <span class="sigtip" style="flex-shrink:0;">{row.get('entry_signal', '')}<span class="sigtip-text">סיגנל <b style="color:{row.get('entry_signal_color', 'inherit')};">{row.get('entry_signal_text', '')}</b> בזמן ההתראה</span></span>
-                      </div>
-                      {daily_badge_html}
-                    </div>
-                    <div style="position:relative; display:flex; align-items:center; margin-top:8px; min-height:34px;">
-                      {hero_html}
-                      {spark_html}
-                    </div>
-                    {range_html}
-                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px 8px; margin-top:10px;
-                                padding-top:8px; border-top:1px solid {NEUTRAL_COLOR}1F;">
-                      <div><div style="font-size:0.64rem; opacity:0.45;">עלות</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{row['invested']:,.0f} {ccy_symbol}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">שער ביצוע</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{entry_price_text}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">שער נוכחי</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{current_price_text}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">כמות</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{row['qty']:,.0f}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">סקטור</div>
-                           <div style="font-size:0.82rem; font-weight:700;"><span style="display:inline-block;
-                                width:6px; height:6px; border-radius:50%; background:{sector_color};
-                                margin-inline-end:3px; vertical-align:middle; margin-bottom:1px;"></span>{sector_label}</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">אחוז מהתיק</div>
-                           <div style="font-size:0.82rem; font-weight:700;">{row.get('portfolio_pct', 0):.0f}%</div></div>
-                      <div><div style="font-size:0.64rem; opacity:0.45;">מוחזק</div>
-                           <div style="font-size:0.82rem; font-weight:700; {_held_style}">{_days_text(row['trading_days_held'])}{_held_note}</div></div>
-                      {net_grid_cell}
-                    </div>
-                """
-                card_html = " ".join(line.strip() for line in card_html.strip().split("\n"))
-
-                with st.container(border=True, key="holding_card_" + re.sub(r"\W", "_", str(row["ticker"]))):
-                    st.markdown(card_html, unsafe_allow_html=True)
-                    # אפור נייטרלי כברירת מחדל (לא ירוק/אדום לפי רווח/הפסד גולמי) -
-                    # הכרטיס כבר עמוס באדום/ירוק (פילס, בר, מספרים) לפי רווח/הפסד,
-                    # כפתור בצבע נוסף לפי אותו היגיון "מתחרה" איתם במקום להיראות
-                    # כמו פעולה משנית רגילה (9.9.2026, "לא נראה הכי טוב"). חציה
-                    # בפועל של יעד/סטופ (לא רק קרבה אליו, לא רווח/הפסד גולמי) היא
-                    # איתות פעולה אמיתי - אז הכפתור כן צובע לפיה (29.9.2026, רעיון
-                    # המשתמש, מדויק ל"רק בהגעה ליעד או לסטופ" - לא כולל את אזור
-                    # ה"קרוב ל..." שה-warning_html שמעל הבר כן מציג).
-                    _sell_color = NEUTRAL_COLOR
-                    if current is not None:
-                        if current <= stop_price:
-                            _sell_color = NEG_COLOR
-                        elif current >= target_price:
-                            _sell_color = POS_COLOR
-                    _sell_r, _sell_g, _sell_b = (int(_sell_color.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
-                    # הסלקטור חייב לכלול את row['id'] - בלי זה, "st-key-sell_holding_"
-                    # (סוביסטרינג) תפס את הכפתורים של *כל* האחזקות, לא רק של השורה
-                    # הזו, ומאחר ש-<style> תגי מוזרקים גלובליים לעמוד, ה-CSS של
-                    # האחזקה האחרונה בלולאה "ניצח" וצבע את כל הכפתורים באותו צבע.
-                    # 29.9.2026, "אולי לצבוע אותו בהגעה ליעד/לסטופ?" - הצבע לפי
-                    # קרבה/חציה בפועל (למעלה). עיצוב: נוסה תחילה קישור-טקסט בלי
-                    # מסגרת (כמו כפתור שם המניה בטבלת ההתראות), אבל בעקבות משוב
-                    # מיידי ("אני רוצה שזה יהיה עם המסגרת... באופן קבוע. ובלי הקו
-                    # מתחת לטקסט") הוחלף חזרה למסגרת קבועה בצבע הדינמי, בלי
-                    # underline - כלומר המסגרת המקורית (9.9.2026), רק שהצבע שלה
-                    # תלוי בקרבה ליעד/סטופ במקום קבוע לאפור.
-                    st.markdown(
-                        f"""
-                        <style>
-                        div[class*="st-key-sell_holding_{row['id']}"] button {{
-                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.08) !important;
-                            color: {_sell_color} !important;
-                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.4) !important;
-                            border-radius: 8px; text-decoration: none !important;
-                            font-weight: 500; font-size: 0.85rem; white-space: nowrap !important;
-                        }}
-                        div[class*="st-key-sell_holding_{row['id']}"] button:hover {{
-                            background-color: rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.16) !important;
-                            color: {_sell_color} !important;
-                            border: 1px solid rgba({_sell_r}, {_sell_g}, {_sell_b}, 0.6) !important;
-                        }}
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    sell_key = f"confirm_sell_{row['id']}"
-                    if not st.session_state.get(sell_key):
-                        _, btn_col, _ = st.columns([1, 2, 1])
-                        with btn_col:
-                            if st.button("💰 מכירה - סגירת פוזיציה", key=f"sell_holding_{row['id']}", width='stretch'):
-                                st.session_state[sell_key] = True
-                                st.rerun()
-                    else:
-                        is_il = market_data._is_israeli_ticker(row["ticker"])
-                        st.markdown("**אישור מכירה**")
-                        ec1, ec2 = st.columns(2)
-                        default_exit = (row["current"] if row["current"] is not None else row["entry"]) or 0.0
-                        default_exit = default_exit * (100.0 if is_il else 1.0)
-                        exit_price_raw = ec1.number_input(
-                            "שער מכירה", min_value=0.0, value=float(default_exit),
-                            # step חייב להיות מפורש: ברירת המחדל של Streamlit היא 0.01, בזמן
-                            # שהתצוגה באגורות (IL) מעוגלת ל-0 ספרות (format="%.0f") - בלי step
-                            # מתאים, +/- שינו את הערך ב-0.01 בכל לחיצה, שינוי בלתי-נראה
-                            # לגמרי בתצוגה המעוגלת (נראה כאילו הכפתורים "לא עובדים").
-                            step=1.0 if is_il else 0.01,
-                            format="%.0f" if is_il else "%.2f", key=f"exit_price_{row['id']}",
-                        )
-                        exit_price = (exit_price_raw / 100.0) if is_il else exit_price_raw
-                        exit_date = ec2.date_input(
-                            "תאריך מכירה", value=dt.date.today(), key=f"exit_date_{row['id']}", format="DD/MM/YYYY",
-                        )
-                        cc1, cc2 = st.columns(2)
-                        with cc1:
-                            if st.button("✅ אישור מכירה", key=f"confirm_sell_btn_{row['id']}", width='stretch'):
-                                exit_at = dt.datetime.combine(exit_date, dt.datetime.now().time()).isoformat(timespec="seconds")
-                                entry_at = row["bought_at"]
-                                try:
-                                    entry_date_only = dt.datetime.fromisoformat(entry_at).date() if entry_at else exit_date
-                                except Exception:
-                                    entry_date_only = exit_date
-                                holding_days = max((exit_date - entry_date_only).days, 0) + 1
-                                net = fees.compute_net_result(
-                                    country_code=row["country_code"], buy_price=row["entry"], sell_price=exit_price,
-                                    position_size_ccy=row["entry"] * row["qty"], holding_days=holding_days,
-                                    fees_cfg=cfg["fees"],
-                                )
-                                cloud_sync.refresh_alerts_db_if_clean()
-                                close_conn = store.get_conn(db_path(cfg))
-                                store.save_closed_trade(close_conn, {
-                                    "alert_id": row["id"], "ticker": row["ticker"], "company_name": row["name"],
-                                    "index_name": row["index_name"], "currency": row["ccy"],
-                                    "entry_price": row["entry"], "qty": row["qty"], "entry_at": entry_at,
-                                    "exit_price": exit_price, "exit_at": exit_at,
-                                    "forecast_entry_limit": row["forecast_entry_limit"],
-                                    "forecast_target": row["forecast_target"], "forecast_stop": row["forecast_stop"],
-                                    "forecast_score": row["forecast_score"], "forecast_verdict": row["forecast_verdict"],
-                                    "holding_days": holding_days, "gross_pnl": net.gross_pnl, "net_pnl": net.net_pnl,
-                                    "net_pct": net.net_return_pct, "is_manual_trade": row.get("is_manual_trade", False),
-                                })
-                                store.unmark_as_bought(close_conn, row["id"])
-                                close_conn.close()
-                                _sync_and_warn("position closed", include_db=True)
-                                st.session_state.pop(sell_key, None)
-                                load_alerts.clear()
-                                st.rerun()
-                        with cc2:
-                            if st.button("❌ ביטול", key=f"cancel_sell_btn_{row['id']}", width='stretch'):
-                                st.session_state.pop(sell_key, None)
-                                st.rerun()
 
             holdings = df[df.get("bought") == 1].copy() if (not df.empty and "bought" in df.columns) else pd.DataFrame()
             if holdings.empty:
