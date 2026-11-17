@@ -6,73 +6,17 @@ import json
 import os
 import re
 import sys
-import sqlite3
-import altair as alt
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import yaml
-from PIL import Image, ImageDraw, ImageFont
-from bidi.algorithm import get_display
-
-def _find_bold_font_path() -> str | None:
-    # נתיב Windows קבוע נשבר על Linux (Streamlit Cloud/GitHub Actions) - מנסים
-    # כמה מועמדים בסדר עדיפות, ונופלים חזרה לפונט ברירת המחדל של Pillow אם
-    # אף אחד לא נמצא (לא יתמוך בעברית כמו שצריך, אבל לא יקריס את האפליקציה).
-    _candidates = [
-        r"C:\Windows\Fonts\arialbd.ttf",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "font_bold.ttf"),
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansHebrew-Bold.ttf",
-    ]
-    for _c in _candidates:
-        if os.path.exists(_c):
-            return _c
-    return None
 
 
-_FONT_PATH = _find_bold_font_path()
 
 
-def _load_bold_font(font_size: int):
-    if not _FONT_PATH:
-        return ImageFont.load_default(font_size)
-    font = ImageFont.truetype(_FONT_PATH, font_size)
-    # assets/font_bold.ttf הוא גופן variable (Noto Sans Hebrew) בלי קובץ Bold
-    # נפרד - צריך לבחור את ה-named instance "Bold" בפירוש, אחרת מתקבל המשקל
-    # הרגיל (Regular) כברירת מחדל. arialbd.ttf המקומי כבר Bold מטבעו, אין לו
-    # variations בכלל - ה-try/except מדלג עליו בשקט.
-    try:
-        font.set_variation_by_name("Bold")
-    except Exception:
-        pass
-    return font
 
 
-def render_text_image(text: str, color_hex: str, font_size: int = 26) -> Image.Image:
-    """מצייר טקסט (עם נקודה צבעונית מימין) כתמונה בפועל, כדי לעקוף לחלוטין כל
-    בעיית גופן/דפדפן אצל הלקוח - הפיקסלים קבועים מראש ולא תלויים ברינדור טקסט.
-    Pillow הבסיסי (בלי raqm) לא מהפך RTL בעצמו - משתמשים ב-python-bidi כדי
-    להמיר לסדר התצוגה הנכון (visual order) לפני הציור, אחרת המילה מצטיירת הפוך."""
-    text = get_display(text)
-    font = _load_bold_font(font_size)
-    dummy = Image.new("RGBA", (10, 10))
-    dd = ImageDraw.Draw(dummy)
-    bbox = dd.textbbox((0, 0), text, font=font)
-    text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    dot_r = font_size // 4
-    pad = 8
-    width = text_w + dot_r * 2 + pad * 3
-    height = max(text_h + 14, dot_r * 2 + 10)
-    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    color = tuple(int(color_hex.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
-    dot_cx, dot_cy = width - pad - dot_r, height // 2
-    d.ellipse([dot_cx - dot_r, dot_cy - dot_r, dot_cx + dot_r, dot_cy + dot_r], fill=color)
-    text_x = dot_cx - dot_r - pad - text_w - bbox[0]
-    text_y = (height - text_h) // 2 - bbox[1]
-    d.text((text_x, text_y), text, font=font, fill=color)
-    return img
+
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -88,15 +32,10 @@ if getattr(sys, "_dipradar_dash_mtime", None) != _DASH_MTIME:
 from src.config import load_config, db_path, CONFIG_PATH, ROOT_DIR
 from src.scanner import run_scan, STOP_LOSS_FACTOR, STOP_WARN_PCT, TARGET_WARN_PCT, compute_holdings_value_by_currency
 from src.strategy import ATR_STOP_MULTIPLIER, live_target_price, stop_distance_pct, target_distance_pct
-from src import strategy as strategy_mod, post_alert, strategy_stats, forward_test, ui_v3, scan_status
+from src import strategy as strategy_mod, post_alert, strategy_stats, ui_v3, scan_status
 from src.names import fix_name
 from src import market_data, constituents, news, backtest, store, analysis, fees, cloud_sync, notifier
 from src.market_hours import is_trading_day, MARKET_HOURS, get_market_status, format_countdown, is_market_open, israel_today, israel_now, has_closed_today, bought_after_close
-
-# שדרוג עיצובי (14.10.2026): ui_v2 ב-config.yaml. כבוי כברירת מחדל - חזרה למצב הקודם = ui_v2: false (או למחוק את
-# המפתח) ורענון, בלי שינוי קוד. כל מה שקשור לשדרוג מותנה ב-UI_V2.
-UI_V3 = bool(load_config().get("ui_v3", False))
-UI_V2 = bool(load_config().get("ui_v2", False)) and not UI_V3
 
 _UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_prefs.json")
 _PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
@@ -143,118 +82,6 @@ def _save_filter_prefs(keys: tuple) -> None:
 
 
 
-_V2_CSS = """
-        @media (prefers-color-scheme: light) {
-            [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"] { background: #eef1f5 !important; }
-            div[class*="st-key-market_panel"] {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 16px !important;
-                box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
-            }
-            div[class*="st-key-nav_tabs_row"] {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 12px !important;
-                border-left: 3px solid #3B6EA5 !important; border-right: 3px solid #3B6EA5 !important;
-                padding: 6px !important; box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
-            }
-            div[class*="st-key-navtab_"] button { border-radius: 11px !important; }
-            div[class*="st-key-idx_card_"] { border-radius: 14px !important; box-shadow: none !important; }
-            /* כרטיסי סטטיסטיקה בגוון ירוק/אדום (יומן עסקאות, ביצועים וכו'): מילוי שקוף על רקע העמוד האפור יצא בוצי - לבן אטום עם
-               אותו גוון מעליו, כך שנראה זהה לכרטיסים שבתוך הפאנל הלבן */
-            [data-testid="stMain"] div[style*="rgba(6, 128, 107, 0.1)"][style*="border-radius"] {
-                background-color: #ffffff !important; background-image: linear-gradient(rgba(6,128,107,0.10), rgba(6,128,107,0.10)) !important;
-            }
-            [data-testid="stMain"] div[style*="rgba(204, 47, 60, 0.1)"][style*="border-radius"] {
-                background-color: #ffffff !important; background-image: linear-gradient(rgba(204,47,60,0.10), rgba(204,47,60,0.10)) !important;
-            }
-            /* טבלאות עצמאיות (יומן עסקאות, ביצועים לפי סיגנל) בכרטיס לבן */
-            [data-testid="stMain"] .trade-journal-table, [data-testid="stMain"] div.by-signal-table {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22); border-radius: 14px; padding: 4px 6px;
-            }
-            /* כרטיסים עם מסגרת בטאבים (אחזקות, מניות מובילות, ביצועים): לבנים כמו הפאנל בדף הבית - בלי זה הם שקופים ונראים אפורים
-               על רקע העמוד */
-            [data-testid="stMain"] div[class*="st-key-holding_card_"], [data-testid="stMain"] div[class*="st-key-card_"],
-            [data-testid="stMain"] div[class*="st-key-chart_card_"], [data-testid="stMain"] [data-testid="stExpander"] details {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
-            }
-            /* סיידבר (14.10.2026): רקע מעט עמוק יותר מהעמוד, והכרטיסים שבתוכו לבנים רכים כמו הפאנל הראשי */
-            [data-testid="stSidebar"] { background: #e9edf3 !important; }
-            [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
-            [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
-            [data-testid="stSidebar"] div[class*="st-key-strategy_selector_card"],
-            [data-testid="stSidebar"] div[class*="st-key-channels_card"] {
-                background: #ffffff; border: 1px solid rgba(128,128,128,0.22) !important; border-radius: 14px !important;
-                box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
-            }
-            [data-testid="stSidebar"] [data-baseweb="input"], [data-testid="stSidebar"] [data-baseweb="select"] > div {
-                border-radius: 10px !important;
-            }
-        }
-        .v2sec > span:first-child { display: inline-flex; align-items: center; gap: 14px; }
-        /* כרטיס "מצב תיק" בטאב אחזקות: מילוי שקוף-אפור על רקע העמוד האפור-כחלחל יצא כהה ואפרורי - לבן עם מסגרת רכה (14.10.2026) */
-        div[style*="rgba(120, 120, 120, 0.07)"][style*="border-radius: 12px"]:not([style*="height: 125px"]):not([style*="min-width: 120px"]) { background: #ffffff !important; border-color: rgba(128,128,128,0.22) !important; }
-        /* כרטיסי _stat_card (ביצועים/יומן: "סה"כ עסקאות סגורות", "התראות שנבדקו"...) נשארים באפור של "שווי כולל" - בכוונה */
-        .v2sec { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0.5rem 0 1rem; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
-        .v2ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
-                 background: rgba(59,110,165,0.12); color: #3b6ea5; flex: 0 0 auto; }
-        @media (min-width: 481px) {
-            /* כותרת לסיידבר (14.10.2026): באותו גובה ובאותה שפה של כותרת האתר (נמדד: כותרת 46px גובה 46px, 36.8px/800/כחול;
-               שורת משנה 94px, 15.2px) - pseudo-elements, בלי לשנות את פריסת הכרטיסים */
-            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { position: relative; }
-            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"]::before {
-                content: "Sidebar"; position: absolute; top: 2px; left: 0; right: 0; text-align: center; height: 46px; line-height: 46px;
-                font-size: 2.3rem; font-weight: 800; letter-spacing: 0.02em; color: #3b6ea5;
-            }
-            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"]::after {
-                content: "הגדרות ופרמטרים"; position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: max-content;
-                height: 24px; line-height: 24px; padding-left: 19px; font-size: 0.95rem; font-weight: 500; color: #6b7280;
-                background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'/></svg>") left center / 13px 13px no-repeat;
-            }
-            /* הכרטיס הראשון בסיידבר מתחיל על אותו קו עם שורת הניווט (נמדד: ניווט 128px, כרטיס 44px => 84px) */
-            [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 84px !important; padding-bottom: 6px !important; }
-            /* הסיידבר נכנס למסך אחד (14.10.2026): אלמנטי ה-<style> הריקים (גובה 0) בתוך הכרטיסים עדיין מוסיפים 4px רווח כל אחד */
-            [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"] > [data-testid="stElementContainer"]:has(style),
-            [data-testid="stSidebar"] div[class*="st-key-exp_group_card"] > [data-testid="stElementContainer"]:has(style),
-            [data-testid="stSidebar"] div[class*="st-key-channels_card"] > [data-testid="stElementContainer"]:has(style) { display: none !important; }
-            [data-testid="stSidebar"] div[class*="st-key-scan_settings_card"],
-            [data-testid="stSidebar"] div[class*="st-key-exp_group_card"],
-            [data-testid="stSidebar"] div[class*="st-key-strategy_selector_card"],
-            [data-testid="stSidebar"] div[class*="st-key-channels_card"] { gap: 2px !important; padding-top: 8px !important; }
-            /* שדות מספר ללא תווית (אחוזים, ימים וכו'): שדה צר, כך שכפתורי +/- צמודים למספר. היחידה (% / ימים) מיד אחרי הכפתורים */
-            [data-testid="stSidebar"] div[class*="st-key-settings_threshold"],
-            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_days"],
-            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_threshold"],
-            [data-testid="stSidebar"] div[class*="st-key-settings_gain_start"],
-            [data-testid="stSidebar"] div[class*="st-key-settings_gain_step"],
-            [data-testid="stSidebar"] div[class*="st-key-settings_stop_warn"],
-            [data-testid="stSidebar"] div[class*="st-key-settings_target_warn"] { max-width: 150px; }
-            [data-testid="stSidebar"] div[class*="st-key-settings_threshold"] input,
-            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_days"] input,
-            [data-testid="stSidebar"] div[class*="st-key-settings_multi_day_threshold"] input,
-            [data-testid="stSidebar"] div[class*="st-key-settings_gain_start"] input,
-            [data-testid="stSidebar"] div[class*="st-key-settings_gain_step"] input,
-            [data-testid="stSidebar"] div[class*="st-key-settings_stop_warn"] input,
-            [data-testid="stSidebar"] div[class*="st-key-settings_target_warn"] input { flex: 0 0 40px !important; width: 40px !important; min-width: 0 !important; padding-left: 0 !important; }
-            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_threshold"]),
-            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_threshold"]),
-            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_days"]) { flex: 0 0 150px !important; width: 150px !important; min-width: 0 !important; }
-            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_threshold"]) + [data-testid="stColumn"],
-            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_threshold"]) + [data-testid="stColumn"],
-            [data-testid="stSidebar"] [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > div[class*="st-key-settings_multi_day_days"]) + [data-testid="stColumn"] { transform: translateX(70px); }
-            /* כפתור "סריקת שווקים ידנית": כמו קודם (טקסט עם חץ, בלי מסגרת), רק שהאייקון מיושר מתחת לתיבת הסימון שמעליו
-               (קצה ימין של התיבה 724px, של האייקון 711px => ריפוד התחלה 0 במקום 12px) */
-            [data-testid="stSidebar"] div[class*="st-key-sidebar_scan_button"] button { padding-inline-start: 0 !important; }
-            /* ריחוף בסיידבר: אותו גוון תכלת של שאר האתר - rgba(59,110,165,0.15), כמו תגיות בחירת המדדים (14.10.2026) */
-            [data-testid="stSidebar"] [data-testid="stExpander"] summary:hover,
-            [data-testid="stSidebar"] div[class*="st-key-sidebar_scan_button"] button:hover,
-            [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] button:hover:enabled {
-                background-color: rgba(59,110,165,0.15) !important;
-            }
-            [data-testid="stSidebar"] [data-baseweb="tag"] { font-size: 12px !important; padding: 0 6px !important; min-height: 24px !important; margin: 2px !important; }
-            /* תגיות מדדים בסיידבר (15.10.2026): קטנות יותר כדי ש-NASDAQ100 ו-SP500 ייכנסו לאותה שורה (נמדד: מכל התגיות 190px) */
-            [data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] [role="group"] > span { font-size: 12.5px !important; padding: 0 6px !important; margin: 0 3px 4px 0 !important; }
-            [data-testid="stMain"] div[style*="height: 125px"] { border-radius: 14px !important; box-shadow: none !important; }
-            [data-testid="stMain"] div[style*="height: 125px"] > div:nth-child(1) { font-size: 0.85rem !important; font-weight: 600 !important; opacity: 1 !important; color: #6b7280 !important; }
-        }
-"""
 
 # עיצוב v3 (15.10.2026, "Ivory + Radar", מוקאפים שאושרו בטאב-אחר-טאב): ui_v3 ב-config.yaml. חזרה = ui_v3: false + רענון.
 # שכבת CSS אחת שנטענת אחרונה (מנצחת את הכללים הישנים); יום/לילה: ברירת מחדל לפי הגדרת המערכת, ובורר ידני (יום/לילה בכותרת)
@@ -914,39 +741,18 @@ _V3_BRAND_HTML = (
     '<circle class="dot" cx="16" cy="6.5" r="2"/></svg>DipRadar</a>'
 )
 
-_SECTION_ICONS = {
-    "📊": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-    "💼": '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
-    "🕒": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    "📰": '<path d="M4 4h13a1 1 0 0 1 1 1v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2zM18 8h3v11a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h4"/>',
-    "🧪": '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
-}
 
 
-def _section_title(text: str) -> None:
-    """כותרת סעיף. בשדרוג העיצובי (UI_V2): אייקון קווי בריבוע עגול במקום האימוג'י; אחרת st.subheader כרגיל."""
-    emoji, _, rest = text.partition(" ")
-    icon = _SECTION_ICONS.get(emoji)
-    if not (UI_V2 and icon):
-        st.subheader(text)
-        return
-    st.markdown(
-        f'<h3 class="v2sec"><span class="v2ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" '
-        f'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-        f'{icon}</svg></span>{html.escape(rest)}</h3>',
-        unsafe_allow_html=True,
-    )
 
 st.set_page_config(page_title="DipRadar", layout="wide")
 
-if UI_V3:
-    # מניעת הבזק של העיצוב הישן בטעינה (נייד): התוכן מוסתר עד שה-CSS של v3 נטען (שורה אחת למטה מבטלת את ההסתרה);
-    # אם משהו נכשל באמצע - אחרי 4 שניות הכל מוצג בכל מקרה
-    st.markdown(
-        "<style>[data-testid='stMain'], [data-testid='stSidebar'] { opacity: 0; animation: drReveal .01s 4s forwards; } "
-        "@keyframes drReveal { to { opacity: 1; } }</style>",
-        unsafe_allow_html=True,
-    )
+# מניעת הבזק של העיצוב הישן בטעינה (נייד): התוכן מוסתר עד שה-CSS של v3 נטען (שורה אחת למטה מבטלת את ההסתרה);
+# אם משהו נכשל באמצע - אחרי 4 שניות הכל מוצג בכל מקרה
+st.markdown(
+    "<style>[data-testid='stMain'], [data-testid='stSidebar'] { opacity: 0; animation: drReveal .01s 4s forwards; } "
+    "@keyframes drReveal { to { opacity: 1; } }</style>",
+    unsafe_allow_html=True,
+)
 
 components.html(
     """
@@ -959,25 +765,8 @@ components.html(
     height=0,
 )
 
-# רכיב JS שמציג גרף+סליידר שמתעדכן מיידית בגרירה בצד הלקוח בלבד, בלי סבב-רינדור
-# בפייתון על כל פיקסל גרירה (בניגוד ל-st.select_slider הרגיל, שרק שולח ערך
-# בשחרור העכבר). נוסה קודם עם declare_component (רכיב דו-כיווני אמיתי) - אבל
-# ה-handshake (componentReady/streamlit:render) התברר כשבור לגמרי ב-streamlit
-# 1.61.1 בסביבה הזו (timeout קבוע, גם ברכיב מינימלי ריק לחלוטין - נבדק ואומת,
-# 9.9.2026). components.html (חד-כיווני, בלי handshake, כבר בשימוש בהצלחה
-# בקובץ הזה - ר' שורה 87) לא סובל מהבאג הזה, אז הנתונים מוטבעים ישירות ב-HTML
-# בזמן הרינדור מפייתון במקום להישלח דרך postMessage. המחיר: הבחירה בסליידר לא
-# נשמרת יותר בין ריצות מחדש מלאות (אין ערך חוזר לפייתון) - התקבל כפשרה סבירה.
-_LIVE_INDEX_CARD_HTML = None
 
 
-def _get_live_index_card_template() -> str:
-    global _LIVE_INDEX_CARD_HTML
-    if _LIVE_INDEX_CARD_HTML is None:
-        _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "components", "live_index_card", "index.html")
-        with open(_path, "r", encoding="utf-8") as _f:
-            _LIVE_INDEX_CARD_HTML = _f.read()
-    return _LIVE_INDEX_CARD_HTML
 
 POS_COLOR = "#06806B"
 NEG_COLOR = "#CC2F3C"
@@ -992,29 +781,13 @@ def _pts_chip(pts: int) -> str:
     )
 
 
-def _signal_cell_html(emoji: str) -> str:
-    """עיגול הרמזור ואחריו שם הסיווג בצבע: לקנות / לחכות / לא לקנות."""
-    for key, e in strategy_mod.SIGNAL_EMOJI.items():
-        if e == emoji:
-            return (
-                f'{emoji} <span style="color:{SIGNAL_COLORS[key]}; font-weight:700;">'
-                f'{strategy_mod.SIGNAL_LABEL[key]}</span>'
-            )
-    return str(emoji)
 
 
 SIGNAL_COLORS = {"buy": POS_COLOR, "wait": "#C98A00", "avoid": NEG_COLOR, "unknown": "#7A8591"}  # צבעי הרמזור (🟢/🟡/🔴)
 POS_BG = "rgba(6, 128, 107, 0.10)"
 NEG_BG = "rgba(204, 47, 60, 0.10)"
 NEUTRAL_COLOR = "#3B4A5A"
-NEUTRAL_BG = "rgba(120,120,120,0.07)"
 ACCENT_COLOR = "#3B6EA5"
-# צבע ייעודי לקו "התיק שלי" בגרף השוואה מול מדד - לא ACCENT_COLOR (משמש
-# לכותרת) ולא NEUTRAL_COLOR (משמש לקו המדד) כי שניהם גוני כחול קרובים מדי,
-# קשה להבדיל ביניהם (14.9.2026, "אולי צבע אחר שלא קשור לכותרת?"). סגול
-# (הניסיון הראשון) עדיין "נראה אותו דבר" למשתמש בגודל הקטן של סימוני
-# ה-legend - כתום חם מנוגד בהרבה לכחול-כהה הקריר של קו המדד.
-PORTFOLIO_LINE_COLOR = "#D9822B"
 CURRENCY_SYMBOLS = {"ILS": 'ש"ח', "USD": "$"}
 
 # אייקון עיגול-שאלה שמחקה את ה-help= הטבעי של Streamlit (עיגול אפור עדין) -
@@ -1027,44 +800,16 @@ _HELP_ICON_SVG = (
 )
 
 
-def _help_icon_span(tooltip_text: str) -> str:
-    """<span> עם האייקון + טולטיפ. היה מבוסס onclick="alert(...)" כי הובר לבד
-    לא עובד במגע (טאבלט/מובייל) - אבל התברר (15.9.2026, ר' [[project_sidebar_css_specificity_gotchas]]-
-    סוג דומה של "הקוד אמור לעבוד") ש-Streamlit מנקה בשקט את ה-onclick מתוך
-    unsafe_allow_html, אז בפועל לא הוצג שום דבר במגע - גרוע מכלום. עובר
-    ל-CSS-בלבד: tabindex הופך את ה-span לבר-מיקוד, כך שהקשה במגע מפעילה
-    :focus בדיוק כמו :hover בעכבר, בלי תלות ב-JS שיכול להיחסם."""
-    return (
-        f'<span tabindex="0" title="{tooltip_text}" class="_ddhelp" '
-        f'style="position:relative; cursor:help; color:rgba(49,51,63,0.6); outline:none;">'
-        f'{_HELP_ICON_SVG}'
-        f'<span class="_ddhelp_bubble" style="position:absolute; bottom:135%; right:50%; '
-        f'transform:translateX(50%); background:#333; color:#fff; padding:6px 10px; '
-        f'border-radius:6px; font-size:0.72rem; font-weight:400; white-space:pre-line; '
-        f'width:max-content; max-width:220px; visibility:hidden; opacity:0; '
-        f'z-index:1000; text-align:center; pointer-events:none;">'
-        f'{tooltip_text}</span>'
-        # !important הכרחי - inline style="visibility:hidden" על הבועה עצמה
-        # מנצח תמיד כלל רגיל ב-stylesheet, לא משנה הספציפיות של ה-selector
-        # (15.9.2026, נמצא בפועל: :focus תאם ב-DOM, הכלל היה רשום ב-CSSOM,
-        # ועדיין לא הוצג - ר' [[project_sidebar_css_specificity_gotchas]]).
-        f'<style>._ddhelp:hover ._ddhelp_bubble, ._ddhelp:focus ._ddhelp_bubble '
-        f'{{visibility:visible !important; opacity:1 !important;}}</style>'
-        f'</span>'
-    )
 
 
 def _sb_title(text: str, cls: str = "") -> None:
     """כותרת סעיף בסיידבר: v3 = כותרת נקייה בלי אימוג'י (מוקאפ שאושר); אחרת מודגש כמו קודם."""
-    if UI_V3:
-        st.markdown(f'<div class="v3sbt {cls}">{html.escape(text.partition(" ")[2] or text)}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f"**{text}**")
+    st.markdown(f'<div class="v3sbt {cls}">{html.escape(text.partition(" ")[2] or text)}</div>', unsafe_allow_html=True)
 
 
 def _nm(label: str) -> str:
     """תווית עם אימוג'י מוביל: ב-v3 בלי האימוג'י."""
-    return label.partition(" ")[2] if UI_V3 else label
+    return label.partition(" ")[2]
 
 
 def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
@@ -1075,22 +820,6 @@ def _signed_num(value: float, decimals: int = 0, suffix: str = "") -> str:
     return f"‎{value:+,.{decimals}f}{suffix}"
 
 
-def _tase_badge_html(row: dict) -> str:
-    """'(מספר ני''ע | סימול)' ליד הטיקר - הסימול/מספר ני''ע האמיתיים בבורסה
-    לא תמיד תואמים למה שהדשבורד/Yahoo מציגים (24.9.2026, "פער בשמות המניות
-    בינך לבין אתר הבנק"). row צריך "tase_symbol" ואופציונלית "tase_id" -
-    ר' constituents.get_tase_symbol_map/get_tase_security_id_map. משותף בין
-    כרטיס אחזקה לכרטיס פרטי התראה, כדי שלא יתבדרו זה מזה. פורמט "(מס' | סימול)"
-    נבחר במפורש ע"י המשתמש (24.9.2026, "משהו כזה למשל: (123456 | DFAGA)")."""
-    symbol = row.get("tase_symbol")
-    if not symbol:
-        return ""
-    tase_id = row.get("tase_id")
-    inner = f"{tase_id} | {symbol}" if pd.notna(tase_id) else symbol
-    return (
-        f'<span style="font-size:0.78rem; opacity:0.6; font-weight:500; flex-shrink:0;" '
-        f'title="הסימול/מספר ני\'\'ע כפי שמוצגים באתר הבנק/הבורסה">({inner})</span>'
-    )
 
 
 def _level_text(value: float, is_il: bool, usd: bool = False) -> str:
@@ -1116,37 +845,9 @@ def _price_text(value, index_name, whole: bool = False) -> str:
     return f"${value:,.2f}"
 
 
-def _stat_card(label: str, value: str, color: str, bg: str, sub: str = "") -> str:
-    sub_html = f'<div style="font-size:0.75rem; opacity:0.7; margin-top:3px;">{sub}</div>' if sub else ""
-    return (
-        f'<div style="flex:1; min-width:120px; border:1px solid {color}33; border-radius:12px; '
-        f'padding:12px 14px; background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75;">{label}</div>'
-        f'<div style="font-size:1.35rem; font-weight:700; color:{color}; margin-top:4px;">{value}</div>'
-        f'{sub_html}'
-        f'</div>'
-    )
-
-REASON_COLORS = {
-    "market_wide": "#4A90D9",
-    "sector_pressure": "#9B59B6",
-    "earnings_reaction": "#E67E22",
-    "profit_taking": "#16A085",
-    "stock_specific_news": "#7F8C8D",
-    "ex_dividend": "#B8860B",
-    "unclear": "#95A5A6",
-}
 
 
-def render_reason_pill(reasons_json: str) -> str:
-    """תגית (pill) צבעונית לסיבת הירידה העיקרית, לזיהוי מהיר בטבלה/הרחבה."""
-    tag = backtest.primary_reason_tag(reasons_json)
-    color = REASON_COLORS.get(tag, "#95A5A6")
-    label = analysis.REASON_LABELS.get(tag, tag)
-    return (
-        f'<span style="background:{color}22; color:{color}; border:1px solid {color}66; '
-        f'border-radius:12px; padding:2px 10px; font-size:0.85em; font-weight:600;">{label}</span>'
-    )
+
 
 
 def _sparkline_svg(
@@ -1714,23 +1415,20 @@ with st.container(key="nav_tabs_row"):
             }
         }
         </style>
-        """.replace("</style>", (_V2_CSS if UI_V2 else "") + (_V3_CSS if UI_V3 else "") + f"/* dipradar-build {globals().get('_DIPRADAR_BUILD', 'none')} */</style>"),
+        """.replace("</style>", _V3_CSS + f"/* dipradar-build {globals().get('_DIPRADAR_BUILD', 'none')} */</style>"),
         unsafe_allow_html=True,
     )
-    if UI_V3:
-        # עמודה ראשונה = לוגו, אחרונה = מרווח גמיש; הטאבים באמצע (ר' _V3_CSS)
-        _all_nav_cols = st.columns([1] * (len(_TAB_DEFS) + 2), gap="small")
-        with _all_nav_cols[0]:
-            st.markdown(_V3_BRAND_HTML, unsafe_allow_html=True)
-        _nav_cols = _all_nav_cols[1:1 + len(_TAB_DEFS)]
-        with _all_nav_cols[-1]:
-            components.html(_V3_TOOLS_HTML, height=40)
-    else:
-        _nav_cols = st.columns(len(_TAB_DEFS), gap="small")
+    # עמודה ראשונה = לוגו, אחרונה = מרווח גמיש; הטאבים באמצע (ר' _V3_CSS)
+    _all_nav_cols = st.columns([1] * (len(_TAB_DEFS) + 2), gap="small")
+    with _all_nav_cols[0]:
+        st.markdown(_V3_BRAND_HTML, unsafe_allow_html=True)
+    _nav_cols = _all_nav_cols[1:1 + len(_TAB_DEFS)]
+    with _all_nav_cols[-1]:
+        components.html(_V3_TOOLS_HTML, height=40)
     for _nav_col, (_nav_key, _nav_label) in zip(_nav_cols, _TAB_DEFS):
         with _nav_col:
             if st.button(
-                _nav_label.partition(" ")[2] if UI_V3 else _nav_label, key=f"navtab_{_nav_key}", width='stretch',
+                _nav_label.partition(" ")[2], key=f"navtab_{_nav_key}", width='stretch',
                 type="primary" if st.session_state.active_tab == _nav_key else "secondary",
             ):
                 st.session_state.active_tab = None if st.session_state.active_tab == _nav_key else _nav_key
@@ -1859,17 +1557,8 @@ for staleness_warning in _check_il_constituents_staleness():
     st.warning(f"📋 {staleness_warning}", icon="⚠️")
 
 
-def _theme_type() -> str:
-    """'dark' או 'light' - לכיול צבעים שנקבעים מראש (כמו תמונות PIL) לפי המצב
-    הנוכחי, כי CSS media-query לא יכול להשפיע על פיקסלים מוכנים מראש."""
-    try:
-        return st.context.theme.type
-    except Exception:
-        return "light"
 
 
-THEME = _theme_type()
-NEAR_MISS_COLOR = "#F5C242" if THEME == "dark" else "#B8860B"
 
 
 @st.cache_data(ttl=15)
@@ -1896,13 +1585,9 @@ def get_index_changes() -> dict:
     return {idx: market_data.fetch_index_proxy_change(idx) for idx in ALL_INDICES}
 
 
-def _status_dot(color: str) -> str:
-    return (f'<span style="display:inline-block; width:8px; height:8px; border-radius:50%; '
-            f'background:{color}; margin-left:5px; vertical-align:middle;"></span>')
 
 
 CLOSED_COLOR = "#888"
-CLOSED_BG = "rgba(136,136,136,0.08)"
 
 
 @st.cache_data(ttl=60)
@@ -1995,345 +1680,22 @@ def get_index_sparkline(index_key: str, days: int) -> tuple[list, str | None]:
     return sliced, hist.index[-1].strftime("%d/%m")
 
 
-def render_index_card(label: str, val: float | None, trading_open: bool, index_key: str = "") -> None:
-    if val is None:
-        color, bg = CLOSED_COLOR, CLOSED_BG
-    elif not trading_open:
-        color, bg = CLOSED_COLOR, CLOSED_BG
-    else:
-        color = POS_COLOR if val >= 0 else NEG_COLOR
-        bg = POS_BG if val >= 0 else NEG_BG
-
-    container_key = f"idx_card_{index_key}"
-    with st.container(key=container_key):
-        # אותה טכניקת עיצוב שכבר בשימוש בכל הקובץ (כפתור הסריקה, portfolio_header
-        # וכו'): container עם מפתח + <style> שמכוון אליו לפי class, כדי שהצבע
-        # יוכל להשתנות דינמית (חיובי/שלילי/סגור) בלי לאבד את היכולת להכניס
-        # ווידג'ט אמיתי (slider) *בתוך* הכרטיס - מה שלא אפשרי כשהכרטיס כולו
-        # הוא HTML גולמי אחד מבודד.
-        st.markdown(
-            f"""
-            <style>
-            div[class*="st-key-{container_key}"] {{
-                border: 1px solid {color}; border-radius: 12px; padding: 10px 16px 12px 16px;
-                background: {bg}; box-shadow: 0 2px 6px rgba(0,0,0,0.06); gap: 0 !important;
-                height: 125px !important; min-height: 125px !important; max-height: 125px !important;
-                box-sizing: border-box !important; display: flex !important;
-                flex-direction: column !important; justify-content: space-between !important;
-                flex-shrink: 0 !important; flex-grow: 0 !important;
-            }}
-            div[class*="st-key-{container_key}"] [data-testid="stElementContainer"]:has(style) {{
-                display: none;
-            }}
-            /* הכרטיס עם val אמיתי מרנדר ה-iframe של live_index_card כילד יחיד
-            (הגרף+הסליידר החי) - ה-iframe עצמו צריך למלא רוחב מלא כדי
-            שהתוכן שבתוכו (ר' components/live_index_card/index.html) יתפרס
-            נכון בתוך הריפוד של הכרטיס. */
-            div[class*="st-key-{container_key}"] iframe {{
-                width: 100% !important;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # 24.9.2026 ("חלון 'אין נתונים'"): fetch_index_proxy_change (רק % בודד)
-        # יכול להיכשל בזמן שה-sparkline (get_index_sparkline/_last_completed)
-        # עדיין מצליח - יש להם נסיונות-חוזרים ומטמון משלהם. אז גם כש-val הוא
-        # None, מנסים קודם את אותו רינדור עשיר של "יום המסחר האחרון" שמוצג
-        # כרגיל כשהשוק סגור (למשל שבת) - "אין נתונים" רק אם גם זה ריק לגמרי.
-        _prices0, _as_of0 = get_index_intraday_sparkline(index_key, trading_open)
-        if val is None and not _prices0:
-            st.markdown(
-                f'<div style="font-size:0.9rem; font-weight:600; opacity:0.8; text-align:center;">{label}</div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f'<div style="text-align:center; font-size:1.6rem; font-weight:700; color:{color}; margin-top:8px;">אין נתונים</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            # עצירות קבועות (לא טווח רציף 1-90) - הרבה יותר קל לפגוע בדיוק
-            # כשיש רק כמה נקודות עצירה על הפס, לא צריך לגרור פיקסל בודד בול
-            # (2.9.2026, בעקבות תלונה שקשה לדייק). האופציה הראשונה ברשימה
-            # תמיד יושבת בקצה הימני (הקצה שקרוב יותר ל"עכשיו") - כי min
-            # מוצג ימינה ב-RTL (dir="rtl" על ה-<input type=range> ברכיב).
-            _day_options = [1, 3, 7, 14, 30, 60, 90]
-            # 0 (תוך-יומי) תמיד באפשרויות, גם כשהשוק סגור - fetch_index_intraday
-            # (period="1d") ממילא מחזיר את יום המסחר האחרון שהושלם, לא רק "היום
-            # אם עדיין פתוח", אז אין סיבה להסתיר את התנודות תוך-יומיות בפועל
-            # ולהתחיל (ברירת מחדל, initial_index=0) מקו שטוח של 2 נקודות בלבד -
-            # בדיוק מה שהמשתמש תפס בפועל גם במדדים האמריקאיים כשהשוק שלהם סגור
-            # (9.9.2026, "לא רואים את התנודות האמיתיות שהיו היום"). אבל כשהשוק
-            # סגור, אפשרות "1" (יום אחרון) מייצגת בדיוק אותו יום מסחר כמו
-            # אפשרות "0" - שתי אפשרויות לאותו הדבר, אחת עם גרף אמיתי ואחת עם
-            # קו שטוח של 2 נקודות בלבד. מדלגים על "1" במקרה הזה כדי לא להציג
-            # שתי אפשרויות זהות בפועל בסליידר (9.9.2026, "שים לב שיש לך כפל").
-            _options = [0] + ([d for d in _day_options if d != 1] if not trading_open else _day_options)
-
-            def _fmt_day_option(v: int) -> str:
-                if v == 0:
-                    return "מסחר פעיל" if trading_open else "יום המסחר האחרון"
-                if v == 1:
-                    return "יום אחרון"
-                return f"{v} ימים"
-
-            # שולפים נתונים לכל האפשרויות מראש (לא רק לנבחרת) - כדי שהגרירה
-            # ברכיב הלקוח תוכל לעבור בין כל טווח בלי לחזור לפייתון. כל קריאה
-            # ל-get_index_sparkline/get_index_intraday_sparkline כבר ממוטמנת
-            # (ttl=300/60), אז זה בפועל 1-8 שליפות רשת בלבד לכל מדד לכל 5
-            # דקות, לא בכל טעינת עמוד (9.9.2026, בעקבות בקשה לעדכון חי בגרירה).
-            _series = {}
-            _labels = {}
-            # _is_actually_today (רק ל-_d==0): trading_open לבד לא מבטיח שהנתון
-            # שחזר מ-get_index_intraday_sparkline באמת מהיום - יאהו יכול לפגר
-            # אחרי פתיחת המסחר (17.9.2026, "גם נתוני הכרטיסים לא מעודכנים").
-            # הפונקציה כבר בודקת את זה בעצמה ומחזירה as_of בפורמט תאריך
-            # (DD/MM) כשלא - מזהים את זה כאן לפי הימצאות "/" בלי לשנות את
-            # חתימת הפונקציה.
-            _is_actually_today = True
-            for _d in _options:
-                if _d == 0:
-                    _prices, _as_of = get_index_intraday_sparkline(index_key, trading_open)
-                    _is_actually_today = bool(_as_of) and "/" not in _as_of
-                elif _d == 1 and trading_open:
-                    # כשהמסחר פעיל, "0" כבר תפוס ב"מסחר פעיל" (היום הנוכחי,
-                    # בעיצומו) - "1" צריך את הגרף התוך-יומי האמיתי של היום
-                    # *שלפניו* (המסחר האחרון שהושלם), לא קו שטוח סגירה-מול-
-                    # סגירה (9.9.2026, בקשה מפורשת).
-                    _prices, _as_of = get_index_last_completed_sparkline(index_key)
-                else:
-                    _prices, _as_of = get_index_sparkline(index_key, _d)
-                _series[str(_d)] = {"prices": _prices, "as_of": _as_of}
-                # "יום המסחר האחרון (תאריך)" - _d==1 (רק כשהשוק פתוח, ר' סינון
-                # למעלה), או _d==0 כשהשוק סגור *או* כשהנתון בפועל לא מהיום
-                # למרות שהשוק פתוח (יאהו מפגר - ר' _is_actually_today למעלה).
-                if (_d == 1 or (_d == 0 and not (trading_open and _is_actually_today))) and _as_of:
-                    _labels[str(_d)] = f"יום המסחר האחרון ({_as_of})"
-                else:
-                    _labels[str(_d)] = _fmt_day_option(_d)
-
-            _card_args = {
-                "label": label, "options": _options, "series": _series, "labels": _labels,
-                "pos_color": POS_COLOR, "neg_color": NEG_COLOR, "initial_index": 0, "v2": UI_V2,
-            }
-            _card_html = _get_live_index_card_template().replace("__ARGS_JSON__", json.dumps(_card_args))
-            components.html(_card_html, height=100)
 
 
-def render_portfolio_card(label: str, pnl: float, pnl_pct: float, ccy_symbol: str, dynamic_icon: bool = False) -> None:
-    color = POS_COLOR if pnl >= 0 else NEG_COLOR
-    bg = POS_BG if pnl >= 0 else NEG_BG
-    arrow = "▲" if pnl >= 0 else "▼"
-    value_html = f"{arrow} {_signed_num(pnl_pct, 1, '%')}"
-    if dynamic_icon:
-        label = f"{'📈' if pnl >= 0 else '📉'} {label}"
-
-    st.markdown(
-        f"""
-        <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
-                    background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
-                    transition:box-shadow 0.2s;">
-          <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
-          <div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{value_html}</div>
-          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
-            {_signed_num(pnl)} {ccy_symbol}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
-def render_value_card(label: str, value: float, invested: float, ccy_symbol: str, holdings_count: int) -> None:
-    # ניטרלי תמיד - זה לא כרטיס רווח/הפסד (ה"תשואה" הסמוכה כבר אומרת את זה
-    # באחוזים), רק גודל התיק בפועל. אדום/ירוק כאן היה מטעה - נראה כמו עוד
-    # איתות חיובי/שלילי בזמן שזו סתם עובדה (9.9.2026, בעקבות משוב).
-    color, bg = NEUTRAL_COLOR, NEUTRAL_BG
-    st.markdown(
-        f"""
-        <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
-                    background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
-                    transition:box-shadow 0.2s;">
-          <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
-          <div style="font-size:1.6rem; font-weight:700; margin-top:4px; color:{color};">{value:,.0f} {ccy_symbol}</div>
-          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
-            {holdings_count} אחזקות
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
-def render_stat_card(label: str, main_text: str, sub_text: str, color: str = None, bg: str = None) -> None:
-    """כרטיס סטטיסטיקה באותו מבנה ויזואלי בדיוק כמו כרטיסי "התיק שלי" (כולל card-bottom-line, כך שגם גרסת
-    המובייל הקומפקטית חלה עליו)."""
-    color = color or NEUTRAL_COLOR
-    bg = bg or NEUTRAL_BG
-    st.markdown(
-        f"""
-        <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
-                    background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
-                    transition:box-shadow 0.2s;">
-          <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
-          <div style="font-size:1.6rem; font-weight:700; color:{color}; margin-top:4px;">{main_text}</div>
-          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
-            {sub_text}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
-@st.cache_data(ttl=300)
-def get_forward_test_summary(position: float) -> dict | None:
-    """תקציר המדגם העיוור (התראות 🟢 מאז הקפאת הניקוד) - ר' src/forward_test.py. None אם החישוב נכשל."""
-    try:
-        _conn = store.get_conn(db_path(cfg))
-        try:
-            return forward_test.summary(_conn, cfg)
-        finally:
-            _conn.close()
-    except Exception:
-        return None
 
 
-def render_proximity_card(name: str, gap_pct: float, is_target: bool) -> None:
-    # מציג את האחזקה הכי קרובה לחצות את היעד שלה (רווח) או את הסטופ שלה (הפסד),
-    # מכל האחזקות בתיק - כדי לתת "איתות" בלי צורך לבדוק כל אחזקה בנפרד.
-    color = POS_COLOR if is_target else NEG_COLOR
-    bg = POS_BG if is_target else NEG_BG
-    icon = "🎯" if is_target else "🛑"
-    # gap_pct שלילי אומר שהמחיר כבר עבר את הרף (יעד או סטופ) - "0.0% נותרו" היה
-    # מטעה כאן (משתמע שהיא בדיוק על הרף, לא כבר מעבר לו). מציגים "חצתה ב-X%"
-    # במקום, עם ה-X בפועל (לא מקוצץ ל-0), כדי שהכרטיס יישאר מדויק גם במצב הזה.
-    if gap_pct < 0:
-        label = f"{icon} {'עברה את היעד' if is_target else 'חצתה את הסטופ-לוס'}"
-        gap_line = f"חצתה ב-{abs(gap_pct):.1f}%"
-    else:
-        label = f"{icon} קרוב ל{'יעד' if is_target else 'סטופ'}"
-        gap_line = f"{gap_pct:.1f}% נותרו"
-    st.markdown(
-        f"""
-        <div style="border:1px solid {color}; border-radius:12px; padding:14px 16px; height:125px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;
-                    background:{bg}; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);
-                    transition:box-shadow 0.2s;">
-          <div style="font-size:0.9rem; font-weight:600; opacity:0.8;">{label}</div>
-          <div style="font-size:1.25rem; font-weight:700; color:{color}; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{name}</div>
-          <div class="card-bottom-line" style="font-size:0.85rem; letter-spacing:0.02em; opacity:0.8; margin-top:6px;">
-            {gap_line}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
-DAY_NAMES_HE = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון"]
 
 
-def _day_range_label(weekdays: set) -> str:
-    days = sorted(weekdays)
-    if not days:
-        return ""
-    if len(days) == 1:
-        return f"יום {DAY_NAMES_HE[days[0] - 1]}"
-    return f"{DAY_NAMES_HE[days[0] - 1]}-{DAY_NAMES_HE[days[-1] - 1]}"
 
 
-def render_market_card(label: str, country: str) -> None:
-    status = get_market_status(country)
-    now = status["now"]
-    spec = MARKET_HOURS[country]
-    countdown = format_countdown(status["next_change"], now)
-    clock_id = f"clock_{country}"
-
-    if status["open"]:
-        color, bg, icon, status_text = POS_COLOR, POS_BG, "🟢", "השוק פתוח"
-        sub_text = f"נסגר בעוד {countdown} (בשעה {status['next_change'].strftime('%H:%M')})"
-    else:
-        color, bg, icon, status_text = CLOSED_COLOR, CLOSED_BG, "⚪", "השוק סגור"
-        next_day_name = DAY_NAMES_HE[status["next_change"].isoweekday() - 1]
-        sub_text = f"נפתח בעוד {countdown} (יום {next_day_name}, {status['next_change'].strftime('%H:%M')})"
-
-    overrides = spec.get("close_overrides", {})
-    main_days = set(spec["weekdays"]) - set(overrides.keys())
-    hours_rows = [
-        f'<div><b>{_day_range_label(main_days)}</b>&nbsp; '
-        f'<span dir="ltr">{spec["open"][0]:02d}:{spec["open"][1]:02d}–{spec["close"][0]:02d}:{spec["close"][1]:02d}</span></div>'
-    ]
-    for wd, close_hm in overrides.items():
-        hours_rows.append(
-            f'<div><b>{_day_range_label({wd})}</b>&nbsp; '
-            f'<span dir="ltr">{spec["open"][0]:02d}:{spec["open"][1]:02d}–{close_hm[0]:02d}:{close_hm[1]:02d}</span> (מקוצר)</div>'
-        )
-
-    components.html(
-        f"""
-        <html>
-        <head>
-        <style>
-          html, body {{ margin:0; padding:0; background:transparent;
-            font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;
-            direction: rtl; color:#31333F; }}
-          @media (prefers-color-scheme: dark) {{ html, body {{ color:#FAFAFA; }} }}
-        </style>
-        </head>
-        <body>
-        <div id="card_{country}" style="border:1px solid {color}; border-radius:12px; padding:14px 18px; background:{bg};
-                    box-sizing:border-box; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin:2px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div style="font-size:1rem; font-weight:600; opacity:0.85;">{label}</div>
-            <div id="{clock_id}" style="font-family:'Consolas','Courier New',monospace; font-size:1.3rem;
-                        font-weight:700; color:{color}; letter-spacing:0.05em;">--:--:--</div>
-          </div>
-          <div style="font-size:1.35rem; font-weight:700; color:{color}; margin-top:6px;">{icon} {status_text}</div>
-          <div style="font-size:0.92rem; margin-top:6px;">{sub_text}</div>
-          <div style="font-size:0.85rem; opacity:0.75; margin-top:8px; display:flex; gap:18px; flex-wrap:wrap;">
-            {"".join(hours_rows)}
-          </div>
-        </div>
-        <script>
-          function tick() {{
-              var el = document.getElementById("{clock_id}");
-              if (!el) return;
-              var fmt = new Intl.DateTimeFormat('en-GB', {{
-                  timeZone: '{spec["tz"]}', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-              }});
-              el.textContent = fmt.format(new Date());
-          }}
-          tick();
-          setInterval(tick, 1000);
-          // גובה ה-iframe לפי התוכן בפועל (13.10.2026, "למה הרווח כאן גדול כל כך?") - הגובה הקבוע מ-Python
-          // (175/195) נשאר כגיבוי ומשאיר ~50px ריקים מתחת לכרטיס בדסקטופ
-          function fit() {{
-              try {{
-                  var c = document.getElementById("card_{country}");
-                  if (c && window.frameElement) {{
-                      var h = Math.ceil(c.getBoundingClientRect().bottom + 4) + "px";
-                      window.frameElement.style.height = h;
-                      // העטיפה של Streamlit סביב ה-iframe מחזיקה את הגובה הקבוע - בלי זה נשאר רווח ריק מתחת
-                      window.frameElement.parentElement.style.height = h;
-                      window.frameElement.parentElement.style.setProperty("flex", "0 0 " + h, "important");
-                  }}
-              }} catch (e) {{}}
-          }}
-          fit();
-          window.addEventListener("resize", fit);
-        </script>
-        </body>
-        </html>
-        """,
-        # 28.9.2026, "החלק התחתון... נחתך במובייל": components.html רץ בתוך iframe
-        # בגובה קבוע ב-Python (לא responsive לתוכן שלו) - כשיש close_overrides
-        # (שוק ישראל, יום שישי מקוצר) שורת השעות מכילה שני פריטים; ברוחב מובייל
-        # הם נשברים לשתי שורות (flex-wrap) במקום זו-לצד-זו כמו בדסקטופ - גובה
-        # קבוע אחד (175) שקבע מראש לפי שורת שעות *אחת* חותך את השורה השנייה.
-        # ארה"ב (בלי override) לא מושפע - נשאר באותו גובה כמו קודם.
-        height=195 if overrides else 175,
-    )
 
 
 
@@ -2793,394 +2155,24 @@ def _build_daily_comparison_df(relevant_holdings: pd.DataFrame, dominant_index: 
     })
 
 
-_CHART_GRID_COLOR = "#E8EBEF"
-_CHART_LABEL_COLOR = "#8A94A3"
 
 
-def _build_pnl_bar_chart(rows: list[dict]) -> alt.Chart:
-    """גרף 'בולט' (bullet chart) לכל אחזקה - פס רקע דק מהסטופ ועד היעד (%),
-    ועמודה צבעונית שמראה איפה בדיוק עומד הרווח/הפסד הנוכחי בתוך הטווח הזה.
-    משלב בבת אחת תשואה + קרבה לסטופ/יעד, שקודם היו שני דברים נפרדים -
-    ה-tooltip מציג את שלושת הערכים (תשואה, סטופ, יעד) לכל מניה."""
-    df = pd.DataFrame(rows)
-    df["color"] = df["pnl_pct"].apply(lambda v: POS_COLOR if v >= 0 else NEG_COLOR)
-    df["zero"] = 0.0
-    # שדות טקסט מעוצבים מראש (עם _signed_num) במקום להסתמך על format="+.2f" של
-    # ה-tooltip האוטומטי של Vega - זה האחרון מציג בעברית RTL את הסימן אחרי המספר
-    # (למשל "5.20-" במקום "-5.20") כי אין לו את תיקון ה-LRM שיש בכל שאר האתר.
-    df["pnl_pct_text"] = df["pnl_pct"].apply(lambda v: _signed_num(v, 2))
-    df["stop_pct_text"] = df["stop_pct"].apply(lambda v: _signed_num(v, 2))
-    df["target_pct_text"] = df["target_pct"].apply(lambda v: _signed_num(v, 2))
-
-    y_enc = alt.Y("name:N", sort=alt.EncodingSortField(field="pnl_pct", order="descending"),
-                  axis=alt.Axis(title=None, labelColor=_CHART_LABEL_COLOR, labelFontSize=11, labelLimit=170))
-    x_scale = alt.Scale(padding=10)
-    tooltip = [
-        alt.Tooltip("name:N", title="מניה"),
-        alt.Tooltip("pnl_pct_text:N", title="תשואה נוכחית"),
-        alt.Tooltip("stop_pct_text:N", title="סטופ-לוס"),
-        alt.Tooltip("target_pct_text:N", title="יעד"),
-    ]
-
-    range_bg = alt.Chart(df).mark_bar(size=7, opacity=0.35, color=_CHART_GRID_COLOR, cornerRadius=3).encode(
-        y=y_enc,
-        x=alt.X("stop_pct:Q", scale=x_scale,
-                axis=alt.Axis(title=None, grid=True, gridColor=_CHART_GRID_COLOR, gridDash=[2, 3],
-                               labelColor=_CHART_LABEL_COLOR, labelFontSize=10, format="+.1f")),
-        x2="target_pct:Q",
-        tooltip=tooltip,
-    )
-    progress = alt.Chart(df).mark_bar(size=18, cornerRadiusEnd=3).encode(
-        y=y_enc, x=alt.X("zero:Q", scale=x_scale), x2="pnl_pct:Q",
-        color=alt.Color("color:N", scale=None, legend=None),
-        tooltip=tooltip,
-    )
-    zero_rule = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color=_CHART_GRID_COLOR, strokeWidth=1).encode(x="x:Q")
-
-    # נקודות סימון קטנות בקצוות פס הרקע - ירוקה על היעד, אדומה על הסטופ-לוס,
-    # עם מקרא קטן בתחתית הגרף (בלי צורך לקרוא tooltip כדי לדעת מה כל צבע).
-    points_df = pd.concat([
-        pd.DataFrame({"name": df["name"], "x": df["target_pct"], "סוג": "יעד"}),
-        pd.DataFrame({"name": df["name"], "x": df["stop_pct"], "סוג": "סטופ-לוס"}),
-    ], ignore_index=True)
-    points_df["x_text"] = points_df["x"].apply(lambda v: _signed_num(v, 2))
-    points = alt.Chart(points_df).mark_point(size=45, filled=True, opacity=0.95).encode(
-        y=alt.Y("name:N"),
-        x=alt.X("x:Q", scale=x_scale),
-        color=alt.Color("סוג:N", scale=alt.Scale(domain=["סטופ-לוס", "יעד"], range=[NEG_COLOR, POS_COLOR]),
-                         legend=alt.Legend(title=None, orient="bottom", direction="horizontal",
-                                            labelColor=_CHART_LABEL_COLOR, labelFontSize=10, symbolSize=50)),
-        tooltip=[alt.Tooltip("name:N", title="מניה"), alt.Tooltip("סוג:N", title="סוג"),
-                 alt.Tooltip("x_text:N", title="ערך (%)")],
-    )
-    # כשהפס האדום (pnl_pct) גדל מעבר לנקודת הסטופ, הוא מכסה אותה - שתיהן אדומות
-    # ואין הבדל ויזואלי ביניהן. קו שחור דק נפרד, בדיוק על מיקום הסטופ, ורק
-    # כשהוא באמת נחצה - שכבה אחרונה (מצוירת מעל הכל) כדי שלעולם לא תיעלם.
-    crossed_df = df[df["pnl_pct"] <= df["stop_pct"]].copy()
-    # x_text כאן היה stop_pct (מיקום הסטופ יחסית לכניסה) בטעות - זה נכון בתור
-    # "איפה הסטופ", לא בתור "כמה המחיר חצה אותו", שני דברים שונים שנעלמים
-    # להיות זהים רק כשהכניסה=הסטופ. אותה משפחת באג שכבר תוקנה היום בכרטיס
-    # "התיק שלי" (15.9.2026, "בדיקה יסודית של כל אלמנט") - כאן stop_cross_pct
-    # (יחסית למחיר הסטופ עצמו) הוא הנכון.
-    crossed_df["x_text"] = crossed_df["stop_cross_pct"].apply(lambda v: _signed_num(v, 2))
-    stop_crossed = alt.Chart(crossed_df).mark_tick(
-        color="black", thickness=2, size=20, opacity=1.0,
-    ).encode(
-        y=y_enc,
-        x=alt.X("stop_pct:Q", scale=x_scale),
-        tooltip=[alt.Tooltip("name:N", title="מניה"), alt.Tooltip("x_text:N", title="חצתה סטופ ב-")],
-    )
-
-    # גובה קבוע (160) דחס את השורות זו לתוך זו כשמספר האחזקות גדל - Vega-Lite אז
-    # מוריד תוויות/סימונים חופפים בשקט, מה שנראה כמו נקודות "כפולות" באותה שורה.
-    # לכן הגובה גדל לפי מספר האחזקות במקום קבוע.
-    chart_height = max(160, 46 * len(rows))
-    return (
-        (range_bg + progress + zero_rule + points + stop_crossed)
-        .properties(height=chart_height, padding={"left": 8, "right": 12, "top": 8, "bottom": 8})
-        .resolve_scale(color="independent")
-        .configure_view(strokeWidth=0)
-        .configure_axis(domain=False, tickSize=0)
-    )
 
 
-_ALLOCATION_PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 
 
-def _build_allocation_chart(rows: list[dict]) -> alt.Chart:
-    """גרף עוגה (donut) - איך התיק מתחלק בין האחזקות לפי שווי נוכחי (לא עלות
-    מקורית) - משקף את המשקל האמיתי של כל מניה בתיק היום, לא ביום שנקנתה."""
-    df = pd.DataFrame(rows)
-    df["pct"] = df["value"] / df["value"].sum() * 100
-    chart = alt.Chart(df).mark_arc(innerRadius=42, outerRadius=80, stroke="#fff", strokeWidth=1.5).encode(
-        theta=alt.Theta("value:Q", stack=True),
-        color=alt.Color("name:N", scale=alt.Scale(range=_ALLOCATION_PALETTE),
-                         legend=alt.Legend(title=None, orient="bottom", direction="horizontal", columns=2,
-                                            labelColor=_CHART_LABEL_COLOR, labelFontSize=11, symbolType="circle")),
-        tooltip=[
-            alt.Tooltip("name:N", title="מניה"),
-            alt.Tooltip("value:Q", title="שווי", format=",.0f"),
-            alt.Tooltip("pct:Q", title="אחוז מהתיק", format=".1f"),
-        ],
-    )
-    return chart.properties(height=200).configure_view(strokeWidth=0)
 
 
-def _build_mini_allocation_chart(rows: list[dict]) -> alt.Chart:
-    """גרסה מוקטנת של גרף ההתפלגות - בלי legend מובנה של Vega (אין לו מקום
-    בגודל כרטיס קטן), אלא domain/range מפורשים כדי שהצבעים יתאימו 1:1 לרשימת
-    הפירוט הטקסטואלית שמוצגת לצידו (ר' _allocation_legend_html). רקע שקוף
-    כדי שהעיגול ישב על רקע הכרטיס ולא על ריבוע לבן."""
-    df = pd.DataFrame(rows)  # rows כבר ממוינים לפי value יורד וכוללים עמודת pct
-    names = df["name"].tolist()
-    colors = _ALLOCATION_PALETTE[: len(names)]
-    chart = alt.Chart(df).mark_arc(innerRadius=19, outerRadius=34, stroke="#fff", strokeWidth=1).encode(
-        theta=alt.Theta("value:Q", stack=True, sort=None),
-        color=alt.Color("name:N", scale=alt.Scale(domain=names, range=colors), legend=None),
-        order=alt.Order("value:Q", sort="descending"),
-        tooltip=[
-            alt.Tooltip("name:N", title="מניה"),
-            alt.Tooltip("value:Q", title="שווי", format=",.0f"),
-            alt.Tooltip("pct:Q", title="אחוז מהתיק", format=".1f"),
-        ],
-    )
-    return (
-        chart.properties(height=68, width=68, background="transparent")
-        .configure_view(strokeWidth=0, fill=None)
-    )
 
 
-def _allocation_legend_html(rows: list[dict]) -> str:
-    """רשימת פירוט קומפקטית (נקודה צבעונית + שם + אחוז) לצד המיני-גרף, בסדר
-    ובצבעים זהים בדיוק לפלחי העוגה - כדי שהפירוט יהיה גלוי תמיד ולא רק ב-hover.
-    בלי flex (שמתעלם מ-direction:rtl ומפזר את הנקודה לצד הלא-נכון) - כמו
-    _status_dot, נקודה inline-block לפני הטקסט בתוך div עם direction:rtl מפורש."""
-    items = "".join(
-        f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
-        f'text-overflow:ellipsis; font-size:12.5px; font-weight:500; line-height:22px; opacity:0.9;">'
-        f'<span style="display:inline-block; width:9px; height:9px; border-radius:50%; '
-        f'background:{_ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]}; margin-left:7px; '
-        f'vertical-align:middle;"></span>{r["name"]} <b>· {r["pct"]:.0f}%</b></div>'
-        for i, r in enumerate(rows)
-    )
-    return f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{items}</div>'
 
 
-def _stacked_bar_html(rows: list[dict], height: int = 20, gap_pct: float = 0.6, radius: int = 10) -> str:
-    """סרגל אחוזים אופקי (stacked bar) - חלף את הדונאט: לפי מתודולוגיית ה-dataviz,
-    חלק-מתוך-שלם עם שמות קטגוריה ארוכים (עברית) קריא יותר כסרגל מאשר כעוגה
-    ("donut stays deprioritized"). מיקום ב-% (לא px קבוע) כדי שיתאים לרוחב
-    הכרטיס בפועל, ו-right מחושב ידנית (לא flex/direction) - נמנע לגמרי מבעיות
-    ה-RTL/flex שכבר נתקלנו בהן עם הדונאט. row הראשון (הכי גדול, rows כבר
-    ממוין יורד) מתחיל בקצה הימני - התחלת הקריאה בעברית. פינות מעוגלות רק
-    בקצוות החיצוניים של הסרגל כולו, ריבועיות במפגשים הפנימיים בין קטעים."""
-    total = sum(row["value"] for row in rows) or 1.0
-    n = len(rows)
-    usable_pct = 100 - gap_pct * (n - 1)
-    segments = []
-    running_right_pct = 0.0
-    for i, row in enumerate(rows):
-        seg_pct = max((row["value"] / total) * usable_pct, 1.5)
-        color = _ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]
-        if n == 1:
-            border_radius = f"{radius}px"
-        elif i == 0:
-            border_radius = f"0 {radius}px {radius}px 0"
-        elif i == n - 1:
-            border_radius = f"{radius}px 0 0 {radius}px"
-        else:
-            border_radius = "0"
-        segments.append(
-            f'<div title="{row["name"]} · {row["pct"]:.0f}%" '
-            f'style="position:absolute; right:{running_right_pct:.2f}%; top:0; '
-            f'width:{seg_pct:.2f}%; height:{height}px; background:{color}; '
-            f'border-radius:{border_radius};"></div>'
-        )
-        running_right_pct += seg_pct + gap_pct
-    return (
-        f'<div style="position:relative; width:100%; height:{height}px;">{"".join(segments)}</div>'
-    )
 
 
-def _mini_donut_svg(rows: list[dict], center_count: int | None = None,
-                     size: int = 54, stroke: int = 12, gap: float = 1.8,
-                     fill_height: bool = False) -> str:
-    """דונאט זעיר - לשילוב במשבצת סיכום קומפקטית, לצד מקרא טקסטואלי מלא (לא
-    רק hover) שמראה כל שם וכל אחוז בפועל, בלי לתפוס את כל רוחב המשבצת.
-    center_count - מספר (למשל כמות אחזקות) בחור הדונאט; מסובב 90 מעלות נגד
-    כיוון סיבוב ה-SVG כולו (-90) כדי שהטקסט יישאר זקוף, לא יורש את הסיבוב.
-    fill_height - height:100% (+aspect-ratio 1:1) במקום width/height קבועים
-    בפיקסלים, כדי שהעוגה תימתח בדיוק לגובה המכולה שלה (9.9.2026, "שיתחיל
-    ויסתיים באותו הקו בדיוק" - צריך גובה שנקבע דינמית ע"י flex, לא ניחוש)."""
-    r = (size - stroke) / 2
-    cx = cy = size / 2
-    circumference = 2 * 3.14159265 * r
-    total = sum(row["value"] for row in rows) or 1.0
-    segments = []
-    offset = 0.0
-    for i, row in enumerate(rows):
-        frac = row["value"] / total
-        length = max(frac * circumference - gap, 1.0)
-        color = _ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]
-        segments.append(
-            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" stroke-width="{stroke}" '
-            f'stroke-linecap="round" '
-            f'stroke-dasharray="{length:.2f} {circumference:.2f}" stroke-dashoffset="{-offset:.2f}"/>'
-        )
-        offset += frac * circumference
-    center_text = ""
-    if center_count is not None:
-        center_text = (
-            f'<text x="{cx}" y="{cy}" text-anchor="middle" dominant-baseline="central" '
-            f'transform="rotate(90 {cx} {cy})" font-size="16" font-weight="700" '
-            f'fill="{NEUTRAL_COLOR}">{center_count}</text>'
-        )
-    size_style = (
-        "height:100%; width:auto; aspect-ratio:1/1;" if fill_height
-        else f"width:{size}px; height:{size}px;"
-    )
-    return (
-        f'<svg viewBox="0 0 {size} {size}" '
-        f'style="{size_style} transform:rotate(-90deg); flex-shrink:0;">{"".join(segments)}{center_text}</svg>'
-    )
 
 
-def _stat_card_breakdown(label: str, rows: list[dict], holdings_count: int | None = None,
-                          color: str = NEUTRAL_COLOR, bg: str = NEUTRAL_BG) -> str:
-    """משבצת סיכום קומפקטית, באותו סגנון בדיוק כמו _stat_card (אותו גופן/גודל
-    כותרת) - עם דונאט זעיר (ומספר האחזקות בחור שלו) + מקרא (שם וכל אחוז
-    מוצגים תמיד, לא רק ב-hover) במקום מספר בודד, לשילוב ישיר בשורת הסיכום."""
-    donut = _mini_donut_svg(rows)
-    legend_items = "".join(
-        f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
-        f'text-overflow:ellipsis; font-size:12.5px; font-weight:700; line-height:17px; opacity:0.9;">'
-        f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
-        f'background:{_ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]}; margin-left:4px; '
-        f'vertical-align:middle;"></span>{r["name"]} <b>{r["pct"]:.0f}%</b></div>'
-        for i, r in enumerate(rows)
-    )
-    legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
-    count_label = (
-        f'<style>.holding-count-label{{text-align:left !important;}}</style>'
-        f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:6px;">'
-        f'{holdings_count} אחזקות</div>'
-        if holdings_count is not None else ""
-    )
-    return (
-        f'<div style="flex:1; min-width:170px; border:1px solid {color}33; border-radius:12px; '
-        f'padding:12px 14px; background:{bg}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:center; margin-bottom:8px;">{label}</div>'
-        f'<div style="display:flex; direction:rtl; align-items:center; justify-content:center; gap:20px;">'
-        f'{legend}{donut}</div>{count_label}</div>'
-    )
 
 
-def _stat_card_portfolio_status(invested: float, current_value: float, pnl: float, ccy_symbol: str,
-                                 holdings_count: int, sector_rows: list[dict] | None = None,
-                                 today_change: float | None = None, today_pct: float | None = None) -> str:
-    """כרטיס תיק מאוחד - בר השוואה (השקעה מול שווי) + רווח/הפסד, ולצידם (כשיש
-    יותר מסקטור אחד) דונאט+מקרא התפלגות הסקטורים, הכל באותו כרטיס אחד רחב.
-    זו הגרסה שהתקבלה בפועל ("יפה") - אחרי כמה ניסיונות המשך (כותרות נפרדות,
-    פירוט לפי אחזקה, heatmap) שנדחו בפועל, חוזרים לגרסה הזו במפורש
-    (9.9.2026, בעקבות "זה ממש גרוע" על הניסיונות המאוחרים יותר)."""
-    pnl_pct = (pnl / invested * 100) if invested else 0.0
-    color = POS_COLOR if pnl >= 0 else NEG_COLOR
-    # כמה גרסאות קודמות (13.9.2026) נכשלו: מילוי+סימון על בר אחד - לא ברור
-    # מה המילוי מייצג; שני פסים נפרדים (עלות/שווי) - "לא מת על הגרף הזה".
-    # גרסה שלישית: פס אחד ממורכז באפס (=עלות, נקודת השבירה) שממלא ימינה
-    # (רווח, ירוק) או שמאלה (הפסד, אדום) - אותו % שכבר מוצג במספר הגדול
-    # למטה, לא צריך להשוות שני ערכים בעצמו. cap ב-20% כדי שגם רווח/הפסד
-    # קיצוני לא "יגלוש" מעבר לחצי הבר. סימון נקודת העלות (המרכז) בולט
-    # (3px, לא 1px) לפי בקשה מפורשת - "סימון יותר בולט של נקודת העלות".
-    _gauge_cap = 20.0
-    _gauge_half_pct = max(0.0, min(50.0, abs(pnl_pct) / _gauge_cap * 50.0))
-    if pnl_pct >= 0:
-        _gauge_fill = (
-            f'<div style="position:absolute; right:50%; top:0; height:100%; width:{_gauge_half_pct:.1f}%; '
-            f'background:{color}; border-radius:0 4px 4px 0;"></div>'
-        )
-    else:
-        _gauge_fill = (
-            f'<div style="position:absolute; left:50%; top:0; height:100%; width:{_gauge_half_pct:.1f}%; '
-            f'background:{color}; border-radius:4px 0 0 4px; transform:translateX(-100%);"></div>'
-        )
-    bar = (
-        f'<div style="position:relative; height:8px; background:#e2e5e9; border-radius:4px; '
-        f'margin:14px 0 4px 0; direction:ltr;">'
-        f'{_gauge_fill}'
-        f'<div style="position:absolute; left:50%; top:-3px; width:3px; height:14px; '
-        f'background:{NEUTRAL_COLOR}; opacity:0.75; border-radius:1.5px; transform:translateX(-50%);"></div>'
-        f'</div>'
-    )
-    numbers = (
-        f'<div style="display:flex; direction:rtl; justify-content:space-between; font-size:0.68rem; opacity:0.6;">'
-        f'<span>עלות: {invested:,.0f}</span><span>שווי: {current_value:,.0f}</span></div>'
-    )
-    # ש"ח מוזכר פעם אחת בלבד לכל הכרטיס, אבל ליד הסכומים עצמם (קטן) ולא
-    # בכותרת - כך שהוא נשאר קרוב לערך שהוא מתאר, בלי לחזור על עצמו בכל
-    # שורה (13.9.2026, "תוריד את הש"ח מהכותרת ותציין ש"ח קטן יותר ליד הסכומים").
-    pnl_line = (
-        f'<div style="text-align:center; font-size:1.5rem; font-weight:700; color:{color}; margin-top:8px;">'
-        f'{_signed_num(pnl)} <span style="font-size:0.7rem; font-weight:600; opacity:0.7;">{ccy_symbol}</span> '
-        f'<span style="font-size:0.85rem;">({_signed_num(pnl_pct, 1, "%")})</span></div>'
-    )
-    today_line = ""
-    if today_pct is not None and today_change is not None:
-        _today_color = POS_COLOR if today_pct >= 0 else NEG_COLOR
-        _today_icon = "📈" if today_pct >= 0 else "📉"
-        today_line = (
-            f'<div style="text-align:center; font-size:0.75rem; font-weight:600; color:{_today_color}; '
-            f'margin-top:4px;">{_today_icon} שינוי יומי: {_signed_num(today_change)} '
-            f'<span style="font-size:0.62rem; opacity:0.7;">{ccy_symbol}</span> '
-            f'({_signed_num(today_pct, 1, "%")})</div>'
-        )
-    # הכותרת כאן חייבת להיות בדיוק אותה שורה/גובה כמו כותרת הסקטור (לא כותרת
-    # אחת משותפת מעל שתי העמודות) - אחרת שתי הכותרות לא מיושרות זו מול זו
-    # (9.9.2026, בעקבות משוב מפורש על חוסר-יישור). בלי (ש"ח) - עבר לשורת
-    # הסכום (13.9.2026).
-    status_title = (
-        f'<div style="width:100%; font-size:0.8rem; font-weight:600; opacity:0.75; text-align:right;">'
-        f'מצב תיק</div>'
-    )
-    # max-width+margin:auto על התוכן הפנימי (לא רק min-width על ה-side) - בלי
-    # זה הבר נמתח לכל רוחב החצי שהוא מקבל במסך רחב, וחוזר להיראות כמו רצועה
-    # ארוכה ודקה (בדיוק הבעיה שהכרטיס המאוחד נועד לפתור מלכתחילה, 9.9.2026).
-    status_side = (
-        f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column; align-items:center;">'
-        f'{status_title}<div style="width:100%; max-width:230px; margin-top:6px;">'
-        f'{bar}{numbers}{pnl_line}{today_line}</div></div>'
-    )
-
-    sector_side = ""
-    if sector_rows:
-        # size=110 - נמדד בפועל (getBoundingClientRect) שהשורה עם העוגה, אחרי
-        # ה-flex:1 על sector_side, נמתחת בדיוק לאותו גובה כמו תוכן status_side
-        # (110.5px, שני הצדדים תוכן קבוע ב-CSS ולא תלוי בנתונים) - עוגה בגודל
-        # הזה בדיוק (לא קטן ממנו) נוגעת בקו העליון והתחתון בלי מרווח (9.9.2026).
-        donut = _mini_donut_svg(sector_rows, size=110, stroke=20)
-        legend_items = "".join(
-            f'<div style="direction:rtl; text-align:right; white-space:nowrap; overflow:hidden; '
-            f'text-overflow:ellipsis; font-size:12.5px; font-weight:700; line-height:17px; opacity:0.9;">'
-            f'<span style="display:inline-block; width:6px; height:6px; border-radius:50%; '
-            f'background:{_ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]}; margin-left:4px; '
-            f'vertical-align:middle;"></span>{r["name"]} <b>{r["pct"]:.0f}%</b></div>'
-            for i, r in enumerate(sector_rows)
-        )
-        legend = f'<div style="display:flex; flex-direction:column; gap:2px; justify-content:center;">{legend_items}</div>'
-        sector_title = (
-            f'<div style="font-size:0.8rem; font-weight:600; opacity:0.75; text-align:right;">'
-            f'התפלגות לפי סקטור</div>'
-        )
-        # sector_side עצמו flex-column, והשורה עם העוגה flex:1 - כדי שהעוגה
-        # (fill_height=True) תימתח בדיוק לגובה שנשאר אחרי הכותרת, שבתורו נקבע
-        # ע"י ה-stretch של השורה החיצונית מול status_side (אותו גובה כותרת
-        # בדיוק בשני הצדדים) - כך שהעוגה מתחילה ומסתיימת באותו קו בדיוק
-        # (9.9.2026, בקשה מפורשת, לא רק "יותר גדול").
-        sector_side = (
-            f'<div style="flex:1; min-width:170px; display:flex; flex-direction:column;">'
-            f'{sector_title}'
-            f'<div style="flex:1; display:flex; direction:rtl; align-items:center; justify-content:center; '
-            f'gap:16px; margin-top:6px; min-height:0;">{legend}{donut}</div></div>'
-        )
-
-    count_label = (
-        f'<style>.holding-count-label{{text-align:left !important;}}</style>'
-        f'<div class="holding-count-label" style="font-size:0.8rem; font-weight:600; opacity:0.75; margin-top:8px;">'
-        f'{holdings_count} אחזקות</div>'
-    )
-    # מובייל (28.9.2026, "פוליש מובייל"): status_side ו-sector_side כל אחד עם
-    # min-width:170px משלו (מכוון לדסקטופ, ר' ההערות למעלה) - יחד עם ה-gap
-    # זה 356px מינימום, יותר מרוחב כרטיס במובייל (~315px אחרי padding), אז
-    # sector_side (העוגה) נדחק וגולש שמאלה מחוץ לכרטיס. נערמים אנכית מתחת
-    # ל-480px במקום זה - בלי לגעת בגדלים/יישורים המכווננים לדסקטופ עצמם.
-    return (
-        f'<style>@media (max-width:480px) {{ .portfolio-status-row {{ flex-direction:column !important; }} '
-        f'.portfolio-status-row > div {{ min-width:0 !important; width:100% !important; }} }}</style>'
-        f'<div style="flex:1; min-width:280px; border:1px solid {NEUTRAL_COLOR}33; border-radius:12px; '
-        f'padding:12px 14px; background:{NEUTRAL_BG}; box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
-        f'<div class="portfolio-status-row" style="display:flex; direction:rtl; gap:16px;">{status_side}{sector_side}</div>'
-        f'{count_label}</div>'
-    )
 
 
 def _stop_target_bar_html(stop_price: float, target_price: float, entry_price: float, current_price: float,
@@ -3243,98 +2235,8 @@ _SECTOR_LABELS_HE = {
 }
 
 
-def _breakdown_rows(agg: dict) -> list[dict]:
-    """ממיר {תווית: שווי} ל-rows בפורמט ש-_build_mini_allocation_chart/_allocation_legend_html
-    מצפים לו (name/value/pct, ממוין יורד לפי value)."""
-    total = sum(agg.values()) or 1.0
-    items = [{"name": name, "value": value, "pct": value / total * 100} for name, value in agg.items()]
-    items.sort(key=lambda r: r["value"], reverse=True)
-    return items
 
 
-def _build_comparison_chart(df: pd.DataFrame, port_col: str, bench_col: str, port_color: str, bench_color: str,
-                             date_label: str | None = None, is_daily: bool = False) -> alt.Chart:
-    """גרף תשואת התיק מול המדד - שני קווים עם legend קבוע בתחתית (בשטח משלו,
-    לא חופף לצירי הזמן כמו ב-st.line_chart המובנה), וקו אפס מקווקו לייחוס."""
-    # value_name="value" (לא "תשואה") בכוונה - כשגם שם השדה הגולמי וגם הכותרת
-    # (title) של שדה ה-tooltip המעוצב זהים ("תשואה"), Vega-Lite מתבלבל ביניהם
-    # (collision במפתח ה-tooltip הפנימי) ומציג את הערך הגולמי הלא-מעוצב במקום
-    # את "תשואה_טקסט" - זה מה שגרם לטולטיפ להציג מספר עם 11 ספרות וסימן הפוך.
-    long_df = df.rename_axis("תאריך").reset_index().melt(id_vars="תאריך", var_name="סדרה", value_name="value")
-    long_df["תאריך"] = pd.to_datetime(long_df["תאריך"])
-    long_df["תשואה_טקסט"] = long_df["value"].apply(lambda v: _signed_num(v, 2, "%"))
-
-    zero_rule = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
-        color=_CHART_GRID_COLOR, strokeDash=[3, 3], strokeWidth=1,
-    ).encode(y="y:Q")
-
-    # ציר שעות (לא תאריכים) - הגרף מציג את יום המסחר הנוכחי בלבד (תוך-יומי).
-    # tickCount כאובייקט {"interval":"minute","step":30} קרס בפועל (שגיאת JS
-    # "reading 'every'", נבדק בפועל) - הפעם tickCount כמספר שלם רגיל (נתמך
-    # ליבתית ב-Vega-Lite, לא אובייקט interval מיוחד), מחושב כך שייצא קרוב
-    # ל-30 דק' בין טיק לטיק לפי טווח היום בפועל (14.9.2026, "אני רוצה שזה
-    # יהיה חצי שעה").
-    # tickCount הוא רק "רמז" ל-Vega, לא ערך מדויק - בפועל הוא עיגל ל-60 דק'
-    # במקום 30 (נבדק בפועל). "values" מפורש עם רשימת שעות עגולות כל 30 דק'
-    # הוא היחיד שבאמת קובע את זה במדויק.
-    # is_daily=True (נפילה ל-_build_daily_comparison_df, 23.9.2026) - הציר
-    # פורש כמה ימי מסחר, לא שעות בתוך יום אחד - פורמט שעות כאן היה מציג
-    # "00:00" לכל הנקודות (כולן חצות, כי הן תאריכים יומיים גולמיים).
-    if is_daily:
-        x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
-                       axis=alt.Axis(format="%d/%m", title=None, grid=False,
-                                      labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
-    else:
-        _tick_start = long_df["תאריך"].min().floor("30min")
-        _tick_end = long_df["תאריך"].max().ceil("30min")
-        _tick_values = pd.date_range(_tick_start, _tick_end, freq="30min").tolist()
-        x_enc = alt.X("תאריך:T", scale=alt.Scale(padding=14),
-                       axis=alt.Axis(format="%H:%M", title=None, grid=False, values=_tick_values,
-                                      labelColor=_CHART_LABEL_COLOR, labelFontSize=10))
-    _y_scale = alt.Scale(padding=8)
-    _y_axis = alt.Axis(title=None, grid=True, gridColor=_CHART_GRID_COLOR,
-                        gridDash=[2, 3], labelColor=_CHART_LABEL_COLOR, labelFontSize=10)
-    y_enc = alt.Y("value:Q", scale=_y_scale, axis=_y_axis)
-    color_enc = alt.Color(
-        "סדרה:N",
-        scale=alt.Scale(domain=[bench_col, port_col], range=[bench_color, port_color]),  # סדר ה-legend: המדד קודם, אחריו התיק
-        legend=alt.Legend(title=None, orient="bottom", direction="horizontal",
-                           labelColor=_CHART_LABEL_COLOR, labelFontSize=11, symbolType="stroke"),
-    )
-    _tooltip = [
-        alt.Tooltip("תאריך:T", title="תאריך" if is_daily else "שעה", format="%d/%m" if is_daily else "%H:%M"),
-        alt.Tooltip("סדרה:N", title=""),
-        alt.Tooltip("תשואה_טקסט:N", title="שינוי מצטבר" if is_daily else "שינוי מתחילת היום"),
-    ]
-    # בלי mark_circle על כל נקודה (היה קודם) - עם ~20 תאריכים זה יוצר המון
-    # נקודות על שני הקווים, "נראה קצת מסורבל" (14.9.2026). הקו עצמו נושא
-    # tooltip בעצמו (hover על הקו, לא רק על נקודה ממש) אז אין אובדן אינטראקציה.
-    line = alt.Chart(long_df).mark_line(interpolate="monotone", strokeWidth=2.5, clip=False).encode(
-        x=x_enc, y=y_enc, color=color_enc, tooltip=_tooltip,
-    )
-    # בלי נקודת קצה ובלי תווית אחוז ליד הקו (14.9.2026, "אפשר לוותר על
-    # סימון האחוזים... אפשר לוותר על הנקודות") - האחוז העדכני כבר מופיע
-    # בתג "שינוי יומי" מעל הגרף, אז הקו עצמו מספיק.
-    layers = zero_rule + line
-    _total_height = 160
-    _bottom_padding = 8
-    # תג "תוך-יומי" מוצג תמיד, בקצה הימני של הגרף באותו קו כמו שורת ה-legend
-    # למטה ("התיק שלי" / "ת\"א 35", 15.9.2026). התאריך עצמו מצטרף רק כש-
-    # date_label ניתן (המסחר לא פעיל - fallback ליום מסחר קודם, לא היום
-    # הנוכחי) - "ותאריך רק כשהמסחר לא פעיל". {"expr": "width - 5"} נצמד
-    # לקצה הימני האמיתי בכל רוחב חלון בפועל (לא ערך פיקסלי קבוע שנמדד פעם
-    # אחת - זה נכשל בעבר ב"אמרתי קצה ימני של הגרף").
-    _intraday_text = ("יומי" if is_daily else "תוך-יומי") + (f" {date_label}" if date_label else "")
-    _intraday_layer = alt.Chart(pd.DataFrame({"label": [_intraday_text]})).mark_text(
-        align="right", baseline="top", fontSize=11, color=_CHART_LABEL_COLOR,
-    ).encode(x=alt.value({"expr": "width - 5"}), y=alt.value(121), text="label:N")
-    layers = layers + _intraday_layer
-    return (
-        layers
-        .properties(height=_total_height, padding={"left": 8, "right": 10, "top": 8, "bottom": _bottom_padding})
-        .configure_view(strokeWidth=0)
-        .configure_axis(domain=False, tickSize=0)
-    )
 
 
 def _autosave_settings():
@@ -3490,55 +2392,38 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
         _sb_title("📊 מדדים לסריקה")
-        if UI_V3:
-            st.pills(
-                "בחר מדד/ים לסריקה", SCAN_INDEX_ORDER, selection_mode="multi",
-                default=None if "settings_indices" in st.session_state else current_indices, label_visibility="collapsed",
-                key="settings_indices", on_change=_autosave_settings,
-            )
-        else:
-            st.multiselect(
-                "בחר מדד/ים לסריקה", SCAN_INDEX_ORDER,
-                default=None if "settings_indices" in st.session_state else current_indices, label_visibility="collapsed",
-                key="settings_indices", on_change=_autosave_settings,
-            )
+        st.pills(
+            "בחר מדד/ים לסריקה", SCAN_INDEX_ORDER, selection_mode="multi",
+            default=None if "settings_indices" in st.session_state else current_indices, label_visibility="collapsed",
+            key="settings_indices", on_change=_autosave_settings,
+        )
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
         _sb_title("📉 ירידה יומית להתראה")
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        tc1, tc2 = (st.container(), st.empty()) if UI_V3 else st.columns([5, 1])
+        tc1, tc2 = (st.container(), st.empty())
         tc1.number_input(
             "אחוז ירידה שמפעיל התראה", min_value=0.5, max_value=50.0,
             value=float(cfg["drop_threshold_pct"]), step=0.5, label_visibility="collapsed",
             key="settings_threshold", on_change=_autosave_settings,
         )
-        if not UI_V3:
-            tc2.markdown("<div style='padding-top:10px;'>%</div>", unsafe_allow_html=True)
 
         _sb_title("📉 ירידה מצטברת")
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-        if UI_V3:
-            _v3_row = st.columns([1.15, 1], gap="small")
-            mc1, mc2, dc1, dc2 = _v3_row[0], st.empty(), _v3_row[1], st.empty()
-        else:
-            mc1, mc2 = st.columns([5, 1])
+        _v3_row = st.columns([1.15, 1], gap="small")
+        mc1, mc2, dc1, dc2 = _v3_row[0], st.empty(), _v3_row[1], st.empty()
         mc1.number_input(
             "אחוז ירידה מצטברת שמפעיל התראה", min_value=0.5, max_value=50.0,
             value=float(cfg.get("multi_day_threshold_pct", 5.0)), step=0.5, label_visibility="collapsed",
             key="settings_multi_day_threshold", on_change=_autosave_settings,
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
-        if not UI_V3:
-            mc2.markdown("<div style='padding-top:10px;'>%</div>", unsafe_allow_html=True)
-            dc1, dc2 = st.columns([5, 1])
         dc1.number_input(
             "מספר ימים לירידה מצטברת", min_value=2, max_value=10, step=1,
             value=int(cfg.get("multi_day_window_days", 3)), label_visibility="collapsed",
             key="settings_multi_day_days", on_change=_autosave_settings,
             disabled=not st.session_state.get("settings_multi_day_enabled", cfg.get("multi_day_enabled", True)),
         )
-        if not UI_V3:
-            dc2.markdown("<div style='padding-top:10px;'>ימים</div>", unsafe_allow_html=True)
-        (st.toggle if UI_V3 else st.checkbox)(
+        st.toggle(
             "הפעל התראת ירידה מצטברת", value=bool(cfg.get("multi_day_enabled", True)),
             key="settings_multi_day_enabled", on_change=_autosave_settings,
         )
@@ -3741,7 +2626,7 @@ with st.sidebar:
                     key=f"{prefix}mgmt_pct", on_change=_autosave_fees,
                 )
 
-        with st.expander("התראות בטלגרם" if UI_V3 else "🔔 סוגי התראה", key="exp_message_types"):
+        with st.expander("התראות בטלגרם", key="exp_message_types"):
             _saved_msg_types = cfg.get("telegram_message_types", {})
             for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
                 st.checkbox(
@@ -3765,14 +2650,7 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
-        if UI_V3:
-            _sb_title("📢 ערוצי התראה", "tight2")
-        else:
-            st.markdown(
-                '<b style="display:inline-block;">'
-                '<span style="display:inline-block; transform:scaleX(-1);">📢</span> ערוצי התראה</b>',
-                unsafe_allow_html=True,
-            )
+        _sb_title("📢 ערוצי התראה", "tight2")
         ch1, ch2, _ch3 = st.columns([1.3, 1.3, 1.4])
         ch1.checkbox(
             "טלגרם", value=bool(cfg.get("telegram", {}).get("enabled", True)),
@@ -3817,100 +2695,8 @@ def get_all_changes(index_name: str, n_days: int = 3) -> pd.DataFrame:
     return df[column_order]
 
 
-def _color_pct(val):
-    if pd.isna(val):
-        return ""
-    color = POS_COLOR if val >= 0 else NEG_COLOR
-    return f"color: {color}; font-weight: 600"
 
 
-def _html_table(df: pd.DataFrame, columns: list[tuple[str, str]], formatters: dict | None = None,
-                 color_columns: set | None = None, color_fns: dict | None = None,
-                 max_height: int | None = None, truncate_columns: dict | None = None,
-                 wrap_headers: bool = True, row_formatters: dict | None = None,
-                 extra_class: str = "") -> str:
-    """טבלת HTML פשוטה, בסדר עמודות טבעי (מימין לשמאל, כמו שכתוב כאן) - תחליף ל-
-    st.dataframe בטבלאות שמציגות טיקרים/טקסט עברי. st.dataframe מצייר הכל על
-    canvas תמיד משמאל לימין ומתעלם לגמרי מ-CSS, מה שגורם לחיתוך טקסט ולעמודות
-    שנעלמות כשהטבלה צרה (למשל שתי טבלאות זו לצד זו) - אין דרך לתקן את זה ב-CSS
-    כי אין DOM/CSS אמיתי בתוך ה-canvas. ראו גם את טבלת יומן העסקאות שכבר בנויה כך."""
-    formatters = formatters or {}
-    row_formatters = row_formatters or {}
-    color_columns = color_columns or set()
-    color_fns = color_fns or {}
-    truncate_columns = truncate_columns or {}
-    def _header_cell(col: str, label: str) -> str:
-        style = "padding:6px 10px; text-align:right; font-weight:600; border-bottom:1px solid rgba(128,128,128,0.3);"
-        if col in truncate_columns:
-            if wrap_headers:
-                # בניגוד לתאי הנתונים (nowrap+ellipsis, כי הערך תמיד קצר) - כותרת
-                # יכולה להיות ארוכה יותר מהעמודה הצרה שהיא כותרת עליה, אז עדיף
-                # שתעטוף לשתי שורות מאשר שתיחתך עם "..." ותאבד את המשמעות.
-                style += f" max-width:{truncate_columns[col]}px; white-space:normal; word-break:break-word;"
-            else:
-                # wrap_headers=False - העמודות רחבות מספיק שהכותרת נכנסת בשורה
-                # אחת (נקבע ע"י הקורא), אז נשארים על nowrap כמו תאי הנתונים.
-                style += f" max-width:{truncate_columns[col]}px; white-space:nowrap;"
-        else:
-            style += " white-space:nowrap;"
-        return f'<th style="{style}">{label}</th>'
-
-    header_cells = "".join(_header_cell(col, label) for col, label in columns)
-    body_rows = []
-    for _, r in df.iterrows():
-        cells = []
-        for col, _ in columns:
-            raw = r[col]
-            if col in row_formatters:
-                text = row_formatters[col](raw, r)
-            elif col in formatters:
-                text = formatters[col](raw)
-            else:
-                text = "" if pd.isna(raw) else str(raw)
-            style = ("padding:6px 10px; text-align:right; white-space:nowrap; "
-                     "border-bottom:1px solid rgba(128,128,128,0.15);")
-            if col in color_fns and pd.notna(raw):
-                style += f" color:{color_fns[col](raw)}; font-weight:600;"
-            elif col in color_columns and pd.notna(raw):
-                color = POS_COLOR if raw >= 0 else NEG_COLOR
-                style += f" color:{color}; font-weight:600;"
-            if col in truncate_columns:
-                # td עצמו לא אוכף max-width באמינות ב-table-layout:auto (הטבלה
-                # עדיין מתרחבת לפי תוכן) - עוטפים ב-div פנימי עם overflow:hidden,
-                # שכן זה אוכף את החיתוך בצורה אמינה בכל דפדפן.
-                width_px = truncate_columns[col]
-                # title="{text}" רק כשה-text הוא טקסט רגיל - אם הוא כבר HTML (כמו
-                # קישור <a href="...">, ר' עמודת "שם"), הגרשיים הפנימיים שלו
-                # שוברים את התכונה title="..." באמצע ומדליפים HTML גולמי כטקסט
-                # גלוי (9.9.2026, נמצא בפועל אחרי הוספת הקישורים בטבלה).
-                title_attr = f' title="{text}"' if "<" not in text else ""
-                inner = (f'<div style="max-width:{width_px}px; overflow:hidden; text-overflow:ellipsis; '
-                         f'white-space:nowrap;"{title_attr}>{text}</div>')
-                cells.append(f'<td style="{style}">{inner}</td>')
-            else:
-                cells.append(f'<td style="{style}">{text}</td>')
-        body_rows.append(f"<tr>{''.join(cells)}</tr>")
-    # table-layout:fixed + colgroup - כשיש עמודה מוגבלת ברוחב (truncate_columns), חובה
-    # לקבוע רוחב מפורש לכל העמודות, אחרת table-layout:auto מתעלם מ-max-width ומתרחב
-    # לפי התוכן בכל מקרה (ראו הערה בתוך הלולאה למעלה).
-    table_layout_style = ""
-    colgroup_html = ""
-    if truncate_columns:
-        table_layout_style = "table-layout:fixed; "
-        colgroup_html = "<colgroup>" + "".join(
-            f'<col style="width:{truncate_columns[col]}px;">' if col in truncate_columns else "<col>"
-            for col, _ in columns
-        ) + "</colgroup>"
-    table_html = (
-        f'<table style="width:100%; {table_layout_style}border-collapse:collapse; direction:rtl; font-size:0.85rem;">'
-        f'{colgroup_html}<thead><tr>{header_cells}</tr></thead><tbody>{"".join(body_rows)}</tbody></table>'
-    )
-    # overflow-x:auto תמיד - אם העמודות לא נכנסות ברוחב הזמין (למשל שתי טבלאות
-    # זו לצד זו בחצי מסך), מקבלים גלילה אופקית במקום שהדפדפן יחתוך עמודות בשקט.
-    height_style = f"max-height:{max_height}px; overflow-y:auto; " if max_height else ""
-    class_attr = f' class="{extra_class}"' if extra_class else ""
-    table_html = f'<div{class_attr} style="{height_style}overflow-x:auto;">{table_html}</div>'
-    return table_html
 
 
 def _days_text(n: int) -> str:
@@ -3960,270 +2746,10 @@ def _alert_score(r) -> int | None:
         return None
 
 
-def _build_alert_detail_html(r) -> str:
-    """כל פרטי ההתראה (סיבה, גרף, הערכת תגובת-יתר, חדשות, לימיט/יעד/סטופ,
-    תמונת ברוטו/נטו) כ-HTML טהור, בלי שום רכיב Streamlit אמיתי - כדי שיהיה
-    ניתן להטמיע כתא נוסף מיד אחרי השורה הנבחרת בטבלה עצמה, לא כקטע נפרד
-    מתחת לכל הטבלה. טופס "הוסף התראת מחיר" (היה כאן קודם) הושמט - הוא צריך
-    שדות/כפתור אמיתיים שלא ניתן להטמיע כ-HTML סטטי; יש טופס דומה נגיש למעלה."""
-    _reason_pill = render_reason_pill(r.get("reasons_json", "[]"))
-    _sparkline_prices = get_sparkline_prices(r["ticker"])
-    _svg = _sparkline_svg(_sparkline_prices)
-
-    _sig, _sig_why = _alert_signal(r)
-    _dm = r.get("dist_from_ma50_pct")
-    _rec = r.get("intraday_recovery_pct")
-    _vectors = [
-        f"ירידה {abs(r['pct_change']):.1f}%",
-        f"מרחק מהממוצע ל-50 יום: {_dm:+.0f}%" if pd.notna(_dm) else None,
-        f"סקטור: {strategy_mod.sector_he(r.get('sector'))}" if pd.notna(r.get("sector")) else None,
-        f"מיקום בטווח היום: {_rec:.0f}%" if pd.notna(_rec) else None,
-        f"שעת ההתראה: {str(r.get('scan_ts'))[11:16]}" if str(r.get("scan_ts"))[11:16] else None,
-    ]
-    _sig_html = (
-        f'<div style="font-size:1rem; margin-top:6px;"><b style="color:{SIGNAL_COLORS[_sig]};">'
-        f'{strategy_mod.SIGNAL_EMOJI[_sig]} סיווג {strategy_mod.rebound_class(_sig)} · {strategy_mod.SIGNAL_LABEL[_sig]}</b>'
-        f'</div>'
-        f'<div style="font-size:0.85rem; margin-top:3px; opacity:0.85;">{_sig_why}</div>'
-        f'<div style="font-size:0.8rem; margin-top:2px; opacity:0.65;">נתוני האסטרטגיה: {" · ".join(v for v in _vectors if v)}</div>'
-    )
-
-    _exp_drop_html = ""
-    _exp_drop = r.get("expected_max_drop_pct")
-    if pd.notna(_exp_drop) and _exp_drop > abs(r["pct_change"]):
-        _exp_drop_html = (
-            f'<div style="font-size:0.9rem; margin-top:6px;">'
-            f'<b>📉 צפי לנמוך היומי:</b> {_signed_num(-_exp_drop, 1, "%")}</div>'
-        )
-
-    # שני מדדים בולטים בכרטיס (7.10.2026): הערכת תגובת יתר ואיכות פונדמנטלית - כל אחד בתיבה
-    # צבועה לפי הסיווג שלו, עם הניקוד גדול וברור. סיווג ריבאונד (A/B/C) ושאר הפירוט מתחת.
-    _AMBER = SIGNAL_COLORS["wait"]
-    _over = r["overreaction_score"]
-    if _over >= 70:
-        _over_color, _over_label = POS_COLOR, "גבוהה"
-    elif _over >= 45:
-        _over_color, _over_label = _AMBER, "בינונית"
-    else:
-        _over_color, _over_label = NEG_COLOR, "נמוכה"
-
-    _quality_tier = r.get("quality_tier")
-    _quality_known = bool(_quality_tier) and _quality_tier != "unknown" and pd.notna(r.get("quality_score"))
-    _quality_labels = {"high": "גבוהה", "medium": "בינונית", "low": "נמוכה"}
-    _quality_colors = {"high": POS_COLOR, "medium": _AMBER, "low": NEG_COLOR}
-    _q_color = _quality_colors.get(_quality_tier, "#7A8591") if _quality_known else "#7A8591"
-    _q_label = _quality_labels.get(_quality_tier, "") if _quality_known else "לא ידוע"
-    _q_score_text = f"{int(r.get('quality_score'))}" if _quality_known else "—"
-
-    def _metric_box(title: str, score_text: str, label: str, color: str) -> str:
-        return (
-            f'<div style="flex:1 1 150px; border:1.5px solid {color}; border-radius:10px; padding:8px 12px; '
-            f'background:{color}14;">'
-            f'<div style="font-size:0.78rem; opacity:0.75;">{title}</div>'
-            f'<div style="display:flex; align-items:baseline; gap:8px;">'
-            f'<span style="font-size:1.55rem; font-weight:800; color:{color}; line-height:1.2;">{score_text}</span>'
-            f'<span style="font-size:0.8rem; opacity:0.6;">/100</span>'
-            f'<span style="font-size:0.95rem; font-weight:700; color:{color};">{label}</span></div></div>'
-        )
-
-    _verdict_html = (
-        '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">'
-        + _metric_box("הערכת תגובת יתר", f"{_over}", _over_label, _over_color)
-        + _metric_box("איכות פונדמנטלית", _q_score_text, _q_label, _q_color)
-        + '</div>'
-        f'<div style="font-size:0.85rem; margin-top:6px; opacity:0.85;">{r["overreaction_verdict"]}</div>'
-    )
-
-    _raw_quality_flags = r.get("quality_flags_json")
-    _quality_flags = json.loads(_raw_quality_flags) if isinstance(_raw_quality_flags, str) else []
-    _flags_html = (
-        f'<div style="font-size:0.8rem; opacity:0.7; margin-top:4px;">⚑ {" · ".join(_quality_flags)}</div>'
-        if _quality_flags else ""
-    )
-
-    _headlines = json.loads(r["headlines_json"] or "[]")
-    if _headlines:
-        _news_items = "".join(
-            (f'<li><a href="{h.get("link")}" target="_blank" style="color:{ACCENT_COLOR};">{h.get("title")}</a>'
-             f' ({h.get("source")})</li>')
-            if h.get("link") else f'<li>{h.get("title")} ({h.get("source")})</li>'
-            for h in _headlines
-        )
-        _news_html = (
-            f'<div style="font-size:0.9rem; margin-top:10px;"><b>חדשות:</b>'
-            f'<ul style="margin:4px 0; padding-inline-start:20px;">{_news_items}</ul></div>'
-        )
-    else:
-        _news_html = '<div style="font-size:0.85rem; opacity:0.7; margin-top:10px;">לא נמצאו חדשות רלוונטיות.</div>'
-
-    _entry_target_stop_html = "".join([
-        _stat_card(
-            "לימיט כניסה", _price_text(r["entry_limit"], r.get("index_name"), whole=True),
-            NEUTRAL_COLOR, NEUTRAL_BG, sub=f'{_signed_num(r["pct_change"], 1, "%")} שינוי יומי',
-        ),
-        _stat_card(
-            "יעד מכירה", _price_text(r["target_base"], r.get("index_name"), whole=True), POS_COLOR, POS_BG,
-            sub=(
-                f'{_signed_num((r["target_base"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
-                if r.get("entry_limit") else ""
-            ),
-        ),
-        _stat_card(
-            "סטופ-לוס", _price_text(r["stop_loss"], r.get("index_name"), whole=True), NEG_COLOR, NEG_BG,
-            sub=(
-                f'{_signed_num((r["stop_loss"] / r["entry_limit"] - 1) * 100, 1, "%")} מקנייה'
-                if r.get("entry_limit") else ""
-            ),
-        ),
-    ])
-    _stat_cards_html = f'<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">{_entry_target_stop_html}</div>'
-
-    _net = json.loads(r["net_result_json"] or "{}")
-    _net_html = ""
-    if _net:
-        profit = _net.get("profit_scenario", {})
-        loss = _net.get("loss_scenario", {})
-        _p_color = POS_COLOR if profit.get("net_pnl", 0) >= 0 else NEG_COLOR
-        _l_color = POS_COLOR if loss.get("net_pnl", 0) >= 0 else NEG_COLOR
-        _net_html = (
-            f'<div style="margin-top:14px; font-weight:700; font-size:0.9rem;">תמונת ברוטו/נטו</div>'
-            f'<div style="display:flex; direction:rtl; gap:24px; flex-wrap:wrap; margin-top:6px;">'
-            f'<div><div style="font-size:0.8rem; opacity:0.7;">תרחיש רווח (יעד בסיס)</div>'
-            f'<div style="font-size:0.85rem; opacity:0.8;">ברוטו: {_signed_num(profit.get("gross_pnl", 0))} '
-            f'{profit.get("currency", "")} ({_signed_num(profit.get("gross_return_pct", 0), 1, "%")})</div>'
-            f'<div style="font-size:1rem; font-weight:700; color:{_p_color};">נטו: '
-            f'{_signed_num(profit.get("net_pnl", 0))} {profit.get("currency", "")} '
-            f'({_signed_num(profit.get("net_return_pct", 0), 1, "%")})</div>'
-            f'<div style="font-size:0.75rem; opacity:0.6;">עמלות: {profit.get("total_commission", 0):.0f} | '
-            f'מס: {profit.get("capital_gains_tax", 0):.0f} | דמי ניהול: {profit.get("management_fee", 0):.0f}</div></div>'
-            f'<div><div style="font-size:0.8rem; opacity:0.7;">תרחיש סטופ-לוס</div>'
-            f'<div style="font-size:0.85rem; opacity:0.8;">ברוטו: {_signed_num(loss.get("gross_pnl", 0))} '
-            f'{loss.get("currency", "")} ({_signed_num(loss.get("gross_return_pct", 0), 1, "%")})</div>'
-            f'<div style="font-size:1rem; font-weight:700; color:{_l_color};">נטו: '
-            f'{_signed_num(loss.get("net_pnl", 0))} {loss.get("currency", "")} '
-            f'({_signed_num(loss.get("net_return_pct", 0), 1, "%")})</div></div>'
-            f'</div>'
-        )
-
-    _alert_hint_html = (
-        f'<div style="margin-top:14px; font-size:0.8rem; opacity:0.7;">'
-        f'🔔 להוספת התראת מחיר על {r.get("company_name") or r["ticker"]} - טופס '
-        f'"התראת מחיר ידנית" מתחת לטבלת ההתראות.</div>'
-    )
-
-    # 24.9.2026 ("פער בשמות המניות בינך לבין אתר הבנק"): הטיקר/שם כאן לא
-    # תמיד תואם למה שמוצג באתר הבנק/הבורסה - ר' _tase_badge_html.
-    _tase_symbol_html = _tase_badge_html({
-        "tase_symbol": constituents.get_tase_symbol_map().get(r["ticker"]),
-        "tase_id": constituents.get_tase_security_id_map().get(r["ticker"]),
-    })
-    if _tase_symbol_html:
-        _tase_symbol_html = " " + _tase_symbol_html
-    return (
-        f'<div style="text-align:right; direction:rtl; padding:14px 18px;">'
-        f'<div style="display:flex; direction:rtl; justify-content:space-between; align-items:center;">'
-        f'<span style="font-weight:700; font-size:0.95rem;">{r.get("company_name") or r["ticker"]} ({r["ticker"]}){_tase_symbol_html}</span>'
-        f'</div>'
-        f'<div style="display:flex; direction:rtl; gap:16px; margin-top:8px; align-items:center;">'
-        f'<div style="flex:2; min-width:0;">{_reason_pill}'
-        f'<div style="font-size:0.8rem; opacity:0.7; margin-top:4px;">{r["reason_text"]}</div></div>'
-        f'<div style="flex:1; text-align:center;">{_svg}</div>'
-        f'</div>'
-        f'{_sig_html}{_exp_drop_html}{_verdict_html}{_flags_html}{_news_html}'
-        f'{_stat_cards_html}{_net_html}{_alert_hint_html}'
-        f'</div>'
-    )
 
 
-def _render_movers_style_table(sub_df: pd.DataFrame, cumulative_label: str = "מצטבר") -> None:
-    """טבלת HTML קומפקטית בסגנון 'מניות מובילות' (מניה/שינוי יומי/מצטבר/שער
-    נוכחי) - משותפת בין הטאב ההוא לבין 'קרוב לסף התראה' בטאב ההתראות, ששניהם
-    מציגים בדיוק אותה צורת נתונים (פלט של get_all_changes)."""
-    sub_df = sub_df.copy()
-    # בלי "(טיקר)" - הטור הזה ממילא צר מדי כדי שהוא ייראה (24.9.2026, "אפשר
-    # לוותר על הטיקר במניות המובילות. גם ככה לא רואים אותו") - מספר ני"ע
-    # (עמודה נפרדת, למטה) הוא המזהה החד-משמעי עכשיו, השם מקבל את כל הרוחב.
-    sub_df["שם_וטיקר"] = sub_df.apply(
-        lambda r: r["company_name"] if r["company_name"] else r["טיקר"], axis=1
-    )
-    # עמודת מספר ני"ע משלה (24.9.2026, "אני רוצה את מספר ני"ע... זה צריך
-    # להיות יפה ויזואלית") - לא טקסט חבוי בטולטיפ, עמודה גלויה תמיד כמו
-    # שאר הטבלה. ר' constituents.get_tase_security_id_map. רק כשיש בכלל
-    # מניות ישראליות בטבלה - "מספר ני"ע" הוא מושג של הבורסה הישראלית בלבד,
-    # עמודה שלמה של "—" למניות אמריקאיות (24.9.2026, "למה למניות האמריקאיות
-    # את מספר נייר?") היא בלבול מיותר, לא רק חוסר-מידע.
-    _tase_id_map2 = constituents.get_tase_security_id_map()
-    sub_df["מספר ני\"ע"] = sub_df["טיקר"].map(_tase_id_map2)
-    _show_tase_id_col = sub_df["מספר ני\"ע"].notna().any()
-    # שער מוצג באגורות למניות ת"א (ר' _price_text) - מפורמט מראש כמחרוזת ולא
-    # כ-formatter רגיל, כי צריך גישה ל-index_name של השורה, לא רק לערך עצמו.
-    sub_df["שער"] = sub_df.apply(lambda r: _price_text(r["שער"], r["index_name"]), axis=1)
-    _columns = [("שם_וטיקר", "מניה")]
-    if _show_tase_id_col:
-        _columns.append(("מספר ני\"ע", "מספר ני\"ע"))
-    _columns += [("שינוי יומי (%)", "שינוי יומי"), ("שינוי מצטבר (%)", cumulative_label), ("שער", "שער נוכחי")]
-    _truncate = {"שם_וטיקר": 150, "שינוי יומי (%)": 58, "שינוי מצטבר (%)": 58, "שער": 58}
-    if _show_tase_id_col:
-        _truncate["מספר ני\"ע"] = 88
-    # מובייל (30.9.2026, "תסדר את טאב מניות מובילות במובייל"): 5 העמודות ביחד
-    # (150+88+58+58+58=412px) רחבות מהמסך הזמין (~312px), מכריחות גלילה אופקית
-    # כדי להגיע לעמודות מצטבר/שער. "מספר ני"ע" הוא הכי פחות קריטי לתצוגה חטופה
-    # (מזהה פנימי, לא ערך גלוי כמו % /שער - אותו היגיון בדיוק כמו הסתרת העמודה
-    # הזו בטבלת ההתראות במובייל) - מוסתר, ושם המניה מצטמצם קצת, כדי שכל היתר
-    # ייכנס בלי שום גלילה.
-    # table-layout:auto (במקום fixed) במובייל - כך שרוחב העמודות ייגזר מהתוכן
-    # בפועל (+max-width שנקבע כאן) במקום מ-colgroup קבוע-מראש; ניסיון קודם
-    # להסתיר את עמודת "מספר ני"ע" עם table-layout:fixed (visibility:collapse
-    # על ה-col) גרם לעמודה השלישית לקרוס ל-0px במקום לקבל את הרוחב שלה בפועל -
-    # קונפליקט ידוע בין fixed-layout ל-col מוסתר/collapsed (30.9.2026).
-    st.markdown(
-        f"""
-        <style>
-        @media (max-width: 480px) {{
-            div.movers-style-table table {{ table-layout: auto !important; }}
-            /* ריפוד תאים קטן יותר: בטבלת "עולות" העמודות הרחבות יותר דחפו את הטבלה ל-320px בקונטיינר של 311px והעמודה
-               האחרונה נחתכה (14.10.2026, "הטאב של מניות מובילות נחתך במובייל") */
-            div.movers-style-table table th, div.movers-style-table table td {{ padding-left: 5px !important; padding-right: 5px !important; }}
-            div.movers-style-table table th:first-child,
-            div.movers-style-table table td:first-child > div {{ max-width: 108px !important; }}
-            {"div.movers-style-table table th:nth-child(2), div.movers-style-table table td:nth-child(2) { display: none !important; }" if _show_tase_id_col else ""}
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        _html_table(
-            sub_df,
-            _columns,
-            formatters={
-                "שינוי מצטבר (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
-                "מספר ני\"ע": lambda v: f"{v:.0f}" if pd.notna(v) else "—",
-            },
-            row_formatters={
-                # prev_close_gap - "שינוי יומי" בפועל חוצה כמה ימי מסחר (yfinance
-                # דילגה על יום/ימים), לא אחד - אותו סימון בדיוק כמו בטבלת
-                # ההתראות הראשית (1.10.2026, "שהמידע שמוצג במניות המובילות
-                # יהיה אמין" - בלי באנר נפרד, רק תיוג נכון של הערך עצמו).
-                "שינוי יומי (%)": lambda v, r: (
-                    ("⚠️ " if (r.get("prev_close_gap") or r.get("thin_print")) else "") + (_signed_num(v, 1, "%") if pd.notna(v) else "—")
-                ),
-            },
-            color_columns={"שינוי יומי (%)", "שינוי מצטבר (%)"},
-            truncate_columns=_truncate,
-            max_height=min(35 * (len(sub_df) + 1) + 53, 2000),
-            extra_class="movers-style-table",
-        ),
-        unsafe_allow_html=True,
-    )
 
 
-def _outcome_color_hex(label: str) -> str:
-    if label == backtest.OUTCOME_LABELS_HE.get(backtest.HIT_TARGET):
-        return POS_COLOR
-    if label == backtest.OUTCOME_LABELS_HE.get(backtest.HIT_STOP):
-        return NEG_COLOR
-    return NEUTRAL_COLOR
 
 
 
@@ -4413,262 +2939,8 @@ with _tab_slot_movers.container():
             לריצה מחדש בעצמו. חייב לשלוף את כל הנתונים כאן בפנים (לא להסתמך על
             משתנים שחושבו פעם אחת מחוץ ל-fragment) כדי שכל הפעלה עצמאית שלו תביא
             ערכים טריים בפועל."""
-            if UI_V3:
-                _render_movers_v3()
-                return
-            scanning_indices = cfg.get("indices") or ALL_INDICES
-            # ברירת מחדל קבועה ת"א 35 (לא המדד הראשון ברשימת הסריקה בסיידבר -
-            # זה גרם ל-S&P500 "להיתקע" כברירת מחדל, תלוי בסדר שם). key= כדי
-            # שבחירה ידנית באותו session תישמר גם כשעוברים בין טאבים וחוזרים.
-            _default_idx = ALL_INDICES.index("TA35")
-            # פקדי הצפייה (מדד, מסחר פעיל, ימים, רענון) בכרטיס אחד (14.10.2026)
-            _ctl = st.container(border=True, key="card_movers_controls")
-            with _ctl:
-                movers_index = st.selectbox("מדד לצפייה", ALL_INDICES,
-                                             index=_default_idx, format_func=lambda i: INDEX_LABELS[i],
-                                             key="movers_index_select")
-                if movers_index not in scanning_indices:
-                    st.caption(f"⚠ שים לב: {INDEX_LABELS[movers_index]} לא נמצא כרגע ברשימת המדדים שנסרקים להתראות (בסיידבר) - זו צפייה בלבד.")
-
-            # movers_days נקרא כאן לפי הערך שנשמר ב-session_state, כי ה-widget עצמו
-            # מוצג רק בהמשך הפונקציה (צמוד לעמודת "מצטבר" בטבלה, למטה) - הערך שממנו
-            # נטען כבר מסונכרן מהריצה הקודמת (או ברירת המחדל 3 בריצה הראשונה).
-            movers_days = st.session_state.get("movers_cumulative_days", 3)
-            with st.spinner("טוען נתוני שוק..."):
-                movers_df = get_all_changes(movers_index, movers_days)
-            if movers_df.empty:
-                st.warning("לא התקבלו נתונים - אין חיבור למקור הנתונים.")
-            else:
-                # "(3 ימים)" בכותרת המצטבר עלה יקר מדי ברוחב (96px טבעי) - הועבר לאייקון
-                # ▾ עם טולטיפ בהובר/לחיצה (כמו בעמודת "סיווג ריבאונד" בטבלת ההתראות),
-                # במקום להיות מוצג תמיד, כדי לפנות רוחב לעמודות המספריות (שינוי יומי/שער)
-                # שחשוב שלא ייחתכו כי אלה מספרים ממשיים לא רק תווית.
-                # _help_icon_span (למעלה) - CSS-בלבד, עובד גם בהקשה במגע וגם בהובר.
-                _movers_cumulative_label = (
-                    f'מצטבר {_help_icon_span(f"שינוי מצטבר ב-{movers_days} ימי המסחר האחרונים" + chr(10) + "כולל השינוי היומי")}'
-                )
-
-                def _render(sub_df: pd.DataFrame) -> None:
-                    _render_movers_style_table(sub_df, cumulative_label=_movers_cumulative_label)
-
-                up_df = movers_df[movers_df["שינוי יומי (%)"] >= 0].sort_values("שינוי יומי (%)", ascending=False)
-                down_df = movers_df[movers_df["שינוי יומי (%)"] < 0].sort_values("שינוי יומי (%)")
-
-                # תיוג טריות גלוי מעל הטבלה - כדי שיהיה ברור אם "שינוי יומי" הוא ממש
-                # מסחר נוכחי (השוק פתוח והנתון מהיום) או שהוא נכון לסגירת יום מסחר
-                # קודם (סוף שבוע, לפני הפתיחה, או שהמקור פשוט עוד לא התעדכן).
-                with _ctl:
-                    _movers_rep_date = movers_df["last_close_date"].max()
-                    if _movers_rep_date == israel_today() and is_market_open(movers_index):
-                        st.caption("🟢 מסחר פעיל")
-                    elif pd.notna(_movers_rep_date):
-                        _movers_stale = market_data.is_data_stale(_movers_rep_date, "X.TA" if movers_index in ("TA35", "TA125") else "")
-                        _movers_warn = "⚠️ " if _movers_stale else ""
-                        st.caption(f"{_movers_warn}נכון לסגירת מסחר ב-{_movers_rep_date.strftime('%d/%m/%Y')}")
-
-                def _section_header(color: str, word_dir: str, count: int) -> None:
-                    st.image(render_text_image(f"מניות {word_dir} ({count})", color, font_size=17))
-
-                with _ctl:
-                    with st.container(key="movers_days_row"):
-                        st.markdown(
-                            """
-                            <style>
-                            div[class*="st-key-movers_days_row"] {
-                                margin-top: -14px;
-                            }
-                            div[class*="st-key-movers_days_row"] div[data-testid="stHorizontalBlock"] {
-                                gap: 6px !important; align-items: center !important;
-                            }
-                            div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:first-child {
-                                width: fit-content !important; flex: 0 0 auto !important; min-width: 0 !important;
-                            }
-                            div[class*="st-key-movers_days_row"] div[data-testid="stColumn"]:nth-child(2) {
-                                /* 130px = הרוחב הצר ביותר שנמצא בבדיקה אמפירית שעדיין מציג
-                                   כפתורי +/- (110px=0 כפתורים, 130px=2 - Streamlit לא מרנדר
-                                   אותם בכלל מתחת לזה, לא רק מסתיר ב-CSS). */
-                                width: 130px !important; flex: 0 0 auto !important;
-                            }
-                            </style>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        _days_label_col, _days_input_col, _ = st.columns([3, 1, 6])
-                        with _days_label_col:
-                            st.caption("📉 מספר ימים לשינוי מצטבר")
-                        with _days_input_col:
-                            movers_days = st.number_input(
-                                "ימים לחישוב שינוי מצטבר", min_value=2, max_value=10, step=1,
-                                value=3, key="movers_cumulative_days", label_visibility="collapsed",
-                            )
-
-                with _ctl:
-                    if st.button("🔄 רענן נתוני שוק"):
-                        get_all_changes.clear()
-
-                # שתי הטבלאות (412px כ"א, ר' truncate_columns ב-_render_movers_style_table)
-                # ב-st.columns(2) צריכות ~850px+ כדי לשבת זו לצד זו בלי להידחס - ברוחב
-                # דסקטופ בינוני (למשל חלון ~800px, מחצית מסך או מחשב נייד קטן) כל עמודה
-                # מקבלת רק ~375px, פחות מספיק, והמספרים ב"מצטבר" נחתכים ל-"...4%"
-                # (30.9.2026, נמצא תוך כדי צילומי מסך ל-ChatGPT). עוטפים ב-container עם
-                # key כדי לכפות עמידה זו-מתחת-זו (רוחב מלא לכל טבלה) מתחת לרוחב שבו
-                # השתיים לא נכנסות בנוחות - נפרד מ-@media(480px) הקיים בתוך הטבלה עצמה,
-                # שמטפל בנפרד במסך טלפון צר ממש.
-                with st.container(key="movers_columns_row"):
-                    st.markdown(
-                        """
-                        <style>
-                        @media (max-width: 900px) {
-                            div[class*="st-key-movers_columns_row"] [data-testid="stHorizontalBlock"] {
-                                flex-direction: column !important;
-                            }
-                            div[class*="st-key-movers_columns_row"] [data-testid="stColumn"] {
-                                width: 100% !important; flex: 1 1 100% !important;
-                            }
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    mc1, mc2 = st.columns(2, gap="medium")
-                    with mc1:
-                        with st.container(border=True, key="card_movers_down"):
-                            _section_header(NEG_COLOR, "בירידה", len(down_df))
-                            _render(down_df)
-                    with mc2:
-                        with st.container(border=True, key="card_movers_up"):
-                            _section_header(POS_COLOR, "בעלייה", len(up_df))
-                            _render(up_df)
-
-            _wl_conn = store.get_conn(db_path(cfg))
-            _wl_items = store.get_watchlist(_wl_conn)
-            _wl_conn.close()
-
-            with st.container(border=True, key="card_watchlist"):
-                st.image(render_text_image(f"מניות במעקב ({len(_wl_items)})", ACCENT_COLOR, font_size=17))
-                st.caption("עוקב אחרי ביצועי מניה מרגע ההוספה (מחיר \"קנייה\" היפותטי) - לא אחזקה אמיתית ולא התראה")
-
-                if not _wl_items:
-                    st.info("אין מניות במעקב עדיין.")
-                else:
-                    _wl_tickers = tuple({it["ticker"] for it in _wl_items})
-                    _wl_daily_df = get_current_changes_for(_wl_tickers)
-                    _wl_rows = []
-                    for it in _wl_items:
-                        _match = _wl_daily_df[_wl_daily_df["ticker"] == it["ticker"]]
-                        if _match.empty:
-                            continue
-                        _r = _match.iloc[0]
-                        _wl_current = get_current_price(it["ticker"])
-                        if _wl_current is None:
-                            _wl_current = _r["last_close"]
-                        # ימי מסחר, לא ימי לוח (כמו "שינוי מצטבר" בשאר האפליקציה) - סופ"ש
-                        # לא נספר. "יום 1" הוא יום ההוספה עצמו (אם הוא יום מסחר).
-                        _wl_added_date = dt.datetime.fromisoformat(it["added_at"]).date()
-                        _wl_today = israel_today()
-                        _wl_days_held = sum(
-                            1 for _wl_d in range((_wl_today - _wl_added_date).days + 1)
-                            if (_wl_added_date + dt.timedelta(days=_wl_d)).weekday() not in (5, 6)
-                        )
-                        _wl_rows.append({
-                            "id": it["id"],
-                            "שם_וטיקר": f"{it['company_name']} ({it['ticker']})" if it["company_name"] else it["ticker"],
-                            "שער קנייה": _price_text(it["entry_price"], it["index_name"]),
-                            "שינוי יומי (%)": _r["pct_change"],
-                            "תשואה (%)": (_wl_current / it["entry_price"] - 1) * 100.0,
-                            "ימי מסחר": _wl_days_held,
-                        })
-                    # מובייל (28.9.2026, "בדגש על הויזואל"): אותה בעיה בדיוק שהייתה
-                    # בטבלת ההתראות - 6 עמודות ב-st.columns נערמות זו מתחת לזו במסך
-                    # צר, בלי שום קשר ויזואלי בין ערך לכותרת שלו. nowrap+overflow-x:auto
-                    # (הגרסה הראשונה שעבדה לטבלת ההתראות, לפני שדרוג ל"כרטיסים") -
-                    # מספיק כאן כי יש רק 6 עמודות קצרות, לא 9-10 כמו שם.
-                    st.markdown(
-                        """
-                        <style>
-                        @media (max-width: 480px) {
-                            div[class*="st-key-watchlist_header_row"] [data-testid="stHorizontalBlock"],
-                            div[class*="st-key-watchlist_row_"] [data-testid="stHorizontalBlock"] {
-                                flex-wrap: nowrap !important; overflow-x: auto !important;
-                            }
-                            div[class*="st-key-watchlist_header_row"] [data-testid="stColumn"],
-                            div[class*="st-key-watchlist_row_"] [data-testid="stColumn"] {
-                                min-width: 70px !important; flex-shrink: 0 !important;
-                            }
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    _wl_col_ratios = [3, 1.3, 1.3, 1.3, 1.1, 0.6]
-                    with st.container(key="watchlist_header_row"):
-                        _wl_header_cols = st.columns(_wl_col_ratios)
-                        for _wl_h_col, _wl_h_text in zip(
-                            _wl_header_cols, ["מניה", "שער קנייה", "שינוי יומי", "תשואה", "ימי מסחר", ""],
-                        ):
-                            with _wl_h_col:
-                                st.caption(f"**{_wl_h_text}**" if _wl_h_text else "")
-
-                    for _wl_row in _wl_rows:
-                      with st.container(key=f"watchlist_row_{_wl_row['id']}"):
-                        _wl_name_col, _wl_entry_col, _wl_daily_col, _wl_yield_col, _wl_days_col, _wl_del_col = (
-                            st.columns(_wl_col_ratios)
-                        )
-                        with _wl_name_col:
-                            st.write(_wl_row["שם_וטיקר"])
-                        with _wl_entry_col:
-                            st.write(_wl_row["שער קנייה"])
-                        for _wl_val_col, _wl_val in (
-                            (_wl_daily_col, _wl_row["שינוי יומי (%)"]),
-                            (_wl_yield_col, _wl_row["תשואה (%)"]),
-                        ):
-                            with _wl_val_col:
-                                if pd.isna(_wl_val):
-                                    st.write("—")
-                                else:
-                                    _wl_color = POS_COLOR if _wl_val >= 0 else NEG_COLOR
-                                    st.markdown(
-                                        f'<span style="color:{_wl_color}; font-weight:600;">'
-                                        f'{_signed_num(_wl_val, 1, "%")}</span>',
-                                        unsafe_allow_html=True,
-                                    )
-                        with _wl_days_col:
-                            st.write(f"{_wl_row['ימי מסחר']:02d}")
-                        with _wl_del_col:
-                            if st.button("🗑️", key=f"watchlist_remove_{_wl_row['id']}"):
-                                _wl_remove_conn = store.get_conn(db_path(cfg))
-                                store.remove_watchlist_item(_wl_remove_conn, _wl_row["id"])
-                                _wl_remove_conn.close()
-                                _sync_and_warn("watchlist changed", include_db=True)
-                                st.rerun()
-
-                with st.expander("➕ הוספת מניה למעקב"):
-                    _wl_add_index = st.selectbox(
-                        "מדד", ALL_INDICES, format_func=lambda i: INDEX_LABELS[i], key="watchlist_add_index",
-                    )
-                    _wl_add_tickers = constituents.get_constituents(_wl_add_index)
-                    _wl_add_name_map = (
-                        constituents.get_il_name_map(_wl_add_index) if _wl_add_index.upper() in ("TA35", "TA125")
-                        else constituents.get_us_name_map(_wl_add_index)
-                    )
-                    _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
-                    _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
-                    _wl_add_chosen = st.selectbox(
-                        "מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker",
-                    )
-                    if st.button("➕ הוסף למעקב"):
-                        _wl_entry_price = get_current_price(_wl_add_chosen)
-                        if _wl_entry_price is None:
-                            st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
-                        else:
-                            _wl_add_conn = store.get_conn(db_path(cfg))
-                            store.add_watchlist_item(
-                                _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen),
-                                _wl_add_index, _wl_entry_price,
-                            )
-                            _wl_add_conn.close()
-                            _sync_and_warn("watchlist changed", include_db=True)
-                            st.rerun()
+            _render_movers_v3()
+            return
 
         _render_movers_tab()
 
@@ -5044,10 +3316,9 @@ with _tab_slot_today.container():
             _pa_active_count = len(store.get_active_price_alerts(_pa_count_conn))
             _pa_count_conn.close()
             _pa_label = (f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית")
-            if UI_V3:
-                _pa_label = _nm(_pa_label)
-            _pa_key = "exp_price_alert" if (not UI_V3 or st.session_state.get("alerts_add_open", False)) else "exp_price_alert_closed"
-            _pa_ctx = st.expander(_pa_label, key=_pa_key) if not UI_V3 else st.container(key=_pa_key)
+            _pa_label = _nm(_pa_label)
+            _pa_key = "exp_price_alert" if st.session_state.get("alerts_add_open", False) else "exp_price_alert_closed"
+            _pa_ctx = st.container(key=_pa_key)
             with _slot_manual, _pa_ctx:
                 st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת")
                 _pa_conn = store.get_conn(db_path(cfg))
@@ -5399,290 +3670,8 @@ with _tab_slot_today.container():
                 _no_new_alerts_yet = todays_alerts.empty and not _is_fallback_day
                 _market_open_now = is_market_open("TA35") or is_market_open("NASDAQ100")
                 st.session_state.setdefault("open_alert_id", None)
-                if UI_V3:
-                    with _slot_table:
-                        _render_alerts_v3(todays_alerts, _is_fallback_day, _last_scan_date if _is_fallback_day else None)
-                else:
-                    with _slot_table, st.container(border=True, key="card_alerts_table"):
-                        if _no_new_alerts_yet and not _market_open_now:
-                            st.info("השווקים סגורים - ההתראות יתחדשו עם פתיחת המסחר.")
-                        elif _no_new_alerts_yet:
-                            st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
-                            st.info("אין התראות חדשות במסחר הנוכחי.")
-                        else:
-                            st.image(render_text_image(_today_header_text, POS_COLOR, font_size=17))
-                            # מתג המיון - מיד מתחת לכותרת (7.10.2026)
-                            st.radio(
-                                "מיון", ["סיגנל", "זמן"], horizontal=True, key="alerts_sort_mode",
-                                label_visibility="collapsed",
-                            )
-                            # שם המניה הוא כפתור Streamlit אמיתי (מעוצב כמו קישור, לא
-                            # כפתור מרובע - ר' ה-CSS למטה), לא <a href> (ניווט דפדפן
-                            # אמיתי, איטי בפועל - נבדק ונדחה). scope="fragment" בכל
-                            # rerun כאן - בלי זה st.rerun() הרגיל מריץ מחדש את *כל*
-                            # האפליקציה (כל הטאבים, כל כרטיסי המדדים) על כל קליק על
-                            # שורה, לא רק את הפרגמנט הזה (9.9.2026, נמצא בקוד בפועל -
-                            # זו הסיבה האמיתית לכך שהגרסה הקודמת של זה הרגישה איטית).
-                            st.markdown("""
-                                <style>
-                                div[class*="st-key-alert_row_"] button {
-                                    background: transparent !important; border: none !important;
-                                    box-shadow: none !important; padding: 0 !important;
-                                    color: inherit !important; text-decoration: underline dotted;
-                                    text-underline-offset: 2px; font-weight: 500 !important;
-                                    font-size: 0.9rem !important;
-                                    /* flex-start, לא flex-end: לכפתור יש direction:rtl (ר' Streamlit
-                                    בעצמו), אז justify-content בציר הראשי מתפרש הפוך מ-LTR - flex-end
-                                    דוחף לשמאל (ה"סוף" ב-RTL), flex-start דוחף לימין (9.9.2026, "תיישר
-                                    את שמות המניות לימין" - נמדד בפועל ב-DOM שזו הייתה הסיבה). */
-                                    justify-content: flex-start !important; text-align: right !important;
-                                    width: 100%;
-                                    /* בלי nowrap, טקסט ארוך (שם+טיקר יחד) עובר שורה כשהעמודה צרה -
-                                    "מדרגות" לא אחידות בין שורות לפי אורך השם (9.9.2026, "הקיוקוו
-                                    המוזר"). אותה גזירה כמו שאר התאים בטבלה (ר' _rc.markdown למטה). */
-                                    white-space: nowrap !important; overflow: hidden !important;
-                                    text-overflow: ellipsis !important; display: block !important;
-                                }
-                                /* ה-justify-content על ה-button עצמו לא מספיק - יש עוד div פנימי
-                                (ילד ישיר של הכפתור, ה-wrapper האמיתי של האייקון/טקסט) שמקבל
-                                display:flex + width:100% משלו וממרכז (justify-content:center)
-                                בעצמו - הוא זה שקובע בפועל את המיקום, לא ה-button (נמדד ב-DOM
-                                בפועל, 9.9.2026). */
-                                div[class*="st-key-alert_row_"] button > div {
-                                    justify-content: flex-start !important; overflow: hidden !important;
-                                }
-                                div[class*="st-key-alert_row_"] button p {
-                                    font-size: 0.9rem !important; font-weight: 500 !important;
-                                    text-align: right !important; width: 100%; white-space: nowrap !important;
-                                    overflow: hidden !important; text-overflow: ellipsis !important;
-                                }
-                                /* אותו border-bottom כמו שאר התאים בשורה (ר' _rc.markdown למטה) -
-                                כך שגם עמודת ה"שם" (כפתור, לא div רגיל) מקבלת אותו קו מפריד
-                                בין שורות כמו כל שאר הטבלה (9.9.2026, בקשה שהטבלה תיראה
-                                "כמו קודם" - הגרסה הקודמת של הטבלה, בלי לגעת בפתיחה עצמה). */
-                                div[class*="st-key-alert_row_"] div[data-testid="stButton"] {
-                                    padding:6px 10px; border-bottom:1px solid rgba(128,128,128,0.15);
-                                }
-                                /* st.button נושא min-height/padding ברירת מחדל של Streamlit (בערך
-                                2.5rem) - כשהוא באותה שורת flex עם תאי טקסט רגילים (padding:6px
-                                10px בלבד, ר' _rc.markdown למטה), *כל השורה* נמתחת לגובה הכפתור,
-                                לא לגובה הטקסט - זו הסיבה שהשורות יצאו הרבה יותר גבוהות/מרווחות
-                                מהטבלה הישנה (HTML טהור, בלי widgets בכלל). מאפסים כל padding/gap/
-                                min-height שמתווסף ע"י ה-containers/columns של Streamlit עצמו, כדי
-                                שה-padding:6px 10px שכתבנו בעצמנו יהיה המקור היחיד לגובה השורה.
-                                (9.9.2026, "תעשה שייראה בדיוק כמו קודם"). */
-                                div[class*="st-key-alert_row_"] [data-testid="stVerticalBlock"] { gap: 0 !important; }
-                                div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] { gap: 0 !important; }
-                                div[class*="st-key-alert_row_"] [data-testid="stElementContainer"] { margin: 0 !important; }
-                                div[class*="st-key-alert_row_"] [data-testid="column"] { padding: 0 !important; }
-                                div[class*="st-key-alert_row_"] div[data-testid="stButton"] button {
-                                    min-height: 0 !important; height: auto !important; line-height: 1.4 !important;
-                                }
-                                </style>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-                            # מובייל (28-29.9.2026, "פוליש מובייל" -> "כרטיסים" -> "בפועל בטלפון
-                            # זה עמוס מדי"): הגרסה הקודמת (3 שורות, 6 מספרים בלי תוויות צמודות)
-                            # עבדה טכנית אבל הורגשה עמוסה על מסך אמיתי - "צריך לזכור את הכותרת
-                            # שלמעלה". צומצם לשורה מכווצת עם רק שם+שינוי נוכחי; תגובת-יתר/איכות/
-                            # סיווג ריבאונד (וגם לימיט/יעד/סטופ, כבר קודם) מוסתרים במובייל -
-                            # כולם כבר מופיעים בכרטיס הפרטים המלא בלחיצה על השורה
-                            # (_verdict_html/_rebound_quality_html ב-_build_alert_detail_html),
-                            # אז שום מידע לא אובד, רק פחות צפוף בתצוגה המכווצת.
-                            # (מחושב כאן ב-Python, כי המיקום של כל שדה תלוי אם עמודת "מספר
-                            # ני''ע" קיימת - ר' _show_tase_id_col2).
-                            _offset = 1 if _show_tase_id_col2 else 0
-                            _p_change_at, _p_change_now = 2 + _offset, 3 + _offset
-                            _p_rebound_class = 4 + _offset  # עמודת "סיווג ריבאונד" היחידה של האסטרטגיה (7.10.2026)
-                            _tase_hide_css = (
-                                'div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child(2),\n'
-                                'div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child(2) '
-                                '{ display:none !important; }\n'
-                            ) if _show_tase_id_col2 else ""
-                            # קריאת st.markdown נפרדת (לא concatenation לבלוק הקודם) - Streamlit
-                            # מטפל בכל בלוק <style>...</style> כ-HTML block נפרד; חיבור מחרוזות
-                            # ל-st.markdown אחד הופך בפועל לבלוק קוד מודגש (markdown code-block,
-                            # ר' CommonMark) במקום CSS חי - נמצא בפועל (28.9.2026, ה-CSS הופיע
-                            # כטקסט גולמי על המסך במקום להיות מיושם).
-                            st.markdown(f"""
-                                <style>
-                                @media (max-width: 480px) {{
-                                    div[class*="st-key-alert_header_row"] [data-testid="stHorizontalBlock"],
-                                    div[class*="st-key-alert_row_"] [data-testid="stHorizontalBlock"] {{
-                                        flex-wrap: wrap !important; row-gap: 3px !important; column-gap: 0 !important;
-                                    }}
-                                    div[class*="st-key-alert_header_row"] [data-testid="stColumn"],
-                                    div[class*="st-key-alert_row_"] [data-testid="stColumn"] {{
-                                        min-width: 0 !important;
-                                    }}
-                                    div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child(1),
-                                    div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child(1) {{
-                                        order: 1 !important; flex: 1 1 60% !important;
-                                    }}
-                                    div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_now}),
-                                    div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_now}) {{
-                                        order: 2 !important; flex: 1 1 38% !important;
-                                    }}
-                                    {_tase_hide_css}
-                                    /* שינוי בזמן התראה / תגובת יתר / איכות פונדמנטלית / סיווג
-                                    ריבאונד / לימיט כניסה / יעד מכירה / סטופ-לוס - כולם כבר
-                                    בכרטיס הפרטים המלא בלחיצה על השורה (ר' _build_alert_detail_html
-                                    ו-_verdict_html/_rebound_quality_html שם), לא אובד מידע. */
-                                    div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_change_at}),
-                                    div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_change_at}),
-                                    div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-child({_p_rebound_class}),
-                                    div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-child({_p_rebound_class}),
-                                    div[class*="st-key-alert_header_row"] [data-testid="stColumn"]:nth-last-child(-n+3),
-                                    div[class*="st-key-alert_row_"] [data-testid="stColumn"]:nth-last-child(-n+3) {{
-                                        display: none !important;
-                                    }}
-                                }}
-                                </style>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-                            st.markdown(
-                                """
-                                <style>
-                                .sigtip { position:relative; cursor:default; }
-                                .sigtip .sigtip-text { display:none; position:absolute; z-index:60; white-space:nowrap; text-align:right;
-                                    background:Canvas; color:CanvasText; border:1px solid rgba(128,128,128,0.35); border-radius:8px;
-                                    padding:6px 11px; font-size:0.8rem; font-weight:500; box-shadow:0 2px 8px rgba(0,0,0,0.18);
-                                    top:130%; right:0; }
-                                .sigtip.sigtip-side .sigtip-text { top:50%; right:130%; transform:translateY(-50%); }
-                                .sigtip:hover .sigtip-text { display:block; }
-                                div[class*="st-key-alert_row_"], div[class*="st-key-alert_row_"] [data-testid="stColumn"],
-                                div[class*="st-key-alert_row_"] [data-testid="stVerticalBlock"],
-                                div[class*="st-key-alert_row_"] [data-testid="stElementContainer"],
-                                div[class*="st-key-alert_row_"] [data-testid="stMarkdownContainer"] { overflow: visible !important; }
-                                </style>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-                            _col_defs = [
-                                ("שם", None),
-                                ("שינוי בזמן התראה", lambda v: _signed_num(v, 1, "%")),
-                                ("שינוי נוכחי", lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—"),
-                                ("סיווג ריבאונד", None),
-                                ("לימיט כניסה", None), ("יעד מכירה", None), ("סטופ-לוס", None),
-                            ]
-                            _col_weights = [2.2, 1.1, 1.1, 1.8, 1, 1, 1]
-                            if _show_tase_id_col2:
-                                _col_defs.insert(1, ("מספר ני\"ע", lambda v: f"{v:.0f}" if pd.notna(v) else "—"))
-                                _col_weights.insert(1, 0.9)
-                            _color_cols = {"שינוי בזמן התראה", "שינוי נוכחי"}
-                            with st.container(key="alert_header_row"):
-                                _header_cols = st.columns(_col_weights)
-                                for _hc, (_col_name, _) in zip(_header_cols, _col_defs):
-                                    if _col_name == "סיווג ריבאונד":
-                                        _label = _rebound_header_label
-                                    elif _col_name == "שם":
-                                        _label = "מניה"
-                                    else:
-                                        _label = _col_name
-                                    _hc.markdown(
-                                        f'<div style="font-weight:600; font-size:0.85rem; border-bottom:1px solid '
-                                        f'rgba(128,128,128,0.3); padding-bottom:4px;">{_label}</div>',
-                                        unsafe_allow_html=True,
-                                    )
-                            # התראה ירידה-מצטברת (ירידה של כמה ימים, שהיום עצמו לא חצה בו את סף הירידה היומי): "שינוי בזמן
-                            # התראה" של היום היה מטעה (למשל +1.2% בהתראה על ירידה של 21% ב-3 ימים) - מציגים את השינוי המצטבר (8.10.2026)
-                            _md_days = cfg.get("multi_day_window_days", 3)
-                            _md_daily_thr = abs(cfg["drop_threshold_pct"])
-                            _nd_map = {}
-                            if not _current_changes_df.empty and "history" in _current_changes_df.columns:
-                                for _t, _h in zip(_current_changes_df["ticker"], _current_changes_df["history"]):
-                                    _nd_map[_t] = market_data.compute_n_day_change_pct(_h, _md_days)
-                            for _, _row in alerts_display.iterrows():
-                                _rid = int(_row["id"])
-                                _is_selected = st.session_state["open_alert_id"] == _rid
-                                _row_bg = f'background:{ACCENT_COLOR}1a;' if _is_selected else ""
-                                with st.container(key=f"alert_row_{_rid}"):
-                                    st.markdown(
-                                        f'<style>div[class*="st-key-alert_row_{_rid}"] {{ {_row_bg} }}</style>',
-                                        unsafe_allow_html=True,
-                                    )
-                                    _row_cols = st.columns(_col_weights)
-                                    for _rc, (_col_name, _fmt) in zip(_row_cols, _col_defs):
-                                        _val = _row[_col_name]
-                                        if _col_name == "שם":
-                                            # עיגול צבע סיווג הריבאונד לצד השם, מימין - ה-emoji
-                                            # ראשון במחרוזת מוצג הכי ימני ב-RTL (9.9.2026, בקשה
-                                            # מפורשת). אותה מוסכמה כמו _REBOUND_TIER_EMOJI בכל
-                                            # מקום אחר בקובץ הזה.
-                                            # 7.10.2026: במקום עיגול סיווג הריבאונד (A/B/C, שלא הבדיל בין
-                                            # הצלחה לכישלון) - הסיגנל של האסטרטגיה: 🟢 לקנות / 🟡 לחכות / 🔴 לא לקנות.
-                                            _src = todays_alerts[todays_alerts["id"] == _rid]
-                                            _tier_badge = (
-                                                strategy_mod.SIGNAL_EMOJI[_alert_signal(_src.iloc[0])[0]]
-                                                if not _src.empty else ""
-                                            )
-                                            _name_text = str(_val)
-                                            # קיצור ידני בפייתון, לא text-overflow:ellipsis - נמצא בפועל
-                                            # (9.9.2026) ש-ellipsis על מחרוזת מעורבת (עברית+טיקר לטיני)
-                                            # חותך מהצד הלא נכון ("...RG)" במקום "עזריאלי..."), גם עם
-                                            # RLI/PDI מפורשים - CSS לא מכבד את זה בפועל לצורך קיצור.
-                                            if len(_name_text) > 22:
-                                                _name_text = _name_text[:21] + "…"
-                                            _name_label = f"{_tier_badge} {_name_text}" if _tier_badge else _name_text
-                                            if _row.get("_is_new"):
-                                                _name_label += " · התראה חדשה"
-                                            if _rc.button(_name_label, key=f"open_alert_btn_{_rid}", width='stretch'):
-                                                st.session_state["open_alert_id"] = None if _is_selected else _rid
-                                                st.rerun(scope="fragment")
-                                            continue
-                                        if _col_name == "סיווג ריבאונד":
-                                            _rc.markdown(
-                                                f'<div style="font-size:0.9rem; padding:6px 10px; white-space:nowrap; '
-                                                f'border-bottom:1px solid rgba(128,128,128,0.15);">{_val}</div>',
-                                                unsafe_allow_html=True,
-                                            )
-                                            continue
-                                        _text = _fmt(_val) if _fmt else ("—" if pd.isna(_val) else str(_val))
-                                        if _col_name == "שינוי בזמן התראה" and pd.notna(_val) and _val > -_md_daily_thr:
-                                            _src_t = todays_alerts.loc[todays_alerts["id"] == _rid, "ticker"]
-                                            _nd = _nd_map.get(_src_t.iloc[0]) if not _src_t.empty else None
-                                            if _nd is not None and pd.notna(_nd) and _nd < 0:
-                                                _val = _nd
-                                                _text = (f"{_signed_num(_nd, 1, '%')}<span style=\"font-size:0.68rem; font-weight:400; opacity:0.75; margin-inline-start:4px;\">"
-                                                         f"ב-{_md_days} ימים</span>")
-                                        if _col_name == "שינוי נוכחי" and _row.get("current_gap"):
-                                            _text = f"⚠️ {_text}"
-                                        _color_style = ""
-                                        if _col_name in _color_cols and pd.notna(_val):
-                                            _color_style = f"color:{POS_COLOR if _val >= 0 else NEG_COLOR}; font-weight:600;"
-                                        elif _col_name == "ניקוד" and pd.notna(_val):
-                                            # צבע לפי ספי הרמזור (🟢 4+, 🟡 2-3, 🔴 1 ומטה)
-                                            _sc_key = ("buy" if _val >= strategy_mod.buy_min_score()
-                                                       else "wait" if _val >= strategy_mod.wait_min_score() else "avoid")
-                                            _color_style = f"color:{SIGNAL_COLORS[_sc_key]}; font-weight:700;"
-                                        elif _col_name == "מרחק מהממוצע" and pd.notna(_val):
-                                            _color_style = f"color:{POS_COLOR if _val <= -10 else (NEG_COLOR if _val > 0.9 else 'inherit')};"
-                                        _rc.markdown(
-                                            f'<div style="font-size:0.85rem; {_color_style} overflow:hidden; '
-                                            f'text-overflow:ellipsis; white-space:nowrap; padding:6px 10px; '
-                                            f'border-bottom:1px solid rgba(128,128,128,0.15);">{_text}</div>',
-                                            unsafe_allow_html=True,
-                                        )
-                                    if _is_selected:
-                                        _sel_row = todays_alerts[todays_alerts["id"] == _rid]
-                                        if not _sel_row.empty:
-                                            st.markdown(_build_alert_detail_html(_sel_row.iloc[0]), unsafe_allow_html=True)
-                                            _sel = _sel_row.iloc[0]
-                                            if _sel.get("bought") == 1:
-                                                st.caption("✅ פוזיציה פתוחה")
-                                            else:
-                                                with st.expander("➕ פתח פוזיציה", key=f"open_pos_exp_{_rid}"):
-                                                    _lim = _sel.get("entry_limit")
-                                                    if pd.notna(_lim):
-                                                        _il = market_data._is_israeli_ticker(_sel["ticker"])
-                                                        st.caption(f"לימיט כניסה מוצע: {_lim * 100:,.0f} אג'" if _il else f"לימיט כניסה מוצע: {_lim:,.2f}")
-                                                    _open_position_form(_sel, f"alert_pos_{_rid}")
-                                            _close_cols = st.columns([9, 1])
-                                            if _close_cols[1].button("✕ סגור", key=f"close_alert_btn_{_rid}"):
-                                                st.session_state["open_alert_id"] = None
-                                                st.rerun(scope="fragment")
+                with _slot_table:
+                    _render_alerts_v3(todays_alerts, _is_fallback_day, _last_scan_date if _is_fallback_day else None)
 
             # "קרוב לסף התראה" - הועבר לכאן מטאב "מניות מובילות" (26.8.2026): קונספטואלית
             # זה צפי להתראה עתידית (מבוסס על סף ההתראה), לא עיון במניות כמו שאר הטאב ההוא.
@@ -5720,17 +3709,13 @@ with _tab_slot_today.container():
             if not near_miss_df.empty and "טיקר" in near_miss_df.columns:
                 near_miss_df = near_miss_df.drop_duplicates(subset="טיקר", keep="first")
 
-            if not near_miss_df.empty and UI_V3:
+            if not near_miss_df.empty:
                 with _slot_nearmiss:
                     st.markdown(
                         f'<div class="v3h"><section class="block">{ui_v3.head("קרוב לסף התראה")}'
                         f'{ui_v3.stocks_table(_v3_stock_rows(near_miss_df), cfg.get("multi_day_window_days", 3), show_price=False)}</section></div>',
                         unsafe_allow_html=True,
                     )
-            elif not near_miss_df.empty:
-                with _slot_nearmiss, st.container(border=True, key="card_near_miss"):
-                    st.image(render_text_image("קרוב לסף התראה", NEAR_MISS_COLOR, font_size=17))
-                    _render_movers_style_table(near_miss_df, cumulative_label="שינוי מצטבר (3 ימים)")
 
         _render_today_tab()
 
@@ -6023,14 +4008,8 @@ def _render_perf_v3() -> None:
     st.markdown(f'<div class="v3h">{"".join(blocks)}</div>', unsafe_allow_html=True)
 
 
-_BACKTEST_CAPTION = "ניתוח הצלחת התראות עבר ע\"פ מחירי שיא / שפל בפועל"
 
 
-def _color_success_rate(val):
-    if pd.isna(val):
-        return ""
-    color = POS_COLOR if val >= 50 else NEG_COLOR
-    return f"color: {color}; font-weight: 600"
 
 
 _tab_slot_backtest = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
@@ -6038,348 +4017,8 @@ _tab_slot_backtest = st.empty()  # placeholder עם מיקום קבוע, נוצ�
 if st.session_state.active_tab != "backtest":
     st.session_state["_perf_entered"] = False  # בכניסה הבאה לטאב: מסתירים שאריות ישנות של הטאב הקודם
 with _tab_slot_backtest.container():
-    if UI_V3 and st.session_state.active_tab == "backtest":
+    if st.session_state.active_tab == "backtest":
         _render_perf_v3()
-    if st.session_state.active_tab == "backtest" and not UI_V3:
-        if df.empty:
-            st.caption(_BACKTEST_CAPTION)
-            st.info("אין עדיין התראות להערכה. הרץ סריקה כדי להתחיל לצבור נתונים.")
-        else:
-            with st.container(border=True, key="card_perf_controls"):
-                st.markdown(f"**🔍 {_BACKTEST_CAPTION}**")
-                _backtest_scope = st.radio(
-                    "היקף הבדיקה", ["כל ההתראות", "התראות שמומשו"], horizontal=True, key="backtest_scope",
-                    label_visibility="collapsed",
-                )
-                _market_choice = st.radio(
-                    "שוק", ["ישראל", "ארה\"ב", "כל השווקים"], horizontal=True, key="backtest_market",
-                )
-                _signal_choice = st.radio(
-                    "סיגנל", ["🟢 לקנות", "🟡 לחכות", "🔴 לא לקנות", "הכל"], horizontal=True, key="backtest_signal",
-                    index=0,
-                )
-                _target_labels = {f"{t}%": t for t in (2, 3, 4, 5, 6, 7, 8, 9, 10)}
-                _target_choice = st.radio(
-                    "יעד רווח", list(_target_labels), horizontal=True, key="backtest_target_pct",
-                    index=list(_target_labels.values()).index(int(round(strategy_mod.target_pct()))),
-                )
-                target_pct = _target_labels[_target_choice]
-                _hold_labels = {"יום אחד": 1, "יומיים": 2, "3 ימים": 3, "4-8 ימים": 8, "9-13 ימים": 13, "14 ימים ומעלה": 30}
-                _hold_choice = st.radio(
-                    "זמן החזקה מקסימלי", list(_hold_labels), horizontal=True, key="backtest_hold_days",
-                    index=list(_hold_labels.values()).index(strategy_mod.HOLD_MAX_DAYS),
-                )
-                window_days = _hold_labels[_hold_choice]
-            if st.button("🔄 הרץ בדיקה מחדש", key="backtest_rerun_btn"):
-                get_backtest_results.clear()
-
-            # התראות שהמשתמש קנה וסימן כ"עסקה ידנית" (לא לפי האסטרטגיה) לא נכללות -
-            # הטאב הזה בודק את דיוק ההתראות/האסטרטגיה עצמה, לא את ההחלטות האישיות של המשתמש.
-            _strategy_df = df[df.get("is_manual_trade") != 1] if "is_manual_trade" in df.columns else df
-            _IL_INDICES = ("TA35", "TA125")
-            if _market_choice == "ישראל":
-                _strategy_df = _strategy_df[_strategy_df["index_name"].isin(_IL_INDICES)]
-            elif _market_choice == "ארה\"ב":
-                _strategy_df = _strategy_df[~_strategy_df["index_name"].isin(_IL_INDICES)]
-
-            if _backtest_scope == "התראות שמומשו":
-                # "מומשו" = כל אחזקה שהפכה לעסקה אמיתית - גם פתוחה עדיין (נבדקת
-                # בסימולציה כמו כל התראה) וגם כזו שכבר נסגרה (שם כבר יודעים בוודאות
-                # את התוצאה האמיתית מהיציאה בפועל - לא מסמלצים שום דבר).
-                _open_df = _strategy_df[_strategy_df.get("bought") == 1] if "bought" in _strategy_df.columns else _strategy_df.iloc[0:0]
-                with st.spinner("בודק נתוני מחיר היסטוריים לכל אחזקה..."):
-                    _bt_open = get_backtest_results(_open_df, window_days)
-                _closed_conn = store.get_conn(db_path(cfg))
-                _bt_closed = backtest.closed_trades_as_outcomes(_closed_conn)
-                _closed_conn.close()
-                if _market_choice != "כל השווקים" and not _bt_closed.empty and "index_name" in _bt_closed.columns:
-                    _closed_is_il = _bt_closed["index_name"].isin(_IL_INDICES)
-                    _bt_closed = _bt_closed[_closed_is_il if _market_choice == "ישראל" else ~_closed_is_il]
-                bt = pd.concat([_bt_open, _bt_closed], ignore_index=True) if not _bt_closed.empty else _bt_open
-                _bt_all_signals = None
-            else:
-                bt = get_post_alert_results(_strategy_df, float(target_pct), int(window_days))
-                # סיגנל רטרואקטיבי: אותם כללים בדיוק שמוצגים בהתראה, מוחלים על כל ההיסטוריה
-                if not bt.empty:
-                    bt["סיגנל"] = bt.apply(lambda r: strategy_mod.SIGNAL_EMOJI[_alert_signal(r)[0]], axis=1)
-                _bt_all_signals = bt
-                _wanted_signal = {"🟢 לקנות": "🟢", "🟡 לחכות": "🟡", "🔴 לא לקנות": "🔴"}.get(_signal_choice)
-                if _wanted_signal and not bt.empty:
-                    bt = bt[bt["סיגנל"] == _wanted_signal]
-
-            summary = backtest.overall_summary(bt)
-            win_rate_text = f"{summary['win_rate_pct']:.0f}%" if summary["win_rate_pct"] is not None else "עדיין אין מספיק נתונים"
-            if summary["win_rate_pct"] is None:
-                win_rate_color, win_rate_bg = NEUTRAL_COLOR, NEUTRAL_BG
-            else:
-                win_rate_color = POS_COLOR if summary["win_rate_pct"] >= 50 else NEG_COLOR
-                win_rate_bg = POS_BG if summary["win_rate_pct"] >= 50 else NEG_BG
-
-            backtest_cards = "".join([
-                _stat_card("🗂️ התראות שנבדקו", str(summary["total_alerts"]), NEUTRAL_COLOR, NEUTRAL_BG),
-                _stat_card("✅ הגי" "‌" "עו לי" "‌" "עד", str(summary["hit_target"]), POS_COLOR, POS_BG),
-                _stat_card("❌ פגעו בסטופ", str(summary["hit_stop"]), NEG_COLOR, NEG_BG),
-                _stat_card("➖ נשארו באמצע", str(summary["neither"]), NEUTRAL_COLOR, NEUTRAL_BG),
-                _stat_card("⏳ בהמתנה", str(summary["pending"]), NEUTRAL_COLOR, NEUTRAL_BG),
-                _stat_card("📊 שיעור הצלחה", win_rate_text, win_rate_color, win_rate_bg),
-            ])
-            st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{backtest_cards}</div>', unsafe_allow_html=True)
-            st.markdown("<div style='height:22px;'></div>", unsafe_allow_html=True)
-
-            def _primary_reason(reasons_json: str) -> str:
-                try:
-                    reasons = json.loads(reasons_json or "[]")
-                    return analysis_mod_labels.get(reasons[0], reasons[0]) if reasons else "לא ידוע"
-                except Exception:
-                    return "לא ידוע"
-
-            analysis_mod_labels = {
-                "market_wide": "יום חלש בשוק",
-                "sector_pressure": "לחץ סקטוריאלי",
-                "earnings_reaction": "תגובה לדוח",
-                "profit_taking": "מימושים אחרי עלייה",
-                "stock_specific_news": "חדשות ספציפיות",
-                "ex_dividend": "ניתוק דיבידנד (טכני)",
-                "unclear": "לא נמצאה סיבה ברורה",
-            }
-
-            def _score_bucket(score) -> str:
-                if pd.isna(score):
-                    return "לא ידוע"
-                score = int(score)
-                if score >= 80:
-                    return "80-100"
-                if score >= 60:
-                    return "60-79"
-                if score >= 40:
-                    return "40-59"
-                if score >= 20:
-                    return "20-39"
-                return "0-19"
-
-            bt_display = bt.copy()
-            bt_display["סיבה"] = bt_display["reasons_json"].apply(_primary_reason)
-            bt_display["ציון תגובת-יתר"] = bt_display["overreaction_score"].apply(_score_bucket)
-
-            by_reason = backtest.summarize_by(bt_display, "סיבה")
-            by_score = backtest.summarize_by(bt_display, "ציון תגובת-יתר")
-
-            _success_rate_color = lambda v: POS_COLOR if v >= 50 else NEG_COLOR
-
-            def _section_subheader(text: str, icon: str) -> None:
-                st.markdown(
-                    f'<div style="font-size:1.05rem; font-weight:700; margin-bottom:10px; padding-bottom:6px; '
-                    f'border-bottom:2px solid {ACCENT_COLOR}55;">{icon} {text}</div>',
-                    unsafe_allow_html=True,
-                )
-
-            # מובייל (30.9.2026, "תעבור שוב על כל טאב במובייל"): שתי טבלאות 4-עמודות
-            # זו לצד זו ב-st.columns(2) - Streamlit לא עורם עמודות אלה לבד במובייל,
-            # אז כל טבלה נדחסת לחצי מהרוחב הזמין וגולשת שמאלה (RTL) מחוץ למסך. עוטפים
-            # ב-container עם key כדי לכפות flex-direction:column (עמודה מלאה, לא חצי)
-            # מתחת לרוחב מובייל - אותו דפוס בדיוק כמו portfolio-status-row.
-            if _bt_all_signals is not None and not _bt_all_signals.empty:
-                _decided_sig = _bt_all_signals[_bt_all_signals["outcome"].isin([backtest.HIT_TARGET, backtest.HIT_STOP, backtest.NEITHER])]
-                if _decided_sig.empty:
-                    by_signal = pd.DataFrame(columns=["סיגנל", 'סה"כ', "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת לעסקה (%)"])
-                else:
-                    by_signal = _decided_sig.groupby("סיגנל").agg(
-                        total=("outcome", "size"),
-                        hits=("outcome", lambda x: (x == backtest.HIT_TARGET).sum()),
-                        exp=("ret", "mean") if "ret" in _decided_sig.columns else ("outcome", lambda x: float("nan")),
-                    ).reset_index()
-                    by_signal["rate"] = (by_signal["hits"] / by_signal["total"] * 100).round(1)
-                    by_signal = by_signal[["סיגנל", "total", "hits", "rate", "exp"]]
-                    by_signal.columns = ["סיגנל", 'סה"כ', "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת לעסקה (%)"]
-                    _sig_order = {"🟢": 0, "🟡": 1, "🔴": 2, "⚪": 3}
-                    by_signal = by_signal.sort_values("סיגנל", key=lambda col: col.map(_sig_order)).reset_index(drop=True)
-                _section_subheader(f"שיעור הצלחה לפי סיגנל (יעד {target_pct}%, אופק {window_days} {'יום' if window_days == 1 else 'ימים'}, נמדד מרגע ההתראה)", "🚦")
-                if by_signal.empty:
-                    st.caption("אין עדיין מספיק התראות מוכרעות.")
-                else:
-                    st.markdown(
-                        """<style>@media (max-width: 480px) {
-                            div.by-signal-table table th, div.by-signal-table table td {
-                                white-space: normal !important; padding-left: 5px !important; padding-right: 5px !important; font-size: 0.8rem !important;
-                            }
-                        }</style>""",
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        _html_table(
-                            by_signal, [("סיגנל", "סיגנל"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
-                                        ("שיעור הצלחה (%)", "שיעור הצלחה (%)"), ("תוחלת לעסקה (%)", "תוחלת לעסקה (%)")],
-                            formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}",
-                                        "תוחלת לעסקה (%)": lambda v: _signed_num(v, 2) if pd.notna(v) else "—",
-                                        "סיגנל": lambda v: _signal_cell_html(v)},
-                            color_fns={"שיעור הצלחה (%)": _success_rate_color,
-                                       "תוחלת לעסקה (%)": lambda v: POS_COLOR if (pd.notna(v) and v >= 0) else NEG_COLOR},
-                            extra_class="by-signal-table",
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
-
-            # ברמת יום (8.10.2026): ההתראות באותו יום אינן עצמאיות - טווחי סמך לפי ימים שלמים, תשואה נטו אחרי עמלות ומס,
-            # ומה קורה כשקונים רק את K ההתראות הטובות ביותר ביום (ר' src/strategy_stats.py)
-            if _bt_all_signals is not None and not _bt_all_signals.empty and "ret" in _bt_all_signals.columns:
-                _ds = _bt_all_signals[_bt_all_signals["outcome"].isin([backtest.HIT_TARGET, backtest.HIT_STOP, backtest.NEITHER])].copy()
-                _ds = _ds[_ds["ret"].notna()]
-                if len(_ds) >= 20:
-                    _ds["y"] = (_ds["outcome"] == backtest.HIT_TARGET).astype(int)
-                    _ds["score"] = _ds.apply(
-                        lambda r: strategy_mod.signal_score(
-                            r.get("index_name"), r["pct_change"], r.get("intraday_recovery_pct"),
-                            r.get("dist_from_ma50_pct"), r.get("sector"),
-                            int(str(r.get("scan_ts"))[11:13]) if str(r.get("scan_ts"))[11:13].isdigit() else None,
-                        )[0], axis=1,
-                    )
-                    with st.expander("📊 ברמת יום: טווחי סמך, נטו אחרי עמלות, והטובות ביותר ביום"):
-                        _pos_ccy = "ILS"
-                        _position = float(cfg.get("position_size", {}).get(_pos_ccy, 5000.0))
-                        _is_il_only = bool(_ds["index_name"].isin(["TA35", "TA125"]).all())
-                        _fees_cfg = cfg["fees"] if _is_il_only else None
-                        _tbl = strategy_stats.bucket_summary(_ds, _fees_cfg, position=_position, B=600)
-
-                        def _ci(v, pct=True):
-                            return f"{v[0]:.1f}% עד {v[1]:.1f}%" if pct else f"{v[0]:+.2f}% עד {v[1]:+.2f}%"
-
-                        _show = pd.DataFrame({
-                            "קבוצה": _tbl["קבוצה"],
-                            "התראות / ימים": _tbl.apply(lambda r: f"{int(r['התראות'])} / {int(r['ימים'])}", axis=1),
-                            "הצלחה (טווח 95%)": _tbl.apply(lambda r: f"{r['הצלחה %']:.0f}% ({_ci(r['הצלחה CI'])})", axis=1),
-                            "תשואה ברוטו (טווח)": _tbl.apply(lambda r: f"{_signed_num(r['ברוטו %'], 2, '%')} ({_ci(r['ברוטו CI'], False)})", axis=1),
-                        })
-                        if _fees_cfg:
-                            _show["תשואה נטו (טווח)"] = _tbl.apply(lambda r: f"{_signed_num(r['נטו %'], 2, '%')} ({_ci(r['נטו CI'], False)})", axis=1)
-                        st.markdown(_html_table(_show, [(c, c) for c in _show.columns]), unsafe_allow_html=True)
-                        if _fees_cfg:
-                            st.caption(f"נטו: פוזיציה של {_position:,.0f} ש\"ח, אחרי עמלות (כולל מינימום לצד), דמי ניהול ומס רווחי הון (בלי קיזוז הפסדים).")
-                        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-                        _tk = strategy_stats.topk_table(_ds)
-                        _tk_show = pd.DataFrame({
-                            "קונים ביום": _tk["K"].map(lambda k: f"{k} הטובות ביותר"),
-                            "בלי סינון": _tk.apply(lambda r: f"{r['הצלחה %']:.0f}% / {_signed_num(r['ברוטו %'], 2, '%')}", axis=1),
-                            "רק עם ניקוד 4+": _tk.apply(
-                                lambda r: (f"{r['רק 4+: הצלחה %']:.0f}% / {_signed_num(r['רק 4+: ברוטו %'], 2, '%')}"
-                                           if r['רק 4+: התראות'] else "—"), axis=1),
-                        })
-                        st.markdown(_html_table(_tk_show, [(c, c) for c in _tk_show.columns]), unsafe_allow_html=True)
-                        st.caption("הצלחה / תשואה ברוטו ממוצעת, לפי הקונים ביום את הטובות ביותר.")
-                        _pd = strategy_stats.per_day_buy_stats(_ds)
-                        if _pd.get("days_with_buy"):
-                            st.caption(
-                                f"ימים עם התראה 4+: {_pd['days_with_buy']} מתוך {_pd['total_days']} · ממוצע יומי "
-                                f"{_signed_num(_pd['avg_daily_ret'], 2, '%')} · ימים חיוביים {_pd['positive_days']} מתוך "
-                                f"{_pd['days_with_buy']} · היום הגרוע ביותר {_signed_num(_pd['worst_day'], 1, '%')}"
-                            )
-
-            with st.container(key="backtest_reason_score_row"):
-                st.markdown(
-                    """
-                    <style>
-                    @media (max-width: 480px) {
-                        div[class*="st-key-backtest_reason_score_row"] [data-testid="stHorizontalBlock"] {
-                            flex-direction: column !important;
-                        }
-                        div[class*="st-key-backtest_reason_score_row"] [data-testid="stColumn"] {
-                            width: 100% !important; flex: 1 1 100% !important;
-                        }
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                rc1, rc2 = st.columns(2)
-                with rc1:
-                    _section_subheader("שיעור הצלחה לפי סיבת הירידה", "📌")
-                    if by_reason.empty:
-                        st.caption("אין עדיין מספיק התראות מוכרעות.")
-                    else:
-                        st.markdown(
-                            _html_table(
-                                by_reason, [("סיבה", "סיבה"), ('סה"כ', 'סה"כ'), ("הגיעו ליעד", "הגיעו ליעד"),
-                                            ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
-                                formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
-                                color_fns={"שיעור הצלחה (%)": _success_rate_color},
-                            ),
-                            unsafe_allow_html=True,
-                        )
-                with rc2:
-                    _section_subheader("שיעור הצלחה לפי ציון תגובת-יתר", "🎯")
-                    if by_score.empty:
-                        st.caption("אין עדיין מספיק התראות מוכרעות.")
-                    else:
-                        st.markdown(
-                            _html_table(
-                                by_score, [("ציון תגובת-יתר", "ציון תגובת-יתר"), ('סה"כ', 'סה"כ'),
-                                           ("הגיעו ליעד", "הגיעו ליעד"), ("שיעור הצלחה (%)", "שיעור הצלחה (%)")],
-                                formatters={"שיעור הצלחה (%)": lambda v: f"{v:.1f}"},
-                                color_fns={"שיעור הצלחה (%)": _success_rate_color},
-                            ),
-                            unsafe_allow_html=True,
-                        )
-
-            with st.expander("📋 כל ההתראות עם תוצאה"):
-                bt_table = bt_display[["scan_ts", "ticker", "pct_change", "target_base", "stop_loss", "outcome"]].copy()
-                bt_table["outcome"] = bt_table["outcome"].map(backtest.OUTCOME_LABELS_HE)
-                bt_table = bt_table.rename(columns={
-                    "scan_ts": "זמן סריקה", "ticker": "טיקר", "pct_change": "שינוי (%)",
-                    "target_base": "יעד", "stop_loss": "סטופ", "outcome": "תוצאה",
-                })
-                def _fmt_scan_ts(v) -> str:
-                    # "2026-09-30T14:40:51+03:00" הגולמי לקח 194px - כמעט 2/3 מהרוחב
-                    # שהיה זמין במובייל, בלי שום תועלת (לא קריא/פורמט תאריך שמופיע
-                    # בשום מקום אחר באתר). "30.09 14:40" מספיק לזיהוי + מקוצר בהרבה
-                    # (30.9.2026, "תעבור שוב על כל טאב במובייל").
-                    if pd.isna(v):
-                        return "—"
-                    try:
-                        return dt.datetime.fromisoformat(str(v)).strftime("%d.%m %H:%M")
-                    except Exception:
-                        return str(v)[:16]
-
-                # מובייל: גם אחרי קיצור "זמן סריקה" (למעלה) הטבלה עדיין רחבה מדי
-                # (511px מול ~310px זמינים) - "יעד"/"סטופ" (ערכי התחזית הגולמיים,
-                # 4-5) הכי פחות קריטיים לסריקה חטופה של "מה קרה" (תוצאה כבר אומרת
-                # את זה במילים) - מוסתרים במובייל, עדיין גלויים בדסקטופ.
-                st.markdown(
-                    """
-                    <style>
-                    @media (max-width: 480px) {
-                        div.backtest-detail-table table th:nth-child(4),
-                        div.backtest-detail-table table td:nth-child(4),
-                        div.backtest-detail-table table th:nth-child(5),
-                        div.backtest-detail-table table td:nth-child(5) {
-                            display: none !important;
-                        }
-                        div.backtest-detail-table table th:nth-child(6),
-                        div.backtest-detail-table table td:nth-child(6) {
-                            max-width: 90px !important; white-space: normal !important;
-                            word-break: break-word !important;
-                        }
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    _html_table(
-                        bt_table,
-                        [("טיקר", "טיקר"), ("זמן סריקה", "זמן סריקה"), ("שינוי (%)", "שינוי (%)"),
-                         ("יעד", "יעד"), ("סטופ", "סטופ"), ("תוצאה", "תוצאה")],
-                        formatters={
-                            "זמן סריקה": _fmt_scan_ts,
-                            "שינוי (%)": lambda v: _signed_num(v, 1, "%") if pd.notna(v) else "—",
-                            "יעד": lambda v: f"{v:.2f}" if pd.notna(v) else "—",
-                            "סטופ": lambda v: f"{v:.2f}" if pd.notna(v) else "—",
-                        },
-                        color_columns={"שינוי (%)"}, color_fns={"תוצאה": _outcome_color_hex},
-                        max_height=600,
-                        extra_class="backtest-detail-table",
-                    ),
-                    unsafe_allow_html=True,
-                )
 
 def _next_gain_alert_pct(gain_pct: float | None) -> float:
     gain_start_pct = cfg.get("holdings_gain_alert_start_pct", 2.0)
@@ -7145,84 +4784,11 @@ with _tab_slot_portfolio.container():
             holdings = df[df.get("bought") == 1].copy() if (not df.empty and "bought" in df.columns) else pd.DataFrame()
             if holdings.empty:
                 _render_open_position_expander()
-                if not UI_V3:
-                    st.divider()
                 st.info("אין עדיין אחזקות. השתמש ב'פתיחת פוזיציה' למעלה.")
             else:
                 rows = _build_holding_rows(holdings)
-                if UI_V3:
-                    _render_holdings_v3(rows, _render_open_position_expander)
-                    return
-
-                by_ccy = {}
-                for row in rows:
-                    by_ccy.setdefault(row["ccy"], {
-                        "invested": 0.0, "current_value": 0.0, "pnl": 0.0, "count": 0,
-                        "daily_change": 0.0, "daily_baseline": 0.0,
-                    })
-                    by_ccy[row["ccy"]]["invested"] += row["invested"]
-                    by_ccy[row["ccy"]]["current_value"] += row["current_value"] or 0
-                    by_ccy[row["ccy"]]["pnl"] += row["pnl"] or 0
-                    by_ccy[row["ccy"]]["count"] += 1
-                    if row["daily_change_amt"] is not None and row["daily_baseline_value"]:
-                        by_ccy[row["ccy"]]["daily_change"] += row["daily_change_amt"]
-                        by_ccy[row["ccy"]]["daily_baseline"] += row["daily_baseline_value"]
-
-                # חשיפה לפי סקטור (לא קשורה להתראה ספציפית) - כדי לראות ריכוז
-                # גם כשאף ירידה בודדת לא מסמנת אותו. מוצגת רק כשיש יותר
-                # מקטגוריה אחת - "100% טכנולוגיה" לא אינפורמטיבי.
-                by_sector = {}
-                for row in rows:
-                    sector_label = _SECTOR_LABELS_HE.get(row["sector"], row["sector"])
-                    by_sector.setdefault(sector_label, 0.0)
-                    by_sector[sector_label] += row["current_value"] or 0
-
-                # אותו מיפוי סקטור->צבע בדיוק כמו במקרא של משבצת ההתפלגות (_breakdown_rows
-                # ממיין לפי שווי יורד, ואז _ALLOCATION_PALETTE[i]) - כדי שהנקודה בכרטיס
-                # האחזקה הבודדת תתאים לצבע של אותו סקטור במקרא, לא צבע שרירותי אחר.
-                _sector_color_map = {
-                    r["name"]: _ALLOCATION_PALETTE[i % len(_ALLOCATION_PALETTE)]
-                    for i, r in enumerate(_breakdown_rows(by_sector))
-                }
-                for row in rows:
-                    row["sector_color"] = _sector_color_map.get(
-                        _SECTOR_LABELS_HE.get(row["sector"], row["sector"]), NEUTRAL_COLOR)
-
-                # התפלגות הסקטורים משולבת בתוך כרטיס "מצב תיק" עצמו (לא כרטיס
-                # נפרד) - כשיש יותר מסקטור אחד (אחרת אין מה להראות). רק במטבע
-                # הראשון (הנפוץ: מטבע יחיד) - הסקטורים חוצי-מטבעות, לא שייכים
-                # לאחד ספציפי.
-                _sector_rows = _breakdown_rows(by_sector) if len(by_sector) > 1 else None
-                cards_html = ""
-                for ccy, agg in by_ccy.items():
-                    symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
-                    today_change = today_pct = None
-                    if agg["daily_baseline"]:
-                        today_change = agg["daily_change"]
-                        today_pct = agg["daily_change"] / agg["daily_baseline"] * 100
-                    cards_html += _stat_card_portfolio_status(
-                        agg["invested"], agg["current_value"], agg["pnl"], symbol, agg["count"],
-                        sector_rows=_sector_rows, today_change=today_change, today_pct=today_pct,
-                    )
-                    _sector_rows = None
-
-                st.markdown(
-                    f"""<div style="display:flex; gap:10px; flex-wrap:wrap;">{cards_html}</div>""",
-                    unsafe_allow_html=True,
-                )
-                # רווח כמו בין שאר הסעיפים (12 + 17 + 12 = 41px) במקום קו ההפרדה שהוסר (13.10.2026)
-                st.markdown('<div style="height:17px;"></div>', unsafe_allow_html=True)
-
-                # 2 בשורה (במקום 3) - העיצוב המחודש (9.9.2026) גבוה יותר
-                # (פס מיקום ויזואלי + גריד נתונים), 3 צפופים מדי ברוחב הזה.
-                for i, row in enumerate(rows):
-                    if i % 2 == 0:
-                        card_cols = st.columns(2)
-                    with card_cols[i % 2]:
-                        render_holding_card(row)
-
-                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-                _render_open_position_expander()
+                _render_holdings_v3(rows, _render_open_position_expander)
+                return
 
         _render_holdings_tab()
 
@@ -7426,254 +4992,8 @@ def _render_journal_v3() -> None:
 _tab_slot_history = st.empty()  # placeholder עם מיקום קבוע, נוצר בכל ריצה - כדי שכשעוברים לטאב אחר
 # הוא יתרוקן במפורש (לא נשאר תוכן ישן/fragment קפוא) ולא רק יוסתר
 with _tab_slot_history.container():
-    if UI_V3 and st.session_state.active_tab == "history":
+    if st.session_state.active_tab == "history":
         _render_journal_v3()
-    if st.session_state.active_tab == "history" and not UI_V3:
-        st.caption("היסטוריית העסקאות שסגרת בפועל - התחזית של המערכת מול התוצאה האמיתית שקיבלת")
-        hist_conn = store.get_conn(db_path(cfg))
-        closed_trades = store.get_closed_trades(hist_conn)
-        hist_conn.close()
-
-        if not closed_trades:
-            st.info("עדיין אין עסקאות סגורות. כשתסגור אחזקה (💰 מכירה) בטאב 'אחזקות', היא תופיע כאן.")
-        else:
-            hist_df = pd.DataFrame(closed_trades)
-
-            total_trades = len(hist_df)
-            wins = int((hist_df["gross_pnl"] > 0).sum())
-            win_rate = (wins / total_trades * 100) if total_trades else None
-            win_rate_text = f"{win_rate:.0f}%" if win_rate is not None else "—"
-            win_rate_color = POS_COLOR if (win_rate or 0) >= 50 else NEG_COLOR
-            win_rate_bg = POS_BG if (win_rate or 0) >= 50 else NEG_BG
-
-            hist_cards = "".join([
-                _stat_card('סה"כ עסקאות סגורות', str(total_trades), NEUTRAL_COLOR, NEUTRAL_BG),
-                _stat_card("עסקאות ברווח", str(wins), POS_COLOR, POS_BG),
-                _stat_card("שיעור הצלחה בפועל", win_rate_text, win_rate_color, win_rate_bg),
-            ])
-            for ccy, grp in hist_df.groupby("currency"):
-                symbol = CURRENCY_SYMBOLS.get(ccy, ccy)
-                total_gross = grp["gross_pnl"].sum()
-                total_net = grp["net_pnl"].sum()
-                hist_cards += _stat_card(
-                    f'רווח/הפסד כולל ({symbol})', _signed_num(total_gross),
-                    POS_COLOR if total_gross >= 0 else NEG_COLOR, POS_BG if total_gross >= 0 else NEG_BG,
-                )
-                hist_cards += _stat_card(
-                    f'רווח/הפסד נטו כולל ({symbol})', _signed_num(total_net),
-                    POS_COLOR if total_net >= 0 else NEG_COLOR, POS_BG if total_net >= 0 else NEG_BG,
-                )
-            st.markdown(f'<div style="display:flex; gap:10px; flex-wrap:wrap;">{hist_cards}</div>', unsafe_allow_html=True)
-
-            st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
-
-            # היסטוריית High/Low לכל טיקר עם עסקה סגורה, לבדוק אם המחיר חצה את
-            # הסטופ/היעד *בפועל* בזמן ההחזקה - לא רק איפה שיצאת ממנה. נמצא
-            # בפועל (23.9.2026, "היא בעצם פגעה בסטופ"): טאואר חצתה סטופ כמה
-            # פעמים (1/9, 14-16/9) אבל נמכרה ידנית ב-23/9 אחרי שהתאוששה, במחיר
-            # שבין הסטופ ליעד - "נמכרה ידנית" לבד לא סיפר את הסיפור המלא.
-            # ttl=3600 (24.9.2026, בעקבות קריסת האתר הציבורי - OSError/RuntimeError
-            # "can't start new thread"): בלי קאשינג, שליפה מרובת-thread (yfinance
-            # threads=True) הייתה רצה מחדש בכל רינדור של הטאב, ומצטברת לדליפת
-            # threads בתהליך הענן ארוך-החיים עד שחסמה גם ThreadPoolExecutor אחר
-            # ותיק (get_current_prices_batch) לגמרי.
-            @st.cache_data(ttl=3600)
-            def _get_closed_trade_histories(tickers: tuple[str, ...], start: str, end: str) -> dict:
-                return backtest._fetch_batched_histories(list(tickers), dt.date.fromisoformat(start), dt.date.fromisoformat(end))
-
-            _hist_entry_dates = pd.to_datetime(hist_df["entry_at"], errors="coerce")
-            _hist_start = _hist_entry_dates.min()
-            if pd.notna(_hist_start):
-                _closed_trade_histories = _get_closed_trade_histories(
-                    tuple(sorted(hist_df["ticker"].unique())), _hist_start.date().isoformat(), dt.date.today().isoformat(),
-                )
-            else:
-                _closed_trade_histories = {}
-
-            def _crossed_stop_during_hold(r: dict) -> bool:
-                if r.get("forecast_stop") is None:
-                    return False
-                ticker_hist = _closed_trade_histories.get(r["ticker"])
-                if ticker_hist is None or ticker_hist.empty:
-                    return False
-                try:
-                    entry_ts = pd.Timestamp(r["entry_at"]).tz_localize(None)
-                    exit_ts = pd.Timestamp(r["exit_at"]).tz_localize(None)
-                except Exception:
-                    return False
-                idx = ticker_hist.index.tz_localize(None) if ticker_hist.index.tz is not None else ticker_hist.index
-                window = ticker_hist.set_axis(idx)[(idx >= entry_ts) & (idx <= exit_ts)]
-                return bool((window["Low"] <= r["forecast_stop"]).any())
-
-            def _forecast_outcome(r: dict) -> str:
-                # יעד לפי האסטרטגיה הנוכחית (+3% מעל הכניסה בפועל, ר' strategy.live_target_price) -
-                # לא ה-forecast_target ששמור בעסקה (חושב בזמנו לפי יעד ישן של 5%).
-                if r["exit_price"] >= live_target_price(r["entry_price"], r.get("forecast_stop"), None):
-                    return "🎯 הגיע ליעד"
-                if r.get("forecast_stop") is not None and r["exit_price"] <= r["forecast_stop"]:
-                    return "🛑 פגע בסטופ"
-                if _crossed_stop_during_hold(r):
-                    return "↩️ חזרה מסטופ לפני המכירה"
-                # מכירה ידנית שלא פגעה ביעד/בסטופ עדיין יכולה להיות רווחית - מבחינת
-                # המשתמש רווח הוא הצלחה גם בלי להגיע בדיוק ליעד המחושב (30.9.2026,
-                # "מבחינתי רווח, גם אם קרוב ליעד - זו הצלחה"). "✋ נמכרה ידנית" נשאר
-                # רק למכירה ידנית בהפסד/בלי רווח.
-                if r["exit_price"] > r["entry_price"]:
-                    return "✅ רווח לפני היעד"
-                return "✋ נמכרה ידנית"
-
-            def _fmt_price_date(price: float | None, date_str: str | None, is_il: bool) -> str:
-                if price is None or pd.isna(price):
-                    return "—"
-                price_text = f"{price*100:,.0f}" if is_il else f"{price:,.2f}"
-                try:
-                    date_text = dt.datetime.fromisoformat(date_str).strftime("%d.%m.%y")
-                except Exception:
-                    date_text = "—"
-                return f"{price_text} ({date_text})"
-
-            def _outcome_color(text: str) -> str:
-                if text.startswith("🎯") or text.startswith("✅"):
-                    return POS_COLOR
-                if text.startswith("🛑"):
-                    return NEG_COLOR
-                return NEUTRAL_COLOR
-
-            hist_df = hist_df.sort_values("exit_at", ascending=False)
-
-            # רמזור האסטרטגיה בזמן ההתראה שממנה נפתחה העסקה (רטרואקטיבי, ר' strategy.entry_signal)
-            _sig_by_alert: dict[int, str] = {}
-            _journal_alert_ids = [int(x) for x in hist_df["alert_id"].dropna().unique()] if "alert_id" in hist_df.columns else []
-            if _journal_alert_ids:
-                _sig_conn = store.get_conn(db_path(cfg))
-                try:
-                    _sig_rows = pd.read_sql_query(
-                        "SELECT id, index_name, pct_change, intraday_recovery_pct, dist_from_ma50_pct, sector, scan_ts "
-                        f"FROM alerts WHERE id IN ({','.join(map(str, _journal_alert_ids))})", _sig_conn,
-                    )
-                finally:
-                    _sig_conn.close()
-                for _, _sr in _sig_rows.iterrows():
-                    _k = _alert_signal(_sr)[0]
-                    _sig_by_alert[int(_sr["id"])] = (
-                        f'<span class="sigtip sigtip-side">{strategy_mod.SIGNAL_EMOJI[_k]}<span class="sigtip-text">סיגנל '
-                        f'<b style="color:{SIGNAL_COLORS[_k]};">{strategy_mod.SIGNAL_LABEL[_k]}</b> בזמן ההתראה</span></span>'
-                    )
-
-            def _journal_trading_days(r) -> int:
-                try:
-                    start = pd.Timestamp(r["entry_at"]).date()
-                    end = pd.Timestamp(r["exit_at"]).date()
-                except Exception:
-                    return int(r["holding_days"])
-                country = constituents.INDEX_COUNTRY_CODE.get(r.get("index_name"), "IL")
-                n, day = 0, start
-                while day <= end:
-                    if is_trading_day(country, day):
-                        n += 1
-                    day += dt.timedelta(days=1)
-                return max(n, 1)
-
-            # st.dataframe מצייר תמיד על גבי canvas משמאל לימין ומתעלם לגמרי מ-CSS -
-            # אי אפשר ליישר לימין או לשלוט במיקום תווים בתוכו (ראו גם ההערה על כך
-            # ב-get_all_changes). לכן טבלת ההיסטוריה בנויה כאן כטבלת HTML רגילה,
-            # שבה יש שליטה מלאה על יישור ומיקום תווים כמו % .
-            header_cells = "".join(
-                f'<th style="padding:8px 12px; text-align:right; font-weight:600; '
-                f'border-bottom:1px solid rgba(128,128,128,0.3);">{h}</th>'
-                for h in ["מניה", "כניסה", "יציאה", "ימי מסחר", "תחזית מול בפועל", "תשואה", "רווח/הפסד", "נטו", "מטבע"]
-            )
-
-            body_rows = []
-            for _, r in hist_df.iterrows():
-                is_il = market_data._is_israeli_ticker(r["ticker"])
-                _manual_badge = ' <span style="font-size:0.75rem; opacity:0.7;">🖐️</span>' if r.get("is_manual_trade") else ""
-                _sig_badge = _sig_by_alert.get(int(r["alert_id"]), "") if pd.notna(r.get("alert_id")) else ""
-                name = f"{_sig_badge} {r['company_name'] or r['ticker']} ({r['ticker']}){_manual_badge}".strip()
-                entry_text = _fmt_price_date(r["entry_price"], r["entry_at"], is_il)
-                exit_text = _fmt_price_date(r["exit_price"], r["exit_at"], is_il)
-                outcome_text = _forecast_outcome(r)
-                outcome_color = _outcome_color(outcome_text)
-                _tdays = _journal_trading_days(r)
-                _held_cell = str(_tdays)
-
-                gross_pnl = r["gross_pnl"]
-                invested = (r["entry_price"] or 0) * (r["qty"] or 0)
-                gross_pct = (gross_pnl / invested * 100) if invested else 0.0
-                gross_color = POS_COLOR if gross_pnl >= 0 else NEG_COLOR
-                gross_pnl_text = _signed_num(gross_pnl)
-                gross_pct_text = _signed_num(gross_pct, 1, "%")
-
-                net_color = POS_COLOR if r["net_pnl"] >= 0 else NEG_COLOR
-                net_pnl_text = _signed_num(r["net_pnl"])
-
-                cells = [
-                    name, entry_text, exit_text, _held_cell,
-                    f'<span style="color:{outcome_color}; font-weight:600;">{outcome_text}</span>',
-                    f'<span style="color:{gross_color}; font-weight:600;">{gross_pct_text}</span>',
-                    f'<span style="color:{gross_color}; font-weight:600;">{gross_pnl_text}</span>',
-                    f'<span style="color:{net_color}; font-weight:600;">{net_pnl_text}</span>',
-                    r["currency"],
-                ]
-                row_html = "".join(
-                    f'<td style="padding:8px 12px; text-align:right; border-bottom:1px solid rgba(128,128,128,0.15);">{c}</td>'
-                    for c in cells
-                )
-                body_rows.append(f"<tr>{row_html}</tr>")
-
-            table_html = (
-                f'<table style="width:100%; border-collapse:collapse; direction:rtl; font-size:0.9rem; '
-                f'white-space:nowrap;">'
-                f'<thead><tr>{header_cells}</tr></thead><tbody>{"".join(body_rows)}</tbody></table>'
-            )
-            # overflow-x:auto (28.9.2026, "פוליש מובייל") - לטבלה הזו, בשונה מ-_html_table,
-            # היה חסר wrapper גלילה אופקית; 9 עמודות במסך צר נדחסות/נשברות באופן מכוער
-            # בלי זה. אותו תיקון בדיוק כמו ב-_html_table (ר' ההערה שם).
-            # 30.9.2026 ("תעבור שוב על כל טאב במובייל") - overflow-x:auto לבד לא היה
-            # מספיק: 9 העמודות ביחד רוחבן ~926px מול ~343px זמינים במובייל, כמעט פי 3 -
-            # גלילה ארוכה מדי כדי להגיע ל"נטו" (המספר הכי חשוב). "מטבע" (כמעט תמיד ש"ח)
-            # ו"רווח/הפסד" הגולמי (כפול - "תשואה" ו"נטו" כבר מספרים את הסיפור) מוסתרים
-            # במובייל כדי לקצר את הגלילה הנדרשת, בלי לאבד נתון אמיתי (עדיין גלוי בדסקטופ).
-            st.markdown(
-                """
-                <style>
-                @media (max-width: 480px) {
-                    div.trade-journal-table table th:nth-child(7),
-                    div.trade-journal-table table td:nth-child(7),
-                    div.trade-journal-table table th:nth-child(9),
-                    div.trade-journal-table table td:nth-child(9) {
-                        display: none !important;
-                    }
-                    /* 14.10.2026 ("פוליש במובייל"): הטבלה עדיין הייתה ~850px ברוחב של ~340px - מוסתרות גם כניסה / יציאה /
-                       "תחזית מול בפועל" (נשארים מניה, ימי מסחר, תשואה, נטו), שם המניה רשאי לרדת שורה, וריפוד תאים קטן */
-                    div.trade-journal-table table th:nth-child(2), div.trade-journal-table table td:nth-child(2),
-                    div.trade-journal-table table th:nth-child(3), div.trade-journal-table table td:nth-child(3),
-                    div.trade-journal-table table th:nth-child(5), div.trade-journal-table table td:nth-child(5) {
-                        display: none !important;
-                    }
-                    div.trade-journal-table table td:first-child { white-space: normal !important; max-width: 150px; }
-                    div.trade-journal-table table th, div.trade-journal-table table td { padding-left: 6px !important; padding-right: 6px !important; }
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-            # טולטיפ הרמזור (כמו בכרטיסי האחזקות) - בצד הנקודה ולא מתחתיה/מעליה, כי ה-wrapper
-            # עם overflow-x:auto חותך גם אנכית טולטיפ שיוצא מהשורה הראשונה/האחרונה
-            st.markdown(
-                """
-                <style>
-                .sigtip { position:relative; font-size:0.9rem; cursor:default; }
-                .sigtip .sigtip-text { display:none; position:absolute; z-index:50; white-space:nowrap;
-                    background:Canvas; color:CanvasText; border:1px solid rgba(128,128,128,0.35); border-radius:8px;
-                    padding:5px 10px; font-size:0.78rem; box-shadow:0 2px 8px rgba(0,0,0,0.15); top:130%; right:0; }
-                .sigtip.sigtip-side .sigtip-text { top:50%; right:130%; transform:translateY(-50%); }
-                .sigtip:hover .sigtip-text { display:block; }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown(f'<div class="trade-journal-table" style="overflow-x:auto;">{table_html}</div>', unsafe_allow_html=True)
 
 
 @st.cache_data(ttl=120)
@@ -8077,409 +5397,7 @@ def _get_live_index_v3_template() -> str:
     return _LIVE_INDEX_V3_HTML
 
 
-if UI_V3:
-    # בעיצוב v3 כל טאב עומד בפני עצמו (כמו במוקאפים); עמוד הבית מוצג רק כשלא נבחר טאב
-    if st.session_state.active_tab is None:
-        _render_home_v3()
-    st.stop()  # מחליף את הפאנל הישן (market_panel) - אין אחריו שום קוד שצריך לרוץ
-
-_market_panel_box = st.container(border=True, key="market_panel")
-with _market_panel_box:
-    @st.fragment(run_every="60s")
-    def _render_market_panel() -> None:
-        """fragment עם run_every - כרטיסי המדדים ו'התיק שלי' מתעדכנים לבד כל
-        דקה, כולל הפעלה מחדש של חישוב הסיכום (לא רק רינדור) כדי שהמחירים
-        באמת יישלפו טריים בכל פעם, לא רק בטעינת הדף. טוען מחדש גם את df עצמו
-        (לא סומך על המשתנה החיצוני שנטען פעם אחת בטעינת העמוד) - אחרת אחזקה
-        חדשה שנוספה ברקע (למשל דרך הסורק) לא הייתה מופיעה כאן בלי ריענון ידני."""
-        _fresh_df = load_alerts(db_path(cfg))
-        _fresh_holdings_df = (
-            _fresh_df[_fresh_df.get("bought") == 1] if (not _fresh_df.empty and "bought" in _fresh_df.columns)
-            else pd.DataFrame()
-        )
-        _section_title("📊 מצב המדדים")
-        index_changes = get_index_changes()
-        # שליפה בודדת שנכשלה זמנית (למשל rate-limit של Yahoo) לא אמורה להבהב
-        # ל"אין נתונים" בכל רענון של ה-fragment (כל 60 שניות) - שומרים את הערך
-        # התקין האחרון שראינו בסשן ומשתמשים בו כנפילה חזרה, במקום להראות ריק.
-        _last_good_idx = st.session_state.setdefault("_last_good_index_changes", {})
-        for _idx_key, _idx_val in index_changes.items():
-            if _idx_val is not None:
-                _last_good_idx[_idx_key] = _idx_val
-            elif _idx_key in _last_good_idx:
-                index_changes[_idx_key] = _last_good_idx[_idx_key]
-        cols = st.columns(4, gap="medium")
-        for col, idx in zip(cols, ALL_INDICES):
-            with col:
-                render_index_card(INDEX_LABELS[idx], index_changes.get(idx), is_market_open(idx), idx)
-
-        _portfolio_summary, _today_summary, _value_summary, _proximity_summary, _exposure_summary = _compute_portfolio_summaries(_fresh_holdings_df)
-        if _portfolio_summary:
-            with st.container(key="portfolio_header"):
-                st.markdown(
-                    """
-                    <style>
-                    /* מצב המדדים מקבל את הרווח שלו מ-padding-top של המסגרת (8px) +
-                    padding-top הפנימי הטבעי של h3 (12px). כדי שהרווח מתחת ל-divider
-                    ייראה זהה, לא מאפסים את ה-padding-top הטבעי של ה-h3 כאן - רק
-                    קובעים ל-hr בדיוק את אותם 8px (כמו ריפוד המסגרת) אחריו. */
-                    div[class*="st-key-portfolio_header"] hr { margin: 14px 0 8px 0 !important; }
-                    div[class*="st-key-portfolio_header"] h3 { margin-top: 0 !important; }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.divider()
-                _section_title("💼 התיק שלי")
-            _pf_cols = st.columns(4, gap="medium")
-            if _value_summary:
-                with _pf_cols[0]:
-                    render_value_card(*_value_summary)
-            with _pf_cols[1]:
-                render_portfolio_card(*_portfolio_summary, dynamic_icon=True)
-            if _today_summary:
-                with _pf_cols[2]:
-                    render_portfolio_card(*_today_summary, dynamic_icon=True)
-            if _proximity_summary:
-                with _pf_cols[3]:
-                    render_proximity_card(*_proximity_summary)
-
-        # מחמם מראש (בלי להציג כלום) את המטמון של get_all_changes לכל מדדי
-        # הסריקה, באותו קצב (60s) שה-ttl שלו - כדי שכשעוברים לטאב "מניות
-        # מובילות" השליפה כבר תיפגע במטמון חם ותחזור כמעט מיידית, במקום
-        # לחסום כמה שניות. זה חשוב כי בדיוק באותו חלון חסימה איטי הבחנו
-        # שסטרימליט עלול להציג לרגע תוכן ישן מהטאב הקודם באזור הזה (למטה,
-        # אחרי כל הטאבים) - לפני שהנתונים החדשים מגיעים ודוחקים אותו למקומו.
-        _warm_days = st.session_state.get("movers_cumulative_days", 3)
-        # חימום אופציונלי: כשל רגעי בשליפת רכיבי מדד (למשל Nasdaq API) לא אמור להפיל את כל העמוד שמתחת
-        # (13.10.2026 - RuntimeError כאן עצר את הגרפים, זמני המסחר והחדשות)
-        for _warm_idx in (cfg.get("indices") or ALL_INDICES):
-            try:
-                get_all_changes(_warm_idx, _warm_days)
-            except Exception:
-                pass
-
-    _render_market_panel()
-
-    def _load_fresh_holdings() -> pd.DataFrame:
-        _fresh_df2 = load_alerts(db_path(cfg))
-        return (
-            _fresh_df2[_fresh_df2.get("bought") == 1] if (not _fresh_df2.empty and "bought" in _fresh_df2.columns)
-            else pd.DataFrame()
-        )
-
-    # min-height משותף לשתי המשבצות כדי שיהיו זהות בגובה - חייב להיות דינמי
-    # ולא קבוע, כי גובה גרף רווח/הפסד עצמו דינמי (תלוי במספר האחזקות, ראו
-    # _build_pnl_bar_chart), בניגוד לגרף ההשוואה למדד שתמיד קבוע. 76px = ה-"שלד"
-    # הקבוע (כותרת + legend + padding) שנשאר גם כשהגרף עצמו גדל.
-    _holdings_count_for_height = len(_load_fresh_holdings())
-    _shared_chart_min_height = max(236, 46 * _holdings_count_for_height + 76)
-    st.markdown(
-        f'<style>div[class*="st-key-chart_card_pnl"], '
-        f'div[class*="st-key-chart_card_comparison"] {{ min-height: {_shared_chart_min_height}px; }}</style>',
-        unsafe_allow_html=True,
-    )
-    # רווח כמו בין שאר הסעיפים (12 + קו 17 + 12 = 41px) במקום קו ההפרדה שהוסר (13.10.2026); ה-markdown של ה-CSS למעלה
-    # כבר תורם 12px אחד נוסף, לכן 5px כאן
-    st.markdown('<div style="height:5px;"></div>', unsafe_allow_html=True)
-    _chart_cols = st.columns(2, gap="medium")
-
-    with _chart_cols[0]:
-        @st.fragment(run_every="60s")
-        def _render_pnl_chart() -> None:
-            """fragment מהיר (60 שניות) - בניגוד לגרף ההשוואה למדד, זה לא צריך
-            היסטוריה בכלל, רק מחיר עדכני לכל אחזקה (get_current_price, אותה
-            קריאה בדיוק כמו כרטיסי התיק למעלה) - אין סיבה שיתעדכן לאט יותר."""
-            _holdings = _load_fresh_holdings()
-            if _holdings.empty:
-                return
-            _price_map4 = get_current_prices_batch(tuple(sorted(set(_holdings["ticker"]))))
-            _rows = []
-            for _, r in _holdings.iterrows():
-                entry = r.get("actual_entry_price")
-                qty = r.get("actual_qty")
-                if not entry or not qty:
-                    continue
-                current = _price_map4.get(r["ticker"])
-                if current is None:
-                    # שליפה חיה נכשלה (למשל בדקות הראשונות אחרי פתיחת המסחר) -
-                    # נופלים חזרה למחיר האחרון הידוע במקום להשמיט את האחזקה
-                    # מהגרף בשקט (זה מה שגרם לגרף כולו "להיעלם" כששלוש
-                    # האחזקות נכשלו יחד).
-                    fallback_prices = get_sparkline_prices(r["ticker"])
-                    current = fallback_prices[-1] if fallback_prices else None
-                if current is None:
-                    continue
-                stop_price = get_or_backfill_stop_price(r, entry)
-                target_price = live_target_price(entry, stop_price, r.get("target_base"))
-                _rows.append({
-                    "name": r.get("company_name") or r["ticker"],
-                    "pnl_pct": (current / entry - 1) * 100,
-                    "stop_pct": (stop_price / entry - 1) * 100,
-                    "target_pct": (target_price / entry - 1) * 100,
-                    # ליחס "חצתה סטופ ב-X%" בטולטיפ - צריך יחסית למחיר הסטופ
-                    # עצמו, לא ל-stop_pct (יחסית לכניסה, זה נכון רק בתור "מיקום
-                    # הסטופ עצמו", לא בתור "כמה חצתה אותו", ר' 15.9.2026).
-                    "stop_cross_pct": stop_distance_pct(current, stop_price),
-                    "value": current * qty,
-                })
-            with st.container(border=True, key="chart_card_pnl"):
-                st.image(render_text_image("רווח/הפסד לפי אחזקה", ACCENT_COLOR, font_size=15))
-                if not _rows:
-                    # לא מדלגים בשקט - הגרף כולו "נעלם" בלי שום סימן אם כל
-                    # האחזקות נכשלו יחד (rate-limit של יאהו), נמצא בפועל
-                    # יותר מפעם אחת (9.9.2026, "איפה הגרף?").
-                    st.caption("אין כרגע נתוני מחיר להצגת הגרף - ינסה שוב ברענון הבא.")
-                    return
-                st.altair_chart(_build_pnl_bar_chart(_rows), width='stretch')
-
-        _render_pnl_chart()
-
-    with _chart_cols[1]:
-        @st.fragment(run_every="1800s")
-        def _render_comparison_chart() -> None:
-            """fragment איטי (30 דקות) - זה כן צריך היסטוריה של חודשים (לתיק
-            ולמדד גם יחד), קריאת רשת יקרה יחסית שלא כדאי לחזור עליה כל דקה."""
-            _holdings = _load_fresh_holdings()
-            if _holdings.empty:
-                return
-            _comp_df, _comp_as_of, _comp_dom_index, _comp_is_daily = _compute_portfolio_history(_holdings)
-            with st.container(border=True, key="chart_card_comparison"):
-                st.image(render_text_image("תשואה מול מדד", ACCENT_COLOR, font_size=15))
-                if _comp_df is None:
-                    # לא מדלגים בשקט - _compute_portfolio_history מחזירה None גם
-                    # כשאין מספיק נתונים וגם כשנפילה של יאהו (fetch_universe_
-                    # daily_changes/fetch_index_history) מחזירה ריק - אין דרך
-                    # להבדיל מבחוץ, אז לפחות מציגים שלט במקום היעלמות שקטה
-                    # (9.9.2026, "איפה הגרף השני?").
-                    st.caption("אין כרגע מספיק נתונים להשוואה מול מדד - ינסה שוב ברענון הבא.")
-                    return
-                _port_col, _bench_col = _comp_df.columns[0], _comp_df.columns[1]
-                # "תוך-יומי" מוצג תמיד; התאריך מצטרף כשהמסחר לא פעיל - גם
-                # כש-_comp_as_of מצביע על יום מסחר קודם, וגם כשמוצג היום
-                # הנוכחי אבל השוק כבר נסגר (17.9.2026, "כשהמסחר לא פעיל ציין
-                # תאריך אחרי התוך-יומי" - _comp_as_of לבד לא תופס את המקרה
-                # השני, כי הוא None כל עוד "היום" מוצג, בלי קשר אם המסחר
-                # עדיין פעיל בפועל עכשיו).
-                _comp_date_label = _comp_as_of
-                if not _comp_date_label and _comp_dom_index and not is_market_open(_comp_dom_index):
-                    _comp_date_label = israel_today().strftime("%d/%m")
-                st.altair_chart(
-                    _build_comparison_chart(
-                        _comp_df, _port_col, _bench_col, NEUTRAL_COLOR, PORTFOLIO_LINE_COLOR,
-                        date_label=_comp_date_label, is_daily=_comp_is_daily,
-                    ),
-                    width='stretch',
-                )
-                # ה-caption עם ההסבר (14.9.2026) הוסר שוב - עשה את שתי המשבצות
-                # (הגרף הזה מול "רווח/הפסד לפי אחזקה") בגבהים שונים, "תשווה את
-                # הגודל של הגרפים ותסיר את המשפט". התאריך "יום המסחר האחרון"
-                # (14.9.2026, גל שני) נכנס בתוך הכותרת עצמה (לא caption נפרד)
-                # בדיוק כדי לא לשבור שוב את השוויון בגובה - "לא הגיוני, שעכשיו
-                # מוצג 17:00" חייב הבהרה, אבל לא עוד שורה נפרדת.
-
-        _render_comparison_chart()
-
-    @st.fragment(run_every="300s")
-    def _render_forward_test() -> None:
-        _ft = get_forward_test_summary(forward_test.position_size(cfg))
-        if not _ft:
-            st.caption("אין עדיין נתונים למעקב קדימה.")
-            return
-        _fdate = dt.date.fromisoformat(_ft["freeze_date"]).strftime("%d/%m").lstrip("0")
-        _pcols = st.columns(4, gap="medium")
-        with _pcols[0]:
-            render_stat_card(
-                f"התראות 🟢 מאז {_fdate}", f"{_ft['alerts']}",
-                f"{_ft['resolved']} נסגרו · {_ft['pending']} ממתינות",
-            )
-        _enough = "gross" in _ft
-        with _pcols[1]:
-            render_stat_card(
-                f"הגיעו ליעד +{strategy_mod.FIXED_TARGET_PCT * 100:.0f}%",
-                f"{_ft['hit_rate']:.0f}%" if _enough else "—",
-                f"{_ft['hits']} מתוך {_ft['resolved']}" if _enough else "מעט נתונים",
-            )
-        with _pcols[2]:
-            if _enough:
-                render_stat_card(
-                    "תשואה ברוטו", _signed_num(_ft["gross"], 1, "%"), "ממוצע להתראה",
-                    POS_COLOR if _ft["gross"] >= 0 else NEG_COLOR, POS_BG if _ft["gross"] >= 0 else NEG_BG,
-                )
-            else:
-                render_stat_card("תשואה ברוטו", "—", "מעט נתונים")
-        with _pcols[3]:
-            if _enough:
-                render_stat_card(
-                    "תשואה נטו", _signed_num(_ft["net"], 1, "%"),
-                    f"פוזיציה {_ft['position']:,.0f} ש\"ח · אחרי עמלות ומס",
-                    POS_COLOR if _ft["net"] >= 0 else NEG_COLOR, POS_BG if _ft["net"] >= 0 else NEG_BG,
-                )
-            else:
-                render_stat_card("תשואה נטו", "—", "מעט נתונים")
-        _ci = _ft.get("net_ci")
-        _ci_text = (f" טווח נטו (95%): {_signed_num(_ci[0], 1, '%')} עד {_signed_num(_ci[1], 1, '%')}." if _ci else "")
-        _days = _ft["days_elapsed"]
-        _status = (
-            f"יום {_days} מתוך {_ft['days_needed']} - עד אז זה תיאור ולא החלטה."
-            if _days < _ft["days_needed"] else f"{_ft['days_needed']} ימי המסחר הושלמו - אפשר להעריך."
-        )
-        st.caption(
-            f"מדגם עיוור: הניקוד הוקפא לפני ההתראות האלה ושום כלל לא נקבע לפיהן. {_status}{_ci_text}"
-        )
-
-    # מוצג רק כשיש מספיק התראות שנסגרו (MIN_RESOLVED_SHOWN) - עד אז כל הכרטיסים ריקים ("—"), אין מה להראות (13.10.2026)
-    _ft_ready = get_forward_test_summary(forward_test.position_size(cfg))
-    if _ft_ready and "gross" in _ft_ready:
-        st.divider()
-        _section_title("🧪 מעקב קדימה - האסטרטגיה")
-        _render_forward_test()
-
-    st.divider()
-
-    _section_title('🕒 זמני מסחר בישראל ובארה"ב')
-    mcols = st.columns(2, gap="medium")
-    with mcols[0]:
-        render_market_card('ארה"ב <span dir="ltr">(S&P 500 / NASDAQ)</span>', "US")
-    with mcols[1]:
-        render_market_card('ישראל (ת"א 35 / ת"א 125)', "IL")
-
-# עטיפה עם padding אופקי זהה ל-market_panel (8px 16px, ראו CSS למעלה) - כדי
-# שהאייקון/טקסט כאן יתחילו באותו X בדיוק כמו "שעות מסחר", שנמצא בתוך container
-# עם padding משלו ולכן היה מוזח 16px ימינה יחסית לכותרת הזו שהיתה בלי עטיפה.
-@st.fragment(run_every="300s")
-def _render_news_section() -> None:
-    """fragment עם run_every - תואם לזמן המטמון של get_footer_news (5 דקות),
-    אין טעם לבדוק יותר תכוף מזה כי ממילא לא יחזרו נתונים טריים יותר."""
-
-    # עצמאי מהטאב הפעיל - "מניות מובילות" מחשב movers_df/movers_index רק כשהוא פתוח,
-    # אבל חדשות כלכליות מוצגות תמיד, אז צריך מקור נתונים משלה שלא תלוי באיזה טאב פתוח.
-    _news_index = (cfg.get("indices") or ALL_INDICES)[0]
-    if _news_index not in ALL_INDICES:
-        _news_index = ALL_INDICES[0]
-    _news_movers_df = get_all_changes(_news_index)
-
-    if not _news_movers_df.empty:
-        _is_il = _news_index.upper() in ("TA35", "TA125")
-        _top = _news_movers_df.reindex(_news_movers_df["שינוי יומי (%)"].abs().sort_values(ascending=False).index).head(3)
-        _pairs = [
-            (r.get("שם") or r["טיקר"], r["טיקר"])
-            for _, r in _top.iterrows()
-        ]
-        with st.spinner("טוען חדשות..."):
-            footer_news = get_footer_news(_pairs, _is_il)
-
-        _NEWS_ACCENT = "#4A7FBF"
-
-        def _news_banner_html(title: str, source: str, link: str | None) -> str:
-            title = html.escape(title or "")
-            source = html.escape(source or "")
-            if UI_V2:
-                inner = (
-                    f'<div style="font-size:1rem; font-weight:600; line-height:1.45;">{title}</div>'
-                    f'<div style="font-size:0.78rem; color:#6b7280; margin-top:8px;">{source}</div>'
-                )
-                card = (
-                    f'<div class="news-card" style="border-radius:12px; padding:14px 18px; background:#ffffff; '
-                    f'border:1px solid rgba(128,128,128,0.25); border-right:3px solid {_NEWS_ACCENT}; '
-                    f'box-shadow:0 1px 3px rgba(16,24,40,0.05);">{inner}</div>'
-                )
-            else:
-                inner = (
-                    f'<div style="font-size:0.92rem; font-weight:600; line-height:1.45;">{title}</div>'
-                    f'<div style="font-size:0.75rem; opacity:0.6; margin-top:6px;">📌 {source}</div>'
-                )
-                card = (
-                    f'<div class="news-card" style="border-radius:10px; padding:12px 16px; '
-                    f'background:rgba(128,128,128,0.05); border:1px solid rgba(128,128,128,0.3); '
-                    f'border-right:3px solid {_NEWS_ACCENT}; '
-                    f'box-shadow:0 1px 3px rgba(0,0,0,0.05);">{inner}</div>'
-                )
-            if link:
-                link = html.escape(link, quote=True)
-                return (f'<a href="{link}" target="_blank" rel="noopener" style="text-decoration:none; '
-                        f'color:inherit; display:block;">{card}</a>')
-            return card
-
-        def _render_news_grid(items: list[dict], empty_text: str) -> None:
-            if not items:
-                st.caption(empty_text)
-                return
-            banners = "".join(_news_banner_html(h.get("title"), h.get("source", ""), h.get("link")) for h in items)
-            rows = (len(items) + 1) // 2
-            height = max(80, min(85 * rows + 10, 700))
-            components.html(
-                f"""
-                <html><head><style>
-                  html, body {{ margin:0; padding:0; background:transparent; direction: rtl;
-                    font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;
-                    color:#31333F; }}
-                  @media (prefers-color-scheme: dark) {{ html, body {{ color:#FAFAFA; }} }}
-                  .news-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }}
-                  @media (max-width: 520px) {{ .news-grid {{ grid-template-columns: 1fr; }} }}
-                  .news-card {{ transition: box-shadow 0.15s ease, transform 0.15s ease; height:100%;
-                                box-sizing:border-box; }}
-                  a {{ display:block; height:100%; }}
-                  a:hover > .news-card {{
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.13) !important;
-                    transform: translateY(-1px);
-                    background: rgba(128,128,128,0.09) !important;
-                  }}
-                </style></head>
-                <body><div class="news-grid" id="ng">{banners}</div>
-                <script>
-                  function fit() {{
-                      try {{
-                          var g = document.getElementById("ng");
-                          if (g && window.frameElement) {{
-                              var h = Math.ceil(g.getBoundingClientRect().bottom + 4) + "px";
-                              window.frameElement.style.height = h;
-                              window.frameElement.parentElement.style.height = h;
-                              window.frameElement.parentElement.style.setProperty("flex", "0 0 " + h, "important");
-                          }}
-                      }} catch (e) {{}}
-                  }}
-                  fit(); window.addEventListener("resize", fit);
-                </script></body></html>
-                """,
-                height=height,
-            )
-
-        _all_news_items = list(footer_news["general"])
-        for name, heads in footer_news["stock_news"].items():
-            for h in heads:
-                _all_news_items.append({**h, "source": f'{h.get("source", "")} · {name}'})
-
-        with st.container(key="news_section_wrap"):
-            # כרטיסי החדשות (components.html, רוחב מלא) לא יושבים בתוך st.columns
-            # כמו "זמני מסחר"/"מצב המדדים" מעליהם - ה-iframe שלהם נמדד רחב וזז
-            # שמאלה ב-16.8px מהקו האחיד שכל השורות האחרות משתפות (30.9.2026,
-            # "תעשה שהכרטיסים של החדשות יהיו באותו הקו של אלה העליונים" +
-            # צילום מסך). ההיסט הוא 16.8px קבוע מכל צד (לא פרופורציונלי): רוחב
-            # קבוע (1076px, נמדד במסך 1280) שבר את הכרטיסים במסך רחב יותר ובמובייל
-            # (4.10.2026, "מה קרה לחדשות?") - לכן calc(100% - 2*16.8px).
-            st.markdown(
-                """
-                <style>
-                div[class*="st-key-news_section_wrap"] [data-testid="stElementContainer"]:has(iframe) {
-                    width: 100% !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-            _render_news_grid(_all_news_items, "לא נמצאו חדשות כרגע.")
-    else:
-        # לא "עבור לטאב אחר" (טקסט ישן, שגוי) - הקטע הזה עצמאי מהטאב הפעיל
-        # (ר' הערה למעלה), אז מעבר טאב לא עוזר בכלל. אם _news_movers_df ריק
-        # זה כי get_all_changes נכשל/רוקן (למשל rate-limit זמני של יאהו),
-        # לא קשור לאיזה טאב פתוח (9.9.2026, "למה זה ככה?").
-        st.caption("אין כרגע נתוני מדד להצגת חדשות - ינסה שוב ברענון הבא.")
-
-# חדשות כלכליות - בתוך אותה מסגרת אחת של שאר האתר (market_panel), מופרדות בקו כמו שאר הסעיפים (13.10.2026)
-with _market_panel_box:
-    st.divider()
-    _section_title("📰 חדשות כלכליות")
-    _render_news_section()
-
-# deploy probe: confirms pushes apply on the public app without a reboot
+# בעיצוב v3 כל טאב עומד בפני עצמו (כמו במוקאפים); עמוד הבית מוצג רק כשלא נבחר טאב
+if st.session_state.active_tab is None:
+    _render_home_v3()
+st.stop()

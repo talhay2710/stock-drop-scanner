@@ -65,8 +65,6 @@ telegram_message_types:
   health_startup: true
   health_heartbeat: true
   health_dashboard: true
-ui_v2: true
-ui_v3: true
 ui_prefs: false
 strategy_selector: false
 strategy_card: balanced
