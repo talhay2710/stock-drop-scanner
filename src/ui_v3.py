@@ -700,7 +700,7 @@ def stocks_table(rows: list[dict], cum_days: int | None, show_price: bool = True
         )
     cum_th = f'<th>מצטבר {num(cum_days)} ימים</th>' if cum_days else "<th>מצטבר</th>"
     return (
-        '<div class="tw"><table class="tb"><thead><tr><th>מניה</th><th>שינוי יומי</th>'
+        '<div class="tw"><table class="tb mv"><thead><tr><th>מניה</th><th>שינוי יומי</th>'
         f'{cum_th}{"<th>שער</th>" if show_price else ""}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
     )
 
@@ -723,6 +723,11 @@ def watchlist_row(r: dict) -> str:
 
 
 MOVERS_CSS = """
+        .v3h table.tb.mv { table-layout:fixed; }  /* רוחבי עמודות קבועים - טבלאות הירידה/עלייה מיושרות זו מעל זו (באוטו כל טבלה חישבה לפי התוכן שלה) */
+        .v3h .tb.mv th:nth-child(1), .v3h .tb.mv td:nth-child(1) { width:35%; }
+        .v3h .tb.mv th:nth-child(2), .v3h .tb.mv td:nth-child(2) { width:19%; }
+        .v3h .tb.mv th:nth-child(3), .v3h .tb.mv td:nth-child(3) { width:28%; }
+        .v3h .tb.mv th:nth-child(4), .v3h .tb.mv td:nth-child(4) { width:18%; }
         @property --v3sec { syntax: '<integer>'; initial-value: 0; inherits: false; }
         @keyframes v3tick { from { --v3sec: var(--age); } to { --v3sec: 60; } }
         .v3h .v3age { --v3sec: 0; counter-reset: v3s var(--v3sec); animation: v3tick calc((60 - var(--age)) * 1s) steps(60, end) forwards; }
@@ -1394,6 +1399,8 @@ JOURNAL_KPI_CSS = """
             .v3h .kpi.kn > div:nth-child(-n+2) { border-top:0 !important; }
             .v3h .kpi.kn > div:nth-child(odd) { border-inline-start:0; padding-inline-start:0; }
             .v3h .kpi.kn > div:first-child { grid-column:auto !important; }
+            .v3h .kpi.kn > div:last-child:nth-child(odd) { grid-column:1 / -1 !important; border-inline-start:0; padding-inline:0; flex-direction:row; justify-content:space-between; align-items:baseline; }  /* מספר תאים אי-זוגי: התא האחרון ממלא שורה שלמה (תווית בצד אחד, ערך בצד השני) ולא נשאר חצי-ריק */
+            .v3h .kpi.kn > div:last-child:nth-child(odd) strong { margin-top:0; }
             .v3h .kpi.kn small { font-size:12px; }
             .v3h .kpi.kn strong { font-size:22px; }
         }
