@@ -1506,7 +1506,7 @@ def load_alerts(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
         return pd.DataFrame()
     conn = store.get_conn(path)
-    df = pd.read_sql_query("SELECT * FROM alerts ORDER BY scan_ts DESC", conn)
+    df = store.read_alerts_df(conn, order="scan_ts DESC")
     conn.close()
     if "company_name" in df.columns:
         df["company_name"] = df["company_name"].map(fix_name)

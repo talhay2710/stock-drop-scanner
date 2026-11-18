@@ -12,10 +12,11 @@ from .analysis import REASON_LABELS
 
 def build_weekly_report(conn: sqlite3.Connection, days: int = 7) -> str | None:
     since = (dt.date.today() - dt.timedelta(days=days)).isoformat()
-    df = pd.read_sql_query(
-        "SELECT * FROM alerts WHERE scan_date >= ? AND (outcome IN ('hit_target', 'hit_stop', 'neither') OR outcome IS NULL OR outcome = 'pending')"
+    df = store.read_alerts_df(
+        conn,
+        where="scan_date >= ? AND (outcome IN ('hit_target', 'hit_stop', 'neither') OR outcome IS NULL OR outcome = 'pending')"
         + store.exclusion_clause(),
-        conn, params=(since,),
+        params=(since,),
     )
     if df.empty:
         return None

@@ -22,8 +22,7 @@ def position_size(cfg: dict) -> float:
 
 def load_scored_alerts(conn) -> pd.DataFrame:
     """כל ההתראות הישראליות הלא-ידניות עם עמודת score - גם כאלה שעדיין אין להן תוצאות מדודות."""
-    alerts = pd.read_sql_query(
-        "SELECT * FROM alerts WHERE index_name IN ('TA35','TA125')" + store.exclusion_clause(), conn)
+    alerts = store.read_alerts_df(conn, where="index_name IN ('TA35','TA125')" + store.exclusion_clause())
     alerts = alerts[alerts["is_manual_trade"].fillna(0) == 0].copy()
     hours = alerts["scan_ts"].astype(str).str[11:13].apply(lambda x: int(x) if x.isdigit() else None)
     alerts["score"] = [

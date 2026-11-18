@@ -304,9 +304,7 @@ def refresh_pending_outcomes(conn: sqlite3.Connection, window_days: int = 10) ->
     """מריץ backtest על כל ההתראות שעדיין לא הוכרעו (outcome ריק/pending) ושומר
     outcome-ים שהתבררו - כדי שטרק-רקורד לכל מניה יהיה זמין גם בלי לפתוח את
     הדשבורד (למשל כשקורא מ-run_daily_summary.py). מחזיר כמה outcome-ים עודכנו."""
-    pending_df = pd.read_sql_query(
-        "SELECT * FROM alerts WHERE outcome IS NULL OR outcome = ?", conn, params=(PENDING,)
-    )
+    pending_df = store.read_alerts_df(conn, where="outcome IS NULL OR outcome = ?", params=(PENDING,))
     if pending_df.empty:
         return 0
     result = run_backtest(pending_df, window_days)
@@ -381,11 +379,11 @@ def compare_target_strategies(conn: sqlite3.Connection, window_days: int = 10) -
     כמעט תמיד (קל יותר להגיע ל-2% מ-50% תיקון), אבל שווה פחות בכל ניצחון.
     תוחלת = ממוצע התשואה על פני כל ההתראות (רווח על הצלחה, הפסד על סטופ,
     0% על 'לא הגיע לאף אחד' - הנחה שמרנית, לא יודעים את המחיר בפועל בסוף החלון)."""
-    df = pd.read_sql_query(
-        "SELECT ticker, scan_ts, entry_limit, stop_loss, target_base, last_close, prev_close, "
-        "bought, actual_entry_price, bought_at "
-        "FROM alerts WHERE entry_limit IS NOT NULL AND stop_loss IS NOT NULL" + store.exclusion_clause(),
+    df = store.read_alerts_df(
         conn,
+        columns=["ticker", "scan_ts", "entry_limit", "stop_loss", "target_base", "last_close", "prev_close",
+                 "bought", "actual_entry_price", "bought_at"],
+        where="entry_limit IS NOT NULL AND stop_loss IS NOT NULL" + store.exclusion_clause(),
     )
     if df.empty:
         return pd.DataFrame(columns=["אסטרטגיה", "סה\"כ", "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת (%)"])
@@ -560,10 +558,10 @@ def compare_stop_multipliers(conn: sqlite3.Connection, window_days: int = 10) ->
     חושב בזמן אמת, אבל לא משנה את המסקנה ההשוואתית בין המכפילים עצמם.
     מחזיר טבלת סיכום כמו compare_target_strategies: מכפיל, סה"כ, הגיעו ליעד,
     שיעור הצלחה (%), תוחלת (%)."""
-    df = pd.read_sql_query(
-        "SELECT ticker, scan_ts, entry_limit, target_base, bought, actual_entry_price, bought_at "
-        "FROM alerts WHERE entry_limit IS NOT NULL AND target_base IS NOT NULL" + store.exclusion_clause(),
+    df = store.read_alerts_df(
         conn,
+        columns=["ticker", "scan_ts", "entry_limit", "target_base", "bought", "actual_entry_price", "bought_at"],
+        where="entry_limit IS NOT NULL AND target_base IS NOT NULL" + store.exclusion_clause(),
     )
     if df.empty:
         return pd.DataFrame(columns=["מכפיל ATR", "סה\"כ", "הגיעו ליעד", "שיעור הצלחה (%)", "תוחלת (%)"])
@@ -624,10 +622,10 @@ def retrofit_historical_stops(conn: sqlite3.Connection, multiplier: float | None
     בפועל - last_low ההיסטורי לא נשמר בטבלה, אז אי אפשר לשחזר אותו במדויק
     (אותה מגבלה כמו compare_stop_multipliers). מחזיר כמה שורות עודכנו בפועל."""
     mult = multiplier if multiplier is not None else strategy_mod.ATR_STOP_MULTIPLIER
-    rows = conn.execute(
-        "SELECT id, ticker, scan_ts, entry_limit, bought, actual_entry_price, bought_at "
-        "FROM alerts WHERE entry_limit IS NOT NULL"
-    ).fetchall()
+    rows = store.read_alerts_rows(
+        conn, ["id", "ticker", "scan_ts", "entry_limit", "bought", "actual_entry_price", "bought_at"],
+        where="entry_limit IS NOT NULL",
+    )
     columns = ["id", "ticker", "scan_ts", "entry_limit", "bought", "actual_entry_price", "bought_at"]
 
     updated = 0

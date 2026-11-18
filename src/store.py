@@ -564,6 +564,36 @@ def excluded_alert_ids() -> list[int]:
         return []
 
 
+# ---------------------------------------------------------------------------
+# נקודת גישה אחת לקריאת התראות (שלב 1 בתוכנית פיצול ה-DB, ר' DB_SPLIT_PLAN.md).
+# כל קריאה של טבלת alerts (כולל עמודות המשתמש: ALERT_USER_COLS) עוברת כאן ולא ב-SQL מפוזר בקבצים אחרים - כך שבשלב 3
+# אפשר להחליף את המימוש (עמודות המשתמש יגיעו מ-positions ב-user.db) בלי לגעת בקוראים. כרגע המימוש זהה בדיוק ל-SQL הקודם.
+# ---------------------------------------------------------------------------
+ALERT_USER_COLS = (
+    "bought", "actual_entry_price", "actual_qty", "bought_at", "holding_stop_price", "is_manual_trade",
+)
+
+
+def _alerts_select_sql(columns, where: str, order: str) -> str:
+    cols = "*" if columns in (None, "*") else ", ".join(columns)
+    sql = f"SELECT {cols} FROM alerts"
+    if where:
+        sql += f" WHERE {where}"
+    if order:
+        sql += f" ORDER BY {order}"
+    return sql
+
+
+def read_alerts_df(conn: sqlite3.Connection, columns="*", where: str = "", params: tuple = (), order: str = "") -> pd.DataFrame:
+    """alerts כ-DataFrame. columns: "*" או רשימת עמודות; where/order: ביטוי SQL (בלי המילים WHERE/ORDER BY)."""
+    return pd.read_sql_query(_alerts_select_sql(columns, where, order), conn, params=params)
+
+
+def read_alerts_rows(conn: sqlite3.Connection, columns, where: str = "", params: tuple = (), order: str = "") -> list[tuple]:
+    """alerts כרשימת tuple-ים, לפי סדר העמודות שהתבקש."""
+    return conn.execute(_alerts_select_sql(columns, where, order), params).fetchall()
+
+
 def exclusion_clause() -> str:
     """ "AND id NOT IN (...)" להחרגת התראות שתוקנו בדיעבד (data/excluded_alert_ids.csv) -
     לא היו ירידות אמיתיות (בסיס prev_close פער), ולכן אסור שיזינו סטטיסטיקות
