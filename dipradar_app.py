@@ -515,6 +515,10 @@ _V3_CSS += """
         div[class*="st-key-alerts_add_icon"] button:hover { background: var(--v3-hover) !important; }
         div[class*="st-key-alerts_refresh_icon"], div[class*="st-key-alerts_filter_icon"], div[class*="st-key-alerts_add_icon"] { margin-bottom: -12px !important; }
         div[class*="st-key-exp_price_alert_closed"] { display: none !important; }
+        /* טופס התראת מחיר ידנית: כפתור "הוסף התראה" ושדות המספר באותו סגנון כמו טפסי הפוזיציה (היה כחול של Streamlit עם טקסט כהה, ושדות באפור-כחלחל) */
+        div[class*="st-key-exp_price_alert"] button[kind="primary"] { background: var(--v3-ink) !important; color: var(--v3-bg) !important; border: 0 !important; border-radius: 8px !important; min-height: 40px; padding: 0 24px !important; }
+        div[class*="st-key-exp_price_alert"] button[kind="primary"] p { color: inherit !important; font-size: 15px; }
+        div[class*="st-key-exp_price_alert"] [data-testid="stNumberInputContainer"] { background: var(--v3-surface) !important; border-color: var(--v3-rule) !important; }
         div[class*="st-key-exp_price_alert"]:not([class*="st-key-exp_price_alert_closed"]):not([data-testid="stExpander"]) { padding: 12px 12px 18px; border-bottom: 1px solid var(--v3-rule); }
         div[class*="st-key-v3_hpos_"] { padding-inline: 0; }
         div[class*="st-key-holdings_refresh_icon"], div[class*="st-key-holdings_filter_icon"], div[class*="st-key-holdings_add_icon"] { margin-bottom: -12px !important; }  /* שלושת האייקונים בגובה אפס - מבטלים את הרווח שזרימת Streamlit מוסיפה אחרי כל אחד */
