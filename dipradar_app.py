@@ -669,6 +669,9 @@ _V3_CSS += """
         /* לוח ניהול המעקב: שקט - שדות בלי רקע ובלי מסגרת (רק קו תחתון דק), כפתורים כטקסט */
         div[class*="st-key-movers_watch_actions"] [data-baseweb="select"] > div { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; box-shadow: none !important; min-height: 34px; }
         div[class*="st-key-movers_watch_actions"] label p { font-size: 13px !important; color: var(--v3-dim) !important; }
+        div[class*="st-key-movers_watch_actions"] [data-testid="stNumberInputContainer"] { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--v3-rule-strong) !important; border-radius: 0 !important; }
+        div[class*="st-key-movers_watch_actions"] [data-testid="stNumberInputContainer"] input { text-align: end; }
+        div[class*="st-key-movers_watch_actions"] [data-testid="stNumberInputStepUp"], div[class*="st-key-movers_watch_actions"] [data-testid="stNumberInputStepDown"] { display: none !important; }
         div[class*="st-key-movers_watch_actions"] button { background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 4px 0 !important; min-height: 0 !important; color: var(--v3-accent) !important; font-size: 15px !important; white-space: nowrap; }
         div[class*="st-key-movers_watch_actions"] button:hover { text-decoration: underline; background: transparent !important; }
         div[class*="st-key-movers_watch_actions"] button p { font-size: 15px !important; font-weight: 500 !important; }
@@ -2811,9 +2814,21 @@ def _render_movers_v3() -> None:
                     _wl_add_options = sorted(_wl_add_tickers, key=lambda t: _wl_add_name_map.get(t, t))
                     _wl_add_labels = {t: f"{_wl_add_name_map.get(t, t)} ({t})" for t in _wl_add_options}
                     _wl_add_chosen = st.selectbox("מניה", _wl_add_options, format_func=lambda t: _wl_add_labels[t], key="watchlist_add_ticker")
+                    # שער ביצוע: ברירת המחדל היא השער הנוכחי של המניה שנבחרה (ניתן לשינוי). בבורסת ת"א מזינים באגורות,
+                    # כמו בטפסי הפוזיציה. מפתח נפרד לכל מניה, כדי שהערך ההתחלתי יתעדכן כשמחליפים מניה
+                    _wl_is_il = market_data._is_israeli_ticker(_wl_add_chosen)
+                    _wl_cur_px = get_current_price(_wl_add_chosen)
+                    _wl_default_px = None if _wl_cur_px is None else round(_wl_cur_px * (100.0 if _wl_is_il else 1.0), 2)
+                    _wl_exec_raw = st.number_input(
+                        "שער ביצוע", min_value=0.0, value=_wl_default_px, step=1.0 if _wl_is_il else 0.01,
+                        format="%.2f", key=f"watchlist_add_exec_{_wl_add_chosen}", placeholder="שער",
+                    )
                     _wl_add_clicked = st.button("הוספה למעקב", key="watchlist_add_btn")
                 if _wl_add_clicked:
-                    _wl_entry_price = get_current_price(_wl_add_chosen)
+                    if _wl_exec_raw:
+                        _wl_entry_price = (_wl_exec_raw / 100.0) if _wl_is_il else _wl_exec_raw
+                    else:
+                        _wl_entry_price = get_current_price(_wl_add_chosen)
                     if _wl_entry_price is None:
                         st.warning("לא הצלחתי לשלוף מחיר נוכחי כרגע - נסה שוב בעוד רגע.")
                     else:
@@ -2822,6 +2837,7 @@ def _render_movers_v3() -> None:
                             _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen), _wl_add_index, _wl_entry_price,
                         )
                         _wl_add_conn.close()
+                        st.session_state.pop(f"watchlist_add_exec_{_wl_add_chosen}", None)
                         _sync_and_warn("watchlist changed", include_db=True)
                         st.rerun()
 
@@ -3205,9 +3221,9 @@ with _tab_slot_today.container():
             # עצמה (st.button + session_state בתוך הפרגמנט, ר' למטה) - לא
             # קטע נפרד מתחת לטבלה, לא <a href> (ניווט דפדפן אמיתי, שנבדק
             # ונמצא איטי בפועל). התראת מחיר ידנית למעלה (9.9.2026, בקשה מפורשת).
-            # 7.10.2026: התראת מחיר ידנית מתחת לטבלת ההתראות ומעל "קרוב לסף התראה"
+            # 7.10.2026: הועברה מתחת לטבלה; 18.11.2026: חזרה לראש הטאב, מעל הטבלה (בקשה מפורשת, הטופס נפתח בראש העמוד)
+            _slot_manual = st.container()  # התראת מחיר ידנית נפתחת בראש הטאב (מעל הטבלה), לא בתחתית
             _slot_table = st.container()
-            _slot_manual = st.container()
             _slot_nearmiss = st.container()
 
             _pa_count_conn = store.get_conn(db_path(cfg))
@@ -3216,8 +3232,10 @@ with _tab_slot_today.container():
             _pa_label = (f"🔔 התראת מחיר ידנית ({_pa_active_count})" if _pa_active_count else "🔔 התראת מחיר ידנית")
             _pa_label = _nm(_pa_label)
             _pa_key = "exp_price_alert" if st.session_state.get("alerts_add_open", False) else "exp_price_alert_closed"
-            _pa_ctx = st.container(key=_pa_key)
-            with _slot_manual, _pa_ctx:
+            # המכל נוצר *בתוך* _slot_manual: מכל נקבע במיקום שבו הוא נוצר, ולא לפי ה-with שבו ממלאים אותו (לכן הטופס ישב בתחתית)
+            with _slot_manual:
+                _pa_ctx = st.container(key=_pa_key)
+            with _pa_ctx:
                 st.caption("קבלת התראה כשמניה מגיעה למחיר מסוים - בלי קשר לירידה חדה או לאחזקה קיימת")
                 _pa_conn = store.get_conn(db_path(cfg))
                 _active_price_alerts = store.get_active_price_alerts(_pa_conn)
