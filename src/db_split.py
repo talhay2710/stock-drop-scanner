@@ -338,7 +338,107 @@ def install(alerts_path: str) -> tuple[dict, list[str]]:
         shutil.rmtree(out, ignore_errors=True)
 
 
+def rollback(alerts_path: str) -> tuple[dict, list[str]]:
+    """חזרה אחורה (DB_SPLIT_PLAN.md 12.ג): כותב את מצב user.db (+ מצב הסורק מ-holding_state/price_alert_triggers) חזרה
+    לעמודות/טבלאות ה-legacy שב-alerts.db, כך שאחרי החזרת המתג ל-legacy לא הולכת לאיבוד אף פעולת משתמש שבוצעה אחרי המעבר.
+    עובד בטרנזקציה אחת; אחריה אימות הלוך-חזור: migrate מה-legacy המעודכן חייב לתת בדיוק את user.db ואת מצב הסורק, ו-store
+    חייב לראות אותו דבר בשתי הפריסות. user.db לא משתנה. מחזיר (ספירות, בעיות)."""
+    import shutil
+    import tempfile
+    alerts_path = os.path.abspath(alerts_path)
+    user_path = os.path.join(os.path.dirname(alerts_path), "user.db")
+    if not os.path.exists(user_path):
+        return {}, [f"no user.db next to {alerts_path}"]
+    c = sqlite3.connect(alerts_path)
+    counts: dict = {}
+    try:
+        c.execute("ATTACH DATABASE ? AS u", (user_path,))
+        c.executescript(SCAN_STATE_DDL_IF_NOT_EXISTS)
+        c.execute("BEGIN")
+        # אחזקות שנסגרו אחרי המעבר (bought=1 קפוא ב-legacy ואין position): איפוס כמו unmark_as_bought ב-legacy
+        counts["unmarked"] = c.execute(
+            "UPDATE alerts SET bought = 0, actual_entry_price = NULL, actual_qty = NULL, bought_at = NULL, "
+            "last_gain_alert_pct = NULL, stop_alert_active = 0, holding_stop_price = NULL "
+            "WHERE bought = 1 AND id NOT IN (SELECT alert_id FROM u.positions)").rowcount
+        # אחזקות פתוחות: מ-positions + מצב הסורק
+        counts["positions"] = c.execute(
+            "UPDATE alerts SET bought = 1, "
+            "actual_entry_price = (SELECT entry_price FROM u.positions p WHERE p.alert_id = alerts.id), "
+            "actual_qty = (SELECT qty FROM u.positions p WHERE p.alert_id = alerts.id), "
+            "bought_at = (SELECT bought_at FROM u.positions p WHERE p.alert_id = alerts.id), "
+            "holding_stop_price = (SELECT stop_price FROM u.positions p WHERE p.alert_id = alerts.id), "
+            "last_gain_alert_pct = (SELECT last_gain_alert_pct FROM main.holding_state h WHERE h.alert_id = alerts.id), "
+            "stop_alert_active = COALESCE((SELECT stop_alert_active FROM main.holding_state h WHERE h.alert_id = alerts.id), 0), "
+            "target_alert_active = COALESCE((SELECT target_alert_active FROM main.holding_state h WHERE h.alert_id = alerts.id), 0), "
+            "hold_alert_sent = COALESCE((SELECT hold_alert_sent FROM main.holding_state h WHERE h.alert_id = alerts.id), 0) "
+            "WHERE id IN (SELECT alert_id FROM u.positions)").rowcount
+        # דגל ידני: מקור אחד - alert_flags (כולל אחזקות פתוחות ידניות) או position ידני
+        c.execute("UPDATE alerts SET is_manual_trade = CASE WHEN id IN (SELECT alert_id FROM u.alert_flags) "
+                  "OR id IN (SELECT alert_id FROM u.positions WHERE is_manual = 1) THEN 1 ELSE 0 END "
+                  "WHERE COALESCE(is_manual_trade, 0) != CASE WHEN id IN (SELECT alert_id FROM u.alert_flags) "
+                  "OR id IN (SELECT alert_id FROM u.positions WHERE is_manual = 1) THEN 1 ELSE 0 END")
+        for t in ("closed_trades", "watchlist"):
+            cols = ", ".join(r[1] for r in c.execute(f"PRAGMA main.table_info({t})"))
+            c.execute(f"DELETE FROM main.{t}")
+            counts[t] = c.execute(f"INSERT INTO main.{t} ({cols}) SELECT {cols} FROM u.{t}").rowcount
+        c.execute("DELETE FROM main.price_alerts")
+        counts["price_alerts"] = c.execute(
+            "INSERT INTO main.price_alerts (id, ticker, company_name, index_name, target_price, direction, created_at, triggered_at, active) "
+            "SELECT p.id, p.ticker, p.company_name, p.index_name, p.target_price, p.direction, p.created_at, t.triggered_at, "
+            "CASE WHEN p.cancelled = 0 AND t.price_alert_id IS NULL THEN 1 ELSE 0 END "
+            "FROM u.price_alerts p LEFT JOIN main.price_alert_triggers t ON t.price_alert_id = p.id").rowcount
+        c.execute("COMMIT")
+    except Exception as e:
+        try:
+            c.execute("ROLLBACK")
+        except Exception:
+            pass
+        return counts, [f"rollback failed, nothing written: {e!r}"]
+    finally:
+        c.close()
+    # אימות הלוך-חזור
+    problems: list[str] = []
+    out = tempfile.mkdtemp(prefix="db_split_rollback_")
+    try:
+        migrate(alerts_path, out)
+        for t in USER_TABLES:
+            a, b = _rows(os.path.join(out, "user.db"), t), _rows(user_path, t)
+            if t == "price_alerts":  # "בוטלה" מול "הופעלה" לא הפיך כשגם וגם; המצב הפעיל נבדק ב-layout_views למטה
+                a, b = [r[:7] for r in a], [r[:7] for r in b]
+            if a != b:
+                problems.append(f"round-trip: {t} differs from user.db")
+        for t in ("holding_state", "price_alert_triggers"):
+            want = _rows(os.path.join(out, "scan_state.db"), t)
+            have = _rows(alerts_path, t)
+            if t == "holding_state":  # רק לאחזקות פתוחות; אחזקה בלי שורה (הסורק עוד לא סנכרן) = מצב ריק
+                held = sorted(r[0] for r in _rows(user_path, "positions"))
+                empty = (None, 0, 0, 0)
+                hv = {r[0]: (r[1], r[2] or 0, r[3] or 0, r[4] or 0) for r in have}
+                wv = {r[0]: (r[1], r[2] or 0, r[3] or 0, r[4] or 0) for r in want}
+                have = [hv.get(i, empty) for i in held]
+                want = [wv.get(i, empty) for i in held]
+            if want != have:
+                problems.append(f"round-trip: {t} differs")
+        legacy, split = layout_views(alerts_path, "legacy"), layout_views(alerts_path, "split")
+        for k in legacy:
+            if legacy[k] != split[k]:
+                problems.append(f"after rollback, {k} differs between legacy and split")
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
+    return counts, problems
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[1] == "rollback":
+        counts, problems = rollback(argv[2])
+        print("rollback:", counts)
+        if problems:
+            print("ROLLBACK FAILED:")
+            for p in problems:
+                print(" -", p)
+            return 1
+        print("rollback OK")
+        return 0
     if len(argv) == 3 and argv[1] == "install":
         counts, problems = install(argv[2])
         print("install:", counts)

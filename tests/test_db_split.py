@@ -170,6 +170,68 @@ class Install(unittest.TestCase):
         self.assertEqual(db_split.main(["x", "install", self.src]), 0)
 
 
+class Rollback(unittest.TestCase):
+    """python -m src.db_split rollback: פעולות משתמש שבוצעו ב-split חוזרות לעמודות ה-legacy בלי לאבד כלום."""
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.src = os.path.join(self.tmp, "alerts.db")
+        store.set_layout("legacy")
+        _seed(self.src)
+        self.assertEqual(db_split.install(self.src)[1], [])
+
+    def tearDown(self):
+        store.set_layout("legacy")
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _activity_in_split(self):
+        store.set_layout("split")
+        conn = store.get_conn(self.src)
+        try:
+            store.unmark_as_bought(conn, 1)  # מכירה אחרי המעבר
+            store.save_closed_trade(conn, {
+                "alert_id": 1, "ticker": "AAA.TA", "company_name": "איי", "index_name": "TA35", "currency": "ILS",
+                "entry_price": 10.0, "qty": 100.0, "entry_at": "2026-11-12T10:00:00", "exit_price": 10.5,
+                "exit_at": "2026-11-21T10:00:00", "forecast_entry_limit": None, "forecast_target": None, "forecast_stop": None,
+                "forecast_score": None, "forecast_verdict": None, "holding_days": 9, "gross_pnl": 50.0, "net_pnl": 40.0,
+                "net_pct": 4.0, "is_manual_trade": False})
+            store.mark_as_bought(conn, 3, 9.5, 20.0, "2026-11-21T11:00:00", 8.8, is_manual_trade=True)  # קנייה חדשה
+            store.sync_holding_state(conn)  # הסורק
+            store.update_gain_alert(conn, 3, 2.5)  # הסורק
+            store.add_watchlist_item(conn, "EEE.TA", "אי", "TA35", 5.0)
+            pid = store.add_price_alert(conn, "DDD.TA", "די", "TA35", 15.0, "above")
+            active = store.get_active_price_alerts(conn)
+            store.deactivate_price_alert(conn, active[-1]["id"], triggered=True)  # הסורק הפעיל את הישנה
+            conn.commit()
+        finally:
+            conn.close()
+            store.set_layout("legacy")
+        return pid
+
+    def test_rollback_preserves_post_cutover_activity(self):
+        self._activity_in_split()
+        expected = db_split.layout_views(self.src, "split")
+        counts, problems = db_split.rollback(self.src)
+        self.assertEqual(problems, [])
+        self.assertEqual(db_split.layout_views(self.src, "legacy"), expected)
+        self.assertEqual(counts["unmarked"], 1)
+        self.assertEqual(counts["closed_trades"], 2)
+
+    def test_rollback_twice_is_harmless(self):
+        self._activity_in_split()
+        self.assertEqual(db_split.rollback(self.src)[1], [])
+        snap = _dump(self.src)
+        self.assertEqual(db_split.rollback(self.src)[1], [])
+        self.assertEqual(_dump(self.src), snap)
+
+    def test_rollback_without_activity_changes_nothing_visible(self):
+        before = db_split.layout_views(self.src, "legacy")
+        self.assertEqual(db_split.rollback(self.src)[1], [])
+        self.assertEqual(db_split.layout_views(self.src, "legacy"), before)
+
+    def test_cli(self):
+        self.assertEqual(db_split.main(["x", "rollback", self.src]), 0)
+
+
 @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "alerts.db")), "אין alerts.db מקומי")
 class RealDataSnapshot(unittest.TestCase):
     def test_real_alerts_db_copy(self):
@@ -180,7 +242,11 @@ class RealDataSnapshot(unittest.TestCase):
             db_split.migrate(src, os.path.join(tmp, "out"))
             self.assertEqual(db_split.verify(src, os.path.join(tmp, "out")), [])
             # install על עותק של הנתונים האמיתיים: legacy וsplit רואים בדיוק אותו דבר
+            before = db_split.layout_views(src, "legacy")
             self.assertEqual(db_split.install(src)[1], [])
+            # וחזרה אחורה מיד אחרי: מה שהאפליקציה רואה ב-legacy לא משתנה
+            self.assertEqual(db_split.rollback(src)[1], [])
+            self.assertEqual(db_split.layout_views(src, "legacy"), before)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
