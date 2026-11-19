@@ -43,6 +43,7 @@ fees:
     capital_gains_tax_pct: 25.0
     management_fee_annual_pct: 1.15
 alert_log_db: alerts.db
+db_layout: split
 dedupe_same_day: true
 multi_day_enabled: false
 holdings_stop_warn_pct: 1.0
