@@ -16,6 +16,7 @@ from . import strategy as strategy_mod
 from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
+from . import tester_telegram
 from . import alert_features
 from .config import db_path
 from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
@@ -103,6 +104,10 @@ def run_scan(cfg: dict) -> list[dict]:
     if not indices:
         raise ValueError("לא הוגדר אף מדד ב-config.yaml (indices)")
     strategy_mod.configure(cfg)  # בורר אסטרטגיה (כרטיס ניקוד + רמת סיכון); בלי strategy_selector: ברירות מחדל = המצב הקודם
+    try:
+        tester_telegram.poll_links(cfg)  # חיבורי טלגרם חדשים של בודקים (לא זורק; no-op בלי USERS_REPO_TOKEN)
+    except Exception:
+        logger.exception("עדכון חיבורי טלגרם של בודקים נכשל")
 
     conn = store_mod.get_conn(db_path(cfg))
     try:
@@ -961,6 +966,7 @@ def _scan_one_index(
         if notifier.is_message_type_enabled(cfg, "drop_alert"):
             edited = prior_message_id and notifier.edit_telegram(cfg, prior_message_id, message)
             send_failed = False
+            new_message_id = None
             if not edited:
                 new_message_id = notifier.send_telegram(cfg, message)
                 if new_message_id:
@@ -973,6 +979,14 @@ def _scan_one_index(
                 store_mod.restore_alert(conn, scan_date, ticker, prior_snapshot)
                 logger.warning("שליחת טלגרם נכשלה עבור %s - ההתראה בוטלה ותנסה שוב בסריקה הבאה", ticker)
                 continue
+
+            # בודקים מחוברים מקבלים רק התראת קנייה *חדשה* (לא עריכה של הודעה קיימת) - כך כל התראה נשלחת להם פעם אחת בדיוק
+            if new_message_id:
+                try:
+                    if _is_buy_signal(index, row, analysis):
+                        tester_telegram.broadcast(cfg, message)
+                except Exception:
+                    logger.exception("שליחה לבודקים נכשלה (לא משפיע על ההתראה שלך)")
 
             if is_multi_day_only:
                 desktop_title = f"📉 {ticker} ירדה מצטבר {row.get('n_day_change', 0):.1f}% ב-{multi_day_window} ימים"
@@ -996,6 +1010,15 @@ def _scan_one_index(
         })
 
     return results
+
+
+def _is_buy_signal(index: str, row, analysis) -> bool:
+    """אותו חישוב סיגנל כמו בהודעה עצמה (_format_message): האם ההתראה בדרגת 'לקנות'."""
+    sig, _ = strategy_mod.entry_signal(
+        index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct,
+        sector=analysis.sector, alert_hour=israel_now().hour,
+    )
+    return sig == strategy_mod.SIGNAL_BUY
 
 
 def _assumed_holding_days(overreaction_score: int, max_days: int) -> int:

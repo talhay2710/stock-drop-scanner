@@ -42,6 +42,9 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # ריפו פרטי של בודקים (חיבורי טלגרם) - אם ה-Secrets לא קיימים, הסורק מדלג על הבודקים בשקט
+          USERS_REPO: ${{ secrets.USERS_REPO }}
+          USERS_REPO_TOKEN: ${{ secrets.USERS_REPO_TOKEN }}
         run: python run_scan_once.py
 
       # שלושת אלה היו רק על Task Scheduler מקומי (תלוי שהמחשב דלוק) - עכשיו

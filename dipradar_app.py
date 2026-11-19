@@ -755,6 +755,15 @@ _V3_BRAND_HTML = (
 
 st.set_page_config(page_title="DipRadar", layout="wide")
 
+# אתר בודק עם משתמש (TESTER_USER): נתוני הבודק נשמרים בריפו פרטי כדי שלא יימחקו כשהשרת מתאפס (src/user_sync.py).
+# חייב לרוץ לפני כל פתיחת DB - הורדה אחת בתהליך, ואז דחיפה ברקע של כל שינוי.
+try:
+    from src import config as _config_mod, user_sync as _user_sync
+    if _config_mod.tester_mode() and _config_mod.tester_user():
+        _user_sync.init_tester(_config_mod.tester_user(), store.user_db_path(os.path.join(ROOT_DIR, "alerts_tester.db")))
+except Exception as _us_err:
+    print(f"user_sync init failed: {_us_err}")
+
 # מניעת הבזק של העיצוב הישן בטעינה (נייד): התוכן מוסתר עד שה-CSS של v3 נטען (שורה אחת למטה מבטלת את ההסתרה);
 # אם משהו נכשל באמצע - אחרי 4 שניות הכל מוצג בכל מקרה
 st.markdown(
@@ -2564,6 +2573,25 @@ with st.sidebar:
             "דסקטופ", value=bool(cfg.get("desktop_notifications", {}).get("enabled", True)),
             key="settings_desktop_enabled", on_change=_autosave_channels,
         )
+
+    if _config_mod.tester_mode() and _config_mod.tester_user() and _user_sync.configured():
+        @st.cache_data(ttl=20, show_spinner=False)
+        def _tester_tg_status(_uid: str) -> dict:
+            try:
+                return _user_sync.telegram_status(_uid)
+            except Exception:
+                return {"connected": False, "link": ""}
+
+        with st.container(border=True, key="tester_tg_card"):
+            _sb_title("📲 התראות בטלגרם", "tight2")
+            _tg = _tester_tg_status(_config_mod.tester_user())
+            if _tg["connected"]:
+                st.markdown("מחובר ✅ — תקבל כאן התראות קנייה חדשות. לניתוק: שלח /stop לבוט.")
+            elif _tg["link"]:
+                st.markdown("לקבלת התראות קנייה חדשות בטלגרם: פתח את הקישור ולחץ Start. החיבור מתעדכן תוך כמה דקות.")
+                st.link_button("חבר טלגרם", _tg["link"])
+            else:
+                st.markdown("חיבור הטלגרם עדיין לא הוגדר.")
 
 
 

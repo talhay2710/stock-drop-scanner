@@ -45,6 +45,10 @@ def _counts(path: str) -> tuple:
 
 class TesterDbIsolation(unittest.TestCase):
     def setUp(self):
+        # בדיקת הטאבים (Streamlit) מוחקת וטוענת מחדש את מודולי src, וה-config.yaml המקומי כבר ב-split: עובדים מול המודולים הנוכחיים
+        global config, store
+        import importlib
+        config, store = importlib.import_module("src.config"), importlib.import_module("src.store")
         store.set_layout("legacy")  # פריסה גלובלית לתהליך - בדיקות אחרות משנות אותה
         self.tmp = tempfile.mkdtemp()
         self.src = os.path.join(self.tmp, "alerts.db")

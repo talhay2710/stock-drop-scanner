@@ -27,6 +27,11 @@ def load_config(path: str = CONFIG_PATH) -> dict:
     return cfg
 
 
+def tester_user() -> str:
+    """מזהה הבודק של האתר הזה (TESTER_USER, נקבע בקובץ הכניסה שלו: michal.py / zeevi.py). ריק = אתר בודק אנונימי/זמני."""
+    return os.environ.get("TESTER_USER", "").strip().lower()
+
+
 def tester_mode() -> bool:
     """מצב בודק (TESTER_MODE=1 ב-Secrets של אפליקציה נפרדת בענן): האתר מתחיל נקי מהנתונים האישיים של הבעלים, הבודק מזין את שלו,
     ושום דבר לא נדחף לגיט. נתוני השוק/הסריקה (ההתראות) נשארים עדכניים."""
