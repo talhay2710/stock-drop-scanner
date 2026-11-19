@@ -14,14 +14,24 @@ from .market_hours import is_market_open, israel_today
 
 logger = logging.getLogger(__name__)
 
-HOLDING_TYPES = ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit")
+HOLDING_TYPES = ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit", "price_alert")
 
 
 def _state_path(uid: str) -> str:
     return f"data/{uid}/state.json"
 
 
-def _load_positions(db_bytes: bytes) -> list[dict]:
+def _rows(c, sql: str, params=()) -> list[dict]:
+    try:
+        cur = c.execute(sql, params)
+    except sqlite3.Error:
+        return []  # טבלה שעוד לא נוצרה אצל הבודק = אין נתונים
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def read_user_db(db_bytes: bytes, closed_on: str | None = None) -> dict:
+    """קריאה בלבד של user.db של בודק: positions, price_alerts פעילות, ועסקאות שנסגרו ביום closed_on (אם ביקשו)."""
     fd, tmp = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     try:
@@ -29,9 +39,13 @@ def _load_positions(db_bytes: bytes) -> list[dict]:
             f.write(db_bytes)
         c = sqlite3.connect(tmp)
         try:
-            cur = c.execute("SELECT alert_id, entry_price, qty, bought_at, stop_price, is_manual FROM positions ORDER BY alert_id")
-            cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, r)) for r in cur.fetchall()]
+            return {
+                "positions": _rows(c, "SELECT alert_id, entry_price, qty, bought_at, stop_price, is_manual FROM positions ORDER BY alert_id"),
+                "price_alerts": _rows(c, "SELECT id, ticker, company_name, index_name, target_price, direction FROM price_alerts "
+                                         "WHERE cancelled = 0 ORDER BY id"),
+                "closed_today": _rows(c, "SELECT * FROM closed_trades WHERE substr(exit_at, 1, 10) = ? ORDER BY exit_at DESC", (closed_on,))
+                if closed_on else [],
+            }
         finally:
             c.close()
     finally:
@@ -39,6 +53,17 @@ def _load_positions(db_bytes: bytes) -> list[dict]:
             os.remove(tmp)
         except OSError:
             pass
+
+
+def read_state(uid: str):
+    return user_sync.read_json(_state_path(uid), {})
+
+
+def save_state(uid: str, state: dict, sha) -> None:
+    try:
+        user_sync.write_json(_state_path(uid), state, sha, f"state: {uid}")
+    except user_sync.Conflict:
+        logger.warning("שמירת מצב ההתראות של %s התנגשה - ננסה בסבב הבא", uid)
 
 
 def check_testers(cfg: dict, conn) -> int:
@@ -64,13 +89,18 @@ def check_one(cfg: dict, conn, uid: str, chat_id, types: set) -> int:
     got = user_sync.backend().get(user_sync.remote_db_path(uid))
     if got is None:
         return 0
-    positions = _load_positions(got[0])
-    state, state_sha = user_sync.read_json(_state_path(uid), {})
-    new_state = {k: v for k, v in state.items() if k in {str(p["alert_id"]) for p in positions}}  # אחזקה שנסגרה - המצב שלה נמחק
+    data = read_user_db(got[0])
+    positions, price_alerts = data["positions"], data["price_alerts"]
+    state, state_sha = read_state(uid)
+    keep = {str(p["alert_id"]) for p in positions} | {"summaries", "price_alerts_triggered"}
+    new_state = {k: v for k, v in state.items() if k in keep}  # אחזקה שנסגרה - המצב שלה נמחק
+    sent = 0
+    if "price_alert" in types and price_alerts:
+        sent += _check_price_alerts(cfg, uid, chat_id, price_alerts, new_state)
     if not positions:
         if new_state != state:
-            _save_state(uid, new_state, state_sha)
-        return 0
+            save_state(uid, new_state, state_sha)
+        return sent
 
     marks = ",".join("?" * len(positions))
     info = {r[0]: r for r in conn.execute(
@@ -80,11 +110,11 @@ def check_one(cfg: dict, conn, uid: str, chat_id, types: set) -> int:
     for t in {info[p["alert_id"]][1] for p in positions if p["alert_id"] in info}:
         prices[t] = market_data.fetch_current_price(t)
 
+    types = types - {"price_alert"}
     start_pct = abs(cfg.get("holdings_gain_alert_start_pct", 2.0))
     step_pct = abs(cfg.get("holdings_gain_alert_step_pct", 1.0)) or 1.0
     stop_warn = abs(cfg.get("holdings_stop_warn_pct", sc.STOP_WARN_PCT))
     target_warn = abs(cfg.get("holdings_target_warn_pct", sc.TARGET_WARN_PCT))
-    sent = 0
 
     for p in positions:
         row = info.get(p["alert_id"])
@@ -183,12 +213,38 @@ def check_one(cfg: dict, conn, uid: str, chat_id, types: set) -> int:
             new_state[key] = st
 
     if new_state != state:
-        _save_state(uid, new_state, state_sha)
+        save_state(uid, new_state, state_sha)
     return sent
 
 
-def _save_state(uid: str, state: dict, sha) -> None:
-    try:
-        user_sync.write_json(_state_path(uid), state, sha, f"state: {uid}")
-    except user_sync.Conflict:
-        logger.warning("שמירת מצב ההתראות של %s התנגשה - ננסה בסבב הבא", uid)
+def _check_price_alerts(cfg: dict, uid: str, chat_id, alerts: list[dict], new_state: dict) -> int:
+    """התראות מחיר ידניות של הבודק: חד-פעמיות. מזהה שהופעלה נשמר ב-state (המסד של הבודק נכתב רק ע"י האתר שלו)."""
+    from . import scanner as sc
+
+    done = set(new_state.get("price_alerts_triggered", []))
+    todo = [a for a in alerts if a["id"] not in done]
+    if not todo:
+        return 0
+    prices = {t: market_data.fetch_current_price(t) for t in {a["ticker"] for a in todo}}
+    sent = 0
+    for a in todo:
+        current = prices.get(a["ticker"])
+        if current is None:
+            continue
+        target = a["target_price"]
+        crossed = (current >= target) if a["direction"] == "above" else (current <= target)
+        if not crossed:
+            continue
+        name = a["company_name"] or a["ticker"]
+        ccy = constituents.INDEX_CURRENCY.get(a.get("index_name"), "ILS")
+        word = "מעל" if a["direction"] == "above" else "מתחת ל"
+        text = "\n".join([
+            f"🔔 <b>{name} הגיעה ל{word}-{sc._format_price(target, ccy, with_unit=False)}</b>", f"{a['ticker']}", "",
+            f"מחיר נוכחי: {sc._format_price(current, ccy, with_unit=False)}",
+            f"מחיר יעד שקבעת: {sc._format_price(target, ccy, with_unit=False)}",
+        ])
+        if tester_telegram.send_to(cfg, chat_id, text):
+            done.add(a["id"])
+            sent += 1
+    new_state["price_alerts_triggered"] = sorted(done)
+    return sent

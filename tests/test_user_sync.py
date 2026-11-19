@@ -317,11 +317,17 @@ class TesterHoldings(_Base):
         user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"michal": 555}}, None, "t")
         tester_telegram._cache.update(at=0.0, chats={})
 
-    def _put_user_db(self, rows):
+    def _put_user_db(self, rows, price_alerts=(), closed=()):
         path = os.path.join(tempfile.mkdtemp(), "u.db")
         c = sqlite3.connect(path)
         c.execute("CREATE TABLE positions (alert_id INTEGER PRIMARY KEY, entry_price REAL, qty REAL, bought_at TEXT, stop_price REAL, is_manual INTEGER)")
         c.executemany("INSERT INTO positions VALUES (?,?,?,?,?,?)", rows)
+        c.execute("CREATE TABLE price_alerts (id INTEGER PRIMARY KEY, ticker TEXT, company_name TEXT, index_name TEXT, target_price REAL, "
+                  "direction TEXT, created_at TEXT, cancelled INTEGER NOT NULL DEFAULT 0)")
+        c.executemany("INSERT INTO price_alerts VALUES (?,?,?,?,?,?,?,?)", price_alerts)
+        c.execute("CREATE TABLE closed_trades (id INTEGER PRIMARY KEY, ticker TEXT, company_name TEXT, exit_at TEXT, exit_price REAL, qty REAL, "
+                  "gross_pnl REAL, currency TEXT)")
+        c.executemany("INSERT INTO closed_trades VALUES (?,?,?,?,?,?,?,?)", closed)
         c.commit()
         c.close()
         be = user_sync._backend_override
@@ -387,6 +393,21 @@ class TesterHoldings(_Base):
         self._put_user_db([(7, 100.0, 10.0, old, 95.0, 0)])
         self.assertEqual(len(self._run(100.5, {"holdings_hold_limit"})), 1)
 
+    def test_price_alert_fires_once_and_skips_cancelled(self):
+        pa = [(1, "AAA.TA", "אאא", "TA35", 110.0, "above", "2026-11-18", 0),
+              (2, "AAA.TA", "אאא", "TA35", 50.0, "below", "2026-11-18", 1)]  # השנייה בוטלה
+        self._put_user_db([], price_alerts=pa)
+        self.assertEqual(self._run(100.0, {"price_alert"}), [])           # עוד לא חצתה
+        msgs = self._run(111.0, {"price_alert"})
+        self.assertEqual(len(msgs), 1)
+        self.assertIn("מחיר יעד שקבעת", msgs[0])
+        self.assertEqual(self._run(112.0, {"price_alert"}), [])           # חד-פעמית
+        self.assertEqual(user_sync.read_json("data/michal/state.json", {})[0]["price_alerts_triggered"], [1])
+
+    def test_price_alert_type_disabled(self):
+        self._put_user_db([], price_alerts=[(1, "AAA.TA", "אאא", "TA35", 90.0, "below", "2026-11-18", 0)])
+        self.assertEqual(self._run(80.0, {"holdings_stop"}), [])
+
     def test_check_testers_respects_prefs_and_survives_errors(self):
         self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
         user_sync.write_prefs("michal", {"holdings_stop": False, "holdings_target": False, "holdings_gain": False,
@@ -399,6 +420,75 @@ class TesterHoldings(_Base):
             tester_telegram._cache.update(at=0.0, chats={})
             user_sync.write_prefs("michal", {})
             self.assertEqual(self.th.check_testers(self.CFG, self.scan), 0)  # לא זורק
+
+
+class TesterSummaries(TesterHoldings):
+    """סיכומים לבודק: חלונות זמן, 'נשלח היום' פעם אחת, ניסיון חוזר בכשל, והעדפות (בלי רשת)."""
+
+    def _go(self, due=("daily",), today="2026-11-19", send_ok=True, msg="סיכום"):
+        from src import tester_summaries as ts
+        self.ts = ts
+        sent = []
+
+        def fake_post(url, json=None, timeout=None):
+            sent.append(json["text"])
+            return _Resp(200 if send_ok else 500)
+
+        wins = {k: v[1] for k, v in ts.KINDS.items()}
+        in_window = lambda *a, **k: tuple(a) in {wins[d] for d in due}  # noqa: E731
+        with mock.patch("requests.post", side_effect=fake_post), \
+                mock.patch("src.daily_summary.build_daily_summary", return_value=msg), \
+                mock.patch("src.daily_summary.build_morning_summary", return_value=msg), \
+                mock.patch("src.weekly_report.build_weekly_report", return_value=msg), \
+                mock.patch("src.holdings_summary.build_holdings_summary", return_value=[]), \
+                mock.patch("src.holdings_summary.enrich_closed_today_with_today_pnl", side_effect=lambda c: c), \
+                mock.patch.object(ts, "_morning_inputs", return_value=({}, {})):
+            tester_telegram._cache.update(at=0.0, chats={})
+            n = ts.run(self.CFG, self.scan, in_window=in_window, today=today)
+        return n, sent
+
+    def _prefs(self, **kw):
+        user_sync.write_prefs("michal", kw)
+        tester_telegram._cache.update(at=0.0, chats={})
+
+    def test_default_prefs_send_no_summaries(self):
+        self._put_user_db([])
+        self.assertEqual(self._go(due=("morning", "daily", "weekly"))[0], 0)
+
+    def test_daily_sent_once_per_day_and_again_next_day(self):
+        self._put_user_db([])
+        self._prefs(daily_summary=True)
+        self.assertEqual(self._go()[0], 1)
+        self.assertEqual(self._go()[0], 0)                      # אותו יום - לא שוב
+        self.assertEqual(self._go(today="2026-11-20")[0], 1)    # יום חדש
+
+    def test_outside_window_nothing(self):
+        self._put_user_db([])
+        self._prefs(daily_summary=True)
+        self.assertEqual(self._go(due=())[0], 0)
+
+    def test_failed_send_retries_and_each_kind_separate(self):
+        self._put_user_db([])
+        self._prefs(daily_summary=True, weekly_report=True, morning_summary=False)
+        self.assertEqual(self._go(due=("daily",), send_ok=False)[0], 0)
+        n, sent = self._go(due=("daily", "weekly"))
+        self.assertEqual((n, len(sent)), (2, 2))                # היומי שנכשל נשלח עכשיו + השבועי
+        self.assertEqual(self._go(due=("daily", "weekly"))[0], 0)
+
+    def test_empty_report_is_marked_done_without_sending(self):
+        self._put_user_db([])
+        self._prefs(weekly_report=True)
+        self.assertEqual(self._go(due=("weekly",), msg=None)[0], 0)
+        self.assertEqual(user_sync.read_json("data/michal/state.json", {})[0]["summaries"], {"weekly": "2026-11-19"})
+
+    def test_state_keys_survive_holding_check(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        self._prefs(daily_summary=True)
+        self._go()
+        self._run(96.0, {"holdings_stop"})  # בדיקת האחזקות לא מוחקת את "נשלח היום"
+        state = user_sync.read_json("data/michal/state.json", {})[0]
+        self.assertEqual(state["summaries"], {"daily": "2026-11-19"})
+        self.assertTrue(state["7"]["stop_alert_active"])
 
 
 try:

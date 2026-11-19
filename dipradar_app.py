@@ -2629,6 +2629,8 @@ with st.sidebar:
 
             # בחירה אישית של ההתראות שהבודק מקבל (נשמר בריפו הפרטי; הסורק קורא אותו בכל התראה)
             _tuid = _config_mod.tester_user()
+            _TESTER_TYPE_KEYS = ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit", "price_alert",
+                                 "morning_summary", "daily_summary", "weekly_report")
 
             @st.cache_data(ttl=20, show_spinner=False)
             def _tester_prefs(_uid: str) -> dict:
@@ -2645,8 +2647,8 @@ with st.sidebar:
                     "multi_day": bool(st.session_state.get("tprefs_multi", True)),
                     "min_multi_pct": st.session_state.get("tprefs_min_multi", 0.0),
                     "reversal": bool(st.session_state.get("tprefs_reversal", False)),
-                    **{_k: bool(st.session_state.get(f"tprefs_{_k}", True))
-                       for _k in ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit")},
+                    **{_k: bool(st.session_state.get(f"tprefs_{_k}", _user_sync.PREFS_DEFAULTS[_k]))
+                       for _k in _TESTER_TYPE_KEYS},
                 }
                 try:
                     _user_sync.write_prefs(_tuid, _prefs)
@@ -2681,8 +2683,11 @@ with st.sidebar:
                 )
                 st.toggle("סימני התאוששות", value=bool(_pf["reversal"]), key="tprefs_reversal", on_change=_save_tester_prefs,
                           help="התראה נוספת כשמניה שירדה מתחילה להתאושש.")
-                st.markdown("**על האחזקות שלי**")
-                for _hk in ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit"):
+                st.markdown("**על האחזקות וההתראות שלי**")
+                for _hk in ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit", "price_alert"):
+                    st.checkbox(notifier.MESSAGE_TYPES[_hk], value=bool(_pf[_hk]), key=f"tprefs_{_hk}", on_change=_save_tester_prefs)
+                st.markdown("**סיכומים**")
+                for _hk in ("morning_summary", "daily_summary", "weekly_report"):
                     st.checkbox(notifier.MESSAGE_TYPES[_hk], value=bool(_pf[_hk]), key=f"tprefs_{_hk}", on_change=_save_tester_prefs)
 
 

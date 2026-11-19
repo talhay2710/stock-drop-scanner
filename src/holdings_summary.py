@@ -10,11 +10,12 @@ from src.store import get_bought_holdings
 from src.market_hours import israel_today
 
 
-def build_holdings_summary(conn, cfg) -> list[dict]:
+def build_holdings_summary(conn, cfg, holdings: list[dict] | None = None) -> list[dict]:
     """מחזיר רשימת dict-ים (אחת לכל אחזקה פתוחה) עם net_pnl/net_pct (מאז
     הכניסה, נטו אחרי עמלות) ו-today_pct/today_pnl (שינוי היום בלבד, ברוטו).
     """
-    holdings = get_bought_holdings(conn)
+    if holdings is None:  # בודקים: הסורק מעביר את האחזקות של הבודק (src/tester_summaries.py)
+        holdings = get_bought_holdings(conn)
     result = []
     for h in holdings:
         # today_df עובר כבר את תיקון-הטריות של market_data
