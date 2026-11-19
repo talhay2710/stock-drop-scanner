@@ -60,6 +60,7 @@ def _sha(path: str) -> str:
 
 class MigrationFidelity(unittest.TestCase):
     def setUp(self):
+        store.set_layout("legacy")  # פריסה גלובלית לתהליך - בדיקות אחרות משנות אותה
         self.tmp = tempfile.mkdtemp()
         self.src = os.path.join(self.tmp, "alerts.db")
         self.out = os.path.join(self.tmp, "out")

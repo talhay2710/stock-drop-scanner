@@ -30,6 +30,7 @@ def _seed(path: str) -> None:
 
 class ReadAlertsLayer(unittest.TestCase):
     def setUp(self):
+        store.set_layout("legacy")  # פריסה גלובלית לתהליך - בדיקות אחרות משנות אותה
         self.tmp = tempfile.mkdtemp()
         self.path = os.path.join(self.tmp, "alerts.db")
         _seed(self.path)

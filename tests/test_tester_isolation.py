@@ -45,6 +45,7 @@ def _counts(path: str) -> tuple:
 
 class TesterDbIsolation(unittest.TestCase):
     def setUp(self):
+        store.set_layout("legacy")  # פריסה גלובלית לתהליך - בדיקות אחרות משנות אותה
         self.tmp = tempfile.mkdtemp()
         self.src = os.path.join(self.tmp, "alerts.db")
         _make_source(self.src)
