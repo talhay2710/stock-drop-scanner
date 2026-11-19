@@ -113,6 +113,63 @@ class MigrationFidelity(unittest.TestCase):
         self.assertEqual([r[0] for r in s.execute("SELECT alert_id FROM holding_state")], [2])
 
 
+class Install(unittest.TestCase):
+    """python -m src.db_split install: user.db ליד alerts.db + טבלאות מצב הסורק, אידמפוטנטי, לא דורס נתוני משתמש."""
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.src = os.path.join(self.tmp, "alerts.db")
+        prev = store.layout()
+        store.set_layout("legacy")
+        _seed(self.src)
+        store.set_layout(prev)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _alerts_rows(self):
+        c = sqlite3.connect(self.src)
+        try:
+            return c.execute("SELECT * FROM alerts ORDER BY id").fetchall()
+        finally:
+            c.close()
+
+    def test_install_ok_and_keeps_legacy_columns(self):
+        before = self._alerts_rows()
+        counts, problems = db_split.install(self.src)
+        self.assertEqual(problems, [])
+        self.assertEqual(counts["installed_user_db"], 1)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "user.db")))
+        self.assertEqual(self._alerts_rows(), before)  # עמודות ה-legacy לא נגעו (חזרה אחורה)
+        d = _dump(self.src)
+        self.assertEqual(len(d["holding_state"]), 2)
+        self.assertEqual(len(d["price_alert_triggers"]), 1)
+
+    def test_idempotent(self):
+        self.assertEqual(db_split.install(self.src)[1], [])
+        sha_user, rows = _sha(os.path.join(self.tmp, "user.db")), _dump(self.src)
+        counts, problems = db_split.install(self.src)
+        self.assertEqual(problems, [])
+        self.assertEqual(counts["installed_user_db"], 0)
+        self.assertEqual(counts["state_tables_filled"], 0)
+        self.assertEqual(_sha(os.path.join(self.tmp, "user.db")), sha_user)
+        self.assertEqual(_dump(self.src), rows)
+
+    def test_refuses_to_overwrite_newer_user_db(self):
+        self.assertEqual(db_split.install(self.src)[1], [])
+        user = os.path.join(self.tmp, "user.db")
+        c = sqlite3.connect(user)
+        c.execute("INSERT INTO watchlist (ticker, entry_price, added_at) VALUES ('NEW.TA', 1.0, '2026-11-20')")
+        c.commit()
+        c.close()
+        sha = _sha(user)
+        counts, problems = db_split.install(self.src)
+        self.assertTrue(problems and "refusing" in problems[0])
+        self.assertEqual(_sha(user), sha)
+
+    def test_cli(self):
+        self.assertEqual(db_split.main(["x", "install", self.src]), 0)
+
+
 @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "alerts.db")), "אין alerts.db מקומי")
 class RealDataSnapshot(unittest.TestCase):
     def test_real_alerts_db_copy(self):
@@ -122,6 +179,8 @@ class RealDataSnapshot(unittest.TestCase):
             shutil.copyfile(os.path.join(ROOT, "alerts.db"), src)
             db_split.migrate(src, os.path.join(tmp, "out"))
             self.assertEqual(db_split.verify(src, os.path.join(tmp, "out")), [])
+            # install על עותק של הנתונים האמיתיים: legacy וsplit רואים בדיוק אותו דבר
+            self.assertEqual(db_split.install(src)[1], [])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

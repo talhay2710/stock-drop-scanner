@@ -25,3 +25,9 @@ __pycache__/
 
 # מצב בודק (src/config.py) - עותק פרטי של alerts.db בכל מכונה
 alerts_tester.db*
+
+# פיצול ה-DB (DB_SPLIT_PLAN.md): user.db נכנס לגיט במעבר; עותק הבודק וקובצי journal לא
+user_tester.db*
+user.db-journal
+user.db-wal
+user.db-shm

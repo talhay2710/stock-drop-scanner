@@ -35,31 +35,6 @@ jobs:
       # ר' scan.yml להסבר המלא - אין merge/rebase על alerts.db (בינארי, לא
       # ניתן למיזוג), במקום זאת מסתנכרנים מחדש עם origin ומחילים את הגרסה
       # שלנו מעליו בכל ניסיון.
+      # הלוגיקה המלאה (legacy = כמו קודם, split = pull --rebase רגיל) ב-ci_commit_alerts_db.sh, משותפת לכל ה-workflows.
       - name: Commit alerts.db if changed
-        run: |
-          git config user.name "Stock Scanner Bot"
-          git config user.email "actions@github.com"
-          if ! git diff --quiet -- alerts.db; then
-            cp alerts.db /tmp/alerts_ours.db
-            git add alerts.db
-            git commit -m "Update alerts.db [skip ci]"
-            success=0
-            for i in 1 2 3 4 5; do
-              if git push; then
-                success=1
-                break
-              fi
-              echo "Push rejected (attempt $i) - resyncing with origin and retrying..."
-              git fetch origin
-              git reset --hard origin/master
-              cp /tmp/alerts_ours.db alerts.db
-              git add alerts.db
-              git commit -m "Update alerts.db [skip ci]"
-            done
-            if [ "$success" -ne 1 ]; then
-              echo "Push still failing after 5 attempts - giving up for this run."
-              exit 1
-            fi
-          else
-            echo "No change in alerts.db, skipping commit."
-          fi
+        run: bash ci_commit_alerts_db.sh

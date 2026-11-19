@@ -13,6 +13,7 @@
 
 הסקריפט רק קורא את alerts.db (נפתח לקריאה בלבד) וכותב קבצי פלט חדשים בתיקייה נפרדת. אף קורא עדיין לא משתמש בקבצים האלה.
 הרצה: python -m src.db_split <alerts.db> <out_dir>   (מדפיס דוח אימות; קוד יציאה 1 אם האימות נכשל)
+מעבר (שלב 5): python -m src.db_split install <alerts.db>   (user.db ליד alerts.db + טבלאות מצב הסורק; ר' install())
 
 דטרמיניסטי: אותו מקור -> אותו תוכן (הרצה חוזרת בונה מחדש, לא מצטברת)."""
 import hashlib
@@ -237,9 +238,119 @@ def verify(src_path: str, out_dir: str) -> list[str]:
     return problems
 
 
+def _rows(path: str, table: str) -> list[tuple]:
+    c = sqlite3.connect(path)
+    try:
+        return c.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+    finally:
+        c.close()
+
+
+def _norm(v):
+    """NaN/None והבדלי int/float (pandas) לא נחשבים הבדל."""
+    if v is None or (isinstance(v, float) and v != v):
+        return None
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v).is_integer():
+        return int(v)
+    return v.item() if hasattr(v, "item") else v
+
+
+def layout_views(scan_path: str, layout: str) -> dict:
+    """מה שהאפליקציה רואה (דרך store) בפריסה נתונה: אחזקות, עסקאות סגורות, מעקב, התראות מחיר פעילות, וכל טבלת alerts."""
+    from . import store
+    prev = store.layout()
+    store.set_layout(layout)
+    conn = store.get_conn(scan_path)
+    try:
+        df = store.read_alerts_df(conn, order="id")
+        # מצב התראות אחזקה נקרא רק דרך get_bought_holdings (סורק). ב-legacy נשארות שאריות על אחזקות שכבר נמכרו; ב-split הן לא
+        # מועברות בכוונה (אחזקה חדשה מתחילה נקי) - אז משווים את העמודות האלה רק לאחזקות פתוחות.
+        held = df["bought"].fillna(0).astype(int) == 1
+        for col in ("last_gain_alert_pct", "stop_alert_active", "target_alert_active", "hold_alert_sent"):
+            if col in df.columns:
+                df[col] = df[col].astype(object).where(held, None)
+        cols = sorted(df.columns)
+        return {
+            "holdings": sorted([{k: _norm(v) for k, v in d.items()} for d in store.get_bought_holdings(conn)], key=lambda d: d["id"]),
+            "closed_trades": [{k: _norm(v) for k, v in d.items()} for d in sorted(store.get_closed_trades(conn), key=lambda d: d["id"])],
+            "watchlist": sorted([{k: _norm(v) for k, v in d.items()} for d in store.get_watchlist(conn)], key=lambda d: d["id"]),
+            "active_price_alerts": sorted([{k: _norm(v) for k, v in d.items()} for d in store.get_active_price_alerts(conn)],
+                                          key=lambda d: d["id"]),
+            "alerts": [tuple(_norm(v) for v in row) for row in df[cols].itertuples(index=False, name=None)],
+        }
+    finally:
+        conn.close()
+        store.set_layout(prev)
+
+
+def install(alerts_path: str) -> tuple[dict, list[str]]:
+    """שלב 5 (DB_SPLIT_PLAN.md 12.א.3): מכין את הקבצים לפריסת split, ליד alerts.db:
+      1. migrate + verify לתיקייה זמנית;
+      2. user.db ליד alerts.db (אם כבר קיים: רק אם זהה בדיוק - אחרת עוצרים, לעולם לא דורסים נתוני משתמש);
+      3. holding_state + price_alert_triggers לתוך alerts.db (שהופך ל-scan.db). עמודות ה-legacy נשארות (חזרה אחורה עד שלב 7);
+      4. אימות סופי: מה שהאפליקציה רואה ב-legacy זהה למה שהיא רואה ב-split.
+    אידמפוטנטי: הרצה חוזרת על אותו מקור לא משנה כלום. מחזיר (ספירות, בעיות); בעיות = לא נכתב כלום או שהאימות הסופי נכשל."""
+    import shutil
+    import tempfile
+    alerts_path = os.path.abspath(alerts_path)
+    user_path = os.path.join(os.path.dirname(alerts_path), "user.db")
+    out = tempfile.mkdtemp(prefix="db_split_install_")
+    try:
+        counts = migrate(alerts_path, out)
+        problems = verify(alerts_path, out)
+        if problems:
+            return counts, problems
+        new_user, new_state = os.path.join(out, "user.db"), os.path.join(out, "scan_state.db")
+        # בדיקות לפני כל כתיבה
+        user_exists = os.path.exists(user_path)
+        if user_exists:
+            for t in USER_TABLES + ("meta",):
+                if _rows(user_path, t) != _rows(new_user, t):
+                    return counts, [f"user.db already exists and differs ({t}) - refusing to overwrite user data"]
+        c = sqlite3.connect(alerts_path)
+        try:
+            c.executescript(SCAN_STATE_DDL_IF_NOT_EXISTS)
+            fill = []
+            for t in ("holding_state", "price_alert_triggers"):
+                have, want = c.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall(), _rows(new_state, t)
+                if have and have != want:
+                    return counts, [f"{t} already exists in alerts.db and differs - refusing to overwrite scanner state"]
+                if not have and want:
+                    fill.append((t, want))
+            # כתיבה
+            if not user_exists:
+                shutil.copyfile(new_user, user_path + ".new")
+                os.replace(user_path + ".new", user_path)
+            for t, rows in fill:
+                c.executemany(f"INSERT INTO {t} VALUES ({', '.join('?' for _ in rows[0])})", rows)
+            c.commit()
+        finally:
+            c.close()
+        legacy, split = layout_views(alerts_path, "legacy"), layout_views(alerts_path, "split")
+        for k in legacy:
+            if legacy[k] != split[k]:
+                diff = sum(1 for a, b in zip(legacy[k], split[k]) if a != b) + abs(len(legacy[k]) - len(split[k]))
+                problems.append(f"after install, {k} differs between legacy and split ({diff} rows)")
+        counts["installed_user_db"] = 0 if user_exists else 1
+        counts["state_tables_filled"] = len(fill)
+        return counts, problems
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[1] == "install":
+        counts, problems = install(argv[2])
+        print("install:", counts)
+        if problems:
+            print("INSTALL FAILED:")
+            for p in problems:
+                print(" -", p)
+            return 1
+        print("install OK")
+        return 0
     if len(argv) != 3:
-        print("usage: python -m src.db_split <alerts.db> <out_dir>")
+        print("usage: python -m src.db_split <alerts.db> <out_dir>   |   python -m src.db_split install <alerts.db>")
         return 2
     counts = migrate(argv[1], argv[2])
     problems = verify(argv[1], argv[2])

@@ -9,7 +9,7 @@ import subprocess
 
 import yaml
 
-from . import db_merge
+from . import db_merge, store
 from .config import ROOT_DIR, CONFIG_PATH, CONFIG_EXAMPLE_PATH, tester_mode
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,12 @@ def refresh_alerts_db_if_clean() -> bool:
         return False
     _git = ["git", "-C", ROOT_DIR]
     try:
+        if store.is_split():
+            # פריסת split: alerts.db (=scan) נכתב רק ע"י הסורק בענן; העותק המקומי אף פעם לא מקור אמת -> תמיד בטוח לרענן.
+            # user.db לא נוגעים (כותב יחיד: המחשב הזה).
+            _git_run(_git + ["fetch", "origin"], check=True, capture_output=True, timeout=20)
+            _git_run(_git + ["checkout", "origin/master", "--", "alerts.db"], check=True, capture_output=True, timeout=15)
+            return True
         diff = _git_run(_git + ["diff", "--quiet", "--", "alerts.db"], capture_output=True, timeout=15)
         if diff.returncode != 0:
             logger.warning("דילוג על רענון alerts.db - יש שינוי מקומי לא-שמור בקובץ")
@@ -138,13 +144,17 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
         # (אומת 19.11.2026: כל 411 קומיטי "Sync from local" בהיסטוריה הם של המחשב המקומי). כך נשמר כותב יחיד לנתוני המשתמש.
         return "no_change"
     _git = ["git", "-C", ROOT_DIR]
-    paths = ["config.example.yaml", "alerts.db"] if include_db else ["config.example.yaml"]
+    # פריסת split (DB_SPLIT_PLAN.md 12.א.1): נתוני המשתמש ב-user.db, שרק המחשב הזה כותב אליו - אין מה למזג. alerts.db (=scan)
+    # לא נדחף מכאן לעולם (כותב יחיד: הסורק), כך שדחיפת המשתמש והסורק נוגעות בקבצים שונים ואין התנגשות.
+    split = store.is_split()
+    db_file = "user.db" if split else "alerts.db"
+    paths = ["config.example.yaml", db_file] if include_db else ["config.example.yaml"]
     try:
         _write_example_config_from_local()
-        if include_db:
+        if include_db and not split:
             _premerge_alerts_db(_git)
         _git_run(_git + ["add"] + paths, check=True, capture_output=True, timeout=15)
-        diff = _git_run(_git + ["diff", "--cached", "--quiet"], capture_output=True, timeout=15)
+        diff = _git_run(_git + ["diff", "--cached", "--quiet", "--"] + paths, capture_output=True, timeout=15)
         if diff.returncode == 0:
             return "no_change"
 
@@ -169,7 +179,7 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
             )
             alerts_path = os.path.join(ROOT_DIR, "alerts.db")
             user_data_copy = None
-            if include_db and os.path.exists(alerts_path):
+            if include_db and not split and os.path.exists(alerts_path):
                 # שומרים עותק של הגרסה המקומית (עם פעולת המשתמש) *לפני* ה-reset -
                 # reset --soft לא נוגע ב-working tree, אז הקובץ בדיסק כרגע הוא
                 # עדיין הגרסה המקומית, לא origin - צריך להוציא את origin הטרי
@@ -186,6 +196,9 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
                 os.remove(user_data_copy)
                 os.remove(fresh_copy)
             _git_run(_git + ["reset", "--soft", "origin/master"], check=True, capture_output=True, timeout=15)
+            if split:
+                # האינדקס עדיין מחזיק את alerts.db של ה-HEAD הקודם; מיישרים אותו (ואת הקובץ) ל-origin כדי שלא יישאר "שינוי" מדומה.
+                _git_run(_git + ["checkout", "origin/master", "--", "alerts.db"], check=True, capture_output=True, timeout=15)
             if user_data_copy is not None:
                 _git_run(_git + ["add", "alerts.db"], check=True, capture_output=True, timeout=15)
             _git_run(_git + ["commit", "-m", msg, "--"] + paths, check=True, capture_output=True, timeout=15)
