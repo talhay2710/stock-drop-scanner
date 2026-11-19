@@ -132,6 +132,44 @@ class AccessCode(_Base):
         self.assertNotIn(code, json.dumps(rec))  # הקוד עצמו לא נשמר
 
 
+class AccessCodeAndRemoval(_Base):
+    def setUp(self):
+        super().setUp()
+        rec, self.code = user_sync.new_user_record("מיכל")
+        rec["link_token"] = "tok"
+        user_sync.write_json("users.json", {"users": {"michal": rec, "zeevi": dict(rec)}}, None, "t")
+        user_sync.write_json("telegram_links.json", {"last_update_id": 5, "chats": {"michal": 1, "zeevi": 2}}, None, "t")
+        for u in ("michal", "zeevi"):
+            user_sync._backend_override.put(f"data/{u}/user.db", b"db", None, "t")
+            user_sync._backend_override.put(f"data/{u}/prefs.json", b"{}", None, "t")
+        user_sync._login_fails.clear()
+
+    def test_login_ok_bad_and_lockout(self):
+        self.assertEqual(user_sync.attempt_login("michal", "0000-0000-0000", now=1000.0), "bad")
+        self.assertEqual(user_sync.attempt_login("michal", self.code, now=1001.0), "ok")
+        for i in range(8):
+            self.assertEqual(user_sync.attempt_login("michal", "nope", now=2000.0 + i), "bad")
+        self.assertEqual(user_sync.attempt_login("michal", self.code, now=2010.0), "locked")  # גם קוד נכון - נעול
+        self.assertEqual(user_sync.attempt_login("zeevi", self.code, now=2010.0), "ok")         # נעילה לכל משתמש בנפרד
+        self.assertEqual(user_sync.attempt_login("michal", self.code, now=2000.0 + 700), "ok")  # אחרי 10 דקות - משתחרר
+
+    def test_remove_user_deletes_only_that_user(self):
+        out = user_sync.remove_user("michal")
+        self.assertTrue(out["user"] and out["telegram"])
+        self.assertEqual(sorted(out["files"]), ["data/michal/prefs.json", "data/michal/user.db"])
+        be = user_sync._backend_override
+        self.assertEqual(list(user_sync.read_json("users.json", {})[0]["users"]), ["zeevi"])
+        self.assertEqual(user_sync.read_json("telegram_links.json", {})[0]["chats"], {"zeevi": 2})
+        self.assertEqual(be.list("data/michal"), [])
+        self.assertEqual(len(be.list("data/zeevi")), 2)
+        self.assertEqual(user_sync.read_json("telegram_links.json", {})[0]["last_update_id"], 5)
+
+    def test_remove_unknown_user_is_harmless(self):
+        out = user_sync.remove_user("nobody")
+        self.assertEqual((out["user"], out["telegram"], out["files"]), (False, False, []))
+        self.assertEqual(len(user_sync.read_json("users.json", {})[0]["users"]), 2)
+
+
 class _Resp:
     def __init__(self, code=200, payload=None):
         self.status_code, self._p = code, payload or {}
@@ -254,6 +292,63 @@ class TelegramLinks(_Base):
         with mock.patch("requests.post") as post:
             self.assertEqual(tester_telegram.broadcast(self.CFG, "x"), 0)
             post.assert_not_called()
+
+
+try:
+    from streamlit.testing.v1 import AppTest
+except Exception:  # pragma: no cover
+    AppTest = None
+
+
+@unittest.skipIf(AppTest is None, "streamlit.testing לא זמין")
+class LoginGateInApp(unittest.TestCase):
+    """אתר בודק עם משתמש: בלי קוד תקין רואים רק מסך כניסה. GitHub מוחלף בתשובות מזויפות (ה-AppTest מוחק את מודולי src, לכן מחליפים את requests)."""
+
+    def test_gate_blocks_until_correct_code(self):
+        import base64
+        user_sync.reset_for_tests()
+        rec, code = user_sync.new_user_record("מיכל")
+        users_json = json.dumps({"users": {"michal": rec}}).encode()
+
+        class R:
+            def __init__(self, status, payload=None):
+                self.status_code, self._p, self.content = status, payload or {}, b""
+
+            def json(self):
+                return self._p
+
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise RuntimeError(self.status_code)
+
+        def fake_get(url, *a, **k):
+            if url.endswith("/contents/users.json"):
+                return R(200, {"sha": "s", "content": base64.b64encode(users_json).decode()})
+            return R(404)
+
+        env = {"TESTER_MODE": "1", "TESTER_USER": "michal", "USERS_REPO": "x/y", "USERS_REPO_TOKEN": "t"}
+        with mock.patch.dict(os.environ, env), mock.patch("requests.get", side_effect=fake_get),                 mock.patch("requests.put", return_value=R(200, {"content": {"sha": "n"}})):
+            at = AppTest.from_file(os.path.join(ROOT, "dashboard.py"), default_timeout=180)
+            at.run()
+            self.assertEqual([str(e.value)[:150] for e in at.exception], [])
+            self.assertEqual(len(at.text_input), 1)  # רק מסך הכניסה
+            at.text_input[0].set_value("0000-0000-0000")
+            at.button[0].click()
+            at.run()
+            self.assertEqual(len(at.text_input), 1)
+            self.assertTrue(any("קוד שגוי" in e.value for e in at.error))
+            at.text_input[0].set_value(code)
+            at.button[0].click()
+            at.run()
+            self.assertEqual([str(e.value)[:150] for e in at.exception], [])
+            self.assertEqual(len(at.text_input), 0)  # עבר את השער
+        user_sync.reset_for_tests()
+        for name in os.listdir(ROOT):
+            if name.startswith(("alerts_tester.db", "user_tester.db")):
+                try:
+                    os.remove(os.path.join(ROOT, name))
+                except OSError:
+                    pass
 
 
 if __name__ == "__main__":

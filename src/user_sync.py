@@ -57,6 +57,23 @@ class GitHubBackend:
         raw.raise_for_status()
         return raw.content, meta["sha"]
 
+    def list(self, prefix: str) -> list:
+        """קבצי תיקייה אחת: [(path, sha)]. תיקייה שלא קיימת = רשימה ריקה."""
+        import requests
+        r = requests.get(f"{API}/repos/{self.repo}/contents/{prefix}", headers=self._h(), params={"ref": self.branch}, timeout=20)
+        if r.status_code == 404:
+            return []
+        r.raise_for_status()
+        items = r.json()
+        return [(i["path"], i["sha"]) for i in items if i.get("type") == "file"] if isinstance(items, list) else []
+
+    def delete(self, path: str, sha: str, message: str) -> None:
+        import requests
+        r = requests.delete(f"{API}/repos/{self.repo}/contents/{path}", headers=self._h(),
+                            json={"message": message, "sha": sha, "branch": self.branch}, timeout=30)
+        if r.status_code not in (200, 404):
+            r.raise_for_status()
+
     def put(self, path: str, data: bytes, sha: str | None, message: str) -> str:
         import requests
         body = {"message": message, "content": base64.b64encode(data).decode(), "branch": self.branch}
@@ -78,6 +95,12 @@ class MemoryBackend:
 
     def get(self, path):
         return self.files.get(path)
+
+    def list(self, prefix):
+        return [(p, v[1]) for p, v in self.files.items() if p.startswith(prefix.rstrip("/") + "/")]
+
+    def delete(self, path, sha, message):
+        self.files.pop(path, None)
 
     def put(self, path, data, sha, message):
         cur = self.files.get(path)
@@ -147,6 +170,50 @@ def verify_code(user_id: str, code: str) -> bool:
     if not rec or not code or not code.strip():
         return False
     return hmac.compare_digest(_hash_code(code, rec["salt"]), rec["code_hash"])
+
+
+# --------------------------------------------------------------------------- כניסה בקוד, והסרת משתמש
+
+_LOGIN_MAX_FAILS = 8
+_LOGIN_WINDOW_SEC = 600
+_login_fails = getattr(sys, "_dipradar_login_fails", None)
+if _login_fails is None:
+    _login_fails = sys._dipradar_login_fails = {}
+
+
+def attempt_login(user_id: str, code: str, now: float | None = None) -> str:
+    """'ok' / 'bad' / 'locked'. אחרי 8 ניסיונות כושלים ב-10 דקות הכניסה של המשתמש הזה ננעלת (הגנה מניחושי קוד)."""
+    now = time.time() if now is None else now
+    fails = [t for t in _login_fails.get(user_id, []) if now - t < _LOGIN_WINDOW_SEC]
+    _login_fails[user_id] = fails
+    if len(fails) >= _LOGIN_MAX_FAILS:
+        return "locked"
+    if verify_code(user_id, code):
+        _login_fails[user_id] = []
+        return "ok"
+    fails.append(now)
+    return "bad"
+
+
+def remove_user(user_id: str) -> dict:
+    """מסיר בודק: הרשומה ב-users.json, החיבור בטלגרם, וכל הקבצים שלו (data/<id>/). הגרסאות הישנות נשארות בהיסטוריית git של הריפו
+    (מחיקה מלאה = מחיקת הריפו כולו). מחזיר מה נמחק."""
+    out = {"user": False, "telegram": False, "files": []}
+
+    def _drop_user(obj):
+        out["user"] = obj.get("users", {}).pop(user_id, None) is not None
+        return obj
+
+    def _drop_chat(obj):
+        out["telegram"] = obj.get("chats", {}).pop(user_id, None) is not None
+        return obj
+
+    update_json("users.json", _drop_user, f"remove tester {user_id}", default={"users": {}})
+    update_json("telegram_links.json", _drop_chat, f"unlink {user_id}", default={"last_update_id": 0, "chats": {}})
+    for path, sha in backend().list(f"data/{user_id}"):
+        backend().delete(path, sha, f"remove tester {user_id}")
+        out["files"].append(path)
+    return out
 
 
 def telegram_status(user_id: str) -> dict:

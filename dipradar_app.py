@@ -759,7 +759,41 @@ st.set_page_config(page_title="DipRadar", layout="wide")
 # חייב לרוץ לפני כל פתיחת DB - הורדה אחת בתהליך, ואז דחיפה ברקע של כל שינוי.
 try:
     from src import config as _config_mod, user_sync as _user_sync
-    if _config_mod.tester_mode() and _config_mod.tester_user():
+    _tester_user_active = _config_mod.tester_mode() and bool(_config_mod.tester_user())
+except Exception as _us_err:
+    print(f"user_sync import failed: {_us_err}")
+    _tester_user_active = False
+
+# כניסה בקוד אישי (רק כשהריפו הפרטי מוגדר): בלי קוד תקין לא נטענים נתונים ולא מוצג שום דבר מהאתר
+if _tester_user_active and _user_sync.configured():
+    _tu = _config_mod.tester_user()
+    if st.session_state.get("tester_auth_user") != _tu:
+        st.markdown(
+            '<div dir="rtl" style="max-width:420px;margin:12vh auto 0;text-align:center">'
+            '<h2>DipRadar</h2><p>הכנס את קוד הגישה האישי שלך</p></div>', unsafe_allow_html=True,
+        )
+        with st.form("tester_login"):
+            _code = st.text_input("קוד גישה", type="password", label_visibility="collapsed", placeholder="xxxx-xxxx-xxxx")
+            _go = st.form_submit_button("כניסה", use_container_width=True)
+        if _go:
+            try:
+                _login = _user_sync.attempt_login(_tu, _code)
+            except Exception:
+                _login = "error"
+            if _login == "ok":
+                st.session_state["tester_auth_user"] = _tu
+                st.rerun()
+            elif _login == "locked":
+                st.error("יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.")
+            elif _login == "error":
+                st.error("שגיאת חיבור. נסה שוב.")
+            else:
+                st.error("קוד שגוי.")
+        st.stop()
+
+# אתר בודק עם משתמש: הורדה אחת של הנתונים בתהליך + דחיפה ברקע (אחרי כניסה; חייב לרוץ לפני כל פתיחת DB)
+try:
+    if _tester_user_active:
         _user_sync.init_tester(_config_mod.tester_user(), store.user_db_path(os.path.join(ROOT_DIR, "alerts_tester.db")))
 except Exception as _us_err:
     print(f"user_sync init failed: {_us_err}")

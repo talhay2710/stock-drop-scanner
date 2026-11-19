@@ -4,6 +4,8 @@
   python manage_testers.py add michal "מיכל"   # יוצר משתמש; מדפיס קוד גישה (פעם אחת - נשמר רק גיבוב) וקישור טלגרם
   python manage_testers.py list                # משתמשים וסטטוס חיבור טלגרם
   python manage_testers.py link michal         # מדפיס שוב את קישור הטלגרם (BOT_USERNAME מ-config.yaml/סביבה)
+  python manage_testers.py remove michal       # מציג מה יימחק (לא מוחק)
+  python manage_testers.py remove michal --yes # מוחק: משתמש, חיבור טלגרם וכל הקבצים שלו. היסטוריית הריפו נשארת - למחיקה מלאה מוחקים את הריפו
 """
 import os
 import sys
@@ -58,6 +60,19 @@ def cmd_link(user_id: str) -> None:
     print(_link(rec["link_token"]))
 
 
+def cmd_remove(user_id: str, confirmed: bool) -> None:
+    user_id = user_id.strip().lower()
+    files = [p for p, _ in user_sync.backend().list(f"data/{user_id}")]
+    users, _ = user_sync.read_json("users.json", {"users": {}})
+    print(f"משתמש: {user_id} ({'קיים' if user_id in users['users'] else 'לא קיים'}); קבצים: {files or 'אין'}")
+    if not confirmed:
+        print("לא נמחק כלום. להרצה בפועל הוסף --yes")
+        return
+    out = user_sync.remove_user(user_id)
+    print(f"נמחק: משתמש={out['user']} טלגרם={out['telegram']} קבצים={out['files']}")
+    print("הגרסאות הישנות נשארות בהיסטוריית הריפו. את האתר של הבודק ב-Streamlit מוחקים ידנית.")
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if not user_sync.configured():
@@ -66,6 +81,8 @@ if __name__ == "__main__":
         cmd_add(a[1], a[2] if len(a) > 2 else a[1])
     elif a[:1] == ["list"]:
         cmd_list()
+    elif a[:1] == ["remove"] and len(a) in (2, 3):
+        cmd_remove(a[1], a[2:] == ["--yes"])
     elif a[:1] == ["link"] and len(a) == 2:
         cmd_link(a[1])
     else:
