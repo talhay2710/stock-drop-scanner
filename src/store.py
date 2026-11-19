@@ -161,7 +161,8 @@ def layout() -> str:
 
 
 def configure_layout(cfg: dict | None) -> None:
-    set_layout((cfg or {}).get("db_layout", "legacy"))
+    """מתג מההגדרות (db_layout); משתנה סביבה DB_LAYOUT גובר עליו (לבדיקות ולמעבר מבוקר)."""
+    set_layout(os.environ.get("DB_LAYOUT") or (cfg or {}).get("db_layout", "legacy"))
 
 
 def is_split() -> bool:
@@ -174,7 +175,10 @@ def user_table(name: str) -> str:
 
 
 def user_db_path(scan_db_path: str) -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(scan_db_path)), "user.db")
+    """alerts.db -> user.db. מצב בודק (alerts_tester.db) מקבל user_tester.db פרטי - לעולם לא את user.db האמיתי של הבעלים."""
+    folder = os.path.dirname(os.path.abspath(scan_db_path))
+    tester = os.path.basename(scan_db_path).startswith("alerts_tester")
+    return os.path.join(folder, "user_tester.db" if tester else "user.db")
 
 
 def _db_split():

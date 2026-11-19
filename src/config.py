@@ -22,6 +22,8 @@ def load_config(path: str = CONFIG_PATH) -> dict:
     if chat_id:
         cfg.setdefault("telegram", {})["chat_id"] = chat_id
 
+    from . import store  # פריסת הנתונים (legacy/split) נקבעת פעם אחת לכל תהליך, מההגדרות (או DB_LAYOUT)
+    store.configure_layout(cfg)
     return cfg
 
 

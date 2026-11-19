@@ -132,6 +132,10 @@ def run_scan(cfg: dict) -> list[dict]:
         if not any_open and israel_now().minute < 5:
             _probe_data_source(conn)  # אבחון: האם הענן מקבל נתונים מיאהו גם כשהשווקים סגורים (שעה אחת בכל פעם)
         try:
+            store_mod.sync_holding_state(conn)  # פריסת split: מצב ההתראות מתיישר מול האחזקות לפני הבדיקות (ב-legacy: no-op)
+        except Exception:
+            logger.exception("שגיאה בסנכרון מצב התראות האחזקה")
+        try:
             check_holdings_gains(cfg, conn)
         except Exception:
             logger.exception("שגיאה בבדיקת עליות באחזקות")
