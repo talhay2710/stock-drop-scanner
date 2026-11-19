@@ -269,6 +269,17 @@ def mark_as_bought(
     ההחזקה - בדיוק כמו סטופ אמיתי אצל ברוקר, לא מתעדכן עם תנודתיות עתידית.
     is_manual_trade - עסקה שבוצעה על דעת המשקיע ולא לפי התראת המערכת/האסטרטגיה -
     לא נמחקת, רק מסומנת כך שאפשר לסנן אותה מסטטיסטיקת ביצועי האסטרטגיה."""
+    if is_split():  # כותב יחיד: המשתמש -> user.db בלבד (אסור לגעת ב-alerts / holding_state: אלה של הסורק)
+        conn.execute(
+            "INSERT OR REPLACE INTO user.positions (alert_id, entry_price, qty, bought_at, stop_price, is_manual) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (alert_id, actual_entry_price, actual_qty, bought_at or dt.datetime.now().isoformat(timespec="seconds"),
+             holding_stop_price, 1 if is_manual_trade else 0),
+        )
+        if is_manual_trade:
+            conn.execute("INSERT OR REPLACE INTO user.alert_flags (alert_id, is_manual) VALUES (?, 1)", (alert_id,))
+        conn.commit()
+        return
     conn.execute(
         "UPDATE alerts SET bought = 1, actual_entry_price = ?, actual_qty = ?, bought_at = ?, "
         "holding_stop_price = ?, is_manual_trade = ? WHERE id = ?",
@@ -284,6 +295,10 @@ def mark_as_bought(
 def update_holding_stop_price(conn: sqlite3.Connection, alert_id: int, holding_stop_price: float) -> None:
     """מילוי retroactive של קו סטופ (ATR) לאחזקה שנקנתה לפני שהמנגנון הזה נוסף -
     נקרא פעם אחת בלבד (רק אם עדיין NULL), ואז הוא קבוע בדיוק כמו אחזקה חדשה."""
+    if is_split():
+        conn.execute("UPDATE user.positions SET stop_price = ? WHERE alert_id = ?", (holding_stop_price, alert_id))
+        conn.commit()
+        return
     conn.execute("UPDATE alerts SET holding_stop_price = ? WHERE id = ?", (holding_stop_price, alert_id))
     conn.commit()
 
@@ -336,6 +351,10 @@ def get_closed_trades_on_date(conn: sqlite3.Connection, date_iso: str) -> list[d
 
 
 def unmark_as_bought(conn: sqlite3.Connection, alert_id: int) -> None:
+    if is_split():  # מחיקת ה-position; מצב ההתראות של האחזקה מתנקה ע"י הסורק (sync_holding_state), לא כאן
+        conn.execute("DELETE FROM user.positions WHERE alert_id = ?", (alert_id,))
+        conn.commit()
+        return
     conn.execute(
         "UPDATE alerts SET bought = 0, actual_entry_price = NULL, actual_qty = NULL, bought_at = NULL, "
         "last_gain_alert_pct = NULL, stop_alert_active = 0, holding_stop_price = NULL WHERE id = ?",
@@ -345,6 +364,9 @@ def unmark_as_bought(conn: sqlite3.Connection, alert_id: int) -> None:
 
 
 def update_stop_alert(conn: sqlite3.Connection, alert_id: int, active: bool) -> None:
+    if is_split():
+        _upsert_holding_state(conn, alert_id, stop_alert_active=1 if active else 0)
+        return
     conn.execute("UPDATE alerts SET stop_alert_active = ? WHERE id = ?", (1 if active else 0, alert_id))
     conn.commit()
 
@@ -377,8 +399,40 @@ def get_last_own_close_before(conn: sqlite3.Connection, ticker: str, before_date
     return (row[0], row[1]) if row else None
 
 
+def _upsert_holding_state(conn: sqlite3.Connection, alert_id: int, **fields) -> None:
+    """כותב הסורק בלבד (פריסת split): מעדכן עמודה בודדת (או כמה) ב-holding_state, ויוצר שורה אם אין."""
+    conn.execute("INSERT OR IGNORE INTO main.holding_state (alert_id) VALUES (?)", (alert_id,))
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    conn.execute(f"UPDATE main.holding_state SET {sets} WHERE alert_id = ?", [*fields.values(), alert_id])
+    conn.commit()
+
+
+def sync_holding_state(conn: sqlite3.Connection) -> dict:
+    """פריסת split, נקרא ע"י הסורק בסוף כל סבב: מוחק שורות holding_state שאין להן position (אחזקה שנמכרה/בוטלה - כך המצב
+    הישן לא נשאר), ומוסיף שורה ריקה לכל position חדש. ב-legacy אין מה לסנכרן."""
+    if not is_split():
+        return {"removed": 0, "added": 0}
+    removed = conn.execute(
+        "DELETE FROM main.holding_state WHERE alert_id NOT IN (SELECT alert_id FROM user.positions)").rowcount
+    added = conn.execute(
+        "INSERT OR IGNORE INTO main.holding_state (alert_id) SELECT alert_id FROM user.positions").rowcount
+    conn.commit()
+    return {"removed": removed, "added": added}
+
+
 def get_bought_holdings(conn: sqlite3.Connection) -> list[dict]:
     """כל האחזקות המסומנות כ'נקנו בפועל' - לשימוש בבדיקת עלייה מהכניסה שלך."""
+    if is_split():
+        cur = conn.execute(
+            "SELECT a.id, a.ticker, a.company_name, a.index_name, p.entry_price AS actual_entry_price, p.qty AS actual_qty, "
+            "hs.last_gain_alert_pct, p.bought_at, COALESCE(hs.stop_alert_active, 0) AS stop_alert_active, "
+            "p.stop_price AS holding_stop_price, a.target_base, COALESCE(hs.target_alert_active, 0) AS target_alert_active, "
+            "p.is_manual AS is_manual_trade, COALESCE(hs.hold_alert_sent, 0) AS hold_alert_sent "
+            "FROM user.positions p JOIN alerts a ON a.id = p.alert_id "
+            "LEFT JOIN main.holding_state hs ON hs.alert_id = p.alert_id ORDER BY a.id"
+        )
+        columns = [c[0] for c in cur.description]
+        return [dict(zip(columns, row)) for row in cur.fetchall()]
     cur = conn.execute(
         "SELECT id, ticker, company_name, index_name, actual_entry_price, actual_qty, "
         "last_gain_alert_pct, bought_at, stop_alert_active, holding_stop_price, target_base, "
@@ -390,11 +444,17 @@ def get_bought_holdings(conn: sqlite3.Connection) -> list[dict]:
 
 
 def update_gain_alert(conn: sqlite3.Connection, alert_id: int, gain_pct: float) -> None:
+    if is_split():
+        _upsert_holding_state(conn, alert_id, last_gain_alert_pct=gain_pct)
+        return
     conn.execute("UPDATE alerts SET last_gain_alert_pct = ? WHERE id = ?", (gain_pct, alert_id))
     conn.commit()
 
 
 def update_target_alert(conn: sqlite3.Connection, alert_id: int, active: bool) -> None:
+    if is_split():
+        _upsert_holding_state(conn, alert_id, target_alert_active=1 if active else 0)
+        return
     conn.execute("UPDATE alerts SET target_alert_active = ? WHERE id = ?", (1 if active else 0, alert_id))
     conn.commit()
 
@@ -419,6 +479,9 @@ def record_scan_diag(conn: sqlite3.Connection, ts: str, index_name: str | None, 
 
 
 def update_hold_alert(conn: sqlite3.Connection, alert_id: int, sent: bool = True) -> None:
+    if is_split():
+        _upsert_holding_state(conn, alert_id, hold_alert_sent=1 if sent else 0)
+        return
     conn.execute("UPDATE alerts SET hold_alert_sent = ? WHERE id = ?", (1 if sent else 0, alert_id))
     conn.commit()
 
@@ -625,9 +688,32 @@ ALERT_USER_COLS = (
 )
 
 
-def _alerts_select_sql(columns, where: str, order: str) -> str:
-    cols = "*" if columns in (None, "*") else ", ".join(columns)
-    sql = f"SELECT {cols} FROM alerts"
+_SPLIT_COL_EXPR = {
+    "bought": "(CASE WHEN p.alert_id IS NOT NULL THEN 1 ELSE 0 END)",
+    "actual_entry_price": "p.entry_price",
+    "actual_qty": "p.qty",
+    "bought_at": "p.bought_at",
+    "holding_stop_price": "p.stop_price",
+    "is_manual_trade": "COALESCE(p.is_manual, f.is_manual, 0)",
+    "last_gain_alert_pct": "hs.last_gain_alert_pct",
+    "stop_alert_active": "COALESCE(hs.stop_alert_active, 0)",
+    "target_alert_active": "COALESCE(hs.target_alert_active, 0)",
+    "hold_alert_sent": "COALESCE(hs.hold_alert_sent, 0)",
+}
+_SPLIT_FROM = (
+    "alerts a LEFT JOIN user.positions p ON p.alert_id = a.id LEFT JOIN user.alert_flags f ON f.alert_id = a.id "
+    "LEFT JOIN main.holding_state hs ON hs.alert_id = a.id"
+)
+
+
+def _alerts_select_sql(conn: sqlite3.Connection, columns, where: str, order: str) -> str:
+    if is_split():
+        names = ([r[1] for r in conn.execute("PRAGMA main.table_info(alerts)")] if columns in (None, "*") else list(columns))
+        cols = ", ".join(f"{_SPLIT_COL_EXPR.get(c, 'a.' + c)} AS {c}" for c in names)
+        sql = f"SELECT {cols} FROM {_SPLIT_FROM}"
+    else:
+        cols = "*" if columns in (None, "*") else ", ".join(columns)
+        sql = f"SELECT {cols} FROM alerts"
     if where:
         sql += f" WHERE {where}"
     if order:
@@ -637,12 +723,12 @@ def _alerts_select_sql(columns, where: str, order: str) -> str:
 
 def read_alerts_df(conn: sqlite3.Connection, columns="*", where: str = "", params: tuple = (), order: str = "") -> pd.DataFrame:
     """alerts כ-DataFrame. columns: "*" או רשימת עמודות; where/order: ביטוי SQL (בלי המילים WHERE/ORDER BY)."""
-    return pd.read_sql_query(_alerts_select_sql(columns, where, order), conn, params=params)
+    return pd.read_sql_query(_alerts_select_sql(conn, columns, where, order), conn, params=params)
 
 
 def read_alerts_rows(conn: sqlite3.Connection, columns, where: str = "", params: tuple = (), order: str = "") -> list[tuple]:
     """alerts כרשימת tuple-ים, לפי סדר העמודות שהתבקש."""
-    return conn.execute(_alerts_select_sql(columns, where, order), params).fetchall()
+    return conn.execute(_alerts_select_sql(conn, columns, where, order), params).fetchall()
 
 
 def exclusion_clause() -> str:
