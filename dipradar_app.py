@@ -2821,7 +2821,7 @@ def _render_movers_v3() -> None:
                     _wl_default_px = None if _wl_cur_px is None else round(_wl_cur_px * (100.0 if _wl_is_il else 1.0), 2)
                     _wl_exec_raw = st.number_input(
                         "שער ביצוע", min_value=0.0, value=_wl_default_px, step=1.0 if _wl_is_il else 0.01,
-                        format="%.2f", key=f"watchlist_add_exec_{_wl_add_chosen}", placeholder="שער",
+                        format="%.2f", key=f"watchlist_add_exec_{_wl_add_chosen}_{st.session_state.get('wl_exec_nonce', 0)}", placeholder="שער",
                     )
                     _wl_add_clicked = st.button("הוספה למעקב", key="watchlist_add_btn")
                 if _wl_add_clicked:
@@ -2837,7 +2837,8 @@ def _render_movers_v3() -> None:
                             _wl_add_conn, _wl_add_chosen, _wl_add_name_map.get(_wl_add_chosen), _wl_add_index, _wl_entry_price,
                         )
                         _wl_add_conn.close()
-                        st.session_state.pop(f"watchlist_add_exec_{_wl_add_chosen}", None)
+                        # מפתח חדש (ולא pop של הישן): ווידג'ט שכבר נשלח מהדפדפן שומר את הערך האחרון, ולכן השדה חוזר לשער הנוכחי רק עם מפתח שונה
+                        st.session_state["wl_exec_nonce"] = st.session_state.get("wl_exec_nonce", 0) + 1
                         _sync_and_warn("watchlist changed", include_db=True)
                         st.rerun()
 
