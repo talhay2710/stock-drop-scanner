@@ -5,6 +5,7 @@
 כל פונקציה כאן לא זורקת: כשל בבודקים לעולם לא מפיל סריקה או משבש את ההתראות של הבעלים. לוגים בלי כתובות (הטוקן חלק מהכתובת)."""
 import json
 import logging
+import os
 import time
 
 import requests
@@ -20,9 +21,12 @@ _cache: dict = {"at": 0.0, "chats": {}}
 
 
 def _token(cfg: dict) -> str | None:
-    tg = cfg.get("telegram", {})
-    token = tg.get("bot_token", "")
-    if not tg.get("enabled") or not token or "REPLACE_ME" in token:
+    """טוקן הבוט לשליחה לבודקים. בלתי תלוי במתג "טלגרם" שלך (כיבוי טלגרם אצלך לא עוצר בודקים), ורק בסורק בענן (GitHub Actions):
+    כך סריקה ידנית/מקומית מהמחשב שלך לא שולחת לבודקים עותק שני של מה שהסורק בענן כבר שולח."""
+    if os.environ.get("GITHUB_ACTIONS") != "true" and os.environ.get("TESTER_BROADCAST") != "1":
+        return None
+    token = cfg.get("telegram", {}).get("bot_token", "")
+    if not token or "REPLACE_ME" in token:
         return None
     return token
 

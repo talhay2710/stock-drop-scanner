@@ -39,6 +39,9 @@ class _Base(unittest.TestCase):
         user_sync, tester_telegram = importlib.import_module("src.user_sync"), importlib.import_module("src.tester_telegram")
         user_sync.reset_for_tests()
         user_sync._backend_override = user_sync.MemoryBackend()
+        env = mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"})  # שליחה לבודקים מותרת רק בסורק בענן
+        env.start()
+        self.addCleanup(env.stop)
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "user_tester.db")
 
@@ -285,12 +288,17 @@ class TelegramLinks(_Base):
         self.assertEqual((n, sent), (1, [2]))  # רק b ביקש גם 'לחכות'
 
     def test_noop_when_telegram_disabled_or_unconfigured(self):
-        off = {"telegram": {"enabled": False, "bot_token": "T"}}
+        no_token = {"telegram": {"enabled": True, "bot_token": ""}}
         with mock.patch("requests.post") as post, mock.patch("requests.get") as get:
-            self.assertEqual(tester_telegram.broadcast(off, "x"), 0)
-            self.assertEqual(tester_telegram.poll_links(off), 0)
+            self.assertEqual(tester_telegram.broadcast(no_token, "x"), 0)
+            self.assertEqual(tester_telegram.poll_links(no_token), 0)
             post.assert_not_called()
             get.assert_not_called()
+        # כיבוי טלגרם אצל הבעלים לא עוצר בודקים; אבל מחוץ לענן (המחשב שלך) לא שולחים
+        off = {"telegram": {"enabled": False, "bot_token": "T"}}
+        self.assertEqual(tester_telegram._token(off), "T")
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "", "TESTER_BROADCAST": ""}):
+            self.assertIsNone(tester_telegram._token(off))
         user_sync.reset_for_tests()
         os.environ.pop("USERS_REPO_TOKEN", None)
         with mock.patch("requests.post") as post:

@@ -989,17 +989,6 @@ def _scan_one_index(
                 logger.warning("שליחת טלגרם נכשלה עבור %s - ההתראה בוטלה ותנסה שוב בסריקה הבאה", ticker)
                 continue
 
-            # בודקים מחוברים מקבלים התראה *חדשה* בלבד (לא עריכה של הודעה קיימת) - כך כל התראה נשלחת להם פעם אחת בדיוק,
-            # ורק אם היא מתאימה להעדפות של כל אחד (ברירת מחדל: קנייה בלבד)
-            if new_message_id:
-                try:
-                    tester_telegram.broadcast(
-                        cfg, message, kind="drop", index=index, signal=_entry_signal(index, row, analysis),
-                        drop_pct=row["pct_change"], multi_day_only=bool(is_multi_day_only), n_day_pct=row.get("n_day_change"),
-                    )
-                except Exception:
-                    logger.exception("שליחה לבודקים נכשלה (לא משפיע על ההתראה שלך)")
-
             if is_multi_day_only:
                 desktop_title = f"📉 {ticker} ירדה מצטבר {row.get('n_day_change', 0):.1f}% ב-{multi_day_window} ימים"
             else:
@@ -1009,6 +998,17 @@ def _scan_one_index(
                 title=desktop_title,
                 message=analysis.reason_text[:250],
             )
+
+        # בודקים מחוברים מקבלים התראה *חדשה* בלבד (לא עדכון של התראה קיימת מאותו יום) - כל התראה נשלחת להם פעם אחת בדיוק,
+        # ורק אם היא מתאימה לבחירות של כל אחד. בלתי תלוי במתג הטלגרם/סוג ההודעה שלך (ואם השליחה אליך נכשלה לא מגיעים לכאן - ההתראה תיבדק שוב)
+        if prior_snapshot is None:
+            try:
+                tester_telegram.broadcast(
+                    cfg, message, kind="drop", index=index, signal=_entry_signal(index, row, analysis),
+                    drop_pct=row["pct_change"], multi_day_only=bool(is_multi_day_only), n_day_pct=row.get("n_day_change"),
+                )
+            except Exception:
+                logger.exception("שליחה לבודקים נכשלה (לא משפיע על ההתראה שלך)")
 
         # וקטורים מועמדים לניקוד נשמרים לניתוח עתידי (alert_features.py) - לא משפיעים על הניקוד, ולעולם לא מפילים התראה
         try:
