@@ -229,8 +229,9 @@ def telegram_status(user_id: str) -> dict:
 
 # העדפות התראות טלגרם של בודק: data/<id>/prefs.json (נכתב רק ע"י האתר של הבודק, נקרא ע"י הסורק). ברירת מחדל = קנייה בלבד.
 PREFS_SIGNALS = ("buy", "wait", "avoid")
-PREFS_INDICES = ("TA35", "TA125")  # המדדים שהסורק האוטומטי סורק בפועל
-PREFS_DEFAULTS = {"enabled": True, "signals": ["buy"], "indices": list(PREFS_INDICES), "min_drop_pct": 0.0,
+PREFS_INDICES = ("TA35", "TA125", "SP500", "NASDAQ100")  # כל המדדים שניתן לבחור; בפועל מגיעות התראות רק מאלה שהסורק בענן סורק
+DEFAULT_INDICES = ("TA35", "TA125")
+PREFS_DEFAULTS = {"enabled": True, "signals": ["buy"], "indices": list(DEFAULT_INDICES), "min_drop_pct": 0.0,
                   "multi_day": True, "min_multi_pct": 0.0, "reversal": False, "drop_alert": True,
                   "holdings_stop": True, "holdings_target": True, "holdings_gain": True, "holdings_hold_limit": True,
                   "price_alert": True, "morning_summary": False, "daily_summary": False, "weekly_report": False,
@@ -306,7 +307,7 @@ def prefs_from_cfg(cfg: dict, existing: dict | None = None) -> dict:
     out = dict(existing or {})
     out.update({
         "enabled": bool((cfg.get("telegram") or {}).get("enabled", True)),
-        "indices": list(cfg.get("indices") or ([cfg["index"]] if cfg.get("index") else PREFS_INDICES)),
+        "indices": list(cfg.get("indices") or ([cfg["index"]] if cfg.get("index") else DEFAULT_INDICES)),
         "min_drop_pct": cfg.get("drop_threshold_pct", 0.0),
         "multi_day": bool(cfg.get("multi_day_enabled", True)),
         "min_multi_pct": cfg.get("multi_day_threshold_pct", 0.0),

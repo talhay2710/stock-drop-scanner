@@ -404,6 +404,13 @@ class TelegramLinks(_Base):
         off = user_sync.clean_prefs({"multi_day": False})
         self.assertFalse(w(off, "drop", index="TA35", signal="buy", drop_pct=-1, multi_day_only=True, n_day_pct=-9))
 
+    def test_us_indices_can_be_chosen(self):
+        p = user_sync.clean_prefs({"indices": ["TA35", "NASDAQ100", "SP500", "FOO"]})
+        self.assertEqual(p["indices"], ["TA35", "SP500", "NASDAQ100"])
+        w = tester_telegram.wants
+        self.assertTrue(w(p, "drop", index="NASDAQ100", signal="buy", drop_pct=-4))
+        self.assertFalse(w(user_sync.clean_prefs({}), "drop", index="NASDAQ100", signal="buy", drop_pct=-4))  # ברירת מחדל: ת"א בלבד
+
     def test_clean_prefs_repairs_garbage(self):
         p = user_sync.clean_prefs({"signals": ["buy", "hack"], "indices": "x", "min_drop_pct": "abc", "min_multi_pct": 999, "reversal": 1})
         self.assertEqual(p["signals"], ["buy"])
