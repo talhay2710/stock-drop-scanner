@@ -4346,6 +4346,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                     _stop_gap = stop_distance_pct(_cur, stop) if (stop and _cur is not None) else None
                     _tgt_price = live_target_price(r["entry"], stop, r.get("forecast_target")) if stop else None
                     _tgt_gap = target_distance_pct(_cur, _tgt_price) if (_tgt_price and _cur is not None) else None
+                    _tgt_pct = ((_tgt_price / r["entry"] - 1) * 100) if (_tgt_price and r.get("entry")) else None  # היעד עצמו: % מעל הכניסה
                     st.markdown(
                         '<div class="v3h hw">' + ui_v3.hold_row(
                             r["name"], str(r["ticker"]).replace(".TA", ""), sym_r, r.get("current_value"), r.get("portfolio_pct"),
@@ -4353,7 +4354,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS,
                             get_holding_sparkline(r["ticker"], r.get("bought_at")), r.get("entry") or None,
                             (r.get("entry_signal_text") or "", r.get("entry_signal_color") or ""), out, is_open, r.get("net_pnl"),
-                            _tgt_gap is not None and _tgt_gap < 0 and not out,
+                            _tgt_gap is not None and _tgt_gap < 0 and not out, _tgt_pct,
                         ) + "</div>", unsafe_allow_html=True,
                     )
                     if st.button(" ", key=f"v3_open_holding_{rid}"):
@@ -4383,7 +4384,7 @@ def _render_holdings_v3(rows: list[dict], render_open_expander) -> None:
                             stop_px=px0(stop) if stop else "", tgt_px=px0(tgt_price) if tgt_price else "", sector=_sec,
                             mobile_strip=ui_v3.hold_mobile_strip(
                                 r.get("current_value"), sym_r, r.get("portfolio_pct"), _stop_gap, _tgt_gap,
-                                r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl")),
+                                r.get("trading_days_held"), strategy_mod.HOLD_MAX_DAYS, r.get("pnl"), r.get("net_pnl"), _tgt_pct),
                         ) + "</div></div>", unsafe_allow_html=True,
                     )
                     _v3_sell_flow(r, "form")

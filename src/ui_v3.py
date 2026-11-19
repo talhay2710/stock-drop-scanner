@@ -955,7 +955,8 @@ def hold_head(day_label: str = "היום") -> str:
 def hold_row(name: str, mono: str, sym: str, value: float | None, share: float | None, pnl_amt: float | None, pnl_pct: float,
              day_amt: float | None, day_pct: float | None, stop_gap: float | None, tgt_gap: float | None,
              held: int | None, horizon: int | None, spark_prices=None, spark_base: float | None = None,
-             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None, hit: bool = False) -> str:
+             signal: tuple[str, str] | None = None, out: bool = False, is_open: bool = False, net_amt: float | None = None, hit: bool = False,
+             tgt_pct: float | None = None) -> str:
     """שורת אחזקה בטבלה החדשה: שם + סיגנל כניסה, שווי ומשקל, רווח/הפסד (סכום ואחוז), שינוי היום, מרחק מסטופ ויעד, ימי החזקה, גרף, חץ."""
     dot = f'<i class="sd" style="background:{esc(signal[1])}" title="סיגנל כניסה: {esc(signal[0])}"></i>' if signal and signal[1] else ""
     nm = f'<span class="nm"><span class="l1">{dot}<bdi>{esc(short_name(name))}</bdi><span class="mono">{esc(mono)}</span>{_CHEV}</span></span>'
@@ -963,12 +964,16 @@ def hold_row(name: str, mono: str, sym: str, value: float | None, share: float |
            + (f'<small>{num(f"{share:.0f}%")} מהתיק</small>' if share is not None else "") + "</span>") if value is not None else '<span class="c"></span>'
     ret = f'<span class="c {cls_for(pnl_pct)}"><b>{num(signed(pnl_pct, 1, "%"))}</b></span>'
     pl = f'<span class="c {cls_for(pnl_pct)}"><b>{_money_cell(pnl_amt, sym, True, False) if pnl_amt is not None else ""}</b></span>'
-    net = (f'<span class="c {cls_for(net_amt)}"><b>{_money_cell(net_amt, sym, True)}</b></span>' if net_amt is not None else '<span class="c"></span>')
+    net = (f'<span class="c {cls_for(net_amt)}"><b>{_money_cell(net_amt, sym, True, False)}</b></span>' if net_amt is not None else '<span class="c"></span>')
     day = (f'<span class="c {cls_for(day_pct)}"><b>{_money_cell(day_amt, sym, True, False) if day_amt is not None else ""}</b>'
            f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if day_pct is not None else '<span class="c"></span>'
     lines = []
-    if tgt_gap is not None:
-        lines.append('<em class="up">מעל היעד</em>' if tgt_gap < 0 else f'<em>יעד <b class="up">{num(f"+{tgt_gap:.1f}%")}</b></em>')
+    if tgt_gap is not None and tgt_gap < 0:
+        lines.append('<em class="up">מעל היעד</em>')
+    elif tgt_pct is not None:  # היעד קבוע - אחוז מעל מחיר הכניסה, לא תלוי בירידה או בעלייה של המחיר
+        lines.append(f'<em>יעד <b class="up">{num(f"+{tgt_pct:.1f}%")}</b></em>')
+    elif tgt_gap is not None:
+        lines.append(f'<em>יעד <b class="up">{num(f"+{tgt_gap:.1f}%")}</b></em>')
     if stop_gap is not None:
         lines.append('<em class="down">מתחת לסטופ</em>' if stop_gap < 0 else f'<em>סטופ <b class="down">{num(f"-{stop_gap:.1f}%")}</b></em>')
     reach = f'<span class="c rc2">{"".join(lines)}</span>'
@@ -987,7 +992,7 @@ def hold_total(sym: str, value: float | None, pnl_pct: float | None, pnl_amt: fl
     pl = f'<span class="c {cls_for(pnl_amt)}"><b>{_money_cell(pnl_amt, sym, True, False)}</b></span>' if pnl_amt is not None else '<span class="c"></span>'
     day = (f'<span class="c {cls_for(day_amt)}"><b>{_money_cell(day_amt, sym, True, False)}</b>'
            f'<small>{num(signed(day_pct, 1, "%"))}</small></span>') if (day_amt is not None and day_pct is not None) else '<span class="c"></span>'
-    net = f'<span class="c {cls_for(net_amt)}"><b>{_money_cell(net_amt, sym, True)}</b></span>' if net_amt is not None else '<span class="c"></span>'
+    net = f'<span class="c {cls_for(net_amt)}"><b>{_money_cell(net_amt, sym, True, False)}</b></span>' if net_amt is not None else '<span class="c"></span>'
     return (
         f'<div class="hrow htot"><span class="nm"><span class="l1"><bdi>סה״כ</bdi></span></span>{val}{ret}{pl}{day}'
         f'<span class="c rc2"></span><span class="c"></span>{net}<span class="sp"></span></div>'
@@ -995,7 +1000,8 @@ def hold_total(sym: str, value: float | None, pnl_pct: float | None, pnl_amt: fl
 
 
 def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_gap: float | None, tgt_gap: float | None,
-                      held: int | None, horizon: int | None, pnl_amt: float | None = None, net_amt: float | None = None) -> str:
+                      held: int | None, horizon: int | None, pnl_amt: float | None = None, net_amt: float | None = None,
+                      tgt_pct: float | None = None) -> str:
     """בנייד העמודות הצפופות מוסתרות מהשורה - הן מופיעות כאן בראש הפרטים של השורה שנפתחת."""
     cells = []
     if pnl_amt is not None:
@@ -1005,10 +1011,14 @@ def hold_mobile_strip(value: float | None, sym: str, share: float | None, stop_g
     if value is not None:
         cells.append(f'<div><small>שווי</small><strong>{_money_cell(value, sym)}</strong>'
                      + (f'<em>{num(f"{share:.0f}%")} מהתיק</em>' if share is not None else "") + "</div>")
-    if stop_gap is not None or tgt_gap is not None:
+    if stop_gap is not None or tgt_gap is not None or tgt_pct is not None:
         parts = []
-        if tgt_gap is not None:
-            parts.append("מעל היעד" if tgt_gap < 0 else f'יעד {num(f"+{tgt_gap:.1f}%")}')
+        if tgt_gap is not None and tgt_gap < 0:
+            parts.append("מעל היעד")
+        elif tgt_pct is not None:
+            parts.append(f'יעד {num(f"+{tgt_pct:.1f}%")}')
+        elif tgt_gap is not None:
+            parts.append(f'יעד {num(f"+{tgt_gap:.1f}%")}')
         if stop_gap is not None:
             parts.append("מתחת לסטופ" if stop_gap < 0 else f'סטופ {num(f"-{stop_gap:.1f}%")}')
         cells.append(f'<div><small>יעד · סטופ</small><strong class="two">{"<br>".join(parts)}</strong></div>')
