@@ -139,6 +139,112 @@ class AccessCode(_Base):
         self.assertNotIn(code, json.dumps(rec))  # הקוד עצמו לא נשמר
 
 
+class OwnSidebarSettings(_Base):
+    """הסיידבר של הבודק (config.yaml + prefs.json) נשמר בריפו ומשפיע על ההתראות שלו."""
+    CFG = {"telegram": {"enabled": True, "bot_token": "T"},
+           "fees": {"IL": {"commission_pct": 0.3, "commission_min": 26.0, "currency": "ILS", "capital_gains_tax_pct": 25.0,
+                           "management_fee_annual_pct": 1.15}}}
+
+    def test_prefs_from_cfg_maps_sidebar_to_prefs(self):
+        cfg = {"telegram": {"enabled": False}, "indices": ["TA125"], "drop_threshold_pct": 5.0, "multi_day_enabled": False,
+               "multi_day_threshold_pct": 8.0,
+               "telegram_message_types": {"drop_alert": False, "reversal_alert": True, "daily_summary": True, "holdings_stop": False,
+                                          "price_alert": False},
+               "fees": {"IL": {"commission_pct": 0.1, "commission_min": 5, "capital_gains_tax_pct": 20, "management_fee_annual_pct": 0}}}
+        p = user_sync.prefs_from_cfg(cfg, {"signals": ["buy", "wait"]})
+        self.assertFalse(p["enabled"])
+        self.assertEqual(p["indices"], ["TA125"])
+        self.assertEqual((p["min_drop_pct"], p["min_multi_pct"], p["multi_day"]), (5.0, 8.0, False))
+        self.assertEqual((p["drop_alert"], p["reversal"], p["daily_summary"], p["holdings_stop"], p["price_alert"]),
+                         (False, True, True, False, False))
+        self.assertEqual(p["signals"], ["buy", "wait"])          # נשמר ממה שהיה (אין לו מקבילה בסיידבר)
+        self.assertEqual(p["fees"]["IL"]["capital_gains_tax_pct"], 20.0)
+        self.assertFalse(p["weekly_report"])                      # לא הוגדר בסיידבר = ברירת מחדל של בודק (כבוי)
+
+    def test_fees_are_sanitized(self):
+        p = user_sync.clean_prefs({"fees": {"IL": {"commission_pct": "x", "capital_gains_tax_pct": 500, "commission_min": 26,
+                                                    "management_fee_annual_pct": 1.5}, "XX": {"a": 1}}})
+        self.assertEqual(p["fees"], {"IL": {"commission_min": 26.0, "management_fee_annual_pct": 1.5}})
+        self.assertIsNone(user_sync.clean_prefs({"fees": "bad"})["fees"])
+
+    def test_local_prefs_roundtrip(self):
+        path = os.path.join(self.tmp, "tester_prefs.json")
+        self.assertEqual(user_sync.read_local_prefs(path)["signals"], ["buy"])   # אין קובץ = ברירת מחדל
+        user_sync.write_local_prefs(path, {"signals": ["avoid"], "enabled": False})
+        got = user_sync.read_local_prefs(path)
+        self.assertEqual((got["signals"], got["enabled"]), (["avoid"], False))
+
+    def test_extra_files_survive_server_reset_and_are_not_overwritten_before_pull(self):
+        cfg_path, prefs_path = os.path.join(self.tmp, "config.yaml"), os.path.join(self.tmp, "tester_prefs.json")
+        extras = {"config.yaml": cfg_path, "prefs.json": prefs_path}
+        self.assertEqual(user_sync.init_tester("michal", self.db, extras), "none")
+        _make_db(self.db, ["AAA.TA"])
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("drop_threshold_pct: 6.0\n")
+        user_sync.write_local_prefs(prefs_path, {"signals": ["wait"]})
+        self.assertTrue(user_sync.push_if_changed("michal", self.db))
+        be = user_sync._backend_override
+        self.assertEqual(be.get("data/michal/config.yaml")[0], b"drop_threshold_pct: 6.0\n")
+        self.assertEqual(json.loads(be.get("data/michal/prefs.json")[0])["signals"], ["wait"])
+        self.assertFalse(user_sync.push_if_changed("michal", self.db))           # בלי שינוי - בלי דחיפה
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("drop_threshold_pct: 7.0\n")
+        self.assertTrue(user_sync.push_if_changed("michal", self.db))             # רק הקובץ שהשתנה
+        # שרת מתאפס: כל הקבצים המקומיים נעלמים וחוזרים מהריפו
+        for path in (self.db, cfg_path, prefs_path):
+            os.remove(path)
+        user_sync.reset_for_tests()
+        user_sync._backend_override = be
+        self.assertEqual(user_sync.init_tester("michal", self.db, extras), "pulled")
+        self.assertEqual(open(cfg_path, encoding="utf-8").read(), "drop_threshold_pct: 7.0\n")
+        self.assertEqual(user_sync.read_local_prefs(prefs_path)["signals"], ["wait"])
+        self.assertEqual(_rows(self.db), ["AAA.TA"])
+
+    def test_failed_pull_never_overwrites_remote_settings(self):
+        cfg_path = os.path.join(self.tmp, "config.yaml")
+        extras = {"config.yaml": cfg_path}
+        user_sync.init_tester("michal", self.db, extras)
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("real: 1\n")
+        _make_db(self.db, ["A.TA"])
+        user_sync.push_if_changed("michal", self.db)
+        be = user_sync._backend_override
+        user_sync.reset_for_tests()
+        user_sync._backend_override = be
+        os.remove(cfg_path)
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("default: 1\n")          # קובץ ברירת מחדל חדש בשרת שהתאפס
+        with mock.patch.object(be, "get", side_effect=RuntimeError("network")):
+            self.assertEqual(user_sync.init_tester("michal", self.db, extras), "pull_failed")
+        self.assertFalse(user_sync.push_if_changed("michal", self.db))
+        self.assertEqual(be.files["data/michal/config.yaml"][0], b"real: 1\n")
+
+    def test_telegram_switch_stops_everything_for_that_tester(self):
+        off = user_sync.clean_prefs({"enabled": False, "signals": ["buy", "wait", "avoid"]})
+        self.assertFalse(tester_telegram.wants(off, "drop", index="TA35", signal="buy", drop_pct=-9))
+        self.assertFalse(tester_telegram.wants(off, "reversal", index="TA35"))
+        user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"michal": 5}}, None, "t")
+        user_sync.write_prefs("michal", {"enabled": False})
+        tester_telegram._cache.update(at=0.0, chats={})
+        with mock.patch("requests.post") as post:
+            self.assertEqual(tester_telegram.broadcast(self.CFG, "x", kind="drop", index="TA35", signal="buy", drop_pct=-9), 0)
+            post.assert_not_called()
+
+    def test_drop_alert_type_switch(self):
+        p = user_sync.clean_prefs({"drop_alert": False, "reversal": True})
+        self.assertFalse(tester_telegram.wants(p, "drop", index="TA35", signal="buy", drop_pct=-9))
+        self.assertTrue(tester_telegram.wants(p, "reversal", index="TA35"))
+
+    def test_tester_defaults_in_config(self):
+        from src import config
+        cfg = {"telegram": {"enabled": False}, "telegram_message_types": {"drop_alert": True, "daily_summary": True,
+                                                                           "health_startup": True}}
+        config._apply_tester_defaults(cfg)
+        self.assertTrue(cfg["telegram"]["enabled"])
+        t = cfg["telegram_message_types"]
+        self.assertEqual((t["drop_alert"], t["daily_summary"], t["reversal_alert"], t["health_startup"]), (True, False, False, False))
+
+
 class AccessCodeAndRemoval(_Base):
     def setUp(self):
         super().setUp()
@@ -400,6 +506,27 @@ class TesterHoldings(_Base):
         self.assertEqual(self._run(100.5, {"holdings_hold_limit"}), [])
         self._put_user_db([(7, 100.0, 10.0, old, 95.0, 0)])
         self.assertEqual(len(self._run(100.5, {"holdings_hold_limit"})), 1)
+
+    def test_testers_own_fees_change_the_net_amount(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        base = self._run(104.0, {"holdings_gain"})[0]
+        user_sync.reset_for_tests()
+        # אותו מצב, אבל בלי מס ובלי עמלות -> נטו גבוה יותר (טקסט אחר)
+        free = self.th.with_fees(self.CFG, {"IL": {"commission_pct": 0.0, "commission_min": 0.0, "capital_gains_tax_pct": 0.0,
+                                                     "management_fee_annual_pct": 0.0}})
+        self.assertEqual(free["fees"]["IL"]["currency"], "ILS")                    # שדות שהבודק לא קבע נשארים
+        self.assertEqual(self.CFG["fees"]["IL"]["capital_gains_tax_pct"], 25.0)    # המקור לא משתנה
+        user_sync._backend_override = user_sync.MemoryBackend()
+        user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"michal": 555}}, None, "t")
+        tester_telegram._cache.update(at=0.0, chats={})
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        sent = []
+        with mock.patch("requests.post", side_effect=lambda url, json=None, timeout=None: (sent.append(json["text"]), _Resp(200))[1]), \
+                mock.patch("src.market_data.fetch_current_price", return_value=104.0), \
+                mock.patch.object(self.th, "is_market_open", return_value=True):
+            self.th.check_one(free, self.scan, "michal", 555, {"holdings_gain"})
+        self.assertNotEqual(base, sent[0])
+        self.assertIn("40", sent[0])  # 104-100 על 10 מניות = 40 נטו בדיוק, בלי עמלות ומס
 
     def test_price_alert_fires_once_and_skips_cancelled(self):
         pa = [(1, "AAA.TA", "אאא", "TA35", 110.0, "above", "2026-11-18", 0),

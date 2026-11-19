@@ -33,10 +33,10 @@ def run(cfg: dict, conn, in_window=None, today: str | None = None) -> int:
     sent = 0
     for uid, rec in dict(tester_telegram.recipients()).items():
         kinds = [k for k in due if rec["prefs"].get(KINDS[k][0])]
-        if not kinds:
+        if not kinds or not rec["prefs"].get("enabled", True):
             continue
         try:
-            sent += _run_one(cfg, conn, uid, rec["chat_id"], kinds, today, cache)
+            sent += _run_one(tester_holdings.with_fees(cfg, rec["prefs"].get("fees")), conn, uid, rec["chat_id"], kinds, today, cache)
         except Exception as e:
             logger.warning("סיכומים לבודק %s נכשלו (%s)", uid, type(e).__name__)
     return sent

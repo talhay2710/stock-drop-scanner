@@ -66,6 +66,16 @@ def save_state(uid: str, state: dict, sha) -> None:
         logger.warning("שמירת מצב ההתראות של %s התנגשה - ננסה בסבב הבא", uid)
 
 
+def with_fees(cfg: dict, fees: dict | None) -> dict:
+    """עותק של cfg עם העמלות/מיסים של הבודק (ממוזגים מעל שלך) - לחישוב הרווח נטו בהודעות שלו."""
+    if not fees:
+        return cfg
+    merged = {c: dict(v) for c, v in (cfg.get("fees") or {}).items()}
+    for country, vals in fees.items():
+        merged.setdefault(country, {}).update(vals)
+    return {**cfg, "fees": merged}
+
+
 def check_testers(cfg: dict, conn) -> int:
     """בודק אחזקות של כל הבודקים המחוברים. conn = חיבור למסד הסריקה (alerts.db: שם הטיקר/המדד/היעד של כל התראה). מחזיר כמה הודעות נשלחו."""
     token = tester_telegram._token(cfg)
@@ -73,11 +83,13 @@ def check_testers(cfg: dict, conn) -> int:
         return 0
     sent = 0
     for uid, rec in dict(tester_telegram.recipients()).items():
+        if not rec["prefs"].get("enabled", True):
+            continue
         types = {t for t in HOLDING_TYPES if rec["prefs"].get(t, True)}
         if not types:
             continue
         try:
-            sent += check_one(cfg, conn, uid, rec["chat_id"], types)
+            sent += check_one(with_fees(cfg, rec["prefs"].get("fees")), conn, uid, rec["chat_id"], types)
         except Exception as e:
             logger.warning("בדיקת אחזקות של בודק %s נכשלה (%s)", uid, type(e).__name__)
     return sent

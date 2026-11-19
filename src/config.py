@@ -15,6 +15,9 @@ def load_config(path: str = CONFIG_PATH) -> dict:
     with open(load_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    if tester_mode() and load_path == CONFIG_EXAMPLE_PATH:
+        _apply_tester_defaults(cfg)
+
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if bot_token:
         cfg.setdefault("telegram", {})["bot_token"] = bot_token
@@ -25,6 +28,17 @@ def load_config(path: str = CONFIG_PATH) -> dict:
     from . import store  # פריסת הנתונים (legacy/split) נקבעת פעם אחת לכל תהליך, מההגדרות (או DB_LAYOUT)
     store.configure_layout(cfg)
     return cfg
+
+
+def _apply_tester_defaults(cfg: dict) -> None:
+    """בודק שעוד לא שינה שום הגדרה: ברירות המחדל שלו (לא של הבעלים). טלגרם דלוק (כדי שהחיבור יעבוד), וסיכומי בוקר/יומי/שבועי,
+    סימני התאוששות והודעות הבריאות של המערכת כבויים - הוא מדליק מה שרוצה בסיידבר שלו."""
+    cfg.setdefault("telegram", {})["enabled"] = True
+    types = dict(cfg.get("telegram_message_types") or {})
+    for key in ("reversal_alert", "morning_summary", "daily_summary", "weekly_report",
+                "health_startup", "health_heartbeat", "health_dashboard"):
+        types[key] = False
+    cfg["telegram_message_types"] = types
 
 
 def tester_user() -> str:

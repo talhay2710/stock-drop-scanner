@@ -117,10 +117,14 @@ def recipients() -> dict:
 def wants(prefs: dict, kind: str = "drop", index=None, signal=None, drop_pct=None,
           multi_day_only: bool = False, n_day_pct=None) -> bool:
     """האם בודק עם ההעדפות האלה מקבל את ההתראה הזו. kind: 'drop' (התראת ירידה חדשה) או 'reversal' (סימני התאוששות)."""
+    if not prefs.get("enabled", True):  # המתג "טלגרם" של הבודק עצמו
+        return False
     if index is not None and index not in prefs["indices"]:
         return False
     if kind == "reversal":
         return bool(prefs["reversal"])
+    if not prefs.get("drop_alert", True):
+        return False
     if signal is not None and signal not in prefs["signals"]:
         return False
     if multi_day_only:

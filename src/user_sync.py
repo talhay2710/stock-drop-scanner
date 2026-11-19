@@ -229,10 +229,36 @@ def telegram_status(user_id: str) -> dict:
 # העדפות התראות טלגרם של בודק: data/<id>/prefs.json (נכתב רק ע"י האתר של הבודק, נקרא ע"י הסורק). ברירת מחדל = קנייה בלבד.
 PREFS_SIGNALS = ("buy", "wait", "avoid")
 PREFS_INDICES = ("TA35", "TA125")  # המדדים שהסורק האוטומטי סורק בפועל
-PREFS_DEFAULTS = {"signals": ["buy"], "indices": list(PREFS_INDICES), "min_drop_pct": 0.0,
-                  "multi_day": True, "min_multi_pct": 0.0, "reversal": False,
+PREFS_DEFAULTS = {"enabled": True, "signals": ["buy"], "indices": list(PREFS_INDICES), "min_drop_pct": 0.0,
+                  "multi_day": True, "min_multi_pct": 0.0, "reversal": False, "drop_alert": True,
                   "holdings_stop": True, "holdings_target": True, "holdings_gain": True, "holdings_hold_limit": True,
-                  "price_alert": True, "morning_summary": False, "daily_summary": False, "weekly_report": False}
+                  "price_alert": True, "morning_summary": False, "daily_summary": False, "weekly_report": False,
+                  "fees": None}
+PREFS_BOOL_KEYS = ("enabled", "multi_day", "reversal", "drop_alert", "holdings_stop", "holdings_target", "holdings_gain",
+                   "holdings_hold_limit", "price_alert", "morning_summary", "daily_summary", "weekly_report")
+FEE_KEYS = ("commission_pct", "commission_min", "capital_gains_tax_pct", "management_fee_annual_pct")
+
+
+def _clean_fees(raw):
+    """עמלות/מיסים של הבודק (לחישוב הנטו בהודעות שלו): רק שדות מספריים תקינים; מדינה בלי ערכים תקינים נשמטת."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for country in ("IL", "US"):
+        rec = raw.get(country)
+        if not isinstance(rec, dict):
+            continue
+        clean = {}
+        for key in FEE_KEYS:
+            try:
+                value = float(rec[key])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if 0 <= value <= (1000 if key == "commission_min" else 100):
+                clean[key] = value
+        if clean:
+            out[country] = clean
+    return out or None
 
 
 def clean_prefs(raw) -> dict:
@@ -248,11 +274,52 @@ def clean_prefs(raw) -> dict:
             out[key] = max(0.0, min(50.0, float(raw.get(key, out[key]))))
         except (TypeError, ValueError):
             pass
-    for key in ("multi_day", "reversal", "holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit",
-                "price_alert", "morning_summary", "daily_summary", "weekly_report"):
+    for key in PREFS_BOOL_KEYS:
         if key in raw:
             out[key] = bool(raw[key])
+    out["fees"] = _clean_fees(raw.get("fees"))
     return out
+
+
+def prefs_from_cfg(cfg: dict, existing: dict | None = None) -> dict:
+    """ההעדפות שהסורק מפעיל על הבודק, נגזרות מההגדרות שהוא עצמו קבע בסיידבר (אותו סיידבר כמו של הבעלים). שדות שאין להם
+    מקבילה בסיידבר (רמת סיגנל) נשמרים מ-existing."""
+    types = cfg.get("telegram_message_types", {}) or {}
+    out = dict(existing or {})
+    out.update({
+        "enabled": bool((cfg.get("telegram") or {}).get("enabled", True)),
+        "indices": list(cfg.get("indices") or ([cfg["index"]] if cfg.get("index") else PREFS_INDICES)),
+        "min_drop_pct": cfg.get("drop_threshold_pct", 0.0),
+        "multi_day": bool(cfg.get("multi_day_enabled", True)),
+        "min_multi_pct": cfg.get("multi_day_threshold_pct", 0.0),
+        "reversal": bool(types.get("reversal_alert", False)),
+        "drop_alert": bool(types.get("drop_alert", True)),
+        "holdings_stop": bool(types.get("holdings_stop", True)),
+        "holdings_target": bool(types.get("holdings_target", True)),
+        "holdings_gain": bool(types.get("holdings_gain", True)),
+        "holdings_hold_limit": bool(types.get("holdings_hold_limit", True)),
+        "price_alert": bool(types.get("price_alert", True)),
+        "morning_summary": bool(types.get("morning_summary", False)),
+        "daily_summary": bool(types.get("daily_summary", False)),
+        "weekly_report": bool(types.get("weekly_report", False)),
+        "fees": cfg.get("fees"),
+    })
+    return clean_prefs(out)
+
+
+def read_local_prefs(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return clean_prefs(json.load(f))
+    except Exception:
+        return clean_prefs({})
+
+
+def write_local_prefs(path: str, prefs: dict) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(clean_prefs(prefs), f, ensure_ascii=False, indent=1, sort_keys=True)
+    os.replace(tmp, path)
 
 
 def prefs_path(user_id: str) -> str:
@@ -313,58 +380,95 @@ def _logical_digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def pull(user_id: str, local_path: str) -> str:
-    """פעם אחת לכל תהליך (אחרי כניסה מוצלחת): מוריד את user.db מהריפו. 'pulled' / 'none' (אין עדיין בריפו) / 'skipped'.
-    כשאין עותק בריפו וקיים קובץ מקומי (נתוני הבודק מלפני המעבר) - הוא יידחף בסבב הבא ולא יידרס."""
+def _remote_file(user_id: str, name: str) -> str:
+    return f"data/{user_id}/{name}"
+
+
+def _write_atomic(path: str, data: bytes) -> None:
+    tmp = path + ".pull"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
+
+
+def pull(user_id: str, local_path: str, extras: dict | None = None) -> str:
+    """פעם אחת לכל תהליך: מוריד את user.db (ו-extras = {שם קובץ בריפו: נתיב מקומי}, למשל config.yaml של הבודק) מהריפו.
+    'pulled' / 'none' (אין עדיין בריפו) / 'skipped'. קובץ שאין עותק שלו בריפו וקיים מקומית (נתוני הבודק מלפני המעבר) - יידחף ולא יידרס.
+    כל הקריאות מהרשת קורות לפני שנוגעים בקבצים: כשל באמצע לא משאיר מצב חצוי."""
+    extras = dict(extras or {})
     with _lock:
         if _state["pulled"]:
             return "skipped"
         got = backend().get(remote_db_path(user_id))
-        if got is None:
-            _state["pulled"] = True
-            return "none"
-        data, sha = got
-        tmp = local_path + ".pull"
-        with open(tmp, "wb") as f:
-            f.write(data)
-        os.replace(tmp, local_path)
-        _state.update(sha=sha, pushed_digest=_logical_digest(_snapshot(local_path)), pulled=True)
-        return "pulled"
+        extra_got = {name: backend().get(_remote_file(user_id, name)) for name in extras}
+        status = "none"
+        if got is not None:
+            data, sha = got
+            _write_atomic(local_path, data)
+            _state.update(sha=sha, pushed_digest=_logical_digest(_snapshot(local_path)))
+            status = "pulled"
+        extra_state = {}
+        for name, path in extras.items():
+            r = extra_got[name]
+            if r is None:
+                extra_state[name] = {"sha": None, "digest": None}
+            else:
+                _write_atomic(path, r[0])
+                extra_state[name] = {"sha": r[1], "digest": _logical_digest(r[0])}
+        _state.update(pulled=True, extras=extras, extra_state=extra_state)
+        return status
+
+
+def _put_with_retry(rp: str, data: bytes, sha, message: str) -> str:
+    try:
+        return backend().put(rp, data, sha, message)
+    except Conflict:
+        # נכתב ממקום אחר (למשל עריכה ידנית של הבעלים): לוקחים את ה-sha העדכני וכותבים מעליו (הכותב היחיד הוא האתר הזה)
+        cur = backend().get(rp)
+        return backend().put(rp, data, cur[1] if cur else None, message)
 
 
 def push_if_changed(user_id: str, local_path: str) -> bool:
-    """דוחף את user.db לריפו אם השתנה מאז הדחיפה האחרונה. מחזיר True אם נדחף. לא זורק (כשל רשת = ננסה בסבב הבא)."""
+    """דוחף לריפו את user.db ואת הקבצים הנוספים (config.yaml, prefs.json) אם השתנו מאז הדחיפה האחרונה. True אם נדחף משהו.
+    לא זורק (כשל רשת = ננסה בסבב הבא)."""
     with _lock:
         try:
             if not _state["pulled"]:
                 return False  # לעולם לא דוחפים לפני שהורדנו: עותק מקומי ריק היה דורס את הנתונים השמורים בריפו
-            if not os.path.exists(local_path):
-                return False
-            data = _snapshot(local_path)
-            digest = _logical_digest(data)
-            if digest == _state["pushed_digest"]:
-                return False
-            rp = remote_db_path(user_id)
-            try:
-                sha = backend().put(rp, data, _state["sha"], f"user data: {user_id}")
-            except Conflict:
-                # נכתב ממקום אחר (למשל עריכה ידנית של הבעלים): לוקחים את ה-sha העדכני וכותבים מעליו (הכותב היחיד הוא האתר הזה)
-                cur = backend().get(rp)
-                sha = backend().put(rp, data, cur[1] if cur else None, f"user data: {user_id}")
-            _state.update(sha=sha, pushed_digest=digest)
-            return True
+            pushed = False
+            if os.path.exists(local_path):
+                data = _snapshot(local_path)
+                digest = _logical_digest(data)
+                if digest != _state["pushed_digest"]:
+                    sha = _put_with_retry(remote_db_path(user_id), data, _state["sha"], f"user data: {user_id}")
+                    _state.update(sha=sha, pushed_digest=digest)
+                    pushed = True
+            extra_state = _state.setdefault("extra_state", {})
+            for name, path in (_state.get("extras") or {}).items():
+                if not os.path.exists(path):
+                    continue
+                with open(path, "rb") as f:
+                    data = f.read()
+                digest = _logical_digest(data)
+                st = extra_state.setdefault(name, {"sha": None, "digest": None})
+                if digest == st["digest"]:
+                    continue
+                st["sha"] = _put_with_retry(_remote_file(user_id, name), data, st["sha"], f"{name}: {user_id}")
+                st["digest"] = digest
+                pushed = True
+            return pushed
         except Exception as e:
             logger.warning("דחיפת נתוני בודק %s נכשלה (ננסה שוב): %s", user_id, e)
             return False
 
 
-def init_tester(user_id: str, local_path: str) -> str:
-    """קריאה אחת בתחילת כל ריצה של אתר בודק (לפני פתיחת ה-DB): מוריד פעם אחת בתהליך ומפעיל דחיפה ברקע.
-    כשההורדה נכשלת (רשת) לא מפעילים דחיפה ולא נוגעים בקובץ המקומי - הריצה הבאה תנסה שוב."""
+def init_tester(user_id: str, local_path: str, extras: dict | None = None) -> str:
+    """קריאה אחת בתחילת כל ריצה של אתר בודק (לפני פתיחת ה-DB והגדרות): מוריד פעם אחת בתהליך ומפעיל דחיפה ברקע.
+    כשההורדה נכשלת (רשת) לא מפעילים דחיפה ולא נוגעים בקבצים המקומיים - הריצה הבאה תנסה שוב."""
     if not user_id or not configured():
         return "off"
     try:
-        status = pull(user_id, local_path)
+        status = pull(user_id, local_path, extras)
     except Exception as e:
         logger.warning("הורדת נתוני בודק %s נכשלה: %s", user_id, e)
         return "pull_failed"
@@ -393,4 +497,4 @@ def start_background_push(user_id: str, local_path: str, interval: int = PUSH_IN
 def reset_for_tests() -> None:
     global _backend_override
     _backend_override = None
-    _state.update(sha=None, pushed_digest=None, pulled=False, thread=None)
+    _state.update(sha=None, pushed_digest=None, pulled=False, thread=None, extras={}, extra_state={})

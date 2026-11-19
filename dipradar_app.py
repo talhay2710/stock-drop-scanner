@@ -794,7 +794,10 @@ if _tester_user_active and _user_sync.configured() and os.environ.get("TESTER_LO
 # אתר בודק עם משתמש: הורדה אחת של הנתונים בתהליך + דחיפה ברקע (אחרי כניסה; חייב לרוץ לפני כל פתיחת DB)
 try:
     if _tester_user_active:
-        _user_sync.init_tester(_config_mod.tester_user(), store.user_db_path(os.path.join(ROOT_DIR, "alerts_tester.db")))
+        _user_sync.init_tester(
+            _config_mod.tester_user(), store.user_db_path(os.path.join(ROOT_DIR, "alerts_tester.db")),
+            extras={"config.yaml": CONFIG_PATH, "prefs.json": os.path.join(ROOT_DIR, "tester_prefs.json")},
+        )
 except Exception as _us_err:
     print(f"user_sync init failed: {_us_err}")
 
@@ -1519,7 +1522,20 @@ def _sync_and_warn(reason: str, include_db: bool = False) -> None:
     זה סתם התנגשות חולפת עם דחיפת הבוט שמתאזנת לבד בניסיון החוזר הפנימי, וגם
     כשלא, השינוי המקומי לא הולך לאיבוד (ידחף עם הסנכרון הבא). כישלון אמיתי
     עדיין מתועד ב-log לצורך אבחון (ר' cloud_sync.sync_to_cloud)."""
+    if _tester_user_active:
+        _tester_publish_prefs()  # הבחירות של הבודק בסיידבר -> קובץ ההעדפות שהסורק קורא (נדחף לריפו הפרטי ברקע)
     cloud_sync.sync_to_cloud(reason, include_db=include_db)
+
+
+def _tester_publish_prefs(**updates) -> None:
+    """כותב את prefs.json המקומי של הבודק מההגדרות שבסיידבר שלו (cfg) + שדות שאין להם מקבילה בסיידבר (רמת סיגנל)."""
+    try:
+        _path = os.path.join(ROOT_DIR, "tester_prefs.json")
+        _existing = _user_sync.read_local_prefs(_path) if os.path.exists(_path) else {}
+        _existing.update(updates)
+        _user_sync.write_local_prefs(_path, _user_sync.prefs_from_cfg(cfg, _existing))
+    except Exception as _pp_err:
+        print(f"tester prefs write failed: {_pp_err}")
 
 
 def _check_il_constituents_staleness(max_age_days: int = 90) -> list[str]:
@@ -2576,6 +2592,8 @@ with st.sidebar:
         with st.expander("התראות בטלגרם", key="exp_message_types"):
             _saved_msg_types = cfg.get("telegram_message_types", {})
             for _mt_key, _mt_label in notifier.MESSAGE_TYPES.items():
+                if _tester_user_active and _mt_key.startswith("health_"):
+                    continue  # הודעות בריאות המערכת - של הבעלים בלבד
                 st.checkbox(
                     _mt_label, value=bool(_saved_msg_types.get(_mt_key, True)),
                     key=f"settings_msgtype_{_mt_key}", on_change=_autosave_message_types,
@@ -2603,10 +2621,11 @@ with st.sidebar:
             "טלגרם", value=bool(cfg.get("telegram", {}).get("enabled", True)),
             key="settings_telegram_enabled", on_change=_autosave_channels,
         )
-        ch2.checkbox(
-            "דסקטופ", value=bool(cfg.get("desktop_notifications", {}).get("enabled", True)),
-            key="settings_desktop_enabled", on_change=_autosave_channels,
-        )
+        if not _tester_user_active:  # התראות דסקטופ הן רק של הבעלים (מחשב מקומי); לבודק אין להן משמעות
+            ch2.checkbox(
+                "דסקטופ", value=bool(cfg.get("desktop_notifications", {}).get("enabled", True)),
+                key="settings_desktop_enabled", on_change=_autosave_channels,
+            )
 
     if _config_mod.tester_mode() and _config_mod.tester_user() and _user_sync.configured():
         @st.cache_data(ttl=20, show_spinner=False)
@@ -2627,69 +2646,20 @@ with st.sidebar:
             else:
                 st.markdown("חיבור הטלגרם עדיין לא הוגדר.")
 
-            # בחירה אישית של ההתראות שהבודק מקבל (נשמר בריפו הפרטי; הסורק קורא אותו בכל התראה)
-            _tuid = _config_mod.tester_user()
-            _TESTER_TYPE_KEYS = ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit", "price_alert",
-                                 "morning_summary", "daily_summary", "weekly_report")
+            # רמת הסיגנל להתראות ירידה: הדבר היחיד שאין לו מקבילה בסיידבר של הבעלים (אצלו מגיעות כל ההתראות). כל שאר ההתראות נקבעות
+            # בסיידבר עצמו (מדדים, אחוזי ירידה, סוגי התראה, ערוץ טלגרם, עמלות ומיסים) ונשמרות בריפו הפרטי.
+            def _save_tester_signals():
+                _tester_publish_prefs(signals=list(st.session_state.get("tprefs_signals") or []))
 
-            @st.cache_data(ttl=20, show_spinner=False)
-            def _tester_prefs(_uid: str) -> dict:
-                try:
-                    return _user_sync.read_prefs(_uid)
-                except Exception:
-                    return _user_sync.clean_prefs({})
-
-            def _save_tester_prefs():
-                _prefs = {
-                    "signals": list(st.session_state.get("tprefs_signals") or []),
-                    "indices": list(st.session_state.get("tprefs_indices") or []),
-                    "min_drop_pct": st.session_state.get("tprefs_min_drop", 0.0),
-                    "multi_day": bool(st.session_state.get("tprefs_multi", True)),
-                    "min_multi_pct": st.session_state.get("tprefs_min_multi", 0.0),
-                    "reversal": bool(st.session_state.get("tprefs_reversal", False)),
-                    **{_k: bool(st.session_state.get(f"tprefs_{_k}", _user_sync.PREFS_DEFAULTS[_k]))
-                       for _k in _TESTER_TYPE_KEYS},
-                }
-                try:
-                    _user_sync.write_prefs(_tuid, _prefs)
-                    _tester_prefs.clear()
-                except Exception:
-                    st.toast("שמירת בחירת ההתראות נכשלה, נסה שוב")
-
-            _pf = _tester_prefs(_tuid)
-            with st.expander("איזה התראות לקבל", key="exp_tester_prefs"):
-                st.markdown("**רמת סיגנל**")
-                st.pills(
-                    "רמת סיגנל", ["buy", "wait", "avoid"], selection_mode="multi", label_visibility="collapsed",
-                    format_func=lambda k: strategy_mod.SIGNAL_LABEL[k],
-                    default=None if "tprefs_signals" in st.session_state else _pf["signals"],
-                    key="tprefs_signals", on_change=_save_tester_prefs,
-                )
-                st.markdown("**מדדים**")
-                st.pills(
-                    "מדדים", list(_user_sync.PREFS_INDICES), selection_mode="multi", label_visibility="collapsed",
-                    default=None if "tprefs_indices" in st.session_state else _pf["indices"],
-                    key="tprefs_indices", on_change=_save_tester_prefs,
-                )
-                st.number_input(
-                    "ירידה יומית מינימלית (%)", min_value=0.0, max_value=50.0, step=0.5, value=float(_pf["min_drop_pct"]),
-                    key="tprefs_min_drop", on_change=_save_tester_prefs,
-                    help="הסורק מתריע מירידה של 3% ומעלה. כאן אפשר לבקש רק התראות חזקות יותר (0 = כל התראה).",
-                )
-                st.toggle("התראות ירידה מצטברת", value=bool(_pf["multi_day"]), key="tprefs_multi", on_change=_save_tester_prefs)
-                st.number_input(
-                    "ירידה מצטברת מינימלית (%)", min_value=0.0, max_value=50.0, step=0.5, value=float(_pf["min_multi_pct"]),
-                    key="tprefs_min_multi", on_change=_save_tester_prefs, disabled=not st.session_state.get("tprefs_multi", _pf["multi_day"]),
-                )
-                st.toggle("סימני התאוששות", value=bool(_pf["reversal"]), key="tprefs_reversal", on_change=_save_tester_prefs,
-                          help="התראה נוספת כשמניה שירדה מתחילה להתאושש.")
-                st.markdown("**על האחזקות וההתראות שלי**")
-                for _hk in ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit", "price_alert"):
-                    st.checkbox(notifier.MESSAGE_TYPES[_hk], value=bool(_pf[_hk]), key=f"tprefs_{_hk}", on_change=_save_tester_prefs)
-                st.markdown("**סיכומים**")
-                for _hk in ("morning_summary", "daily_summary", "weekly_report"):
-                    st.checkbox(notifier.MESSAGE_TYPES[_hk], value=bool(_pf[_hk]), key=f"tprefs_{_hk}", on_change=_save_tester_prefs)
-
+            _cur_signals = _user_sync.read_local_prefs(os.path.join(ROOT_DIR, "tester_prefs.json"))["signals"]
+            st.markdown("**רמת סיגנל להתראות ירידה**")
+            st.pills(
+                "רמת סיגנל", ["buy", "wait", "avoid"], selection_mode="multi", label_visibility="collapsed",
+                format_func=lambda k: strategy_mod.SIGNAL_LABEL[k],
+                default=None if "tprefs_signals" in st.session_state else _cur_signals,
+                key="tprefs_signals", on_change=_save_tester_signals,
+                help="איזה סיגנל להתראות הירידה שתקבל בטלגרם. ברירת מחדל: לקנות בלבד.",
+            )
 
 
 @st.cache_data(ttl=60)
