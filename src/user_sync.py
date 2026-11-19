@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 API = "https://api.github.com"
 _PBKDF2_ROUNDS = 200_000
 PUSH_INTERVAL_SEC = 15
+_THREAD_VERSION = 2  # להעלות בכל שינוי בלוגיקת הדחיפה (ר' start_background_push)
 
 
 class Conflict(Exception):
@@ -409,6 +410,25 @@ def _write_atomic(path: str, data: bytes) -> None:
     os.replace(tmp, path)
 
 
+def _register_late_extras(user_id: str, extras: dict) -> None:
+    """תהליך שכבר הוריד פעם (למשל גרסה קודמת של הקוד, שרצה בלי הקבצים הנוספים) ועכשיו מקבל קבצים נוספים לסנכרון:
+    קובץ שקיים מקומית נשמר ויידחף (לא נדרס); קובץ שחסר מקומית יורד מהריפו אם קיים שם. נקרא תחת _lock."""
+    have = _state.setdefault("extras", {})
+    extra_state = _state.setdefault("extra_state", {})
+    for name, path in extras.items():
+        if name in have:
+            continue
+        r = backend().get(_remote_file(user_id, name))
+        if os.path.exists(path):
+            extra_state[name] = {"sha": r[1] if r else None, "digest": None}  # digest ריק = ידחף בסבב הבא
+        elif r is not None:
+            _write_atomic(path, r[0])
+            extra_state[name] = {"sha": r[1], "digest": _logical_digest(r[0])}
+        else:
+            extra_state[name] = {"sha": None, "digest": None}
+        have[name] = path
+
+
 def pull(user_id: str, local_path: str, extras: dict | None = None) -> str:
     """פעם אחת לכל תהליך: מוריד את user.db (ו-extras = {שם קובץ בריפו: נתיב מקומי}, למשל config.yaml של הבודק) מהריפו.
     'pulled' / 'none' (אין עדיין בריפו) / 'skipped'. קובץ שאין עותק שלו בריפו וקיים מקומית (נתוני הבודק מלפני המעבר) - יידחף ולא יידרס.
@@ -416,6 +436,7 @@ def pull(user_id: str, local_path: str, extras: dict | None = None) -> str:
     extras = dict(extras or {})
     with _lock:
         if _state["pulled"]:
+            _register_late_extras(user_id, extras)
             return "skipped"
         got = backend().get(remote_db_path(user_id))
         extra_got = {name: backend().get(_remote_file(user_id, name)) for name in extras}
@@ -498,7 +519,8 @@ def start_background_push(user_id: str, local_path: str, interval: int = PUSH_IN
     """חוט רקע אחד לתהליך: דוחף שינויים כל כמה שניות - מכסה גם כתיבות מתוך fragment (שלא מריצים את סוף הסקריפט)."""
     with _lock:
         t = _state["thread"]
-        if t is not None and t.is_alive():
+        # גרסת החוט: חוט שנוצר ע"י גרסת קוד ישנה ממשיך לרוץ עם הפונקציות הישנות (בלי הקבצים הנוספים) - גרסה חדשה פותחת חוט משלה
+        if t is not None and t.is_alive() and _state.get("thread_version") == _THREAD_VERSION:
             return
 
     def _loop():
@@ -509,6 +531,7 @@ def start_background_push(user_id: str, local_path: str, interval: int = PUSH_IN
     t = threading.Thread(target=_loop, name="tester-user-db-push", daemon=True)
     with _lock:
         _state["thread"] = t
+        _state["thread_version"] = _THREAD_VERSION
     t.start()
 
 

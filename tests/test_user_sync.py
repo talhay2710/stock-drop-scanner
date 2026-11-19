@@ -212,6 +212,30 @@ class OwnSidebarSettings(_Base):
         self.assertEqual(user_sync.read_local_prefs(prefs_path)["signals"], ["wait"])
         self.assertEqual(_rows(self.db), ["AAA.TA"])
 
+    def test_extras_registered_late_by_an_already_running_process(self):
+        """פריסת קוד חדש על תהליך חי: ההורדה כבר קרתה בגרסה הישנה (בלי קבצים נוספים) - הקבצים הנוספים עדיין נדחפים."""
+        cfg_path, prefs_path = os.path.join(self.tmp, "config.yaml"), os.path.join(self.tmp, "tester_prefs.json")
+        self.assertEqual(user_sync.init_tester("michal", self.db), "none")                    # הגרסה הישנה
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("local: 1\n")                                                              # נכתב מקומית לפני שהוגדר סנכרון
+        self.assertEqual(user_sync.init_tester("michal", self.db, {"config.yaml": cfg_path, "prefs.json": prefs_path}), "skipped")
+        self.assertTrue(user_sync.push_if_changed("michal", self.db))
+        be = user_sync._backend_override
+        self.assertEqual(be.get("data/michal/config.yaml")[0], b"local: 1\n")                 # קובץ מקומי נדחף, לא נדרס
+        self.assertIsNone(be.get("data/michal/prefs.json"))                                     # אין עדיין קובץ - אין מה לדחוף
+        user_sync.write_local_prefs(prefs_path, {"signals": ["avoid"]})
+        self.assertTrue(user_sync.push_if_changed("michal", self.db))
+        self.assertEqual(json.loads(be.get("data/michal/prefs.json")[0])["signals"], ["avoid"])
+
+    def test_late_extra_missing_locally_is_downloaded(self):
+        be = user_sync._backend_override
+        be.put("data/michal/config.yaml", b"remote: 1\n", None, "t")
+        user_sync.init_tester("michal", self.db)
+        cfg_path = os.path.join(self.tmp, "config.yaml")
+        user_sync.init_tester("michal", self.db, {"config.yaml": cfg_path})
+        self.assertEqual(open(cfg_path, "rb").read(), b"remote: 1\n")
+        self.assertFalse(user_sync.push_if_changed("michal", self.db))                          # זהה לריפו - אין מה לדחוף
+
     def test_failed_pull_never_overwrites_remote_settings(self):
         cfg_path = os.path.join(self.tmp, "config.yaml")
         extras = {"config.yaml": cfg_path}
