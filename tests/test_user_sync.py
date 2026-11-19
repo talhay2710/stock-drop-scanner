@@ -255,6 +255,58 @@ class OwnSidebarSettings(_Base):
         self.assertFalse(user_sync.push_if_changed("michal", self.db))
         self.assertEqual(be.files["data/michal/config.yaml"][0], b"real: 1\n")
 
+    def test_unsaved_tester_follows_current_defaults_and_saved_one_keeps_own(self):
+        owner = {"telegram": {"enabled": False, "bot_token": "T"}, "indices": ["TA35", "TA125", "NASDAQ100", "SP500"],
+                 "drop_threshold_pct": 3.0, "multi_day_enabled": False,
+                 "telegram_message_types": {"drop_alert": True, "daily_summary": True, "reversal_alert": True}}
+        user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"michal": 1, "zeevi": 2}}, None, "t")
+        user_sync.write_prefs("zeevi", {"indices": ["TA35"], "min_drop_pct": 5.0})
+        tester_telegram._cache.update(at=0.0, chats={})
+        got = tester_telegram.recipients(owner)
+        m, z = got["michal"]["prefs"], got["zeevi"]["prefs"]
+        self.assertEqual(m["indices"], ["TA35", "TA125", "SP500", "NASDAQ100"])
+        self.assertEqual((m["min_drop_pct"], m["enabled"], m["daily_summary"], m["reversal"]), (3.0, True, False, False))  # ברירות מחדל של בודק
+        self.assertEqual((z["indices"], z["min_drop_pct"]), (["TA35"], 5.0))                                              # השמורות שלו
+
+    def test_remote_reset_or_update_is_followed_unless_local_unsynced(self):
+        cfg_path = os.path.join(self.tmp, "config.yaml")
+        extras = {"config.yaml": cfg_path}
+        user_sync.init_tester("michal", self.db, extras)
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("a: 1\n")
+        user_sync.push_if_changed("michal", self.db)
+        be = user_sync._backend_override
+        # עדכון מרוחק (הבעלים) - נטען
+        be.put("data/michal/config.yaml", b"a: 2\n", be.get("data/michal/config.yaml")[1], "owner")
+        user_sync._state["last_refresh"] = 0
+        user_sync.refresh_extras("michal")
+        self.assertEqual(open(cfg_path, "rb").read(), b"a: 2\n")
+        # שינוי מקומי שטרם נדחף גובר
+        with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+            f.write("a: local\n")
+        be.put("data/michal/config.yaml", b"a: 3\n", be.get("data/michal/config.yaml")[1], "owner")
+        user_sync._state["last_refresh"] = 0
+        user_sync.refresh_extras("michal")
+        self.assertEqual(open(cfg_path, "rb").read(), b"a: local\n")
+        # אחרי שהדחיפה הסתנכרנה - איפוס מרוחק (מחיקה) מחזיר לברירות המחדל
+        user_sync.push_if_changed("michal", self.db)
+        be.delete("data/michal/config.yaml", be.get("data/michal/config.yaml")[1], "reset")
+        user_sync._state["last_refresh"] = 0
+        user_sync.refresh_extras("michal")
+        self.assertFalse(os.path.exists(cfg_path))
+
+    def test_refresh_is_throttled(self):
+        cfg_path = os.path.join(self.tmp, "config.yaml")
+        user_sync.init_tester("michal", self.db, {"config.yaml": cfg_path})
+        be = user_sync._backend_override
+        be.put("data/michal/config.yaml", b"x: 1\n", None, "owner")
+        user_sync._state["last_refresh"] = 0
+        user_sync.refresh_extras("michal")
+        self.assertTrue(os.path.exists(cfg_path))
+        be.put("data/michal/config.yaml", b"x: 2\n", be.get("data/michal/config.yaml")[1], "owner")
+        user_sync.refresh_extras("michal")                      # דקה לא עברה
+        self.assertEqual(open(cfg_path, "rb").read(), b"x: 1\n")
+
     def test_telegram_switch_stops_everything_for_that_tester(self):
         off = user_sync.clean_prefs({"enabled": False, "signals": ["buy", "wait", "avoid"]})
         self.assertFalse(tester_telegram.wants(off, "drop", index="TA35", signal="buy", drop_pct=-9))

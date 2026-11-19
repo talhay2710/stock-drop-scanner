@@ -346,8 +346,11 @@ def prefs_path(user_id: str) -> str:
     return f"data/{user_id}/prefs.json"
 
 
-def read_prefs(user_id: str) -> dict:
-    raw, _ = read_json(prefs_path(user_id), {})
+def read_prefs(user_id: str, default: dict | None = None) -> dict:
+    """העדפות הבודק. אין קובץ (הבודק לא שינה כלום) -> default (ברירות המחדל הנוכחיות, כמו שהסיידבר שלו מציג), ואם לא ניתן - ברירת המחדל הקבועה."""
+    raw, sha = read_json(prefs_path(user_id), {})
+    if sha is None and default is not None:
+        return clean_prefs(default)
     return clean_prefs(raw)
 
 
@@ -502,6 +505,42 @@ def push_if_changed(user_id: str, local_path: str) -> bool:
             return False
 
 
+REFRESH_INTERVAL_SEC = 60
+
+
+def refresh_extras(user_id: str) -> None:
+    """הקבצים הנוספים (config.yaml, prefs.json) שהשתנו או נמחקו בריפו (למשל איפוס/עדכון הגדרות ע"י הבעלים) - האתר החי עוקב אחריהם,
+    אבל רק אם אצל הבודק אין שינוי מקומי שטרם נדחף (שינוי שלו תמיד גובר). בדיקה אחת בדקה."""
+    now = time.time()
+    with _lock:
+        if not _state.get("pulled") or now - _state.get("last_refresh", 0) < REFRESH_INTERVAL_SEC:
+            return
+        _state["last_refresh"] = now
+        extras = dict(_state.get("extras") or {})
+        extra_state = _state.setdefault("extra_state", {})
+    for name, path in extras.items():
+        try:
+            r = backend().get(_remote_file(user_id, name))
+            with _lock:
+                st = extra_state.setdefault(name, {"sha": None, "digest": None})
+                local_digest = None
+                if os.path.exists(path):
+                    with open(path, "rb") as f:
+                        local_digest = _logical_digest(f.read())
+                if local_digest is not None and local_digest != st["digest"]:
+                    continue  # שינוי מקומי שטרם נדחף
+                if r is None:
+                    if st["sha"] is not None:  # נמחק בריפו -> חוזרים לברירות המחדל
+                        if os.path.exists(path):
+                            os.remove(path)
+                        st.update(sha=None, digest=None)
+                elif r[1] != st["sha"]:
+                    _write_atomic(path, r[0])
+                    st.update(sha=r[1], digest=_logical_digest(r[0]))
+        except Exception as e:
+            logger.warning("רענון %s של בודק %s נכשל: %s", name, user_id, e)
+
+
 def init_tester(user_id: str, local_path: str, extras: dict | None = None) -> str:
     """קריאה אחת בתחילת כל ריצה של אתר בודק (לפני פתיחת ה-DB והגדרות): מוריד פעם אחת בתהליך ומפעיל דחיפה ברקע.
     כשההורדה נכשלת (רשת) לא מפעילים דחיפה ולא נוגעים בקבצים המקומיים - הריצה הבאה תנסה שוב."""
@@ -513,6 +552,7 @@ def init_tester(user_id: str, local_path: str, extras: dict | None = None) -> st
         logger.warning("הורדת נתוני בודק %s נכשלה: %s", user_id, e)
         return "pull_failed"
     start_background_push(user_id, local_path)
+    refresh_extras(user_id)
     return status
 
 

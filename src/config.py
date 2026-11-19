@@ -41,6 +41,14 @@ def _apply_tester_defaults(cfg: dict) -> None:
     cfg["telegram_message_types"] = types
 
 
+def tester_default_cfg(cfg: dict) -> dict:
+    """ההגדרות שבודק שלא שינה כלום רואה בסיידבר שלו: ההגדרות שלך (בענן) + ברירות המחדל של בודק. הסורק משתמש בהן כשאין לבודק prefs שמורים."""
+    import copy
+    out = copy.deepcopy(cfg)
+    _apply_tester_defaults(out)
+    return out
+
+
 def tester_user() -> str:
     """מזהה הבודק של האתר הזה (TESTER_USER, נקבע בקובץ הכניסה שלו: michal.py / zeevi.py). ריק = אתר בודק אנונימי/זמני."""
     return os.environ.get("TESTER_USER", "").strip().lower()

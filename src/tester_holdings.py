@@ -89,7 +89,7 @@ def check_testers(cfg: dict, conn) -> int:
     if not token or not user_sync.configured():
         return 0
     sent = 0
-    for uid, rec in dict(tester_telegram.recipients()).items():
+    for uid, rec in dict(tester_telegram.recipients(cfg)).items():
         if not rec["prefs"].get("enabled", True):
             continue
         types = {t for t in HOLDING_TYPES if rec["prefs"].get(t, True)}

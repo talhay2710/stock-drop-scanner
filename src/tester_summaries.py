@@ -31,7 +31,7 @@ def run(cfg: dict, conn, in_window=None, today: str | None = None) -> int:
         return 0
     cache: dict = {}
     sent = 0
-    for uid, rec in dict(tester_telegram.recipients()).items():
+    for uid, rec in dict(tester_telegram.recipients(cfg)).items():
         kinds = [k for k in due if rec["prefs"].get(KINDS[k][0])]
         if not kinds or not rec["prefs"].get("enabled", True):
             continue

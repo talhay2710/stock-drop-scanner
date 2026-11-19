@@ -92,7 +92,7 @@ def poll_links(cfg: dict) -> int:
         return 0
 
 
-def recipients() -> dict:
+def recipients(cfg: dict | None = None) -> dict:
     """{user_id: {"chat_id": ..., "prefs": {...}}} של בודקים מחוברים (מטמון קצר - לא קוראים מהריפו לכל התראה)."""
     if not user_sync.configured():
         return {}
@@ -101,9 +101,13 @@ def recipients() -> dict:
     try:
         links, _ = user_sync.read_json(LINKS_PATH, {"chats": {}})
         chats = {}
+        default = None
+        if cfg:
+            from . import config as config_mod
+            default = user_sync.prefs_from_cfg(config_mod.tester_default_cfg(cfg))  # בודק בלי הגדרות שמורות = ברירות המחדל הנוכחיות
         for uid, chat_id in links.get("chats", {}).items():
             try:
-                prefs = user_sync.read_prefs(uid)
+                prefs = user_sync.read_prefs(uid, default)
             except Exception:
                 prefs = user_sync.clean_prefs({})  # כשל בקריאת העדפות = ברירת מחדל, לא מפסיקים לשלוח
             chats[uid] = {"chat_id": chat_id, "prefs": prefs}
@@ -151,7 +155,7 @@ def broadcast(cfg: dict, text: str, **alert) -> int:
     if not token:
         return 0
     sent = 0
-    for uid, rec in dict(recipients()).items():
+    for uid, rec in dict(recipients(cfg)).items():
         if alert and not wants(rec["prefs"], **alert):
             continue
         try:
