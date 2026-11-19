@@ -17,6 +17,7 @@ from . import fees as fees_mod
 from . import store as store_mod
 from . import notifier
 from . import tester_telegram
+from . import tester_holdings
 from . import alert_features
 from .config import db_path
 from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
@@ -148,6 +149,10 @@ def run_scan(cfg: dict) -> list[dict]:
             check_price_alerts(cfg, conn)
         except Exception:
             logger.exception("שגיאה בבדיקת התראות מחיר ידניות")
+        try:
+            tester_holdings.check_testers(cfg, conn)  # אחזקות של בודקים מחוברים (קוד נפרד; לא נוגע בהתראות שלך)
+        except Exception:
+            logger.exception("שגיאה בבדיקת אחזקות של בודקים")
         try:
             check_reversal_confirmations(cfg, conn)
         except Exception:

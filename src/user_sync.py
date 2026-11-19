@@ -230,7 +230,8 @@ def telegram_status(user_id: str) -> dict:
 PREFS_SIGNALS = ("buy", "wait", "avoid")
 PREFS_INDICES = ("TA35", "TA125")  # המדדים שהסורק האוטומטי סורק בפועל
 PREFS_DEFAULTS = {"signals": ["buy"], "indices": list(PREFS_INDICES), "min_drop_pct": 0.0,
-                  "multi_day": True, "min_multi_pct": 0.0, "reversal": False}
+                  "multi_day": True, "min_multi_pct": 0.0, "reversal": False,
+                  "holdings_stop": True, "holdings_target": True, "holdings_gain": True, "holdings_hold_limit": True}
 
 
 def clean_prefs(raw) -> dict:
@@ -246,7 +247,7 @@ def clean_prefs(raw) -> dict:
             out[key] = max(0.0, min(50.0, float(raw.get(key, out[key]))))
         except (TypeError, ValueError):
             pass
-    for key in ("multi_day", "reversal"):
+    for key in ("multi_day", "reversal", "holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit"):
         if key in raw:
             out[key] = bool(raw[key])
     return out

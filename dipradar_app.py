@@ -764,8 +764,8 @@ except Exception as _us_err:
     print(f"user_sync import failed: {_us_err}")
     _tester_user_active = False
 
-# כניסה בקוד אישי (רק כשהריפו הפרטי מוגדר): בלי קוד תקין לא נטענים נתונים ולא מוצג שום דבר מהאתר
-if _tester_user_active and _user_sync.configured():
+# כניסה בקוד אישי: כבויה כברירת מחדל (19.11.2026, החלטת הבעלים - הכתובות לא מפורסמות). להפעלה: TESTER_LOGIN=1 ב-Secrets של האתר
+if _tester_user_active and _user_sync.configured() and os.environ.get("TESTER_LOGIN", "").strip() == "1":
     _tu = _config_mod.tester_user()
     if st.session_state.get("tester_auth_user") != _tu:
         st.markdown(
@@ -2645,6 +2645,8 @@ with st.sidebar:
                     "multi_day": bool(st.session_state.get("tprefs_multi", True)),
                     "min_multi_pct": st.session_state.get("tprefs_min_multi", 0.0),
                     "reversal": bool(st.session_state.get("tprefs_reversal", False)),
+                    **{_k: bool(st.session_state.get(f"tprefs_{_k}", True))
+                       for _k in ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit")},
                 }
                 try:
                     _user_sync.write_prefs(_tuid, _prefs)
@@ -2679,6 +2681,9 @@ with st.sidebar:
                 )
                 st.toggle("סימני התאוששות", value=bool(_pf["reversal"]), key="tprefs_reversal", on_change=_save_tester_prefs,
                           help="התראה נוספת כשמניה שירדה מתחילה להתאושש.")
+                st.markdown("**על האחזקות שלי**")
+                for _hk in ("holdings_stop", "holdings_target", "holdings_gain", "holdings_hold_limit"):
+                    st.checkbox(notifier.MESSAGE_TYPES[_hk], value=bool(_pf[_hk]), key=f"tprefs_{_hk}", on_change=_save_tester_prefs)
 
 
 

@@ -124,6 +124,18 @@ def wants(prefs: dict, kind: str = "drop", index=None, signal=None, drop_pct=Non
     return abs(drop_pct or 0) >= prefs["min_drop_pct"]
 
 
+def send_to(cfg: dict, chat_id, text: str) -> bool:
+    """שליחה לצ'אט אחד (HTML). True רק אם טלגרם אישר - הקורא מעדכן מצב התראה רק אז, כדי שכשל יתנסה שוב בסבב הבא."""
+    token = _token(cfg)
+    if not token:
+        return False
+    try:
+        return _call(token, "sendMessage", chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True).status_code == 200
+    except Exception as e:
+        logger.warning("שליחה לבודק נכשלה (%s)", type(e).__name__)
+        return False
+
+
 def broadcast(cfg: dict, text: str, **alert) -> int:
     """שולח הודעת HTML לבודקים המחוברים שההעדפות שלהם מתאימות להתראה (alert = הפרמטרים של wants). מחזיר כמה נשלחו.
     כשל אחד לא עוצר את האחרים."""

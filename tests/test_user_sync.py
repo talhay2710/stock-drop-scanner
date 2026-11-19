@@ -33,6 +33,10 @@ def _rows(path):
 
 class _Base(unittest.TestCase):
     def setUp(self):
+        # בדיקת ה-AppTest מוחקת וטוענת מחדש את מודולי src: תמיד עובדים מול המודולים הנוכחיים
+        global user_sync, tester_telegram
+        import importlib
+        user_sync, tester_telegram = importlib.import_module("src.user_sync"), importlib.import_module("src.tester_telegram")
         user_sync.reset_for_tests()
         user_sync._backend_override = user_sync.MemoryBackend()
         self.tmp = tempfile.mkdtemp()
@@ -294,6 +298,109 @@ class TelegramLinks(_Base):
             post.assert_not_called()
 
 
+class TesterHoldings(_Base):
+    """התראות אחזקות לבודק: בלי רשת ובלי טלגרם אמיתי (מחירים וטלגרם מוחלפים)."""
+    _FEES = {"commission_pct": 0.3, "commission_min": 26.0, "currency": "ILS", "capital_gains_tax_pct": 25.0,
+             "management_fee_annual_pct": 1.15}
+    CFG = {"telegram": {"enabled": True, "bot_token": "T", "chat_id": "1"}, "fees": {"IL": _FEES, "US": _FEES}}
+
+    def setUp(self):
+        super().setUp()
+        import datetime as dt
+        from src import tester_holdings
+        self.th = tester_holdings
+        self.now = dt.datetime.now().replace(microsecond=0).isoformat()
+        # מסד הסריקה: התראה אחת (id=7) על מניה בת"א
+        self.scan = sqlite3.connect(":memory:")
+        self.scan.execute("CREATE TABLE alerts (id INTEGER, ticker TEXT, company_name TEXT, index_name TEXT, target_base REAL)")
+        self.scan.execute("INSERT INTO alerts VALUES (7, 'AAA.TA', 'אאא', 'TA35', NULL)")
+        user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"michal": 555}}, None, "t")
+        tester_telegram._cache.update(at=0.0, chats={})
+
+    def _put_user_db(self, rows):
+        path = os.path.join(tempfile.mkdtemp(), "u.db")
+        c = sqlite3.connect(path)
+        c.execute("CREATE TABLE positions (alert_id INTEGER PRIMARY KEY, entry_price REAL, qty REAL, bought_at TEXT, stop_price REAL, is_manual INTEGER)")
+        c.executemany("INSERT INTO positions VALUES (?,?,?,?,?,?)", rows)
+        c.commit()
+        c.close()
+        be = user_sync._backend_override
+        cur = be.get("data/michal/user.db")
+        with open(path, "rb") as fh:
+            be.put("data/michal/user.db", fh.read(), cur[1] if cur else None, "t")
+
+    def _run(self, price, types=None, now_open=True):
+        sent = []
+
+        def fake_post(url, json=None, timeout=None):
+            sent.append(json["text"])
+            return _Resp(200)
+
+        types = types or set(self.th.HOLDING_TYPES)
+        with mock.patch("requests.post", side_effect=fake_post),                 mock.patch("src.market_data.fetch_current_price", return_value=price),                 mock.patch.object(self.th, "is_market_open", return_value=now_open):
+            self.th.check_one(self.CFG, self.scan, "michal", 555, types)
+        return sent
+
+    def test_stop_alert_once_then_rearms(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        self.assertEqual(len(self._run(96.0, {"holdings_stop"})), 1)   # בתוך 2% מהסטופ
+        self.assertEqual(len(self._run(95.5, {"holdings_stop"})), 0)   # לא חוזר
+        self.assertEqual(len(self._run(110.0, {"holdings_stop"})), 0)  # התרחק - מתאפס בשקט
+        self.assertEqual(len(self._run(95.5, {"holdings_stop"})), 1)   # ושוב התראה
+        state = user_sync.read_json("data/michal/state.json", {})[0]
+        self.assertTrue(state["7"]["stop_alert_active"])
+
+    def test_target_and_gain_alerts(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        msgs = self._run(104.0, {"holdings_target", "holdings_gain"})
+        self.assertTrue(any("ליעד" in m for m in msgs) and any("עלתה" in m for m in msgs))
+        self.assertEqual(self._run(104.0, {"holdings_target", "holdings_gain"}), [])  # אותה מדרגה לא חוזרת
+        self.assertEqual(len(self._run(106.5, {"holdings_gain"})), 1)                   # מדרגה חדשה
+
+    def test_disabled_types_do_nothing_and_keep_no_state(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        self.assertEqual(self._run(94.0, {"holdings_gain"}), [])
+        self.assertEqual(user_sync.read_json("data/michal/state.json", {})[0], {})
+
+    def test_failed_send_is_retried_next_run(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        with mock.patch("requests.post", return_value=_Resp(500)), mock.patch("src.market_data.fetch_current_price", return_value=94.0),                 mock.patch.object(self.th, "is_market_open", return_value=True):
+            self.th.check_one(self.CFG, self.scan, "michal", 555, {"holdings_stop"})
+        self.assertEqual(len(self._run(94.0, {"holdings_stop"})), 1)  # נשלח עכשיו, כי הכשל לא נרשם כנשלח
+
+    def test_market_closed_and_missing_price_skip(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        self.assertEqual(self._run(94.0, now_open=False), [])
+        self.assertEqual(self._run(None), [])
+
+    def test_closed_position_state_is_dropped(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        self._run(94.0, {"holdings_stop"})
+        self._put_user_db([])
+        self._run(94.0)
+        self.assertEqual(user_sync.read_json("data/michal/state.json", {})[0], {})
+
+    def test_hold_limit_not_for_manual(self):
+        old = "2026-11-01T10:00:00"
+        self._put_user_db([(7, 100.0, 10.0, old, 95.0, 1)])
+        self.assertEqual(self._run(100.5, {"holdings_hold_limit"}), [])
+        self._put_user_db([(7, 100.0, 10.0, old, 95.0, 0)])
+        self.assertEqual(len(self._run(100.5, {"holdings_hold_limit"})), 1)
+
+    def test_check_testers_respects_prefs_and_survives_errors(self):
+        self._put_user_db([(7, 100.0, 10.0, self.now, 95.0, 0)])
+        user_sync.write_prefs("michal", {"holdings_stop": False, "holdings_target": False, "holdings_gain": False,
+                                          "holdings_hold_limit": False})
+        tester_telegram._cache.update(at=0.0, chats={})
+        with mock.patch("requests.post") as post, mock.patch("src.market_data.fetch_current_price", return_value=94.0):
+            self.assertEqual(self.th.check_testers(self.CFG, self.scan), 0)
+            post.assert_not_called()
+        with mock.patch.object(self.th, "check_one", side_effect=RuntimeError("boom")):
+            tester_telegram._cache.update(at=0.0, chats={})
+            user_sync.write_prefs("michal", {})
+            self.assertEqual(self.th.check_testers(self.CFG, self.scan), 0)  # לא זורק
+
+
 try:
     from streamlit.testing.v1 import AppTest
 except Exception:  # pragma: no cover
@@ -326,7 +433,7 @@ class LoginGateInApp(unittest.TestCase):
                 return R(200, {"sha": "s", "content": base64.b64encode(users_json).decode()})
             return R(404)
 
-        env = {"TESTER_MODE": "1", "TESTER_USER": "michal", "USERS_REPO": "x/y", "USERS_REPO_TOKEN": "t"}
+        env = {"TESTER_MODE": "1", "TESTER_USER": "michal", "USERS_REPO": "x/y", "USERS_REPO_TOKEN": "t", "TESTER_LOGIN": "1"}
         with mock.patch.dict(os.environ, env), mock.patch("requests.get", side_effect=fake_get),                 mock.patch("requests.put", return_value=R(200, {"content": {"sha": "n"}})):
             at = AppTest.from_file(os.path.join(ROOT, "dashboard.py"), default_timeout=180)
             at.run()
