@@ -3013,10 +3013,12 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         for _t, _h in zip(_cur_df["ticker"], _cur_df["history"]):
             _nd_map[_t] = market_data.compute_n_day_change_pct(_h, _md_days)
 
-    _cur_map, _cur_gap = {}, {}
+    _cur_map, _cur_gap, _cur_px = {}, {}, {}
     _hist_map = dict(zip(_cur_df["ticker"], _cur_df["history"])) if (not _cur_df.empty and "history" in _cur_df.columns) else {}
     if not _cur_df.empty:
         _cur_map = dict(zip(_cur_df["ticker"], _cur_df["pct_change"]))
+        if "last_close" in _cur_df.columns:
+            _cur_px = dict(zip(_cur_df["ticker"], _cur_df["last_close"]))
         if "prev_close_gap" in _cur_df.columns:
             _cur_gap = dict(zip(_cur_df["ticker"], _cur_df["prev_close_gap"].fillna(False)))
 
@@ -3127,8 +3129,10 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
         _cv = _cur_map.get(r["ticker"])
         if _cv is None or pd.isna(_cv) or _cur_gap.get(r["ticker"]):  # בסיס השוואה ישן - לא מציגים שינוי יומי מטעה
             cur_html = '<span style="color:var(--dim)">—</span>'
+            cur_px_text = "—"
         else:
             cur_html = f'<span class="{ui_v3.cls_for(_cv)}">{ui_v3.num(ui_v3.signed(_cv, 1, "%"))}</span>'
+            cur_px_text = _alert_price(_cur_px.get(r["ticker"], float("nan")), idx_name)
         with st.container(key=f"v3_arow_{rid}"):
           with st.container(key=f"v3_arowhd_{rid}"):
             st.markdown(
@@ -3137,7 +3141,7 @@ def _render_alerts_v3(todays_alerts: pd.DataFrame, is_fallback_day: bool, last_s
                     it["key"], _SIG_WORD[it["key"]], f"{max(it['score'], 0)}/{strategy_mod.MAX_SIGNAL_SCORE}",
                     _alert_price(r.get("entry_limit"), idx_name),
                     _alert_price(r["last_close"] * (1 + strategy_mod.target_frac()), idx_name),
-                    _alert_price(r.get("stop_loss"), idx_name), it["hhmm"], is_open, {"SP500": "SPX", "NASDAQ100": "NDX"}.get(idx_name, idx_name or ""), cur_html,
+                    _alert_price(r.get("stop_loss"), idx_name), it["hhmm"], is_open, {"SP500": "SPX", "NASDAQ100": "NDX"}.get(idx_name, idx_name or ""), cur_html, cur_px=cur_px_text,
                 ) + "</div>", unsafe_allow_html=True,
             )
             if st.button(" ", key=f"v3_open_alert_{rid}"):

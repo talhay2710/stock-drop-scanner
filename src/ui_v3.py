@@ -771,17 +771,18 @@ _CHEV = (
 
 
 def alerts_header() -> str:
-    cols = ["מניה", "שינוי בהתראה", "שינוי נוכחי", "סיגנל", "ניקוד", "כניסה", "יעד", "סטופ", "שעה"]
-    return '<div class="arow ahead">' + "".join(f'<span{" class=\"x\"" if 4 <= i <= 7 else ""}>{c}</span>' for i, c in enumerate(cols)) + "</div>"
+    cols = ["מניה", "שינוי בהתראה", "שינוי נוכחי", "סיגנל", "ניקוד", "שער נוכחי", "כניסה", "יעד", "סטופ", "שעה"]
+    return '<div class="arow ahead">' + "".join(f'<span{" class=\"x\"" if 4 <= i <= 8 else ""}>{c}</span>' for i, c in enumerate(cols)) + "</div>"
 
 
 def alert_row(name: str, mono: str, is_new: bool, change_html: str, sig_key: str, sig_label: str, score_text: str,
-              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "", cur_html: str = "") -> str:
+              entry: str, target: str, stop: str, hhmm: str, is_open: bool, index_label: str = "", cur_html: str = "",
+              cur_px: str = "") -> str:
     new = ""  # תגית "חדשה" הוסרה - השעה בשורה מספיקה
     return (
         f'<div class="arow r{" open" if is_open else ""}">'
         f'<span class="nmc"><span class="nm"><bdi>{esc(short_name(name))}</bdi><small>{esc(mono)}</small>{f'<small class="ix">{esc(index_label)}</small>' if index_label else ""}{new}{_CHEV}</span></span>'
-        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span class="x">{num(score_text)}</span>'
+        f'<span>{change_html}</span><span>{cur_html}</span><span class="sig {sig_key}">{esc(sig_label)}</span><span class="x">{num(score_text)}</span><span class="x">{num(cur_px)}</span>'
         f'<span class="x">{num(entry)}</span><span class="x">{num(target)}</span><span class="x">{num(stop)}</span><span>{num(hhmm)}</span></div>'
     )
 
@@ -868,7 +869,7 @@ ALERTS_CSS = """
         .v3h .kpi.k4.sm > div:first-child { padding-inline-start:0; }
         .v3h .kpi.k4.sm small { font-size:12px; }
         .v3h .kpi.k4.sm strong { font-size:20px; line-height:1.15; margin-top:1px; }
-        .v3h .arow { display:grid; grid-template-columns:minmax(0,1.9fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,.7fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.7fr); align-items:center; gap:0 8px; padding:0; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:720px; }
+        .v3h .arow { display:grid; grid-template-columns:minmax(0,1.9fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,.7fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.7fr); align-items:center; gap:0 8px; padding:0; border-bottom:1px solid var(--rule); font-size:16px; white-space:nowrap; min-width:720px; }
         .v3h .arow > span { padding-block:15px; }
         .v3h .arow > span:has(.nt) { padding-block:8px; }
         .v3h .arow .nm small.ix { opacity:.75; }
