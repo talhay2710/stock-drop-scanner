@@ -133,6 +133,10 @@ def sync_to_cloud(reason: str = "", include_db: bool = False) -> str:
     זה עתה ביצע בדשבורד) שממוזגת מעליו."""
     if tester_mode():  # אפליקציית בודק: אף פעם לא דוחפים לגיט (הנתונים של הבודק נשארים אצלו)
         return "no_change"
+    if not os.path.exists(CONFIG_PATH):
+        # רק המחשב של הבעלים (שבו יש config.yaml, שאינו בגיט) דוחף. באתר הציבורי בענן אין config.yaml - שם אף פעם לא דוחפים
+        # (אומת 19.11.2026: כל 411 קומיטי "Sync from local" בהיסטוריה הם של המחשב המקומי). כך נשמר כותב יחיד לנתוני המשתמש.
+        return "no_change"
     _git = ["git", "-C", ROOT_DIR]
     paths = ["config.example.yaml", "alerts.db"] if include_db else ["config.example.yaml"]
     try:
