@@ -59,6 +59,34 @@ CREATE TABLE price_alert_triggers (
 """
 
 
+# יצירה לפי דרישה (IF NOT EXISTS) - כש-store.get_conn מתחבר בפריסת split: user.db כולל גם closed_trades ו-watchlist (בסכמה זהה ל-store.SCHEMA)
+USER_DDL_IF_NOT_EXISTS = """
+CREATE TABLE IF NOT EXISTS positions (
+    alert_id INTEGER PRIMARY KEY, entry_price REAL NOT NULL, qty REAL NOT NULL, bought_at TEXT, stop_price REAL,
+    is_manual INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS alert_flags (alert_id INTEGER PRIMARY KEY, is_manual INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS price_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ticker TEXT, company_name TEXT, index_name TEXT, target_price REAL, direction TEXT,
+    created_at TEXT, cancelled INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS closed_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, alert_id INTEGER, ticker TEXT NOT NULL, company_name TEXT, index_name TEXT, currency TEXT,
+    entry_price REAL, qty REAL, entry_at TEXT, exit_price REAL, exit_at TEXT, forecast_entry_limit REAL, forecast_target REAL,
+    forecast_stop REAL, forecast_score INTEGER, forecast_verdict TEXT, holding_days INTEGER, gross_pnl REAL, net_pnl REAL,
+    net_pct REAL, is_manual_trade INTEGER DEFAULT 0, closed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS watchlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ticker TEXT NOT NULL, company_name TEXT, index_name TEXT, entry_price REAL NOT NULL,
+    added_at TEXT NOT NULL
+);
+"""
+SCAN_STATE_DDL_IF_NOT_EXISTS = SCAN_STATE_SCHEMA.replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ")
+
+USER_TABLES = ("positions", "alert_flags", "price_alerts", "closed_trades", "watchlist")
+
+
 def _ro(path: str) -> sqlite3.Connection:
     uri = "file:" + os.path.abspath(path).replace("\\", "/") + "?mode=ro"
     return sqlite3.connect(uri, uri=True)

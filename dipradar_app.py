@@ -3756,7 +3756,7 @@ def _render_perf_v3() -> None:
         # כך היעד, האופק והסיגנל שנבחרו משפיעים גם כאן (קודם הן נמדדו מול היעד/סטופ המקוריים ושלושת המסננים נעלמו).
         _cc = store.get_conn(db_path(cfg))
         try:
-            _real_ids = {int(r[0]) for r in _cc.execute("SELECT alert_id FROM closed_trades WHERE alert_id IS NOT NULL AND COALESCE(is_manual_trade, 0) != 1")}
+            _real_ids = {int(r[0]) for r in _cc.execute(f"SELECT alert_id FROM {store.user_table('closed_trades')} WHERE alert_id IS NOT NULL AND COALESCE(is_manual_trade, 0) != 1")}
         finally:
             _cc.close()
         _bought = strategy_df["bought"] == 1 if "bought" in strategy_df.columns else pd.Series(False, index=strategy_df.index)

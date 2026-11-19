@@ -231,7 +231,7 @@ def closed_trades_as_outcomes(conn: sqlite3.Connection, exclude_manual: bool = T
     בפועל, אז ה-outcome נקבע ישירות ממנו מול היעד/סטופ שהוצעו בזמן ההתראה."""
     closed = pd.read_sql_query(
         "SELECT ct.*, a.reasons_json AS alert_reasons_json, a.overreaction_score AS alert_score "
-        "FROM closed_trades ct LEFT JOIN alerts a ON ct.alert_id = a.id",
+        f"FROM {store.user_table('closed_trades')} ct LEFT JOIN alerts a ON ct.alert_id = a.id",
         conn,
     )
     if closed.empty:

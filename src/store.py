@@ -1,4 +1,5 @@
 """אחסון התראות ב-SQLite מקומי - משמש גם לדדופ יומי וגם כמקור נתונים לדשבורד."""
+import os
 import sqlite3
 import datetime as dt
 import json
@@ -141,6 +142,53 @@ CREATE TABLE IF NOT EXISTS own_daily_closes (
 """
 
 
+# ---------------------------------------------------------------------------
+# פריסת הנתונים (שלב 3 בתוכנית פיצול ה-DB, DB_SPLIT_PLAN.md סעיף 11):
+#   "legacy" (ברירת מחדל): הכול ב-alerts.db, כמו תמיד.
+#   "split": נתוני המשתמש ב-user.db (מחובר לאותו חיבור כ-`user`), מצב התראות האחזקה והפעלות התראות מחיר בטבלאות של הסורק.
+# מתג: db_layout ב-config.yaml, או configure_layout(cfg) / set_layout(...) בבדיקות.
+# ---------------------------------------------------------------------------
+_LAYOUT = "legacy"
+
+
+def set_layout(layout: str) -> None:
+    global _LAYOUT
+    _LAYOUT = layout if layout in ("legacy", "split") else "legacy"
+
+
+def layout() -> str:
+    return _LAYOUT
+
+
+def configure_layout(cfg: dict | None) -> None:
+    set_layout((cfg or {}).get("db_layout", "legacy"))
+
+
+def is_split() -> bool:
+    return _LAYOUT == "split"
+
+
+def user_table(name: str) -> str:
+    """שם הטבלה לשימוש ב-SQL: `closed_trades` בפריסה הישנה, `user.closed_trades` ב-split."""
+    return f"user.{name}" if (is_split() and name in _db_split().USER_TABLES) else name
+
+
+def user_db_path(scan_db_path: str) -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(scan_db_path)), "user.db")
+
+
+def _db_split():
+    from . import db_split
+    return db_split
+
+
+def _attach_split(conn: sqlite3.Connection, db_path: str) -> None:
+    ds = _db_split()
+    conn.execute("ATTACH DATABASE ? AS user", (user_db_path(db_path),))
+    conn.executescript(ds.USER_DDL_IF_NOT_EXISTS.replace("CREATE TABLE IF NOT EXISTS ", "CREATE TABLE IF NOT EXISTS user."))
+    conn.executescript(ds.SCAN_STATE_DDL_IF_NOT_EXISTS)
+
+
 def get_conn(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
@@ -168,6 +216,9 @@ def get_conn(db_path: str) -> sqlite3.Connection:
     except sqlite3.OperationalError:
         pass  # העמודה כבר קיימת (מסד נתונים ישן יותר)
     conn.commit()
+    if is_split():
+        _attach_split(conn, db_path)
+        conn.commit()
     return conn
 
 
@@ -244,7 +295,7 @@ def save_closed_trade(conn: sqlite3.Connection, record: dict) -> int:
     record = {**record, "closed_at": dt.datetime.now().isoformat(timespec="seconds")}
     record["is_manual_trade"] = 1 if record.get("is_manual_trade") else 0
     cur = conn.execute(
-        """INSERT INTO closed_trades
+        f"""INSERT INTO {user_table('closed_trades')}
         (alert_id, ticker, company_name, index_name, currency, entry_price, qty, entry_at,
          exit_price, exit_at, forecast_entry_limit, forecast_target, forecast_stop,
          forecast_score, forecast_verdict, holding_days, gross_pnl, net_pnl, net_pct,
@@ -262,7 +313,7 @@ def save_closed_trade(conn: sqlite3.Connection, record: dict) -> int:
 def get_closed_trades(conn: sqlite3.Connection) -> list[dict]:
     """כל העסקאות הסגורות (מכירות בפועל), מהחדשה לישנה - היסטוריית הניסויים
     המעשיים שלך מול השוק, לשימוש בטאב 'היסטוריית עסקאות'."""
-    cur = conn.execute("SELECT * FROM closed_trades ORDER BY exit_at DESC, id DESC")
+    cur = conn.execute(f"SELECT * FROM {user_table('closed_trades')} ORDER BY exit_at DESC, id DESC")
     columns = [c[0] for c in cur.description]
     from .names import fix_name
     rows = [dict(zip(columns, row)) for row in cur.fetchall()]
@@ -277,7 +328,7 @@ def get_closed_trades_on_date(conn: sqlite3.Connection, date_iso: str) -> list[d
     אז משווים רק את קידומת התאריך (10 התווים הראשונים, YYYY-MM-DD). לשימוש
     בסיכום היומי: לציין מכירות של אותו יום, לא רק אחזקות עדיין פתוחות."""
     cur = conn.execute(
-        "SELECT * FROM closed_trades WHERE substr(exit_at, 1, 10) = ? ORDER BY exit_at DESC",
+        f"SELECT * FROM {user_table('closed_trades')} WHERE substr(exit_at, 1, 10) = ? ORDER BY exit_at DESC",
         (date_iso,),
     )
     columns = [c[0] for c in cur.description]
@@ -672,6 +723,14 @@ def add_price_alert(
     נבדקת ע"י הסורק בכל סבב (ראו scanner.check_price_alerts), לא רק בזמן קנייה/
     מכירה כמו יתר ההתראות - זו התראה על מחיר-יעד שאתה קובע בעצמך, לא קשורה
     לירידה חדה או לאחזקה קיימת."""
+    if is_split():
+        cur = conn.execute(
+            "INSERT INTO user.price_alerts (ticker, company_name, index_name, target_price, direction, created_at, cancelled) "
+            "VALUES (?, ?, ?, ?, ?, ?, 0)",
+            (ticker, company_name, index_name, target_price, direction, dt.datetime.now().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        return cur.lastrowid
     cur = conn.execute(
         "INSERT INTO price_alerts (ticker, company_name, index_name, target_price, direction, created_at, active) "
         "VALUES (?, ?, ?, ?, ?, ?, 1)",
@@ -682,10 +741,17 @@ def add_price_alert(
 
 
 def get_active_price_alerts(conn: sqlite3.Connection) -> list[dict]:
-    cur = conn.execute(
-        "SELECT id, ticker, company_name, index_name, target_price, direction, created_at "
-        "FROM price_alerts WHERE active = 1 ORDER BY created_at DESC"
-    )
+    if is_split():  # פעילה = לא בוטלה ע"י המשתמש ועוד לא הופעלה ע"י הסורק
+        cur = conn.execute(
+            "SELECT id, ticker, company_name, index_name, target_price, direction, created_at "
+            "FROM user.price_alerts WHERE cancelled = 0 AND id NOT IN (SELECT price_alert_id FROM price_alert_triggers) "
+            "ORDER BY created_at DESC"
+        )
+    else:
+        cur = conn.execute(
+            "SELECT id, ticker, company_name, index_name, target_price, direction, created_at "
+            "FROM price_alerts WHERE active = 1 ORDER BY created_at DESC"
+        )
     columns = [c[0] for c in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
@@ -693,6 +759,16 @@ def get_active_price_alerts(conn: sqlite3.Connection) -> list[dict]:
 def deactivate_price_alert(conn: sqlite3.Connection, alert_id: int, triggered: bool = False) -> None:
     """מסמן התראת מחיר כלא-פעילה - triggered=True כשהיא נורתה בפועל (נשמר תאריך
     ההפעלה לתיעוד), triggered=False כשהמשתמש פשוט ביטל אותה ידנית."""
+    if is_split():
+        if triggered:  # הפעלה: כותב הסורק (טבלה בצד הסורק); ביטול: כותב המשתמש (user.db)
+            conn.execute(
+                "INSERT OR REPLACE INTO main.price_alert_triggers (price_alert_id, triggered_at) VALUES (?, ?)",
+                (alert_id, dt.datetime.now().isoformat(timespec="seconds")),
+            )
+        else:
+            conn.execute("UPDATE user.price_alerts SET cancelled = 1 WHERE id = ?", (alert_id,))
+        conn.commit()
+        return
     if triggered:
         conn.execute(
             "UPDATE price_alerts SET active = 0, triggered_at = ? WHERE id = ?",
@@ -710,7 +786,7 @@ def add_watchlist_item(
     ברגע ההוספה) לצורך צפייה בביצועים, לא קנייה אמיתית - אין כמות/עמלות/
     סטופ/יעד כמו באחזקות בפועל."""
     cur = conn.execute(
-        "INSERT INTO watchlist (ticker, company_name, index_name, entry_price, added_at) VALUES (?, ?, ?, ?, ?)",
+        f"INSERT INTO {user_table('watchlist')} (ticker, company_name, index_name, entry_price, added_at) VALUES (?, ?, ?, ?, ?)",
         (ticker, company_name, index_name, entry_price, dt.datetime.now().isoformat(timespec="seconds")),
     )
     conn.commit()
@@ -719,14 +795,14 @@ def add_watchlist_item(
 
 def get_watchlist(conn: sqlite3.Connection) -> list[dict]:
     cur = conn.execute(
-        "SELECT id, ticker, company_name, index_name, entry_price, added_at FROM watchlist ORDER BY added_at DESC"
+        f"SELECT id, ticker, company_name, index_name, entry_price, added_at FROM {user_table('watchlist')} ORDER BY added_at DESC"
     )
     columns = [c[0] for c in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
 def remove_watchlist_item(conn: sqlite3.Connection, item_id: int) -> None:
-    conn.execute("DELETE FROM watchlist WHERE id = ?", (item_id,))
+    conn.execute(f"DELETE FROM {user_table('watchlist')} WHERE id = ?", (item_id,))
     conn.commit()
 
 
