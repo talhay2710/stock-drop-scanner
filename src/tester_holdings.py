@@ -76,6 +76,13 @@ def with_fees(cfg: dict, fees: dict | None) -> dict:
     return {**cfg, "fees": merged}
 
 
+def with_overrides(cfg: dict, prefs: dict) -> dict:
+    """cfg של הבודק: העמלות והמיסים שלו, ואחוזי ההתראה על אחזקות שקבע בסיידבר ("מעקב אחזקות"), מעל ברירות המחדל שלך."""
+    out = with_fees(cfg, prefs.get("fees"))
+    thresholds = prefs.get("holdings_thresholds")
+    return {**out, **thresholds} if thresholds else out
+
+
 def check_testers(cfg: dict, conn) -> int:
     """בודק אחזקות של כל הבודקים המחוברים. conn = חיבור למסד הסריקה (alerts.db: שם הטיקר/המדד/היעד של כל התראה). מחזיר כמה הודעות נשלחו."""
     token = tester_telegram._token(cfg)
@@ -89,7 +96,7 @@ def check_testers(cfg: dict, conn) -> int:
         if not types:
             continue
         try:
-            sent += check_one(with_fees(cfg, rec["prefs"].get("fees")), conn, uid, rec["chat_id"], types)
+            sent += check_one(with_overrides(cfg, rec["prefs"]), conn, uid, rec["chat_id"], types)
         except Exception as e:
             logger.warning("בדיקת אחזקות של בודק %s נכשלה (%s)", uid, type(e).__name__)
     return sent

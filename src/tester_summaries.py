@@ -36,7 +36,7 @@ def run(cfg: dict, conn, in_window=None, today: str | None = None) -> int:
         if not kinds or not rec["prefs"].get("enabled", True):
             continue
         try:
-            sent += _run_one(tester_holdings.with_fees(cfg, rec["prefs"].get("fees")), conn, uid, rec["chat_id"], kinds, today, cache)
+            sent += _run_one(tester_holdings.with_overrides(cfg, rec["prefs"]), conn, uid, rec["chat_id"], kinds, today, cache)
         except Exception as e:
             logger.warning("סיכומים לבודק %s נכשלו (%s)", uid, type(e).__name__)
     return sent

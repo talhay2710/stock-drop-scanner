@@ -41,7 +41,7 @@ _UI_PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ui_p
 _PERF_PREF_KEYS = ("perf_scope", "perf_market", "perf_signal", "perf_target", "perf_hold")
 
 
-_UI_PREFS_ON = bool(load_config().get("ui_prefs", False)) and os.environ.get("DIPRADAR_NO_PREFS") != "1"  # רק מקומית (ר' cloud_sync)
+_UI_PREFS_ON = (bool(load_config().get("ui_prefs", False)) or bool(os.environ.get("TESTER_USER"))) and os.environ.get("DIPRADAR_NO_PREFS") != "1"  # רק מקומית (ר' cloud_sync)
 
 
 def _load_ui_prefs() -> dict:
@@ -796,7 +796,8 @@ try:
     if _tester_user_active:
         _user_sync.init_tester(
             _config_mod.tester_user(), store.user_db_path(os.path.join(ROOT_DIR, "alerts_tester.db")),
-            extras={"config.yaml": CONFIG_PATH, "prefs.json": os.path.join(ROOT_DIR, "tester_prefs.json")},
+            extras={"config.yaml": CONFIG_PATH, "prefs.json": os.path.join(ROOT_DIR, "tester_prefs.json"),
+                    ".ui_prefs.json": _UI_PREFS_FILE},  # גם זכירת הסינונים בטאבים (כמו אצלך מקומית)
         )
 except Exception as _us_err:
     print(f"user_sync init failed: {_us_err}")

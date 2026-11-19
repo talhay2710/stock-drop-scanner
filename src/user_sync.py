@@ -233,7 +233,8 @@ PREFS_DEFAULTS = {"enabled": True, "signals": ["buy"], "indices": list(PREFS_IND
                   "multi_day": True, "min_multi_pct": 0.0, "reversal": False, "drop_alert": True,
                   "holdings_stop": True, "holdings_target": True, "holdings_gain": True, "holdings_hold_limit": True,
                   "price_alert": True, "morning_summary": False, "daily_summary": False, "weekly_report": False,
-                  "fees": None}
+                  "fees": None, "holdings_thresholds": None}
+THRESHOLD_KEYS = ("holdings_gain_alert_start_pct", "holdings_gain_alert_step_pct", "holdings_stop_warn_pct", "holdings_target_warn_pct")
 PREFS_BOOL_KEYS = ("enabled", "multi_day", "reversal", "drop_alert", "holdings_stop", "holdings_target", "holdings_gain",
                    "holdings_hold_limit", "price_alert", "morning_summary", "daily_summary", "weekly_report")
 FEE_KEYS = ("commission_pct", "commission_min", "capital_gains_tax_pct", "management_fee_annual_pct")
@@ -261,6 +262,21 @@ def _clean_fees(raw):
     return out or None
 
 
+def _clean_thresholds(raw):
+    """אחוזי ההתראה על אחזקות שהבודק קבע ב"מעקב אחזקות" (התחלת עלייה, מדרגה, קרבה לסטופ, קרבה ליעד)."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for key in THRESHOLD_KEYS:
+        try:
+            value = float(raw[key])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 < value <= 100:
+            out[key] = value
+    return out or None
+
+
 def clean_prefs(raw) -> dict:
     """מתקן/משלים העדפות (גם מקובץ פגום או ידני) - תמיד מחזיר מבנה תקין."""
     raw = raw if isinstance(raw, dict) else {}
@@ -278,6 +294,7 @@ def clean_prefs(raw) -> dict:
         if key in raw:
             out[key] = bool(raw[key])
     out["fees"] = _clean_fees(raw.get("fees"))
+    out["holdings_thresholds"] = _clean_thresholds(raw.get("holdings_thresholds"))
     return out
 
 
@@ -303,6 +320,7 @@ def prefs_from_cfg(cfg: dict, existing: dict | None = None) -> dict:
         "daily_summary": bool(types.get("daily_summary", False)),
         "weekly_report": bool(types.get("weekly_report", False)),
         "fees": cfg.get("fees"),
+        "holdings_thresholds": {k: cfg[k] for k in THRESHOLD_KEYS if k in cfg},
     })
     return clean_prefs(out)
 

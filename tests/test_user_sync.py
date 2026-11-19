@@ -161,6 +161,18 @@ class OwnSidebarSettings(_Base):
         self.assertEqual(p["fees"]["IL"]["capital_gains_tax_pct"], 20.0)
         self.assertFalse(p["weekly_report"])                      # לא הוגדר בסיידבר = ברירת מחדל של בודק (כבוי)
 
+    def test_holdings_thresholds_from_sidebar_apply_to_testers_alerts(self):
+        cfg = {"holdings_stop_warn_pct": 10.0, "holdings_target_warn_pct": 0.5, "holdings_gain_alert_start_pct": 3.0,
+               "holdings_gain_alert_step_pct": 0.5}
+        p = user_sync.prefs_from_cfg(cfg)
+        self.assertEqual(p["holdings_thresholds"]["holdings_stop_warn_pct"], 10.0)
+        from src import tester_holdings
+        merged = tester_holdings.with_overrides({"holdings_stop_warn_pct": 2.0, "other": 1}, p)
+        self.assertEqual((merged["holdings_stop_warn_pct"], merged["other"]), (10.0, 1))
+        self.assertEqual(tester_holdings.with_overrides({"holdings_stop_warn_pct": 2.0}, user_sync.clean_prefs({}))["holdings_stop_warn_pct"], 2.0)
+        bad = user_sync.clean_prefs({"holdings_thresholds": {"holdings_stop_warn_pct": -5, "holdings_gain_alert_step_pct": "x"}})
+        self.assertIsNone(bad["holdings_thresholds"])
+
     def test_fees_are_sanitized(self):
         p = user_sync.clean_prefs({"fees": {"IL": {"commission_pct": "x", "capital_gains_tax_pct": 500, "commission_min": 26,
                                                     "management_fee_annual_pct": 1.5}, "XX": {"a": 1}}})
