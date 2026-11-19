@@ -728,6 +728,144 @@ except Exception:  # pragma: no cover
 
 
 @unittest.skipIf(AppTest is None, "streamlit.testing לא זמין")
+class TesterScanPass(_Base):
+    """זיהוי נפרד לכל בודק על אותם נתוני שוק: סף/מדדים/סיגנל משלו, אימות, כפילויות, הרצה ראשונה בשקט. בלי רשת ובלי טלגרם אמיתי."""
+    CFG = {"telegram": {"enabled": False, "bot_token": "T"}, "indices": ["TA35"], "drop_threshold_pct": 3.0,
+           "multi_day_enabled": True, "multi_day_threshold_pct": 5.0, "multi_day_window_days": 3, "drop_confirm_watch_pct": 1.0}
+
+    def setUp(self):
+        super().setUp()
+        global tester_scan
+        import importlib
+        import datetime as dt
+        import pandas as pd
+        self.pd, self.dt = pd, dt
+        tester_scan = importlib.import_module("src.tester_scan")
+        self.ts = tester_scan
+        self.sc = importlib.import_module("src.scanner")
+        self.today = dt.date.today()
+        self.scan_date = self.today.isoformat()
+        user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"michal": 555, "zeevi": 666}}, None, "t")
+        user_sync.write_prefs("michal", {"indices": ["TA35"], "min_drop_pct": 2.0, "min_multi_pct": 5.0, "signals": ["buy", "wait", "avoid"]})
+        user_sync.write_prefs("zeevi", {"indices": ["TA35", "NASDAQ100"], "min_drop_pct": 5.0, "min_multi_pct": 5.0, "signals": ["buy", "wait", "avoid"]})
+        tester_telegram._cache.update(at=0.0, chats={})
+
+    def _df(self, rows):
+        pd = self.pd
+        recs = [{"ticker": t, "pct_change": p, "n_day_change": n, "last_close": 10.0, "last_close_date": self.today,
+                 "history": None, "thin_print": False, "prev_close_gap": False} for t, p, n in rows]
+        return pd.DataFrame(recs)
+
+    def _plan(self):
+        return self.ts.build_plan(self.CFG)
+
+    def _run(self, plan, df, index="TA35", signal="buy", market_open=False):
+        sent = []
+        content = {"signal": signal, "single": "single-msg", "multi": "multi-msg"}
+
+        def fake_send(cfg, chat_id, text):
+            sent.append((chat_id, text))
+            return True
+
+        with mock.patch.object(self.sc, "_tester_alert_content", return_value=content), \
+             mock.patch.object(self.sc.tester_telegram, "send_to", side_effect=fake_send), \
+             mock.patch.object(self.sc, "is_market_open", return_value=market_open):
+            self.sc._tester_scan_pass(self.CFG, index, df, plan, None, scan_date=self.scan_date, is_israeli=True,
+                                      name_map={}, vix_level=None, expected_max_drop_pct=None)
+        return sent
+
+    def test_plan_works_even_if_owner_telegram_off_and_collects_indices(self):
+        plan = self._plan()
+        self.assertEqual({t.uid for t in plan.testers}, {"michal", "zeevi"})
+        self.assertEqual(plan.indices(), {"TA35", "NASDAQ100"})
+        self.assertEqual([t.uid for t in plan.for_index("NASDAQ100")], ["zeevi"])
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "", "TESTER_BROADCAST": ""}):
+            self.assertIsNone(self.ts.build_plan(self.CFG))   # מחוץ לענן לא שולחים
+
+    def test_each_tester_uses_own_threshold_below_owners(self):
+        plan = self._plan()
+        df = self._df([("AAA.TA", -2.4, -2.4), ("BBB.TA", -6.0, -6.0), ("CCC.TA", -1.0, -1.0)])
+        self.assertEqual(self._run(plan, df), [])                      # סבב ראשון: רק רושם בשקט (הרצה ראשונה למדד)
+        self.assertEqual(self._run(plan, df), [])                      # סבב שני: כבר הכול נרשם, אין כפילות
+        df2 = self._df([("AAA.TA", -2.4, -2.4), ("BBB.TA", -6.0, -6.0), ("CCC.TA", -1.0, -1.0), ("DDD.TA", -2.6, -2.6)])
+        self._run(plan, df2)                                           # DDD חדש: נכנס לאזור האזהרה
+        sent = self._run(plan, df2)                                    # ומאומת בסבב הבא
+        self.assertEqual(sent, [(555, "single-msg")])                  # מיכל (2%) כן; זאבי (5%) לא; מתחת ל-2% אף אחד
+
+    def test_confirmation_needs_two_scans_and_one_alert_per_close_date(self):
+        plan = self._plan()
+        self._run(plan, self._df([("ZZZ.TA", -0.1, -0.1)]))            # אתחול המדד
+        hit = self._df([("AAA.TA", -3.0, -3.0)])
+        self.assertEqual(self._run(plan, hit), [])                     # נראתה פעם ראשונה: עוד לא מאומתת
+        self.assertEqual(self._run(plan, hit), [(555, "single-msg")])
+        self.assertEqual(self._run(plan, hit), [])                     # אותה ירידה לא נשלחת שוב
+        self.assertEqual(self._run(plan, self._df([("AAA.TA", -4.5, -4.5)])), [])  # גם אם החמירה, באותו תאריך נתון
+
+    def test_signal_filter_and_retry_when_signal_improves(self):
+        user_sync.write_prefs("michal", {"indices": ["TA35"], "min_drop_pct": 2.0, "min_multi_pct": 5.0, "signals": ["buy"]})
+        tester_telegram._cache.update(at=0.0, chats={})
+        plan = self._plan()
+        self._run(plan, self._df([("ZZZ.TA", -0.1, -0.1)]))
+        hit = self._df([("AAA.TA", -3.0, -3.0)])
+        self._run(plan, hit)
+        self.assertEqual(self._run(plan, hit, signal="wait"), [])      # סיגנל שלא ביקש: לא נשלח ולא נרשם
+        self.assertEqual(self._run(plan, hit, signal="buy"), [(555, "single-msg")])   # השתפר: נשלח
+
+    def test_multi_day_only_and_switch(self):
+        plan = self._plan()
+        self._run(plan, self._df([("ZZZ.TA", -0.1, -0.1)]))
+        multi = self._df([("AAA.TA", -1.0, -7.0)])                     # ירידה מצטברת 7%, יומית 1%
+        sent = self._run(plan, multi)
+        self.assertEqual(sorted(sent), [(555, "multi-msg"), (666, "multi-msg")])   # מעל 5% מצטבר אצל שניהם
+        user_sync.write_prefs("michal", {"indices": ["TA35"], "min_drop_pct": 2.0, "min_multi_pct": 5.0, "multi_day": False, "signals": ["buy"]})
+        tester_telegram._cache.update(at=0.0, chats={})
+        plan2 = self._plan()
+        self._run(plan2, self._df([("ZZZ.TA", -0.1, -0.1)]))
+        self.assertEqual([c for c, _ in self._run(plan2, self._df([("BBB.TA", -1.0, -8.0)])) if c == 555], [])
+
+    def test_first_run_for_new_index_is_silent_and_state_is_saved(self):
+        plan = self._plan()
+        df = self._df([("AAA.TA", -9.0, -9.0)])
+        self.assertEqual(self._run(plan, df), [])                      # כבר ירדה לפני שהבודק התחבר/הוסיף את המדד
+        for t in plan.testers:
+            t.dirty = True
+        self.ts.save_all(plan)
+        raw, sha = user_sync.read_json("data/michal/scan_state.json", None)
+        self.assertIsNotNone(sha)
+        self.assertEqual(raw["init"], ["TA35"])
+        self.assertIn("TA35:AAA.TA", raw["sent"])
+        # ריצה חדשה (תהליך חדש) טוענת את המצב ולא שולחת שוב
+        plan2 = self._plan()
+        self.assertEqual(self._run(plan2, df), [])
+
+    def test_failed_send_is_retried_next_scan(self):
+        plan = self._plan()
+        self._run(plan, self._df([("ZZZ.TA", -0.1, -0.1)]))
+        hit = self._df([("AAA.TA", -3.0, -3.0)])
+        self._run(plan, hit)
+        content = {"signal": "buy", "single": "m", "multi": "m"}
+        with mock.patch.object(self.sc, "_tester_alert_content", return_value=content), \
+             mock.patch.object(self.sc.tester_telegram, "send_to", return_value=False), \
+             mock.patch.object(self.sc, "is_market_open", return_value=False):
+            self.sc._tester_scan_pass(self.CFG, "TA35", hit, plan, None, scan_date=self.scan_date, is_israeli=True,
+                                      name_map={}, vix_level=None, expected_max_drop_pct=None)
+        self.assertEqual(self._run(plan, hit), [(555, "single-msg")])  # השליחה נכשלה, לא נרשמה - מנסים שוב
+
+    def test_us_only_tester_index_gets_alerts_independent_of_owner(self):
+        plan = self._plan()
+        us0 = self._df([("AAPL", -0.1, -0.1)])
+        self._run(plan, us0, index="NASDAQ100")
+        hit = self._df([("AAPL", -5.5, -4.5)])  # מצטבר מתחת לסף: חייב אימות
+        self._run(plan, hit, index="NASDAQ100")
+        self.assertEqual(self._run(plan, hit, index="NASDAQ100"), [(666, "single-msg")])  # רק זאבי בחר את NASDAQ100
+
+    def test_tester_prefs_never_touch_owner_db(self):
+        import inspect
+        src = inspect.getsource(self.sc._tester_scan_pass) + inspect.getsource(self.sc._tester_alert_content)
+        for forbidden in ("save_alert", "upsert_watch_candidate", "log_signal", "mark_as_bought", "conn.execute", "conn.commit"):
+            self.assertNotIn(forbidden, src)
+
+
 class LoginGateInApp(unittest.TestCase):
     """אתר בודק עם משתמש: בלי קוד תקין רואים רק מסך כניסה. GitHub מוחלף בתשובות מזויפות (ה-AppTest מוחק את מודולי src, לכן מחליפים את requests)."""
 

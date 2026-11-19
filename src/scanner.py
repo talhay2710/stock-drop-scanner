@@ -18,6 +18,7 @@ from . import store as store_mod
 from . import notifier
 from . import tester_telegram
 from . import tester_holdings
+from . import tester_scan
 from . import alert_features
 from .config import db_path
 from .market_hours import is_market_open, israel_today, israel_now, has_closed_today
@@ -123,18 +124,29 @@ def run_scan(cfg: dict) -> list[dict]:
         holdings_value_by_ccy = {}
     all_results = []
     any_open = False
+    # בודקים מחוברים: אותם נתוני שוק (נשלפים פעם אחת), אבל זיהוי נפרד לפי הסף והמדדים של כל בודק (tester_scan). מדד שרק בודק בחר
+    # נסרק בשבילו בלבד: לא נרשם במסד שלך ולא שולח לך כלום.
+    tester_plan = tester_scan.build_plan(cfg)
+    owner_indices = [i.upper() for i in indices]
+    scan_list = [(i, True) for i in owner_indices]
+    if tester_plan:
+        scan_list += [(i, False) for i in sorted(tester_plan.indices()) if i not in owner_indices and i in constituents.INDEX_COUNTRY_CODE]
     try:
-        for index in indices:
-            index = index.upper()
+        for index, owner_active in scan_list:
             if not is_market_open(index):
                 logger.info("מחוץ לשעות המסחר של מדד %s - דילוג", index)
                 continue
             any_open = True
             try:
-                all_results.extend(_scan_one_index(cfg, index, conn, vix_level, holdings_value_by_ccy))
+                all_results.extend(_scan_one_index(cfg, index, conn, vix_level, holdings_value_by_ccy,
+                                                   tester_plan=tester_plan, owner_active=owner_active))
             except Exception as scan_err:
                 logger.exception("שגיאה בסריקת מדד %s", index)
                 _record_diag(conn, index, "exception", f"{type(scan_err).__name__}: {scan_err} | {traceback.format_exc()[-1100:]}")
+        try:
+            tester_scan.save_all(tester_plan)
+        except Exception:
+            logger.exception("שמירת מצב הזיהוי של הבודקים נכשלה")
         if not any_open and israel_now().minute < 5:
             _probe_data_source(conn)  # אבחון: האם הענן מקבל נתונים מיאהו גם כשהשווקים סגורים (שעה אחת בכל פעם)
         try:
@@ -692,6 +704,7 @@ def _patch_gap_from_own_closes(conn, df: pd.DataFrame) -> pd.DataFrame:
 def _scan_one_index(
     cfg: dict, index: str, conn, vix_level: float | None = None,
     holdings_value_by_ccy: dict[str, float] | None = None,
+    tester_plan=None, owner_active: bool = True,
 ) -> list[dict]:
     threshold = abs(cfg["drop_threshold_pct"])
     country_code = constituents.INDEX_COUNTRY_CODE[index]
@@ -752,6 +765,15 @@ def _scan_one_index(
     )
 
     scan_date = israel_today().isoformat()
+
+    if tester_plan:
+        try:
+            _tester_scan_pass(cfg, index, df, tester_plan, conn, scan_date=scan_date, is_israeli=is_israeli,
+                              name_map=name_map, vix_level=vix_level, expected_max_drop_pct=expected_max_drop_pct)
+        except Exception:
+            logger.exception("זיהוי הבודקים נכשל (%s) - לא משפיע על ההתראות שלך", index)
+    if not owner_active:
+        return []  # מדד שרק בודק בחר: אין תיעוד, אזור אזהרה או התראה אצלך
 
     # אימות ירידה: מניה שחוצה את הסף בבת אחת, בלי שנראתה קודם אפילו קרוב אליו,
     # עלולה להיות תקלת ציטוט רגעית (טעות בקריאה בודדת, לא נתון מפגר - זה כבר
@@ -999,17 +1021,6 @@ def _scan_one_index(
                 message=analysis.reason_text[:250],
             )
 
-        # בודקים מחוברים מקבלים התראה *חדשה* בלבד (לא עדכון של התראה קיימת מאותו יום) - כל התראה נשלחת להם פעם אחת בדיוק,
-        # ורק אם היא מתאימה לבחירות של כל אחד. בלתי תלוי במתג הטלגרם/סוג ההודעה שלך (ואם השליחה אליך נכשלה לא מגיעים לכאן - ההתראה תיבדק שוב)
-        if prior_snapshot is None:
-            try:
-                tester_telegram.broadcast(
-                    cfg, message, kind="drop", index=index, signal=_entry_signal(index, row, analysis),
-                    drop_pct=row["pct_change"], multi_day_only=bool(is_multi_day_only), n_day_pct=row.get("n_day_change"),
-                )
-            except Exception:
-                logger.exception("שליחה לבודקים נכשלה (לא משפיע על ההתראה שלך)")
-
         # וקטורים מועמדים לניקוד נשמרים לניתוח עתידי (alert_features.py) - לא משפיעים על הניקוד, ולעולם לא מפילים התראה
         try:
             alert_features.save(conn, new_id, alert_features.compute(row))
@@ -1022,6 +1033,105 @@ def _scan_one_index(
         })
 
     return results
+
+
+def _tester_scan_pass(cfg: dict, index: str, df: pd.DataFrame, plan, conn, *, scan_date: str, is_israeli: bool,
+                      name_map: dict, vix_level, expected_max_drop_pct) -> int:
+    """זיהוי והתראות לכל בודק לפי הסף/המדדים/הסיגנל שלו, על אותו df של הסריקה. מחזיר כמה הודעות נשלחו. שום כתיבה למסד שלך."""
+    testers = plan.for_index(index)
+    if not testers:
+        return 0
+    buffer_pct = abs(cfg.get("drop_confirm_watch_pct", 1.0))
+    window = cfg.get("multi_day_window_days", 3)
+    market_open = is_market_open(index)
+    flagged_by = {}
+    for t in testers:
+        base = tester_scan.needs_baseline(t, index)
+        fl, changed = tester_scan.flag(df, t.prefs, t.state, index, scan_date, buffer_pct, baseline=base)
+        if changed:
+            t.dirty = True
+        flagged_by[t.uid] = (fl, base)
+    tickers = {r["ticker"]: r for fl, _ in flagged_by.values() for _, r in fl.iterrows()}
+    # אימות שני כמו אצלך: מחיר אחרון מתחת ל-bid החי = עסקה ישנה, לא ירידה אמיתית (רק כשהשוק פתוח והנתון של היום)
+    rejected = {}
+    if tickers and market_open:
+        today = dt.datetime.now(ZoneInfo(market_data.MARKET_HOURS["IL" if is_israeli else "US"]["tz"])).date()
+        cands = [(tk, float(r["last_close"])) for tk, r in tickers.items() if r.get("last_close_date") == today]
+        rejected = market_data.find_prints_below_bid(cands)
+    content: dict = {}   # הודעה/סיגנל לכל טיקר, מחושבים פעם אחת גם אם כמה בודקים צריכים אותו
+    ctx = {"index_change": None, "loaded": False}
+    sent = 0
+    for t in testers:
+        fl, base = flagged_by[t.uid]
+        count = 0
+        for _, row in fl.iterrows():
+            ticker = row["ticker"]
+            if ticker in rejected:
+                continue
+            close_date = row.get("last_close_date")
+            if close_date is None or pd.isna(close_date):
+                continue
+            if tester_scan.already_sent(t.state, index, ticker, close_date):
+                continue
+            if base:
+                tester_scan.mark_sent(t, index, ticker, close_date)  # הרצה ראשונה למדד: מה שכבר ירד נרשם בשקט, לא מציפים
+                continue
+            if ticker not in content:
+                content[ticker] = _tester_alert_content(cfg, index, row, conn, name_map, is_israeli, vix_level,
+                                                        expected_max_drop_pct, window, scan_date, ctx)
+            c = content[ticker]
+            if c is None:
+                tester_scan.mark_sent(t, index, ticker, close_date)  # דיבידנד/פיצול: לא ירידה אמיתית
+                continue
+            multi_only = bool(row["is_multi_day_only"])
+            if not tester_telegram.wants(t.prefs, "drop", index=index, signal=c["signal"], drop_pct=row["pct_change"],
+                                         multi_day_only=multi_only, n_day_pct=row["severity"]):
+                continue  # לא נרשם כנשלח: אם הסיגנל ישתנה לאחד שביקש - תישלח בסבב הבא
+            if count >= tester_scan.MAX_SENDS_PER_TESTER:
+                logger.warning("בודק %s הגיע לתקרת %d הודעות בריצה אחת - השאר בסבב הבא", t.uid, count)
+                break
+            msg = c["multi"] if multi_only else c["single"]
+            if tester_telegram.send_to(cfg, t.chat_id, msg):
+                tester_scan.mark_sent(t, index, ticker, close_date)
+                count += 1
+        if base:
+            tester_scan.finish_baseline(t, index)
+        tester_scan.prune(t, israel_today())
+        sent += count
+    return sent
+
+
+def _tester_alert_content(cfg, index, row, conn, name_map, is_israeli, vix_level, expected_max_drop_pct, window, scan_date, ctx):
+    """הודעת ההתראה (יומית ומצטברת) והסיגנל לטיקר, בלי שום כתיבה למסד. None אם הירידה מוסברת בדיבידנד/פיצול."""
+    ticker = row["ticker"]
+    currency = constituents.INDEX_CURRENCY[index]
+    company_name = name_map.get(ticker) or ("מניה ישראלית (שם לא זוהה)" if is_israeli else None)
+    if not ctx["loaded"]:
+        ctx["index_change"] = market_data.fetch_index_proxy_change(index)
+        ctx["loaded"] = True
+    volume_ratio = None
+    if row.get("last_volume") and row.get("avg_volume_20d"):
+        volume_ratio = row["last_volume"] / row["avg_volume_20d"]
+    analysis = analysis_mod.classify_drop(
+        ticker=ticker, yahoo_symbol=ticker, company_name=company_name, is_israeli=is_israeli,
+        pct_change=row["pct_change"], close_history=row["history"], index_change_pct=ctx["index_change"], cfg=cfg,
+        volume_ratio=volume_ratio, vix_level=vix_level, intraday_recovery_pct=row.get("intraday_recovery_pct"),
+    )
+    if analysis.reasons in (["ex_dividend"], ["stock_split"]):
+        return None
+    atr = market_data.compute_atr(row.get("highs"), row.get("lows_series"), row["history"])
+    avg_dollar_volume = row["avg_volume_20d"] * row["last_close"] if row.get("avg_volume_20d") is not None else None
+    idea = strategy_mod.suggest_strategy(
+        last_close=row["last_close"], last_low=row.get("last_low"), recent_20d_low=row.get("recent_20d_low"),
+        overreaction_score=analysis.overreaction_score, atr=atr, avg_dollar_volume=avg_dollar_volume,
+    )
+    peers = store_mod.count_todays_sector_alerts(conn, analysis.sector, scan_date, exclude_ticker=ticker)
+    args = (ticker, company_name, index, row, analysis, idea, None, None, currency, None, window, peers)
+    return {
+        "signal": _entry_signal(index, row, analysis),
+        "single": _format_message(*args, False, None, expected_max_drop_pct),
+        "multi": _format_message(*args, True, None, expected_max_drop_pct),
+    }
 
 
 def _entry_signal(index: str, row, analysis) -> str:
