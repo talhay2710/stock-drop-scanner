@@ -159,6 +159,45 @@ def telegram_status(user_id: str) -> dict:
     return {"connected": user_id in links.get("chats", {}), "link": link}
 
 
+# העדפות התראות טלגרם של בודק: data/<id>/prefs.json (נכתב רק ע"י האתר של הבודק, נקרא ע"י הסורק). ברירת מחדל = קנייה בלבד.
+PREFS_SIGNALS = ("buy", "wait", "avoid")
+PREFS_INDICES = ("TA35", "TA125")  # המדדים שהסורק האוטומטי סורק בפועל
+PREFS_DEFAULTS = {"signals": ["buy"], "indices": list(PREFS_INDICES), "min_drop_pct": 0.0,
+                  "multi_day": True, "min_multi_pct": 0.0, "reversal": False}
+
+
+def clean_prefs(raw) -> dict:
+    """מתקן/משלים העדפות (גם מקובץ פגום או ידני) - תמיד מחזיר מבנה תקין."""
+    raw = raw if isinstance(raw, dict) else {}
+    out = dict(PREFS_DEFAULTS)
+    if isinstance(raw.get("signals"), list):
+        out["signals"] = [s for s in PREFS_SIGNALS if s in raw["signals"]]
+    if isinstance(raw.get("indices"), list):
+        out["indices"] = [i for i in PREFS_INDICES if i in raw["indices"]]
+    for key in ("min_drop_pct", "min_multi_pct"):
+        try:
+            out[key] = max(0.0, min(50.0, float(raw.get(key, out[key]))))
+        except (TypeError, ValueError):
+            pass
+    for key in ("multi_day", "reversal"):
+        if key in raw:
+            out[key] = bool(raw[key])
+    return out
+
+
+def prefs_path(user_id: str) -> str:
+    return f"data/{user_id}/prefs.json"
+
+
+def read_prefs(user_id: str) -> dict:
+    raw, _ = read_json(prefs_path(user_id), {})
+    return clean_prefs(raw)
+
+
+def write_prefs(user_id: str, prefs: dict) -> None:
+    update_json(prefs_path(user_id), lambda _old: clean_prefs(prefs), f"prefs: {user_id}", default={})
+
+
 def get_user(user_id: str) -> dict | None:
     users, _ = read_json("users.json", {"users": {}})
     return users.get("users", {}).get(user_id)

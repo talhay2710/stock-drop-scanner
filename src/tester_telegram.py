@@ -89,29 +89,53 @@ def poll_links(cfg: dict) -> int:
 
 
 def recipients() -> dict:
-    """{user_id: chat_id} של בודקים מחוברים (מטמון קצר - לא קוראים מהריפו לכל התראה)."""
+    """{user_id: {"chat_id": ..., "prefs": {...}}} של בודקים מחוברים (מטמון קצר - לא קוראים מהריפו לכל התראה)."""
     if not user_sync.configured():
         return {}
     if time.time() - _cache["at"] < _RECIPIENTS_TTL:
         return _cache["chats"]
     try:
         links, _ = user_sync.read_json(LINKS_PATH, {"chats": {}})
-        _cache.update(at=time.time(), chats=links.get("chats", {}))
+        chats = {}
+        for uid, chat_id in links.get("chats", {}).items():
+            try:
+                prefs = user_sync.read_prefs(uid)
+            except Exception:
+                prefs = user_sync.clean_prefs({})  # כשל בקריאת העדפות = ברירת מחדל, לא מפסיקים לשלוח
+            chats[uid] = {"chat_id": chat_id, "prefs": prefs}
+        _cache.update(at=time.time(), chats=chats)
     except Exception as e:
         logger.warning("קריאת נמעני טלגרם של בודקים נכשלה (%s)", type(e).__name__)
         _cache.update(at=time.time() - _RECIPIENTS_TTL + 10, chats={})  # ננסה שוב בעוד ~10 שניות, לא בכל התראה
     return _cache["chats"]
 
 
-def broadcast(cfg: dict, text: str) -> int:
-    """שולח הודעת HTML לכל הבודקים המחוברים. מחזיר כמה נשלחו. כשל אחד לא עוצר את האחרים."""
+def wants(prefs: dict, kind: str = "drop", index=None, signal=None, drop_pct=None,
+          multi_day_only: bool = False, n_day_pct=None) -> bool:
+    """האם בודק עם ההעדפות האלה מקבל את ההתראה הזו. kind: 'drop' (התראת ירידה חדשה) או 'reversal' (סימני התאוששות)."""
+    if index is not None and index not in prefs["indices"]:
+        return False
+    if kind == "reversal":
+        return bool(prefs["reversal"])
+    if signal is not None and signal not in prefs["signals"]:
+        return False
+    if multi_day_only:
+        return bool(prefs["multi_day"]) and abs(n_day_pct or 0) >= prefs["min_multi_pct"]
+    return abs(drop_pct or 0) >= prefs["min_drop_pct"]
+
+
+def broadcast(cfg: dict, text: str, **alert) -> int:
+    """שולח הודעת HTML לבודקים המחוברים שההעדפות שלהם מתאימות להתראה (alert = הפרמטרים של wants). מחזיר כמה נשלחו.
+    כשל אחד לא עוצר את האחרים."""
     token = _token(cfg)
     if not token:
         return 0
     sent = 0
-    for uid, chat_id in dict(recipients()).items():
+    for uid, rec in dict(recipients()).items():
+        if alert and not wants(rec["prefs"], **alert):
+            continue
         try:
-            r = _call(token, "sendMessage", chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True)
+            r = _call(token, "sendMessage", chat_id=rec["chat_id"], text=text, parse_mode="HTML", disable_web_page_preview=True)
             if r.status_code == 200:
                 sent += 1
             else:

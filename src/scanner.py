@@ -514,6 +514,10 @@ def check_reversal_confirmations(cfg: dict, conn) -> None:
             cfg, "reversal_alert", "\n".join(lines),
             f"🔄 {display_name} מראה סימני התאוששות", f"עלתה {_signed(bounce_pct, 1, '%')} מהשפל של היום",
         )
+        try:
+            tester_telegram.broadcast(cfg, "\n".join(lines), kind="reversal", index=p.get("index_name"))
+        except Exception:
+            logger.exception("שליחת סימני התאוששות לבודקים נכשלה (לא משפיע על ההתראה שלך)")
         store_mod.mark_reversal_alert_sent(conn, p["id"])
         logger.info("התראת היפוך נשלחה: %s (%.1f%% מהשפל)", p["ticker"], bounce_pct)
 
@@ -980,11 +984,14 @@ def _scan_one_index(
                 logger.warning("שליחת טלגרם נכשלה עבור %s - ההתראה בוטלה ותנסה שוב בסריקה הבאה", ticker)
                 continue
 
-            # בודקים מחוברים מקבלים רק התראת קנייה *חדשה* (לא עריכה של הודעה קיימת) - כך כל התראה נשלחת להם פעם אחת בדיוק
+            # בודקים מחוברים מקבלים התראה *חדשה* בלבד (לא עריכה של הודעה קיימת) - כך כל התראה נשלחת להם פעם אחת בדיוק,
+            # ורק אם היא מתאימה להעדפות של כל אחד (ברירת מחדל: קנייה בלבד)
             if new_message_id:
                 try:
-                    if _is_buy_signal(index, row, analysis):
-                        tester_telegram.broadcast(cfg, message)
+                    tester_telegram.broadcast(
+                        cfg, message, kind="drop", index=index, signal=_entry_signal(index, row, analysis),
+                        drop_pct=row["pct_change"], multi_day_only=bool(is_multi_day_only), n_day_pct=row.get("n_day_change"),
+                    )
                 except Exception:
                     logger.exception("שליחה לבודקים נכשלה (לא משפיע על ההתראה שלך)")
 
@@ -1012,13 +1019,13 @@ def _scan_one_index(
     return results
 
 
-def _is_buy_signal(index: str, row, analysis) -> bool:
-    """אותו חישוב סיגנל כמו בהודעה עצמה (_format_message): האם ההתראה בדרגת 'לקנות'."""
+def _entry_signal(index: str, row, analysis) -> str:
+    """אותו חישוב סיגנל כמו בהודעה עצמה (_format_message): buy / wait / avoid."""
     sig, _ = strategy_mod.entry_signal(
         index, row["pct_change"], analysis.intraday_recovery_pct, analysis.dist_from_ma50_pct,
         sector=analysis.sector, alert_hour=israel_now().hour,
     )
-    return sig == strategy_mod.SIGNAL_BUY
+    return sig
 
 
 def _assumed_holding_days(overreaction_score: int, max_days: int) -> int:

@@ -2593,6 +2593,59 @@ with st.sidebar:
             else:
                 st.markdown("חיבור הטלגרם עדיין לא הוגדר.")
 
+            # בחירה אישית של ההתראות שהבודק מקבל (נשמר בריפו הפרטי; הסורק קורא אותו בכל התראה)
+            _tuid = _config_mod.tester_user()
+
+            @st.cache_data(ttl=20, show_spinner=False)
+            def _tester_prefs(_uid: str) -> dict:
+                try:
+                    return _user_sync.read_prefs(_uid)
+                except Exception:
+                    return _user_sync.clean_prefs({})
+
+            def _save_tester_prefs():
+                _prefs = {
+                    "signals": list(st.session_state.get("tprefs_signals") or []),
+                    "indices": list(st.session_state.get("tprefs_indices") or []),
+                    "min_drop_pct": st.session_state.get("tprefs_min_drop", 0.0),
+                    "multi_day": bool(st.session_state.get("tprefs_multi", True)),
+                    "min_multi_pct": st.session_state.get("tprefs_min_multi", 0.0),
+                    "reversal": bool(st.session_state.get("tprefs_reversal", False)),
+                }
+                try:
+                    _user_sync.write_prefs(_tuid, _prefs)
+                    _tester_prefs.clear()
+                except Exception:
+                    st.toast("שמירת בחירת ההתראות נכשלה, נסה שוב")
+
+            _pf = _tester_prefs(_tuid)
+            with st.expander("איזה התראות לקבל", key="exp_tester_prefs"):
+                st.markdown("**רמת סיגנל**")
+                st.pills(
+                    "רמת סיגנל", ["buy", "wait", "avoid"], selection_mode="multi", label_visibility="collapsed",
+                    format_func=lambda k: strategy_mod.SIGNAL_LABEL[k],
+                    default=None if "tprefs_signals" in st.session_state else _pf["signals"],
+                    key="tprefs_signals", on_change=_save_tester_prefs,
+                )
+                st.markdown("**מדדים**")
+                st.pills(
+                    "מדדים", list(_user_sync.PREFS_INDICES), selection_mode="multi", label_visibility="collapsed",
+                    default=None if "tprefs_indices" in st.session_state else _pf["indices"],
+                    key="tprefs_indices", on_change=_save_tester_prefs,
+                )
+                st.number_input(
+                    "ירידה יומית מינימלית (%)", min_value=0.0, max_value=50.0, step=0.5, value=float(_pf["min_drop_pct"]),
+                    key="tprefs_min_drop", on_change=_save_tester_prefs,
+                    help="הסורק מתריע מירידה של 3% ומעלה. כאן אפשר לבקש רק התראות חזקות יותר (0 = כל התראה).",
+                )
+                st.toggle("התראות ירידה מצטברת", value=bool(_pf["multi_day"]), key="tprefs_multi", on_change=_save_tester_prefs)
+                st.number_input(
+                    "ירידה מצטברת מינימלית (%)", min_value=0.0, max_value=50.0, step=0.5, value=float(_pf["min_multi_pct"]),
+                    key="tprefs_min_multi", on_change=_save_tester_prefs, disabled=not st.session_state.get("tprefs_multi", _pf["multi_day"]),
+                )
+                st.toggle("סימני התאוששות", value=bool(_pf["reversal"]), key="tprefs_reversal", on_change=_save_tester_prefs,
+                          help="התראה נוספת כשמניה שירדה מתחילה להתאושש.")
+
 
 
 @st.cache_data(ttl=60)

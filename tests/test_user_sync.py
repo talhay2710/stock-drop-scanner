@@ -194,6 +194,54 @@ class TelegramLinks(_Base):
             self.assertEqual(tester_telegram.broadcast(self.CFG, "<b>x</b>"), 2)
         self.assertEqual(sorted(calls), [1, 2, 3])
 
+    def test_default_prefs_are_buy_only(self):
+        p = user_sync.clean_prefs({})
+        w = tester_telegram.wants
+        self.assertTrue(w(p, "drop", index="TA35", signal="buy", drop_pct=-3.2))
+        self.assertFalse(w(p, "drop", index="TA35", signal="wait", drop_pct=-3.2))
+        self.assertFalse(w(p, "drop", index="TA35", signal="avoid", drop_pct=-5))
+        self.assertFalse(w(p, "reversal", index="TA35"))
+
+    def test_prefs_filters(self):
+        w = tester_telegram.wants
+        p = user_sync.clean_prefs({"signals": ["buy", "wait"], "indices": ["TA125"], "min_drop_pct": 4.0,
+                                   "multi_day": True, "min_multi_pct": 6.0, "reversal": True})
+        self.assertTrue(w(p, "drop", index="TA125", signal="wait", drop_pct=-4.5))
+        self.assertFalse(w(p, "drop", index="TA35", signal="buy", drop_pct=-9))       # מדד לא נבחר
+        self.assertFalse(w(p, "drop", index="TA125", signal="buy", drop_pct=-3.5))    # מתחת לירידה המינימלית
+        self.assertFalse(w(p, "drop", index="TA125", signal="avoid", drop_pct=-9))    # סיגנל לא נבחר
+        self.assertTrue(w(p, "drop", index="TA125", signal="buy", drop_pct=-1, multi_day_only=True, n_day_pct=-7))
+        self.assertFalse(w(p, "drop", index="TA125", signal="buy", drop_pct=-1, multi_day_only=True, n_day_pct=-5))
+        self.assertTrue(w(p, "reversal", index="TA125"))
+        self.assertFalse(w(p, "reversal", index="TA35"))
+        off = user_sync.clean_prefs({"multi_day": False})
+        self.assertFalse(w(off, "drop", index="TA35", signal="buy", drop_pct=-1, multi_day_only=True, n_day_pct=-9))
+
+    def test_clean_prefs_repairs_garbage(self):
+        p = user_sync.clean_prefs({"signals": ["buy", "hack"], "indices": "x", "min_drop_pct": "abc", "min_multi_pct": 999, "reversal": 1})
+        self.assertEqual(p["signals"], ["buy"])
+        self.assertEqual(p["indices"], ["TA35", "TA125"])
+        self.assertEqual(p["min_drop_pct"], 0.0)
+        self.assertEqual(p["min_multi_pct"], 50.0)
+        self.assertTrue(p["reversal"])
+        self.assertEqual(user_sync.clean_prefs(None), user_sync.clean_prefs({}))
+
+    def test_prefs_roundtrip_and_per_recipient_broadcast(self):
+        user_sync.write_json("telegram_links.json", {"last_update_id": 0, "chats": {"a": 1, "b": 2}}, None, "t")
+        user_sync.write_prefs("b", {"signals": ["buy", "wait"], "indices": ["TA35", "TA125"]})
+        self.assertEqual(user_sync.read_prefs("b")["signals"], ["buy", "wait"])
+        self.assertEqual(user_sync.read_prefs("a")["signals"], ["buy"])  # אין קובץ = ברירת מחדל
+        sent = []
+
+        def fake_post(url, json=None, timeout=None):
+            sent.append(json["chat_id"])
+            return _Resp(200)
+
+        with mock.patch("requests.post", side_effect=fake_post):
+            tester_telegram._cache.update(at=0.0, chats={})
+            n = tester_telegram.broadcast(self.CFG, "x", kind="drop", index="TA35", signal="wait", drop_pct=-3.5)
+        self.assertEqual((n, sent), (1, [2]))  # רק b ביקש גם 'לחכות'
+
     def test_noop_when_telegram_disabled_or_unconfigured(self):
         off = {"telegram": {"enabled": False, "bot_token": "T"}}
         with mock.patch("requests.post") as post, mock.patch("requests.get") as get:
