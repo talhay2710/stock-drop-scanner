@@ -21,15 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # הקפאה זמנית (למשל בזמן מעבר נתונים): קובץ SCAN_PAUSED בשורש ה-repo -> כל הצעדים מדלגים, שום התראה ושום commit.
+      # להשהיות קצרות בלבד (<25 דק') - אחרי 30 דק' מתריעה בדיקת "שקט בסריקה".
+      - name: Pause check
+        id: pause
+        run: if [ -f SCAN_PAUSED ]; then echo "paused=1" >> "$GITHUB_OUTPUT"; echo "Scan paused (SCAN_PAUSED exists)"; fi
+
       - uses: actions/setup-python@v5
+        if: steps.pause.outputs.paused != '1'
         with:
           python-version: "3.12"
           cache: "pip"
 
       - name: Install dependencies
+        if: steps.pause.outputs.paused != '1'
         run: pip install -r requirements.txt
 
       - name: Run scan
+        if: steps.pause.outputs.paused != '1'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -41,6 +50,7 @@ jobs:
       # אז אין בעיה שהם "רצים" בכל סריקה - רק אחת מהן בפועל תעשה משהו ביום נתון.
       # continue-on-error - כשל בסיכום לא אמור להפיל את כל ריצת הסריקה.
       - name: Run morning summary (if due)
+        if: steps.pause.outputs.paused != '1'
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -48,6 +58,7 @@ jobs:
         run: python run_morning_summary.py
 
       - name: Run daily summary (if due)
+        if: steps.pause.outputs.paused != '1'
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -55,6 +66,7 @@ jobs:
         run: python run_daily_summary.py
 
       - name: Run weekly report (if due)
+        if: steps.pause.outputs.paused != '1'
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -85,4 +97,5 @@ jobs:
       # מ-origin הטרי, כל השאר (נתוני הסריקה עצמה) נשאר "הבוט מנצח" כמו קודם.
       # הלוגיקה המלאה (legacy = כמו קודם, split = pull --rebase רגיל) ב-ci_commit_alerts_db.sh, משותפת לכל ה-workflows.
       - name: Commit alerts.db if changed
+        if: steps.pause.outputs.paused != '1'
         run: bash ci_commit_alerts_db.sh
