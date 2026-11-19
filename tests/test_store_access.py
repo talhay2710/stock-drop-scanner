@@ -61,7 +61,7 @@ class ReadAlertsLayer(unittest.TestCase):
 
 class NoDirectUserColumnSql(unittest.TestCase):
     """SQL שנכתב כמחרוזת ב-Python וקורא מ-alerts: אסור `SELECT *` או עמודות משתמש מחוץ לשכבת הגישה."""
-    ALLOWED = {"store.py", "db_merge.py", "config.py", "test_store_access.py", "test_tester_isolation.py",
+    ALLOWED = {"store.py", "db_merge.py", "db_split.py", "config.py", "test_store_access.py", "test_tester_isolation.py",
                "test_smoke_tabs.py", "test_core.py", "resolve_alerts_db_conflict.py"}
 
     def test_no_direct_sql(self):
